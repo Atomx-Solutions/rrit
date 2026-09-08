@@ -61,6 +61,15 @@ onMounted(() => {
   hydrated.value = true
 })
 function errorText(problem: { code?: string; status?: number; message?: string }) {
+  const normalizedCode = problem.code?.toLowerCase() || ''
+  const normalizedMessage = problem.message?.toLowerCase() || ''
+  if (
+    normalizedCode === 'email_not_confirmed' ||
+    normalizedCode === 'email_not_verified' ||
+    normalizedMessage.includes('email not confirmed')
+  ) {
+    return 'Shko në emailin tënd dhe konfirmoje llogarinë përpara hyrjes. Kontrollo edhe dosjen Spam.'
+  }
   const messages: Record<string, string> = {
     INVALID_EMAIL_OR_PASSWORD: 'Emaili ose fjalëkalimi nuk është i saktë.',
     EMAIL_NOT_VERIFIED: 'Konfirmo emailin përpara hyrjes. Kontrollo kutinë e emailit.',

@@ -48,7 +48,7 @@ export function validMediaSignature(id: string, expires: string, signature: stri
 }
 export function publicMediaUrl(image: string) {
   const id = /^\/api\/media\/([a-f0-9-]{36})$/i.exec(image)?.[1]
-  const origin = new URL(process.env.BETTER_AUTH_URL!)
+  const origin = new URL(process.env.APP_URL!)
   if (!id || origin.protocol !== 'https:')
     throw createError({ statusCode: 503, message: 'Fotografia kërkon një adresë publike HTTPS.' })
   const expires = String(Math.floor(Date.now() / 1000) + 900)

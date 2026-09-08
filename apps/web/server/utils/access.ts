@@ -1,19 +1,26 @@
 import type { H3Event } from 'h3'
 import { authConfiguration } from './auth-configuration'
+import { supabaseServer } from './supabase'
 
 export async function requireUser(event: H3Event) {
-  const session = await auth().api.getSession({ headers: event.headers })
-  if (
-    !session?.user ||
-    (authConfiguration().requireEmailVerification && !session.user.emailVerified)
-  )
+  const { data, error } = await supabaseServer(event).auth.getUser()
+  if (error || !data.user || (authConfiguration().requireEmailVerification && !data.user.email_confirmed_at))
     throw createError({
       statusCode: 401,
       message: 'Hyr në llogari për të vazhduar.',
       data: { code: 'AUTH_REQUIRED' },
     })
-  return session.user
+
+  const metadata = data.user.user_metadata || {}
+  const metadataName = typeof metadata.name === 'string' ? metadata.name.trim() : ''
+  return {
+    id: data.user.id,
+    name: metadataName || data.user.email?.split('@')[0] || data.user.id,
+    email: data.user.email || '',
+    emailVerified: Boolean(data.user.email_confirmed_at),
+  }
 }
+
 export function requireSameOrigin(event: H3Event) {
   const origin = getHeader(event, 'origin')
   if (!origin || !authConfiguration().trustedOrigins.includes(origin))
