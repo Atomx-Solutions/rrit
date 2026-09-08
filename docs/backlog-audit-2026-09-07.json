@@ -1,0 +1,1554 @@
+{
+  "S0-A01": {
+    "status": "In Progress",
+    "done": "Ekziston ADR për demonstrimin e frontend-it dhe dokumente scope-i.",
+    "remaining": "ADR i arkitekturës reale Nitro/Better Auth/PostgreSQL, kufijtë e moduleve/worker-it dhe rishikimi formal mungojnë. ADR i demonstrimit është i vjetruar.",
+    "paths": [
+      "docs/adr/ADR-001-frontend-demo.md",
+      "apps/web/server"
+    ]
+  },
+  "S0-A02": {
+    "status": "In Progress",
+    "done": "API Nitro funksionale dhe publisher në plugin serveri; PostgreSQL përdoret realisht.",
+    "remaining": "Plani FastAPI/worker të ndarë nuk është zbatuar. Duhet vendim i dokumentuar për arkitekturën, health/readiness endpoints dhe paketim/deploy i worker-it.",
+    "paths": [
+      "apps/web/server/api",
+      "apps/web/server/plugins/publisher.ts"
+    ]
+  },
+  "S0-A03": {
+    "status": "Not Started",
+    "done": "Nuk ka pyproject, lock Python, Ruff apo pytest për backend-in e planifikuar.",
+    "remaining": "Përshtat toolchain-in me vendimin e arkitekturës; Python aktual përdoret vetëm për këtë audit të Excel-it, jo si backend.",
+    "paths": []
+  },
+  "S0-A04": {
+    "status": "In Progress",
+    "done": "PostgreSQL lokal në Docker dhe 7 migrime SQL; runner me checksum, transaksione dhe advisory lock. Skema e provave krijohet nga zero.",
+    "remaining": "Staging/prod, ndarja e roleve migration/runtime, dry-run dhe dokumentimi operacional; Supabase nuk përdoret në implementimin aktual.",
+    "paths": [
+      "compose.yaml",
+      "apps/web/scripts/migrate.mjs",
+      "apps/web/database/migrations",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S0-A05": {
+    "status": "Not Started",
+    "done": "Izolimi aktual bëhet me owner_id/business_id në query-t e aplikacionit.",
+    "remaining": "RLS në tabelat tenant, rol runtime i kufizuar, transaction context dhe suite negative e detyrueshme në CI nuk janë implementuar.",
+    "paths": [
+      "apps/web/server/utils/workspaces.ts",
+      "apps/web/database/migrations"
+    ]
+  },
+  "S0-A06": {
+    "status": "Not Started",
+    "done": "Izolimi aktual bëhet me owner_id/business_id në query-t e aplikacionit.",
+    "remaining": "RLS në tabelat tenant, rol runtime i kufizuar, transaction context dhe suite negative e detyrueshme në CI nuk janë implementuar.",
+    "paths": [
+      "apps/web/server/utils/workspaces.ts",
+      "apps/web/database/migrations"
+    ]
+  },
+  "S0-A07": {
+    "status": "In Progress",
+    "done": "Better Auth me sesione në PostgreSQL, cookies dhe kontroll serveri për përdoruesin.",
+    "remaining": "Kontrata origjinale Supabase JWT/JWKS nuk ekziston; dokumento zëvendësimin dhe plotëso provat e expiry/revokimit/redirects e sigurisë së sesionit.",
+    "paths": [
+      "apps/web/server/utils/auth.ts",
+      "apps/web/server/utils/access.ts",
+      "apps/web/tests/e2e/local-registration.spec.ts"
+    ]
+  },
+  "S0-A08": {
+    "status": "In Progress",
+    "done": "publication_jobs ruhet në PostgreSQL; worker merr punë me lock dhe përditëson gjendjen.",
+    "remaining": "Nuk ka outbox/pgmq/JobEnvelope apo consumer të përgjithshëm; duhen prova crash/duplicate/concurrency dhe deploy i qëndrueshëm.",
+    "paths": [
+      "apps/web/database/migrations/0004_trials_and_social.sql",
+      "apps/web/server/utils/publishing.ts"
+    ]
+  },
+  "S0-A09": {
+    "status": "In Progress",
+    "done": "Workflow për lint/types/unit/build/audit/E2E dhe artifacts ekziston.",
+    "remaining": "Workflow nuk provisionon PostgreSQL/SMTP/env/migrimet që kërkojnë testet aktuale; mungojnë RLS/secret/container checks dhe provë hosted required checks. Nuk ka .git në këtë workspace.",
+    "paths": [
+      ".github/workflows/frontend.yml",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S0-B07": {
+    "status": "In Progress",
+    "done": "Workflow për lint/types/unit/build/audit/E2E dhe artifacts ekziston.",
+    "remaining": "Workflow nuk provisionon PostgreSQL/SMTP/env/migrimet që kërkojnë testet aktuale; mungojnë RLS/secret/container checks dhe provë hosted required checks. Nuk ka .git në këtë workspace.",
+    "paths": [
+      ".github/workflows/frontend.yml",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S0-B01": {
+    "status": "In Progress",
+    "done": "Nuxt 4.5.2, Nuxt UI 4.11.0, TypeScript strict dhe lockfile; kontrollet e fundit app/server types kaluan.",
+    "remaining": "Build/clean install i kodit aktual dhe Node 24 duhen provuar: node lokal raporton v26.5.0 dhe .nvmrc mungon në disk pavarësisht README. RG-01 mbetet i hapur.",
+    "paths": [
+      "apps/web/package.json",
+      "package-lock.json",
+      "apps/web/nuxt.config.ts",
+      "hq-optional-app-types.log",
+      "hq-optional-server-types.log"
+    ]
+  },
+  "S0-B02": {
+    "status": "In Progress",
+    "done": "Temë Nuxt UI, light/dark, Inter lokal, ikona lokale dhe logo SVG transparente; dashboard dhe landing të unifikuara.",
+    "remaining": "Ka ende konstante stili në komponentë; duhet rishikim kontrasti/dark mode dhe provë vizuale e versionit aktual.",
+    "paths": [
+      "apps/web/app/app.config.ts",
+      "apps/web/app/assets/css/main.css",
+      "apps/web/app/components/BrandLogo.vue",
+      "docs/UI-SYSTEM.md"
+    ]
+  },
+  "S0-B03": {
+    "status": "In Review",
+    "done": "Shell me USidebar/UDashboardPanel, navigim, kërkim, kontekst biznesi real, collapse dhe pamje mobile.",
+    "remaining": "Për scope-in me një biznes për pronar, kodi është implementuar. Mbeten pranim i plotë keyboard/tablet/a11y dhe RG-14; multi-org switcher është jashtë rrjedhës aktuale.",
+    "paths": [
+      "apps/web/app/layouts/dashboard.vue",
+      "apps/web/app/components/DashboardPage.vue",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S0-B04": {
+    "status": "In Progress",
+    "done": "Regjistrim/hyrje/dalje real me Better Auth; verify/reset/recovery UI; localhost dhe 127.0.0.1 lejohen; bypass i verifikimit vetëm lokal.",
+    "remaining": "Prova aktuale e signup/login është lokale; duhen skenarët verify/reset/expired/error në staging dhe email delivery real. Mos shëno Supabase Auth si të implementuar.",
+    "paths": [
+      "apps/web/app/components/AuthSurface.vue",
+      "apps/web/server/utils/auth-configuration.ts",
+      "apps/web/tests/e2e/local-registration.spec.ts"
+    ]
+  },
+  "S0-B05": {
+    "status": "In Progress",
+    "done": "Landing SSR me Nuxt UI, navigim responsive, CTA reale, çmime nga API dhe motion me reduced-motion.",
+    "remaining": "Matje aktuale Lighthouse/LCP në build prodhimi, responsive 360px dhe audit i pretendimeve tregtare/SEO.",
+    "paths": [
+      "apps/web/app/pages/index.vue",
+      "apps/web/app/components/LandingMotion.vue",
+      "apps/web/tests/e2e/live.spec.ts"
+    ]
+  },
+  "S0-B06": {
+    "status": "In Progress",
+    "done": "Tipe nga Zod/Nitro dhe një composable transporti bazë.",
+    "remaining": "Nuk ka OpenAPI export/client generation, contract diff apo Problem/request-id të unifikuar; useApi nuk është transporti i vetëm i rrjedhave.",
+    "paths": [
+      "apps/web/app/composables/useApi.ts",
+      "apps/web/shared/schemas",
+      "apps/web/app/composables/useWorkspace.ts"
+    ]
+  },
+  "S0-B08": {
+    "status": "In Progress",
+    "done": "Playwright ka desktop/mobile Chromium, llogari reale testimi, screenshot/trace on failure; 2 prova të reja kalendari kaluan.",
+    "remaining": "CI për testet me DB nuk është gati; duhet cleanup determinist i llogarive testuese dhe provë hosted CI.",
+    "paths": [
+      "apps/web/playwright.config.ts",
+      "apps/web/tests/e2e",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S0-B09": {
+    "status": "In Progress",
+    "done": "Nuxt UI primitives, labels/focus dhe reduced-motion ekzistojnë; axe është në testet live dhe provat e fundit mbulojnë desktop/mobile pa overflow.",
+    "remaining": "Raporti i vjetër me demo nuk pranon kodin aktual. Duhet rerun i plotë axe, keyboard/screen-reader, contrast dhe checklist manual për rrjedhat reale.",
+    "paths": [
+      "apps/web/tests/e2e/live.spec.ts",
+      "apps/web/app/assets/css/main.css",
+      "docs/VALIDATION.md",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S1-B08": {
+    "status": "In Progress",
+    "done": "Nuxt UI primitives, labels/focus dhe reduced-motion ekzistojnë; axe është në testet live dhe provat e fundit mbulojnë desktop/mobile pa overflow.",
+    "remaining": "Raporti i vjetër me demo nuk pranon kodin aktual. Duhet rerun i plotë axe, keyboard/screen-reader, contrast dhe checklist manual për rrjedhat reale.",
+    "paths": [
+      "apps/web/tests/e2e/live.spec.ts",
+      "apps/web/app/assets/css/main.css",
+      "docs/VALIDATION.md",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S2-B09": {
+    "status": "In Progress",
+    "done": "Nuxt UI primitives, labels/focus dhe reduced-motion ekzistojnë; axe është në testet live dhe provat e fundit mbulojnë desktop/mobile pa overflow.",
+    "remaining": "Raporti i vjetër me demo nuk pranon kodin aktual. Duhet rerun i plotë axe, keyboard/screen-reader, contrast dhe checklist manual për rrjedhat reale.",
+    "paths": [
+      "apps/web/tests/e2e/live.spec.ts",
+      "apps/web/app/assets/css/main.css",
+      "docs/VALIDATION.md",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S5-B08": {
+    "status": "In Progress",
+    "done": "Nuxt UI primitives, labels/focus dhe reduced-motion ekzistojnë; axe është në testet live dhe provat e fundit mbulojnë desktop/mobile pa overflow.",
+    "remaining": "Raporti i vjetër me demo nuk pranon kodin aktual. Duhet rerun i plotë axe, keyboard/screen-reader, contrast dhe checklist manual për rrjedhat reale.",
+    "paths": [
+      "apps/web/tests/e2e/live.spec.ts",
+      "apps/web/app/assets/css/main.css",
+      "docs/VALIDATION.md",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S8-B02": {
+    "status": "In Progress",
+    "done": "Nuxt UI primitives, labels/focus dhe reduced-motion ekzistojnë; axe është në testet live dhe provat e fundit mbulojnë desktop/mobile pa overflow.",
+    "remaining": "Raporti i vjetër me demo nuk pranon kodin aktual. Duhet rerun i plotë axe, keyboard/screen-reader, contrast dhe checklist manual për rrjedhat reale.",
+    "paths": [
+      "apps/web/tests/e2e/live.spec.ts",
+      "apps/web/app/assets/css/main.css",
+      "docs/VALIDATION.md",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S1-A01": {
+    "status": "In Progress",
+    "done": "Krijimi atomik i biznesit me pronar unik dhe trial; read/update kontrollon owner.",
+    "remaining": "Nuk ka organizations+memberships si domain i veçantë, as RLS/role matrix apo lifecycle i plotë organizate.",
+    "paths": [
+      "apps/web/server/api/business.post.ts",
+      "apps/web/server/utils/workspaces.ts",
+      "apps/web/database/migrations/0002_businesses.sql"
+    ]
+  },
+  "S1-A02": {
+    "status": "Deferred",
+    "done": "Ekipi, ftesat dhe qasja multi-brand janë shtyrë nga rrjedha aktive sipas fokusit vetëm te postimet.",
+    "remaining": "Rihapen bashkë me ekip/agency: tokenë ftese, role, last-owner guards dhe tenant/brand negative tests. Nuk janë përfunduar.",
+    "paths": []
+  },
+  "S1-A04": {
+    "status": "Deferred",
+    "done": "Ekipi, ftesat dhe qasja multi-brand janë shtyrë nga rrjedha aktive sipas fokusit vetëm te postimet.",
+    "remaining": "Rihapen bashkë me ekip/agency: tokenë ftese, role, last-owner guards dhe tenant/brand negative tests. Nuk janë përfunduar.",
+    "paths": []
+  },
+  "S1-B04": {
+    "status": "Deferred",
+    "done": "Ekipi, ftesat dhe qasja multi-brand janë shtyrë nga rrjedha aktive sipas fokusit vetëm te postimet.",
+    "remaining": "Rihapen bashkë me ekip/agency: tokenë ftese, role, last-owner guards dhe tenant/brand negative tests. Nuk janë përfunduar.",
+    "paths": []
+  },
+  "S1-B05": {
+    "status": "Deferred",
+    "done": "Ekipi, ftesat dhe qasja multi-brand janë shtyrë nga rrjedha aktive sipas fokusit vetëm te postimet.",
+    "remaining": "Rihapen bashkë me ekip/agency: tokenë ftese, role, last-owner guards dhe tenant/brand negative tests. Nuk janë përfunduar.",
+    "paths": []
+  },
+  "S1-A03": {
+    "status": "In Progress",
+    "done": "requireUser dhe kontrolle owner/business në server; veprimet e paautorizuara bllokohen.",
+    "remaining": "Mungon AuthorizationService me Owner/Admin/Marketer/Approver/Analyst/Billing dhe matrica e provuar. Kjo kërkesë enterprise mbetet e hapur.",
+    "paths": [
+      "apps/web/server/utils/access.ts",
+      "apps/web/server/utils/workspaces.ts"
+    ]
+  },
+  "S1-A05": {
+    "status": "In Progress",
+    "done": "Profili i biznesit, zëri, audienca, facts dhe timezone ruhen në PostgreSQL; IANA timezone validohet.",
+    "remaining": "Brand si nën-entitet i org, multi-brand, archive/delete dhe RLS nuk janë implementuar.",
+    "paths": [
+      "apps/web/server/api/workspaces/[id].put.ts",
+      "apps/web/shared/schemas/workspace.ts"
+    ]
+  },
+  "S1-A06": {
+    "status": "In Progress",
+    "done": "Facts kanë text/source/verified dhe profili ruan voice/audience.",
+    "remaining": "Nuk ka fact lifecycle/candidates/confidence, voice versions, oferta me afat/monedhë apo guardrails domain. Checkbox verified nuk është verifikim i pavarur.",
+    "paths": [
+      "apps/web/shared/schemas/workspace.ts",
+      "apps/web/app/pages/app/[org]/[brand]/brand.vue"
+    ]
+  },
+  "S1-A07": {
+    "status": "In Progress",
+    "done": "Trial 72-orësh dhe feature entitlements në DB; bllokim nga email/device/Meta identities; expiry dhe paid entitlements testohen.",
+    "remaining": "Mungojnë katalog i tipizuar i limiteve për plan/version, subscriptions dhe fail-safe schema e plotë. Shërbimet e pakonfiguruara nuk aktivizohen vetëm sepse trial jep entitlement.",
+    "paths": [
+      "apps/web/server/utils/trials.ts",
+      "apps/web/database/migrations/0004_trials_and_social.sql",
+      "apps/web/tests/integration/server.test.ts",
+      "hq-optional-unit.log"
+    ]
+  },
+  "S1-A08": {
+    "status": "In Progress",
+    "done": "audit_events shkruhen për workspace.updated dhe rezultatet e publikimit me actor/revision.",
+    "remaining": "Nuk ka append-only permissions, resource/result të plotë apo hooks për të gjitha veprimet auth/Meta/approval.",
+    "paths": [
+      "apps/web/database/migrations/0002_businesses.sql",
+      "apps/web/server/api/workspaces/[id].put.ts"
+    ]
+  },
+  "S1-A09": {
+    "status": "In Progress",
+    "done": "Disa prova tenant ownership për media dhe trial identity isolation; endpoint-et filtrojnë biznesin e pronarit.",
+    "remaining": "Mungon matricë allow/cross-tenant/role deny për çdo resource dhe RLS test harness në CI.",
+    "paths": [
+      "apps/web/tests/integration/server.test.ts",
+      "apps/web/tests/e2e/live.spec.ts"
+    ]
+  },
+  "S1-B01": {
+    "status": "In Progress",
+    "done": "Biznesi i parë krijohet realisht; konteksti ringarkohet nga API.",
+    "remaining": "Aktualisht një biznes për owner; multi-org switcher, membership removal/reselect dhe lifecycle i plotë nuk janë implementuar.",
+    "paths": [
+      "apps/web/app/components/BusinessOnboarding.vue",
+      "apps/web/app/composables/useWorkspace.ts"
+    ]
+  },
+  "S1-B02": {
+    "status": "In Progress",
+    "done": "Onboarding 3 hapa: Biznesi → Rrjetet opsionale → Hapi i parë; progress dhe profili ruhen në server, draft i papërfunduar rikuperohet lokal.",
+    "remaining": "Duhet suite që provon refresh/logout/login në çdo hap, timezone/goals/facts sipas kontratës dhe përdorues të rinj në 360px.",
+    "paths": [
+      "apps/web/app/components/BusinessOnboarding.vue",
+      "apps/web/tests/e2e/local-registration.spec.ts",
+      "apps/web/tests/e2e/live.spec.ts"
+    ]
+  },
+  "S1-B03": {
+    "status": "In Progress",
+    "done": "Profili, timezone dhe preferences me validation, dirty-state dhe konflikt revision 409.",
+    "remaining": "Mbeten lifecycle/status/goals i plotë dhe prova konkurrence/UI fault; language switching është post-GA.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/brand.vue",
+      "apps/web/app/pages/app/[org]/[brand]/settings.vue",
+      "apps/web/app/composables/useWorkspace.ts"
+    ]
+  },
+  "S1-B06": {
+    "status": "In Progress",
+    "done": "Editor për përshkrimin, zërin, audiencën dhe facts me burim/konfirmim.",
+    "remaining": "Nuk ka candidate accept/reject, confidence, oferta/guardrails/versioning dhe provë fact lifecycle.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/brand.vue"
+    ]
+  },
+  "S1-B07": {
+    "status": "In Progress",
+    "done": "DashboardEmpty, UAlert, retry/toast dhe state reale për mungesë konfigurimi ose konflikte.",
+    "remaining": "Mungon Problem contract i unifikuar me request-id të kopjueshëm dhe state matrix tests.",
+    "paths": [
+      "apps/web/app/components/DashboardEmpty.vue",
+      "apps/web/app/composables/useWorkspace.ts",
+      "apps/web/app/error.vue"
+    ]
+  },
+  "S1-B09": {
+    "status": "Not Started",
+    "done": "Nuk u gjet shërbim telemetry/product events apo funnel dashboard.",
+    "remaining": "Duhet event schema me pseudonymous IDs, wrapper pa PII/prompt/content dhe prova payload/deduplication; audit_events nuk zëvendëson product telemetry.",
+    "paths": []
+  },
+  "S6-B07": {
+    "status": "Not Started",
+    "done": "Nuk u gjet shërbim telemetry/product events apo funnel dashboard.",
+    "remaining": "Duhet event schema me pseudonymous IDs, wrapper pa PII/prompt/content dhe prova payload/deduplication; audit_events nuk zëvendëson product telemetry.",
+    "paths": []
+  },
+  "S2-A01": {
+    "status": "In Progress",
+    "done": "Media private në PostgreSQL bytea me owner/business checks dhe metadata; URL /api/media/:id kërkon session.",
+    "remaining": "Mungojnë pending upload session, signed direct upload, object storage key dhe expiry/finalize contract.",
+    "paths": [
+      "apps/web/server/api/media/[id].get.ts",
+      "apps/web/server/api/workspaces/[id].put.ts",
+      "apps/web/database/migrations/0002_businesses.sql"
+    ]
+  },
+  "S2-A02": {
+    "status": "In Progress",
+    "done": "Serveri dekodon JPEG real me Sharp, kufizon byte/pixels, kontrollon ownership/rights dhe dimensione.",
+    "remaining": "Mungojnë checksum/finalize session/state PROCESSING, replay-finalize dhe suite e plotë spoof/oversize.",
+    "paths": [
+      "apps/web/server/utils/post-validation.ts",
+      "apps/web/server/api/workspaces/[id].put.ts",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S2-A03": {
+    "status": "In Progress",
+    "done": "Sharp decode/re-encode dhe strip EXIF; prova fake JPEG/EXIF kalojnë.",
+    "remaining": "Përpunimi është sinkron, pa variant worker, thumbnails/checksum/phash apo duplicate-job tests.",
+    "paths": [
+      "apps/web/server/utils/post-validation.ts",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S2-A04": {
+    "status": "In Progress",
+    "done": "Graph transport i kontrolluar, MetaFailure dhe status/capability DTO pa tokenë në UI; test i transportit kalon.",
+    "remaining": "Port-e provider-neutral SocialReader/Publisher/OAuth dhe taxonomy/capability matrix të plota mungojnë.",
+    "paths": [
+      "apps/web/server/utils/meta.ts",
+      "apps/web/server/api/meta/status.get.ts",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S2-A05": {
+    "status": "In Progress",
+    "done": "OAuth state me hash/expiry/consume, exchange në server, AES-GCM token vault i lidhur me business, scopes/expiry dhe disconnect.",
+    "remaining": "Duhet suite për state replay/mismatch/expiry dhe test i vërtetë OAuth. Kredencialet e Meta App mungojnë; token-version/reconnect contracts duhen përfunduar.",
+    "paths": [
+      "apps/web/server/api/meta/start.post.ts",
+      "apps/web/server/api/meta/callback.get.ts",
+      "apps/web/server/utils/meta.ts",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S2-A06": {
+    "status": "In Progress",
+    "done": "Lexim/zgjedhje Page dhe Instagram Professional nga Graph; verifikim serveri i identitetit dhe publikimit; unike Page/IG në DB.",
+    "remaining": "Nuk është provuar me llogari Meta reale; duhen capability/error fixtures, degraded/unsupported states dhe refresh i scopes.",
+    "paths": [
+      "apps/web/server/api/meta/pages.get.ts",
+      "apps/web/server/api/meta/select.post.ts",
+      "apps/web/server/api/meta/status.get.ts"
+    ]
+  },
+  "S2-A07": {
+    "status": "In Progress",
+    "done": "Import real Graph sipas kanalit, cursor i kthyer klientit dhe upsert unik provider_id në DB.",
+    "remaining": "Sync është kërkesë sinkrone; mungon worker incremental, checkpoint i ruajtur, resume pas crash, profil inference dhe test provider live.",
+    "paths": [
+      "apps/web/server/api/meta/sync.post.ts",
+      "apps/web/server/api/meta/posts.get.ts"
+    ]
+  },
+  "S2-A08": {
+    "status": "Not Started",
+    "done": "Nuk ka endpoint për Meta webhook challenge/signature/dedupe.",
+    "remaining": "Implemento event fingerprint, enqueue/replay protection dhe prova signature/replay/fast acknowledgement.",
+    "paths": []
+  },
+  "S2-A09": {
+    "status": "Blocked",
+    "done": "Ekzistojnë rrugë privacy/terms dhe kod OAuth; kontrolli lokal konfirmon se Meta App credentials mungojnë.",
+    "remaining": "Duhet Meta App i platformës nga pronari i llogarisë, konfigurim HTTPS/scopes, review/screencast, webhook/deletion callbacks dhe non-developer business smoke. Secili biznes lidhet individualisht më pas.",
+    "paths": [
+      "apps/web/server/utils/meta.ts",
+      "apps/web/server/api/capabilities.get.ts",
+      "apps/web/app/components/PolicyPage.vue"
+    ]
+  },
+  "S8-A03": {
+    "status": "Blocked",
+    "done": "Ekzistojnë rrugë privacy/terms dhe kod OAuth; kontrolli lokal konfirmon se Meta App credentials mungojnë.",
+    "remaining": "Duhet Meta App i platformës nga pronari i llogarisë, konfigurim HTTPS/scopes, review/screencast, webhook/deletion callbacks dhe non-developer business smoke. Secili biznes lidhet individualisht më pas.",
+    "paths": [
+      "apps/web/server/utils/meta.ts",
+      "apps/web/server/api/capabilities.get.ts",
+      "apps/web/app/components/PolicyPage.vue"
+    ]
+  },
+  "S2-B01": {
+    "status": "In Progress",
+    "done": "Galeri listë/grid me search/tags, selection dhe pagination UI.",
+    "remaining": "Ngarkohen të gjitha asset-et e workspace në klient; mungojnë cursor API/type-status-orientation filters dhe provë 500+ asset.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/gallery.vue",
+      "apps/web/server/utils/workspaces.ts"
+    ]
+  },
+  "S2-B02": {
+    "status": "In Progress",
+    "done": "Nuxt UI file upload, multi-file processing/progress, preview dhe ruajtje reale në server.",
+    "remaining": "Nuk është signed direct upload; mungojnë cancel/retry të pavarura, finalize polling dhe recovery i punëve processing.",
+    "paths": [
+      "apps/web/app/components/PhotoUpload.vue",
+      "apps/web/app/pages/app/[org]/[brand]/gallery.vue"
+    ]
+  },
+  "S2-B03": {
+    "status": "In Progress",
+    "done": "Detaje, tags/rights dhe fshirje me konfirmim; serveri ndalon heqjen e fotos së përdorur.",
+    "remaining": "Mungojnë original/variant/dimensions processing UX e plotë dhe suite e plotë metadata/delete.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/gallery.vue",
+      "apps/web/server/api/workspaces/[id].put.ts"
+    ]
+  },
+  "S2-B04": {
+    "status": "In Progress",
+    "done": "Profili ruan një ngjyrë; platforma ka logo SVG transparente.",
+    "remaining": "Logo e biznesit me asset ID, typografi/layout preferences dhe validation/preview e identitetit të plotë mungojnë. Logo e platformës nuk mbyll task-un e logos së klientit.",
+    "paths": [
+      "apps/web/shared/schemas/workspace.ts",
+      "apps/web/app/pages/app/[org]/[brand]/brand.vue",
+      "apps/web/app/components/BrandLogo.vue"
+    ]
+  },
+  "S2-B05": {
+    "status": "In Progress",
+    "done": "SocialConnections ofron lidhje Meta, zgjedhje faqesh, scopes/capabilities dhe gjendje të vërteta pa sukses demonstrues.",
+    "remaining": "Mungojnë prova mocked OAuth/cancellation/unsupported cases dhe staging me kredenciale reale Meta.",
+    "paths": [
+      "apps/web/app/components/SocialConnections.vue",
+      "apps/web/server/api/meta/status.get.ts",
+      "apps/web/server/api/meta/select.post.ts"
+    ]
+  },
+  "S2-B06": {
+    "status": "In Progress",
+    "done": "SocialConnections ofron lidhje Meta, zgjedhje faqesh, scopes/capabilities dhe gjendje të vërteta pa sukses demonstrues.",
+    "remaining": "Mungojnë prova mocked OAuth/cancellation/unsupported cases dhe staging me kredenciale reale Meta.",
+    "paths": [
+      "apps/web/app/components/SocialConnections.vue",
+      "apps/web/server/api/meta/status.get.ts",
+      "apps/web/server/api/meta/select.post.ts"
+    ]
+  },
+  "S2-B07": {
+    "status": "In Progress",
+    "done": "Social posts ka channel/search/server pagination, import count, last sync dhe lexim faqesh të mëparshme.",
+    "remaining": "Nuk ka durable sync job/progress/history pas crash dhe matricë terminal-auth/retry me provider fixtures.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/social-posts.vue",
+      "apps/web/server/api/meta/sync.post.ts",
+      "apps/web/server/api/meta/posts.get.ts"
+    ]
+  },
+  "S2-B08": {
+    "status": "In Progress",
+    "done": "Disconnect anulon punët pending dhe ruan oraret manuale; uncertain mbetet i bllokuar për verifikim. Local E2E konfirmon ruajtjen e kalendarit.",
+    "remaining": "Mbeten real revoke/reconnect dhe test me punë automatike aktive. Kriteri është përshtatur: Meta opsionale, kalendari nuk fshihet.",
+    "paths": [
+      "apps/web/app/components/SocialConnections.vue",
+      "apps/web/server/api/meta/disconnect.post.ts",
+      "apps/web/tests/e2e/optional-meta.spec.ts"
+    ]
+  },
+  "S3-A01": {
+    "status": "In Progress",
+    "done": "Endpoint captions thërret realisht OpenAI Responses me model nga env, timeout dhe error të sigurt.",
+    "remaining": "Nuk ka capability gateway/provider-neutral ports/image adapter apo routing/retry contract tests. OPENAI_API_KEY/OPENAI_MODEL mungojnë, ndaj gjenerimi live nuk është verifikuar.",
+    "paths": [
+      "apps/web/server/api/ai/captions.post.ts"
+    ]
+  },
+  "S3-A02": {
+    "status": "Not Started",
+    "done": "Prompt-i i captions është tekst në endpoint; nuk ka prompt_versions store.",
+    "remaining": "Duhet registry immutable, hash/schema/version, promotion/audit dhe lifecycle tests.",
+    "paths": [
+      "apps/web/server/api/ai/captions.post.ts"
+    ]
+  },
+  "S3-A03": {
+    "status": "In Progress",
+    "done": "Captions përdor JSON Schema strict dhe Zod me kufij për variants/questions.",
+    "remaining": "Nuk ka kontrata për inference/strategy/brief/QA, bounded repair ose fuzz fixtures; Pydantic nuk përdoret në backend-in aktual.",
+    "paths": [
+      "apps/web/server/api/ai/captions.post.ts"
+    ]
+  },
+  "S3-A04": {
+    "status": "Not Started",
+    "done": "Historia sociale mund të përdoret vetëm si referencë stili për captions.",
+    "remaining": "Nuk ka source snapshots, extraction/candidates/confidence, conflict/dedupe ose inferred voice/facts të konfirmueshme.",
+    "paths": [
+      "apps/web/server/api/ai/captions.post.ts"
+    ]
+  },
+  "S3-A05": {
+    "status": "In Progress",
+    "done": "AI context përfshin profilin, vetëm facts me verified=true dhe 8 postime të fundit si stil.",
+    "remaining": "Mungon immutable evidence pack me fact/offer IDs, hash snapshot, voice versions, validity e ofertës dhe inclusion/exclusion tests.",
+    "paths": [
+      "apps/web/server/api/ai/captions.post.ts"
+    ]
+  },
+  "S3-A06": {
+    "status": "Not Started",
+    "done": "Nuk u gjet implementim për analizë semantike/embeddings, AI image generation ose golden-eval harness sipas task-ut.",
+    "remaining": "Duhet implementimi i plotë i acceptance criteria dhe provat provider/tenant/eval. Fotografia e ngarkuar manualisht dhe testi JPEG nuk provojnë këto shërbime.",
+    "paths": []
+  },
+  "S3-A09": {
+    "status": "Not Started",
+    "done": "Nuk u gjet implementim për analizë semantike/embeddings, AI image generation ose golden-eval harness sipas task-ut.",
+    "remaining": "Duhet implementimi i plotë i acceptance criteria dhe provat provider/tenant/eval. Fotografia e ngarkuar manualisht dhe testi JPEG nuk provojnë këto shërbime.",
+    "paths": []
+  },
+  "S3-A10": {
+    "status": "Not Started",
+    "done": "Nuk u gjet implementim për analizë semantike/embeddings, AI image generation ose golden-eval harness sipas task-ut.",
+    "remaining": "Duhet implementimi i plotë i acceptance criteria dhe provat provider/tenant/eval. Fotografia e ngarkuar manualisht dhe testi JPEG nuk provojnë këto shërbime.",
+    "paths": []
+  },
+  "S3-A07": {
+    "status": "In Progress",
+    "done": "Posts me revision optimistic, versione të numëruara dhe histori caption; serveri kontrollon edit/status dhe referencat e fotos.",
+    "remaining": "Mungojnë tabela immutable content_versions me snapshot të plotë të çdo fushe/foto/provenance dhe provat domain/concurrency; campaign është shtyrë.",
+    "paths": [
+      "apps/web/server/api/workspaces/[id].put.ts",
+      "apps/web/shared/schemas/workspace.ts"
+    ]
+  },
+  "S3-A08": {
+    "status": "In Progress",
+    "done": "Caption generation ruan request ID/input hash/status/output dhe parandalon ripërsëritjen logjike të request-it.",
+    "remaining": "Kërkesa HTTP pret provider-in; mungon durable multi-stage workflow/resume/worker dhe references prompt/evidence. Nuk është implementuar pipeline strategy→brief→QA.",
+    "paths": [
+      "apps/web/server/api/ai/captions.post.ts",
+      "apps/web/database/migrations/0006_ai_usage.sql"
+    ]
+  },
+  "S3-B01": {
+    "status": "In Progress",
+    "done": "Content list me status/channel/search, Nuxt UI dhe pagination të dukshme.",
+    "remaining": "Workspace i plotë vjen në klient; server pagination/cursor dhe prova shkallëzimi/filter persistence mungojnë.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/content/index.vue",
+      "apps/web/app/components/PostsTable.vue",
+      "apps/web/server/utils/workspaces.ts"
+    ]
+  },
+  "S3-B02": {
+    "status": "In Review",
+    "done": "Editor statik manual, autosave në server, draft recovery, foto private dhe parapamje të veçanta Facebook/Instagram; rrjedha approve/calendar kalon desktop/mobile.",
+    "remaining": "Implementuar për një fotografi/postim. Mbetet suite e plotë fault/conflict/version dhe pranim RG-06/RG-14; composer i avancuar është task më vete.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/app/components/ChannelPreview.vue",
+      "apps/web/app/composables/useDraft.ts",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S3-B03": {
+    "status": "In Progress",
+    "done": "CaptionAssistant pranon ide/kanal dhe ofron variante nga API, vetëm me kërkesë të përdoruesit.",
+    "remaining": "Mungon wizard goal/tone/asset/credit estimate, durable job link dhe double-submit/generation staging tests.",
+    "paths": [
+      "apps/web/app/components/CaptionAssistant.vue",
+      "apps/web/server/api/ai/captions.post.ts"
+    ]
+  },
+  "S3-B04": {
+    "status": "In Progress",
+    "done": "Asistenti shfaq loading/error dhe ruan tekstin nëse AI dështon.",
+    "remaining": "Nuk ka endpoint/polling durable job/status sipas stage dhe resume pas refresh.",
+    "paths": [
+      "apps/web/app/components/CaptionAssistant.vue"
+    ]
+  },
+  "S3-B05": {
+    "status": "In Progress",
+    "done": "Zgjedhje manuale vetëm e fotove të biznesit me rights; preview dhe zëvendësim.",
+    "remaining": "Mungojnë AI/retrieval recommendations, why-selected, usage recency dhe pinned generation spec.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue"
+    ]
+  },
+  "S3-B06": {
+    "status": "In Progress",
+    "done": "Historik caption në slideover dhe variante captions me apply.",
+    "remaining": "Nuk ka diff/creative side-by-side me provenance dhe snapshot immutable të plotë; prova zgjedhje-versioni mungon.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/app/components/CaptionAssistant.vue"
+    ]
+  },
+  "S3-B07": {
+    "status": "Not Started",
+    "done": "ChannelPreview paraqet një foto dhe caption në pamje Facebook/Instagram.",
+    "remaining": "Nuk ka deterministic creative composer/export spec, exact business-logo/price/CTA render apo golden snapshots. Preview i rrjetit nuk është composer.",
+    "paths": [
+      "apps/web/app/components/ChannelPreview.vue"
+    ]
+  },
+  "S3-B08": {
+    "status": "In Progress",
+    "done": "Kontrollet lokale shfaqin text/image/rights/format, checklist manual dhe lidhje te facts.",
+    "remaining": "Mungojnë claim-level fact refs, offer validity, asset lineage, prompt/run metadata dhe QA provenance drawer.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/server/utils/post-validation.ts"
+    ]
+  },
+  "S3-B09": {
+    "status": "In Progress",
+    "done": "Caption AI apply dhe zëvendësim manual i fotos ruajnë ndryshime në draft/history.",
+    "remaining": "Mungojnë typed targeted rewrite/regenerate-image/CTA commands, immutable full history dhe credit impact.",
+    "paths": [
+      "apps/web/app/components/CaptionAssistant.vue",
+      "apps/web/app/components/ContentEditor.vue"
+    ]
+  },
+  "S4-A01": {
+    "status": "In Progress",
+    "done": "State machine serveri ndalon kalime të palejuara; përmbajtja e ndryshuar kthehet draft dhe kërkon miratim sërish. Kontrollet content janë të ndara nga Meta.",
+    "remaining": "Mungojnë approval records/policy/capability Approver dhe audit i detajuar actor/version/reason; role matrix nuk ekziston.",
+    "paths": [
+      "apps/web/shared/schemas/workspace.ts",
+      "apps/web/server/api/workspaces/[id].put.ts",
+      "apps/web/server/api/posts/[id]/validate.post.ts",
+      "apps/web/tests/e2e/optional-meta.spec.ts"
+    ]
+  },
+  "S4-A02": {
+    "status": "In Progress",
+    "done": "Kalendari manual dhe publikimi automatic ruhen veçmas; dates UTC/timezone, approval guards, cancel dhe unique post/version jobs. Provat pa Meta kalojnë.",
+    "remaining": "Mbeten schedule command idempotency/concurrency e plotë, target/API lifecycle dhe provider staging. Meta kërkohet vetëm për automatic, jo për kalendar manual.",
+    "paths": [
+      "apps/web/server/api/workspaces/[id].put.ts",
+      "apps/web/database/migrations/0007_optional_meta_calendar.sql",
+      "apps/web/shared/utils/format.ts",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S4-A03": {
+    "status": "In Progress",
+    "done": "Due query me index dhe SKIP LOCKED; claim transaction dhe worker heartbeat.",
+    "remaining": "Nuk ka transactional outbox/dispatch state të plotë, queue-age observability ose concurrent-dispatcher integration test.",
+    "paths": [
+      "apps/web/server/utils/publishing.ts",
+      "apps/web/server/plugins/publisher.ts"
+    ]
+  },
+  "S4-A04": {
+    "status": "In Progress",
+    "done": "Kod Facebook photos dhe Instagram container/media_publish, signed media URL me expiry, provider receipt dhe read-back confirmation.",
+    "remaining": "Asnjë publikim live/staging i verifikuar: mungojnë Meta App, HTTPS publik dhe worker i aktivizuar. Duhet test real që provon saktësisht një postim.",
+    "paths": [
+      "apps/web/server/utils/publishing.ts",
+      "apps/web/server/api/publishing-media/[id].get.ts",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S4-A05": {
+    "status": "In Progress",
+    "done": "MetaFailure dallon disa gabime dhe uncertain/failed ndalojnë retry të verbër.",
+    "remaining": "Retry-After, exponential backoff/jitter, attempt limits dhe taxonomy/remediation matrix për 429/5xx/network/auth/media nuk janë përfunduar.",
+    "paths": [
+      "apps/web/server/utils/meta.ts",
+      "apps/web/server/utils/publishing.ts"
+    ]
+  },
+  "S4-A06": {
+    "status": "In Progress",
+    "done": "Ruhet provider ID para konfirmimit; crash/timeout shënohet uncertain dhe nuk ripublikohet automatikisht.",
+    "remaining": "Mungon reconciler që zgjidh uncertain përmes provider-it dhe timeout-after-success fault test. Ndalimi i retry nuk është reconciliation i përfunduar.",
+    "paths": [
+      "apps/web/server/utils/publishing.ts"
+    ]
+  },
+  "S4-A07": {
+    "status": "In Progress",
+    "done": "Unique (post_id,post_version), row locks dhe mbrojtje për jobs processing/uncertain.",
+    "remaining": "Mungon immutable publication_attempts ledger/request hash dhe prova duplicate/concurrency e gjithë rrugës HTTP→worker→provider.",
+    "paths": [
+      "apps/web/database/migrations/0004_trials_and_social.sql",
+      "apps/web/server/utils/publishing.ts"
+    ]
+  },
+  "S4-A08": {
+    "status": "Not Started",
+    "done": "SMTP për auth ekziston, por jo shërbimi i event notifications.",
+    "remaining": "Duhet notification/delivery schema, recipient policy, dedupe dhe retry email jashtë transaksionit të biznesit.",
+    "paths": []
+  },
+  "S4-A09": {
+    "status": "In Progress",
+    "done": "Ka prova timezone/DST, signature expiry/forgery dhe bllokim të automatic pa kontroll Meta.",
+    "remaining": "Mungon resilience suite që ekzekuton worker për duplicates/crash/429/5xx/revoked auth/cancel me provider fixtures në CI.",
+    "paths": [
+      "apps/web/tests/unit/workspace.test.ts",
+      "apps/web/tests/integration/server.test.ts",
+      "apps/web/tests/e2e/optional-meta.spec.ts"
+    ]
+  },
+  "S4-B01": {
+    "status": "In Progress",
+    "done": "Review→manual checkbox→approve funksionon për të dy kanalet pa Meta; serveri kontrollon version/revision dhe policy.",
+    "remaining": "Mungojnë comments/reject reasons, role Approver dhe immutable full version review; duhen stale/unauthorized E2E.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/tests/e2e/optional-meta.spec.ts",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S4-B02": {
+    "status": "In Review",
+    "done": "Kalendari month/week/list, listë me pagination si parazgjedhje, local timezone dhe shenja manual/automatic. E2E desktop/mobile kalon.",
+    "remaining": "Scope aktual përdor modal për orarin, jo drag. Mbeten pranim i plotë i pamjeve month/week/DST dhe RG-14.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/calendar.vue",
+      "apps/web/shared/utils/calendar.ts",
+      "apps/web/tests/e2e/optional-meta.spec.ts"
+    ]
+  },
+  "S4-B03": {
+    "status": "In Review",
+    "done": "Modal date/time sipas timezone, guards future/DST, submit i mbrojtur dhe automatic opt-in default off; ruajtja manuale s’kërkon Meta.",
+    "remaining": "Për rrugën manuale kodi është implementuar dhe provuar; mbetet automatic me account real dhe date/DST browser matrix. RG-07/RG-14 janë ende të hapura.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/shared/utils/format.ts",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S4-B04": {
+    "status": "In Progress",
+    "done": "Publication status polling, failure code dhe uncertain warning me bllokim të riprovimit të verbër.",
+    "remaining": "Mungon attempt timeline/support ID, typed retry/remediation dhe provë e të gjitha gjendjeve.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/server/api/posts/[id]/publication.get.ts"
+    ]
+  },
+  "S4-B05": {
+    "status": "In Progress",
+    "done": "Shell ka panel/badge për postime që presin miratim.",
+    "remaining": "Nuk ka notification feed me DB records/unread per item/dedupe/mark-read API; badge i postimeve nuk është notification center i plotë.",
+    "paths": [
+      "apps/web/app/layouts/dashboard.vue"
+    ]
+  },
+  "S4-B06": {
+    "status": "In Progress",
+    "done": "Mesazhe për Meta të palidhur, scopes, server të pakonfiguruar dhe postim uncertain; drafti ruhet.",
+    "remaining": "Mungon error-code matrix e plotë me retry-after/quota/media remediation dhe test provider fixtures.",
+    "paths": [
+      "apps/web/app/components/SocialConnections.vue",
+      "apps/web/app/components/ContentEditor.vue"
+    ]
+  },
+  "S4-B07": {
+    "status": "In Progress",
+    "done": "Historik captions dhe audit i disa veprimeve serveri.",
+    "remaining": "Mungon timeline i unifikuar generation/approval/schedule/publication me actor/time/version të plota.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/server/utils/publishing.ts"
+    ]
+  },
+  "S4-B08": {
+    "status": "In Progress",
+    "done": "Testet live mbulojnë regjistrim/biznes/upload/private content; optional-meta provon miratim dhe kalendar pa Meta në desktop/mobile.",
+    "remaining": "Rrjedha connect→AI generate→publish me provider fixtures, staging-like CI dhe cleanup determinist nuk është plotësuar; suite live më e gjerë ka raport dështimi të mëparshëm.",
+    "paths": [
+      "apps/web/tests/e2e/live.spec.ts",
+      "apps/web/tests/e2e/optional-meta.spec.ts",
+      "apps/web/tests/e2e/local-registration.spec.ts",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S4-B09": {
+    "status": "Not Started",
+    "done": "Ka zhvillim dhe prova automatike lokale, por nuk u gjet raport UAT nga biznese.",
+    "remaining": "Duhet walkthrough me biznese përfaqësuese në Kosovë, triage P0/P1/P2 dhe evidence/owner për secilin defekt.",
+    "paths": []
+  },
+  "S8-B03": {
+    "status": "Not Started",
+    "done": "Ka zhvillim dhe prova automatike lokale, por nuk u gjet raport UAT nga biznese.",
+    "remaining": "Duhet walkthrough me biznese përfaqësuese në Kosovë, triage P0/P1/P2 dhe evidence/owner për secilin defekt.",
+    "paths": []
+  },
+  "S5-A01": {
+    "status": "Deferred",
+    "done": "Analytics dhe performance metrics janë shtyrë nga scope-i vetëm për postime.",
+    "remaining": "Rihapen kur kërkohet analitikë: import metrics, normalized snapshots/rollups, bounded query APIs, entitlement checks dhe UI/tests. Nuk ka metrics të sajuara.",
+    "paths": []
+  },
+  "S5-A02": {
+    "status": "Deferred",
+    "done": "Analytics dhe performance metrics janë shtyrë nga scope-i vetëm për postime.",
+    "remaining": "Rihapen kur kërkohet analitikë: import metrics, normalized snapshots/rollups, bounded query APIs, entitlement checks dhe UI/tests. Nuk ka metrics të sajuara.",
+    "paths": []
+  },
+  "S5-A03": {
+    "status": "Deferred",
+    "done": "Analytics dhe performance metrics janë shtyrë nga scope-i vetëm për postime.",
+    "remaining": "Rihapen kur kërkohet analitikë: import metrics, normalized snapshots/rollups, bounded query APIs, entitlement checks dhe UI/tests. Nuk ka metrics të sajuara.",
+    "paths": []
+  },
+  "S5-B01": {
+    "status": "Deferred",
+    "done": "Analytics dhe performance metrics janë shtyrë nga scope-i vetëm për postime.",
+    "remaining": "Rihapen kur kërkohet analitikë: import metrics, normalized snapshots/rollups, bounded query APIs, entitlement checks dhe UI/tests. Nuk ka metrics të sajuara.",
+    "paths": []
+  },
+  "S5-B02": {
+    "status": "Deferred",
+    "done": "Analytics dhe performance metrics janë shtyrë nga scope-i vetëm për postime.",
+    "remaining": "Rihapen kur kërkohet analitikë: import metrics, normalized snapshots/rollups, bounded query APIs, entitlement checks dhe UI/tests. Nuk ka metrics të sajuara.",
+    "paths": []
+  },
+  "S5-A04": {
+    "status": "Not Started",
+    "done": "Katalogu i çmimeve ekziston, por nuk ka payment adapter ose billing webhook.",
+    "remaining": "Duhet përzgjedhje e ofruesit sipas subjektit tregtar në Kosovë, sandbox, checkout/subscriptions dhe signature/dedupe/order tests.",
+    "paths": []
+  },
+  "S5-A05": {
+    "status": "Not Started",
+    "done": "Katalogu i çmimeve ekziston, por nuk ka payment adapter ose billing webhook.",
+    "remaining": "Duhet përzgjedhje e ofruesit sipas subjektit tregtar në Kosovë, sandbox, checkout/subscriptions dhe signature/dedupe/order tests.",
+    "paths": []
+  },
+  "S5-A06": {
+    "status": "In Progress",
+    "done": "Serveri kërkon entitlement për posts/media/validation/social_import/publishing/AI; expiry/blocked/revoked trial provohen.",
+    "remaining": "Mungojnë plan-limit matrix për storage/accounts/members, downgrade lifecycle dhe stable typed denial code/current/limit.",
+    "paths": [
+      "apps/web/server/utils/trials.ts",
+      "apps/web/server/api",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S5-A07": {
+    "status": "In Progress",
+    "done": "Numërues AI ditor atomik dhe request ID/input hash unik në DB.",
+    "remaining": "Nuk ka reserve/commit/release ledger monetar/credits; dështimet numërohen si kërkesa, dhe quota concurrency për AI nuk është provuar plotësisht.",
+    "paths": [
+      "apps/web/database/migrations/0006_ai_usage.sql",
+      "apps/web/server/api/ai/captions.post.ts"
+    ]
+  },
+  "S5-A08": {
+    "status": "In Progress",
+    "done": "Auth rate limiting, same-origin JSON checks, private media, encrypted Meta tokens dhe disa security headers.",
+    "remaining": "Mungon ASVS evidence matrix, sensitive re-auth, security scans/penetration audit dhe provë prodhimi; nuk mund të deklarohet zero high/critical.",
+    "paths": [
+      "apps/web/server/utils/auth.ts",
+      "apps/web/server/utils/access.ts",
+      "apps/web/nuxt.config.ts",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S5-A09": {
+    "status": "In Progress",
+    "done": "FK/due/query indices dhe pool/timeouts janë konfiguruar.",
+    "remaining": "Nuk ka EXPLAIN/load evidence; leximi/PUT i gjithë workspace kërkon ndarje në API me pagination për të shmangur payload-e të mëdha.",
+    "paths": [
+      "apps/web/server/utils/database.ts",
+      "apps/web/server/utils/workspaces.ts",
+      "apps/web/database/migrations"
+    ]
+  },
+  "S5-B03": {
+    "status": "In Review",
+    "done": "Çmimet EUR dhe features lexohen nga plan_catalog në DB, jo nga fake plan array; paketat jo të blershme nuk hapin checkout.",
+    "remaining": "Mbetet plan/entitlement reconciliation test, pranim i çmimeve komerciale dhe RG-08/RG-14. Çmimet seed janë propozime, jo shitje aktive.",
+    "paths": [
+      "apps/web/server/api/plans.get.ts",
+      "apps/web/app/components/PlanCards.vue",
+      "apps/web/app/composables/usePlanCatalog.ts",
+      "apps/web/database/migrations/0002_businesses.sql"
+    ]
+  },
+  "S5-B04": {
+    "status": "In Progress",
+    "done": "Faqja Billing shfaq katalogun real dhe trial/entitlement status; deklaron pagesat të paaktivizuara.",
+    "remaining": "Checkout/upgrade/downgrade/cancel/portal, Billing role dhe provider-return flow nuk janë implementuar.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/billing.vue"
+    ]
+  },
+  "S5-B05": {
+    "status": "In Progress",
+    "done": "TrialBanner dhe billing tregojnë periudhën e mbetur reale nga serveri.",
+    "remaining": "Mungon usage snapshot për credits/storage/accounts/members me reserved/consumed dhe 80/100% warnings.",
+    "paths": [
+      "apps/web/app/components/TrialBanner.vue",
+      "apps/web/server/api/trial.get.ts"
+    ]
+  },
+  "S5-B06": {
+    "status": "In Progress",
+    "done": "/api/capabilities dhe server entitlements bllokojnë shërbime të pakonfiguruara; UI nuk shpik sukses.",
+    "remaining": "Nuk ka centralized typed entitlement composable/denial matrix me limit/upgrade context për çdo feature.",
+    "paths": [
+      "apps/web/server/api/capabilities.get.ts",
+      "apps/web/server/utils/trials.ts",
+      "apps/web/app/components/CaptionAssistant.vue"
+    ]
+  },
+  "S5-B07": {
+    "status": "In Progress",
+    "done": "Landing/pricing/help/security janë responsive; CTA drejt signup, euro dhe pa demonstrim.",
+    "remaining": "Duhet content review me operator/plan të miratuar dhe matje aktuale Lighthouse/Web Vitals/reduced-motion.",
+    "paths": [
+      "apps/web/app/pages/index.vue",
+      "apps/web/app/pages/pricing.vue",
+      "apps/web/app/components/PolicyPage.vue"
+    ]
+  },
+  "S5-B09": {
+    "status": "In Progress",
+    "done": "Testet PostgreSQL mbulojnë trial, expiry, duplicate identities dhe paid entitlement.",
+    "remaining": "Nuk ka commercial E2E upgrade/downgrade/checkout/billing-role; analytics është deferred.",
+    "paths": [
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S6-A01": {
+    "status": "Not Started",
+    "done": "Ka log bazë për publisher failures dhe audit_events.",
+    "remaining": "Nuk ka OpenTelemetry, trace/request correlation, instrumentim DB/queue/providers apo redaction/release-tag tests.",
+    "paths": [
+      "apps/web/server/plugins/publisher.ts"
+    ]
+  },
+  "S6-A02": {
+    "status": "Not Started",
+    "done": "Nuk u gjet SLO dashboard/alert drill, runbook operacional i plotë ose load report 3× forecast.",
+    "remaining": "Përfundo detyrën sipas acceptance criteria për production; worker heartbeat dhe prova lokale nuk provojnë SLO/operim/ngarkesë.",
+    "paths": []
+  },
+  "S6-A03": {
+    "status": "Not Started",
+    "done": "Nuk u gjet SLO dashboard/alert drill, runbook operacional i plotë ose load report 3× forecast.",
+    "remaining": "Përfundo detyrën sipas acceptance criteria për production; worker heartbeat dhe prova lokale nuk provojnë SLO/operim/ngarkesë.",
+    "paths": []
+  },
+  "S6-A07": {
+    "status": "Not Started",
+    "done": "Nuk u gjet SLO dashboard/alert drill, runbook operacional i plotë ose load report 3× forecast.",
+    "remaining": "Përfundo detyrën sipas acceptance criteria për production; worker heartbeat dhe prova lokale nuk provojnë SLO/operim/ngarkesë.",
+    "paths": []
+  },
+  "S6-A04": {
+    "status": "In Progress",
+    "done": "Eksport JSON nga workspace i përdoruesit dhe draftet lokale ekziston.",
+    "remaining": "Mungon server export job/manifest/checksums/signed expiring artifact, recent-auth dhe provë access/expiry. JSON client-side nuk përfshin lifecycle të plotë export.",
+    "paths": [
+      "apps/web/app/composables/useWorkspace.ts",
+      "apps/web/app/pages/app/[org]/[brand]/settings.vue"
+    ]
+  },
+  "S6-A05": {
+    "status": "Not Started",
+    "done": "Nuk ka organization deletion/purge API/job.",
+    "remaining": "Duhet konfirmim/recent-auth, cancellation, token destruction, purge resume dhe retention exceptions me teste.",
+    "paths": []
+  },
+  "S6-B01": {
+    "status": "Not Started",
+    "done": "Admin/support console/API nuk gjendet në rrugët aktive.",
+    "remaining": "Duhet shërbim i privilegjuar metadata-first, safe diagnostics/actions me reason/audit, tenant checks dhe server pagination. Kjo mbetet kriter operacional.",
+    "paths": []
+  },
+  "S7-A06": {
+    "status": "Not Started",
+    "done": "Admin/support console/API nuk gjendet në rrugët aktive.",
+    "remaining": "Duhet shërbim i privilegjuar metadata-first, safe diagnostics/actions me reason/audit, tenant checks dhe server pagination. Kjo mbetet kriter operacional.",
+    "paths": []
+  },
+  "S7-B04": {
+    "status": "Not Started",
+    "done": "Admin/support console/API nuk gjendet në rrugët aktive.",
+    "remaining": "Duhet shërbim i privilegjuar metadata-first, safe diagnostics/actions me reason/audit, tenant checks dhe server pagination. Kjo mbetet kriter operacional.",
+    "paths": []
+  },
+  "S6-B02": {
+    "status": "In Progress",
+    "done": "Gjendje Meta/capabilities/worker dhe UAlert për mungesë konfigurimi; authoring/kalendari manual punojnë pa Meta.",
+    "remaining": "Mungojnë provider incident feed/typed degraded matrix dhe teste outage/revoked/quota të plota.",
+    "paths": [
+      "apps/web/app/components/SocialConnections.vue",
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/server/api/capabilities.get.ts",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S6-B05": {
+    "status": "In Progress",
+    "done": "Autosave/recovery, error states dhe busy/duplicate-submit guards janë në rrjedhat kryesore.",
+    "remaining": "Duhet network throttling/offline/intermittent/error-injection suite; rezultatet e vjetra demo nuk mbyllin këtë kriter për backend real.",
+    "paths": [
+      "apps/web/app/composables/useDraft.ts",
+      "apps/web/app/composables/useWorkspace.ts",
+      "apps/web/app/components/ContentEditor.vue"
+    ]
+  },
+  "S6-B06": {
+    "status": "In Progress",
+    "done": "Help, onboarding checklist dhe lidhje kontekstuale janë në shqip; help i kalendarit shpjegon Meta opsionale.",
+    "remaining": "Duhet sinkronizim i gjithë copy me local verify bypass/Meta optional, support contact/request-ID dhe content review. CopilotPanel ende e paraqet lidhjen Meta si hap të numëruar.",
+    "paths": [
+      "apps/web/app/pages/help.vue",
+      "apps/web/app/components/CopilotPanel.vue",
+      "apps/web/app/components/BusinessOnboarding.vue",
+      "docs/POST-APPROVAL.md"
+    ]
+  },
+  "S6-A10": {
+    "status": "Deferred",
+    "done": "Strategjia, fushatat, marketing learning dhe attribution janë shtyrë nga scope-i aktiv sipas kërkesës së përdoruesit.",
+    "remaining": "Rihapen pas ciklit të postimeve me domain të versionuar, metric/evidence refs dhe testet përkatëse. Tabelat/array bosh nuk janë implementim.",
+    "paths": []
+  },
+  "S6-A11": {
+    "status": "Deferred",
+    "done": "Strategjia, fushatat, marketing learning dhe attribution janë shtyrë nga scope-i aktiv sipas kërkesës së përdoruesit.",
+    "remaining": "Rihapen pas ciklit të postimeve me domain të versionuar, metric/evidence refs dhe testet përkatëse. Tabelat/array bosh nuk janë implementim.",
+    "paths": []
+  },
+  "S6-B11": {
+    "status": "Deferred",
+    "done": "Strategjia, fushatat, marketing learning dhe attribution janë shtyrë nga scope-i aktiv sipas kërkesës së përdoruesit.",
+    "remaining": "Rihapen pas ciklit të postimeve me domain të versionuar, metric/evidence refs dhe testet përkatëse. Tabelat/array bosh nuk janë implementim.",
+    "paths": []
+  },
+  "S6-B12": {
+    "status": "Deferred",
+    "done": "Strategjia, fushatat, marketing learning dhe attribution janë shtyrë nga scope-i aktiv sipas kërkesës së përdoruesit.",
+    "remaining": "Rihapen pas ciklit të postimeve me domain të versionuar, metric/evidence refs dhe testet përkatëse. Tabelat/array bosh nuk janë implementim.",
+    "paths": []
+  },
+  "S7-A01": {
+    "status": "Deferred",
+    "done": "Strategjia, fushatat, marketing learning dhe attribution janë shtyrë nga scope-i aktiv sipas kërkesës së përdoruesit.",
+    "remaining": "Rihapen pas ciklit të postimeve me domain të versionuar, metric/evidence refs dhe testet përkatëse. Tabelat/array bosh nuk janë implementim.",
+    "paths": []
+  },
+  "S7-A10": {
+    "status": "Deferred",
+    "done": "Strategjia, fushatat, marketing learning dhe attribution janë shtyrë nga scope-i aktiv sipas kërkesës së përdoruesit.",
+    "remaining": "Rihapen pas ciklit të postimeve me domain të versionuar, metric/evidence refs dhe testet përkatëse. Tabelat/array bosh nuk janë implementim.",
+    "paths": []
+  },
+  "S6-A12": {
+    "status": "In Progress",
+    "done": "Kontrolle të ruajtura content/publication për caption/placeholders/rights/image/format/IG dhe PASS/BLOCK; Meta ndahet nga miratimi.",
+    "remaining": "Mungojnë policy versions, vertical packs, reason-code/evidence contract, override capability/reason/audit dhe golden fixtures.",
+    "paths": [
+      "apps/web/server/utils/post-validation.ts",
+      "apps/web/server/api/posts/[id]/validate.post.ts",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S6-A13": {
+    "status": "In Progress",
+    "done": "AI gate nga env, trial dhe kufi ditor nga DB; të dhënat ruhen kur provider nuk është aktiv.",
+    "remaining": "Mungon monetary estimate/reserve/commit/release, soft/hard budget, cost metadata, anomaly counters dhe audited kill-switch/concurrency tests.",
+    "paths": [
+      "apps/web/server/api/ai/captions.post.ts",
+      "apps/web/server/utils/trials.ts"
+    ]
+  },
+  "S6-B10": {
+    "status": "In Review",
+    "done": "Overview i pastër me next actions, counts reale dhe lista postimesh që hapen me veprim; quick-create dhe kalendar.",
+    "remaining": "Scope aktual heq campaigns/performance vanity metrics. Mbetet UAT/a11y/visual/performance review dhe RG-17.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/overview.vue",
+      "apps/web/app/layouts/dashboard.vue"
+    ]
+  },
+  "S6-B13": {
+    "status": "In Progress",
+    "done": "Command palette me keyboard/mobile hyrje, navigation dhe kërkim në postimet e biznesit të ngarkuar.",
+    "remaining": "Mungojnë server search me pagination, recent entities/capability action matrix dhe authz/search fixtures.",
+    "paths": [
+      "apps/web/app/layouts/dashboard.vue"
+    ]
+  },
+  "S6-B14": {
+    "status": "Not Started",
+    "done": "CopilotPanel është udhëzim/navigim dhe CaptionAssistant është gjenerues tekstesh me kërkesë të përdoruesit.",
+    "remaining": "Nuk ka AI chat me typed tool proposals/confirm/abort/artifact links ose safety E2E. Udhëzimet statike nuk shënohen si AI Copilot.",
+    "paths": [
+      "apps/web/app/components/CopilotPanel.vue",
+      "apps/web/app/components/CaptionAssistant.vue"
+    ]
+  },
+  "S7-B01": {
+    "status": "Not Started",
+    "done": "CopilotPanel është udhëzim/navigim dhe CaptionAssistant është gjenerues tekstesh me kërkesë të përdoruesit.",
+    "remaining": "Nuk ka AI chat me typed tool proposals/confirm/abort/artifact links ose safety E2E. Udhëzimet statike nuk shënohen si AI Copilot.",
+    "paths": [
+      "apps/web/app/components/CopilotPanel.vue",
+      "apps/web/app/components/CaptionAssistant.vue"
+    ]
+  },
+  "S7-A11": {
+    "status": "In Progress",
+    "done": "Server /api/capabilities lexon konfigurimin e provider-ëve; klienti nuk mund të aktivizojë worker/AI pa env.",
+    "remaining": "Nuk ka feature-flag service me cohort/owner/expiry/audit/kill-switch administration apo typed evaluated flag tests.",
+    "paths": [
+      "apps/web/server/api/capabilities.get.ts",
+      "apps/web/server/plugins/publisher.ts"
+    ]
+  },
+  "S7-A02": {
+    "status": "Not Started",
+    "done": "Kontrollet aktuale janë teknike dhe të përgjithshme.",
+    "remaining": "Mungojnë vertical policy/eval packs për dental/beauty, restaurant/cafe, real-estate/construction, human rubric dhe golden thresholds.",
+    "paths": [
+      "apps/web/server/utils/post-validation.ts"
+    ]
+  },
+  "S7-A03": {
+    "status": "In Progress",
+    "done": "Post schema njeh static/carousel; vetëm static lejohet nga kontrollet; account publishing permissions kontrollohen.",
+    "remaining": "Mungon ContentFormat/ChannelCapability registry qendror, contract tests dhe reel/story schema; kontrollet janë ende të shpërndara.",
+    "paths": [
+      "apps/web/shared/schemas/workspace.ts",
+      "apps/web/server/utils/post-validation.ts"
+    ]
+  },
+  "S7-A04": {
+    "status": "In Progress",
+    "done": "Trial 72h, expiry/blocked/revoked dhe paid entitlement validity funksionojnë në DB.",
+    "remaining": "Nuk ka subscription trial→active/past_due/grace/cancel/refund/chargeback state machine ose provider webhooks/out-of-order tests.",
+    "paths": [
+      "apps/web/server/utils/trials.ts",
+      "apps/web/tests/integration/server.test.ts"
+    ]
+  },
+  "S7-A05": {
+    "status": "In Progress",
+    "done": "Asset rights boolean, EXIF stripping, private media dhe shpjegim i cookie/device/trial në privacy UI.",
+    "remaining": "Mungojnë likeness/retention classes, provider-authenticated deletion callback, purge jobs dhe compliance export metadata. Cookie e nënshkruar është identifikues shfletuesi, jo provë pajisjeje fizike.",
+    "paths": [
+      "apps/web/server/utils/post-validation.ts",
+      "apps/web/server/utils/trials.ts",
+      "apps/web/app/components/PolicyPage.vue"
+    ]
+  },
+  "S7-A07": {
+    "status": "In Progress",
+    "done": "Prompt-i trajton JSON/social captions si të dhëna të pabesuara; history vetëm për stil; output i strukturuar; modeli nuk merr publikim/tools.",
+    "remaining": "Nuk ka adversarial injection eval suite, provenance/policy enforcement të claim-eve ose tool allowlist test. Prompt-i vetëm nuk provon rezistencë ndaj injection.",
+    "paths": [
+      "apps/web/server/api/ai/captions.post.ts"
+    ]
+  },
+  "S7-A08": {
+    "status": "Not Started",
+    "done": "Nuk ka version registry/canary promotion ose spend anomaly/circuit-breaker workflow.",
+    "remaining": "Duhet state/audit/eval threshold, rollback/canary ose anomaly/breaker/alert recovery sipas acceptance criteria; env gate nuk e zëvendëson.",
+    "paths": []
+  },
+  "S7-A09": {
+    "status": "Not Started",
+    "done": "Nuk ka version registry/canary promotion ose spend anomaly/circuit-breaker workflow.",
+    "remaining": "Duhet state/audit/eval threshold, rollback/canary ose anomaly/breaker/alert recovery sipas acceptance criteria; env gate nuk e zëvendëson.",
+    "paths": []
+  },
+  "S7-B02": {
+    "status": "In Progress",
+    "done": "Template catalog në DB me API, search/filter, preview dhe create-from-template; demo seeds u çaktivizuan.",
+    "remaining": "Mungojnë versionim/brand substitution vetëm me verified facts, vertical/format completeness dhe policy/E2E fixtures.",
+    "paths": [
+      "apps/web/server/api/templates.get.ts",
+      "apps/web/database/migrations/0005_media_and_catalog.sql",
+      "apps/web/app/pages/app/[org]/[brand]/templates.vue"
+    ]
+  },
+  "S7-B03": {
+    "status": "In Progress",
+    "done": "Kontrolli i përmbajtjes shfaq arsye konkrete dhe bllokon gabimet; checkbox manual para approve; local/publication checks të ndara.",
+    "remaining": "Nuk ka factuality/claim provenance, versioned policy ose override capability/reason/audit. Meta e palidhur nuk trajtohet si content BLOCK.",
+    "paths": [
+      "apps/web/app/components/ContentEditor.vue",
+      "apps/web/server/api/posts/[id]/validate.post.ts",
+      "apps/web/tests/e2e/optional-meta.spec.ts"
+    ]
+  },
+  "S7-B05": {
+    "status": "In Progress",
+    "done": "Billing/TrialBanner shfaq active/expired/blocked/revoked pa pretenduar pagesë të suksesshme; të dhënat mbeten.",
+    "remaining": "Mungojnë failed-payment/grace/change-plan/cancel/reactivate/provider-return dhe E2E komerciale.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/billing.vue",
+      "apps/web/app/components/TrialBanner.vue"
+    ]
+  },
+  "S7-B06": {
+    "status": "In Progress",
+    "done": "Preferences për approval/published/tips ruhen në server.",
+    "remaining": "Nuk ka event delivery që i konsumon, per-event in-app/email matrix, mandatory security notices ose dedupe integration tests.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/settings.vue",
+      "apps/web/server/api/workspaces/[id].put.ts"
+    ]
+  },
+  "S7-B07": {
+    "status": "In Progress",
+    "done": "Settings me profile/preferences/notifications/security/organization, password/sessions reale, export dhe lidhje te biznesi/billing.",
+    "remaining": "Mungojnë organization deletion/danger zone lifecycle dhe testimi i gjithë IA; team/multi-brand është shtyrë.",
+    "paths": [
+      "apps/web/app/pages/app/[org]/[brand]/settings.vue",
+      "apps/web/app/components/AccountSecurity.vue"
+    ]
+  },
+  "S7-B08": {
+    "status": "In Progress",
+    "done": "Mobile Chromium 390px kalon approve/calendar pa Meta; upload/quick-create dhe dialogs janë në Nuxt UI.",
+    "remaining": "Duhet provë 360px/pajisje fizike, reject/deep-links/reschedule/reconnect dhe touch-target review. Nuk është test Safari/iPhone real.",
+    "paths": [
+      "apps/web/tests/e2e/optional-meta.spec.ts",
+      "apps/web/playwright.config.ts",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S7-B09": {
+    "status": "In Progress",
+    "done": "Shared useDraft/sessionStorage, server revision, debounce autosave, conflict UI dhe navigation protection për postime.",
+    "remaining": "Duhet fault E2E offline/intermittent/concurrent recovery; strategy/campaign është jashtë scope-it dhe nuk deklarohet përfunduar.",
+    "paths": [
+      "apps/web/app/composables/useDraft.ts",
+      "apps/web/app/composables/useWorkspace.ts",
+      "apps/web/app/components/ContentEditor.vue"
+    ]
+  },
+  "S8-A01": {
+    "status": "Not Started",
+    "done": "PostgreSQL lokal ka volum Docker dhe migrime.",
+    "remaining": "Mungojnë backup/PITR production configuration, restore drill dhe matje RPO/RTO; volum Docker nuk është backup.",
+    "paths": [
+      "compose.yaml"
+    ]
+  },
+  "S8-A02": {
+    "status": "Not Started",
+    "done": "Ka disa kontrolle sigurie dhe teste lokale, por jo raport release.",
+    "remaining": "Duhet audit i konfigurimit prod, ASVS/tenant/webhook/upload suite, dependency/container/secret scan i freskët dhe triage me owner/expiry.",
+    "paths": []
+  },
+  "S8-A04": {
+    "status": "Not Started",
+    "done": "Nuk u gjet deployment/production rollout ose raport smoke prodhimi.",
+    "remaining": "Duhet immutable artifact promotion, runtime config/roles, prod migrations, cohort rollout, monitoring dhe rollback/smoke evidence. Localhost nuk është prodhim.",
+    "paths": []
+  },
+  "S8-B04": {
+    "status": "Not Started",
+    "done": "Nuk u gjet deployment/production rollout ose raport smoke prodhimi.",
+    "remaining": "Duhet immutable artifact promotion, runtime config/roles, prod migrations, cohort rollout, monitoring dhe rollback/smoke evidence. Localhost nuk është prodhim.",
+    "paths": []
+  },
+  "S8-B01": {
+    "status": "In Progress",
+    "done": "Playwright ka desktop dhe mobile profile në Chromium; 2 optional-Meta tests janë green.",
+    "remaining": "Mungojnë Firefox/WebKit dhe suite e plotë generation/publish/billing në CI/staging; vetëm Chromium nuk përmbush cross-browser.",
+    "paths": [
+      "apps/web/playwright.config.ts",
+      "apps/web/tests/e2e",
+      "hq-optional-e2e.log"
+    ]
+  },
+  "S8-B14": {
+    "status": "In Progress",
+    "done": "Motion for Vue/LandingMotion dhe reduced-motion CSS ekzistojnë.",
+    "remaining": "Mungon system QA për panel/list/reorder/progress dhe representative-load/reduced-motion tests të build-it aktual.",
+    "paths": [
+      "apps/web/app/components/LandingMotion.vue",
+      "apps/web/app/assets/css/main.css",
+      "apps/web/package.json"
+    ]
+  },
+  "S8-B13": {
+    "status": "In Review",
+    "done": "Demo runtime u hoq; përdoruesi krijon biznes real me onboarding, empty-state CTA dhe trial; miratimi/kalendari nuk kërkojnë Meta.",
+    "remaining": "Scope është ndryshuar: pa sample/demo path. Mbetet full checklist/funnel UAT me biznese reale dhe RG-17.",
+    "paths": [
+      "apps/web/app/components/BusinessOnboarding.vue",
+      "apps/web/shared/utils/empty-workspace.ts",
+      "apps/web/tests/e2e/local-registration.spec.ts",
+      "apps/web/tests/e2e/optional-meta.spec.ts"
+    ]
+  },
+  "S8-A10": {
+    "status": "In Progress",
+    "done": "Terms/privacy/security UI dhe env për operator/contact; shpjegohen data/trial/Meta/media.",
+    "remaining": "Mungojnë owner-approved legal pack, subprocessors/data inventory/retention, deletion callback dhe export/purge runbooks të provuara.",
+    "paths": [
+      "apps/web/app/components/PolicyPage.vue",
+      "apps/web/server/api/site.get.ts"
+    ]
+  },
+  "S8-A11": {
+    "status": "In Progress",
+    "done": "Prova lokale për JWT-alternative session config, token encryption, graph error sanitization, trial concurrency dhe media signatures.",
+    "remaining": "Mungon staged end-to-end provider/worker/AI/billing failure campaign me duplicates/timeouts/restarts dhe alerts. Unit fixtures nuk janë production fault evidence.",
+    "paths": [
+      "apps/web/tests/integration/server.test.ts",
+      "apps/web/tests/unit/auth-configuration.test.ts"
+    ]
+  },
+  "S8-A12": {
+    "status": "Not Started",
+    "done": "Plan catalog ka çmime të propozuara dhe AI daily request limit.",
+    "remaining": "Nuk ka token/image cost model, approved COGS envelope, reserve ledger ose workload replay/hard-budget evidence.",
+    "paths": [
+      "apps/web/database/migrations/0002_businesses.sql",
+      "apps/web/database/migrations/0006_ai_usage.sql"
+    ]
+  },
+  "S8-B10": {
+    "status": "In Progress",
+    "done": "Bundle-budget script dhe raport historik frontend ekzistojnë; route splitting/lazy media përdoren.",
+    "remaining": "Duhet build aktual, Web Vitals/CLS/route budget evidence; payload-i i plotë i workspace dhe mungesa e thumbnails mbeten për optimizim.",
+    "paths": [
+      "apps/web/scripts/bundle-budget.mjs",
+      "docs/VALIDATION.md",
+      "apps/web/server/utils/workspaces.ts"
+    ]
+  },
+  "S8-B11": {
+    "status": "In Progress",
+    "done": "Screenshot on failure dhe captures në testet e vjetra/reja.",
+    "remaining": "Nuk ka approved baseline pixel-diff matrix light/dark/responsive/reduced-motion për build-in aktual. Screenshot nuk është visual regression assertion.",
+    "paths": [
+      "apps/web/playwright.config.ts",
+      "apps/web/tests/e2e/live.spec.ts",
+      "docs/VALIDATION.md"
+    ]
+  },
+  "S8-B12": {
+    "status": "In Progress",
+    "done": "Fresh-account tests për signup lokal, empty workspace, pa Meta, approve/calendar dhe invalid content; truthfully disabled providers.",
+    "remaining": "Mbeten revoked real account, quota exhausted/provider degraded UX suite dhe first-run UAT; jo të gjitha gjendjet janë provuar.",
+    "paths": [
+      "apps/web/tests/e2e/local-registration.spec.ts",
+      "apps/web/tests/e2e/optional-meta.spec.ts",
+      "apps/web/tests/e2e/live.spec.ts"
+    ]
+  },
+  "S9-A01": {
+    "status": "Deferred",
+    "done": "Carousel/Reel/video/Story janë zgjerime S9 pas-GA; rrjedha aktive lejon një fotografi statike për postim.",
+    "remaining": "Rihapen pas registry/capability dhe provider approval; duhen media/transcode/composer dhe fault/idempotency tests. Enum carousel nuk është implementim.",
+    "paths": []
+  },
+  "S9-B01": {
+    "status": "Deferred",
+    "done": "Carousel/Reel/video/Story janë zgjerime S9 pas-GA; rrjedha aktive lejon një fotografi statike për postim.",
+    "remaining": "Rihapen pas registry/capability dhe provider approval; duhen media/transcode/composer dhe fault/idempotency tests. Enum carousel nuk është implementim.",
+    "paths": []
+  },
+  "S9-A02": {
+    "status": "Deferred",
+    "done": "Carousel/Reel/video/Story janë zgjerime S9 pas-GA; rrjedha aktive lejon një fotografi statike për postim.",
+    "remaining": "Rihapen pas registry/capability dhe provider approval; duhen media/transcode/composer dhe fault/idempotency tests. Enum carousel nuk është implementim.",
+    "paths": []
+  },
+  "S9-B02": {
+    "status": "Deferred",
+    "done": "Carousel/Reel/video/Story janë zgjerime S9 pas-GA; rrjedha aktive lejon një fotografi statike për postim.",
+    "remaining": "Rihapen pas registry/capability dhe provider approval; duhen media/transcode/composer dhe fault/idempotency tests. Enum carousel nuk është implementim.",
+    "paths": []
+  },
+  "S9-A03": {
+    "status": "Deferred",
+    "done": "Carousel/Reel/video/Story janë zgjerime S9 pas-GA; rrjedha aktive lejon një fotografi statike për postim.",
+    "remaining": "Rihapen pas registry/capability dhe provider approval; duhen media/transcode/composer dhe fault/idempotency tests. Enum carousel nuk është implementim.",
+    "paths": []
+  },
+  "S9-B03": {
+    "status": "Deferred",
+    "done": "Carousel/Reel/video/Story janë zgjerime S9 pas-GA; rrjedha aktive lejon një fotografi statike për postim.",
+    "remaining": "Rihapen pas registry/capability dhe provider approval; duhen media/transcode/composer dhe fault/idempotency tests. Enum carousel nuk është implementim.",
+    "paths": []
+  },
+  "S9-A04": {
+    "status": "Deferred",
+    "done": "Agency dhe multi-brand janë jashtë scope-it me një biznes për pronar.",
+    "remaining": "Rihapen bashkë me memberships/RBAC/RLS, cross-brand read models, batch guards dhe authz/load/E2E.",
+    "paths": []
+  },
+  "S9-B04": {
+    "status": "Deferred",
+    "done": "Agency dhe multi-brand janë jashtë scope-it me një biznes për pronar.",
+    "remaining": "Rihapen bashkë me memberships/RBAC/RLS, cross-brand read models, batch guards dhe authz/load/E2E.",
+    "paths": []
+  },
+  "S9-A05": {
+    "status": "Deferred",
+    "done": "Bulk content actions janë planifikuar si zgjerim S9; nuk janë bërë.",
+    "remaining": "Rihapen me batch commands/idempotency/per-item failures dhe UX selection të aksesueshme; bulk publishing nuk duhet të anashkalojë miratimin.",
+    "paths": []
+  },
+  "S9-B05": {
+    "status": "Deferred",
+    "done": "Bulk content actions janë planifikuar si zgjerim S9; nuk janë bërë.",
+    "remaining": "Rihapen me batch commands/idempotency/per-item failures dhe UX selection të aksesueshme; bulk publishing nuk duhet të anashkalojë miratimin.",
+    "paths": []
+  },
+  "S10-A01": {
+    "status": "Deferred",
+    "done": "Eksperimentet dhe krahasimi i performancës janë pas-GA dhe jashtë fokusit aktual te krijimi/kalendari.",
+    "remaining": "Rihapen pas analytics/metric windows, hypothesis/variant links dhe testimit të pasigurisë/statistikave.",
+    "paths": []
+  },
+  "S10-B01": {
+    "status": "Deferred",
+    "done": "Eksperimentet dhe krahasimi i performancës janë pas-GA dhe jashtë fokusit aktual te krijimi/kalendari.",
+    "remaining": "Rihapen pas analytics/metric windows, hypothesis/variant links dhe testimit të pasigurisë/statistikave.",
+    "paths": []
+  },
+  "S10-A02": {
+    "status": "Deferred",
+    "done": "Autopilot që vendos vetë për postime nuk është implementuar dhe mbetet pas-GA.",
+    "remaining": "Automatic scheduling aktual dërgon vetëm postimin e miratuar shprehimisht; nuk është autopilot. Duhen policy/frequency/quiet-hours/budget/pause/audit dhe safety tests.",
+    "paths": []
+  },
+  "S10-B02": {
+    "status": "Deferred",
+    "done": "Autopilot që vendos vetë për postime nuk është implementuar dhe mbetet pas-GA.",
+    "remaining": "Automatic scheduling aktual dërgon vetëm postimin e miratuar shprehimisht; nuk është autopilot. Duhen policy/frequency/quiet-hours/budget/pause/audit dhe safety tests.",
+    "paths": []
+  },
+  "S10-A03": {
+    "status": "Deferred",
+    "done": "Ndërfaqja aktuale është shqip me EUR dhe timezone lokal; app/content locale switching është pas-GA.",
+    "remaining": "Rihapen Albanian/English i18n, translated version provenance, deterministic fallback dhe multilingual eval/E2E.",
+    "paths": []
+  },
+  "S10-B03": {
+    "status": "Deferred",
+    "done": "Ndërfaqja aktuale është shqip me EUR dhe timezone lokal; app/content locale switching është pas-GA.",
+    "remaining": "Rihapen Albanian/English i18n, translated version provenance, deterministic fallback dhe multilingual eval/E2E.",
+    "paths": []
+  },
+  "S10-A04": {
+    "status": "Deferred",
+    "done": "Agency/client reports dhe scheduled exports janë jashtë scope-it aktiv.",
+    "remaining": "Rihapen pas analytics/learning me immutable reconciled report snapshot, async export dhe print/visual tests.",
+    "paths": []
+  },
+  "S10-B04": {
+    "status": "Deferred",
+    "done": "Agency/client reports dhe scheduled exports janë jashtë scope-it aktiv.",
+    "remaining": "Rihapen pas analytics/learning me immutable reconciled report snapshot, async export dhe print/visual tests.",
+    "paths": []
+  },
+  "S10-A05": {
+    "status": "Deferred",
+    "done": "Overview ka next-actions të thjeshta nga gjendja; AI ranking/feedback/fatigue suppression mbetet S10.",
+    "remaining": "Duhen persisted feedback/preference signals, ranking/reason/dismiss/later dhe replay/accessibility tests.",
+    "paths": []
+  },
+  "S10-B05": {
+    "status": "Deferred",
+    "done": "Overview ka next-actions të thjeshta nga gjendja; AI ranking/feedback/fatigue suppression mbetet S10.",
+    "remaining": "Duhen persisted feedback/preference signals, ranking/reason/dismiss/later dhe replay/accessibility tests.",
+    "paths": []
+  }
+}

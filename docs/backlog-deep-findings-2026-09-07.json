@@ -1,0 +1,155 @@
+[
+  {
+    "id": "DA-01", "priority": "P1", "title": "Afati i Instagram-it fillon nga krijimi i punës",
+    "tasks": ["S4-A04", "S4-A05", "S4-A09", "S8-A11"],
+    "paths": ["apps/web/server/utils/publishing.ts:235"],
+    "finding": "Në IN_PROGRESS, kufiri njëorësh matet nga publication_jobs.created_at. Një punë e planifikuar më shumë se një orë përpara mund të dështojë në kontrollin e parë të container-it të sapokrijuar.",
+    "remaining": "Ruaj fillimin/afatin e përpunimit të container-it veçmas nga krijimi i orarit dhe përdore gjatë poll/restart.",
+    "verification": "Fixture: job i krijuar dje, container i krijuar tani, IN_PROGRESS pastaj FINISHED; publikim vetëm një herë. Provo veçmas skadimin real të container-it.",
+    "evidence": "Gjetje nga rruga e kodit; nuk u ekzekutua kundrejt Meta-s."
+  },
+  {
+    "id": "DA-02", "priority": "P1", "title": "Worker-i merr vetëm një punë çdo 30 sekonda",
+    "tasks": ["S4-A03", "S5-A09", "S6-A07"],
+    "paths": ["apps/web/server/plugins/publisher.ts:15", "apps/web/server/utils/publishing.ts:160"],
+    "finding": "Çdo tick merr një biznes sipas ID-së dhe një punë. Intervali vendos rreth dy marrje pune/minutë për proces para vonesave të provider-it; nuk ka batch/concurrency të konfigurueshme ose drejtësi sipas orarit global.",
+    "remaining": "Përpuno batch të kufizuar me concurrency të kontrolluar, renditje të drejtë të punëve të vonuara dhe metrika queue-age.",
+    "verification": "Burst nga disa biznese në të njëjtin orar, dy worker-a, pa dyfishime ose uri të një biznesi; mat vonesën ndaj objektivit të planifikuar.",
+    "evidence": "Kufiri rrjedh nga intervali dhe LIMIT 1; nuk është benchmark i matur."
+  },
+  {
+    "id": "DA-03", "priority": "P1", "title": "Postimi failed nuk ka veprim rikuperimi në editor",
+    "tasks": ["S4-B04", "S4-B06", "S7-B03", "S7-B08"],
+    "paths": ["apps/web/app/components/ContentEditor.vue:150", "apps/web/app/components/ContentEditor.vue:427", "apps/web/app/components/ContentEditor.vue:467", "apps/web/server/utils/publishing.ts:115"],
+    "finding": "Failed shfaq checkbox kontrolli, por butonat Mirato/Kthe në draft shfaqen vetëm për review; editori lejon ndryshim vetëm në draft/review. Skema lejon failed→approved, por UI nuk e ekspozon rrugën.",
+    "remaining": "Shto rikuperim sipas kodit të dështimit me kontroll të freskët dhe konfirmim; mbaje uncertain të bllokuar derisa të zgjidhet rezultati.",
+    "verification": "E2E për failed të sigurt, media/auth error dhe uncertain; përdoruesi arrin korrigjimin pa shkaktuar publikim të dyfishtë.",
+    "evidence": "Gjetje statike nga kushtet e template-it dhe state machine; nuk është riprodhim me publikim real."
+  },
+  {
+    "id": "DA-04", "priority": "P1", "title": "Uncertain mund të bllokojë rilidhjen pas disconnect",
+    "tasks": ["S2-B08", "S4-A06", "S4-B06", "S7-A06"],
+    "paths": ["apps/web/server/api/meta/disconnect.post.ts:26", "apps/web/server/api/meta/callback.get.ts:38", "apps/web/server/api/meta/select.post.ts:50"],
+    "finding": "Disconnect ruan punën uncertain por fshin lidhjen. Callback/select refuzojnë lidhje kur ekziston uncertain. Mungon reconciler/API operative që ta zgjidhë gjendjen.",
+    "remaining": "Përfundo zgjidhjen e rezultatit me prova nga provider-i dhe një rrugë të audituar rikuperimi/rilidhjeje që nuk ridërgon verbërisht postimin.",
+    "verification": "Timeout pas efektit të jashtëm → uncertain → disconnect → verifikim rezultati → reconnect; ruaj identitetin e target-it dhe mos dyfisho.",
+    "evidence": "Sekuencë e identifikuar nga kushtet server; prova fault-injection mbetet e hapur."
+  },
+  {
+    "id": "DA-05", "priority": "P1", "title": "Historiku i importuar nuk lidhet me llogarinë burimore",
+    "tasks": ["S2-A07", "S2-B06", "S2-B07", "S3-A05"],
+    "paths": ["apps/web/server/api/meta/sync.post.ts:82", "apps/web/server/api/meta/posts.get.ts:23", "apps/web/server/api/meta/select.post.ts:59"],
+    "finding": "Social posts ruhen sipas business/channel/provider_id pa source account. Ndryshimi i faqes nuk i arkivon/fshin importet e vjetra; query dhe konteksti AI mund t'i përziejnë me historikun e faqes së re.",
+    "remaining": "Ruaj source account dhe versionin e lidhjes; filtro/arkivo importet kur ndryshon faqja dhe rifresko cursor-in/kontekstin e AI.",
+    "verification": "Import nga faqja A, lidh faqen B, import i ri: lista dhe konteksti i B përmbajnë vetëm burimet e zgjedhura, me provenance të ruajtur.",
+    "evidence": "Gjetje nga skema dhe query; nuk u provua ndërrim me dy faqe reale Meta."
+  },
+  {
+    "id": "DA-06", "priority": "P1", "title": "Login dhe recovery varen nga gatishmëria e regjistrimit",
+    "tasks": ["S0-B04", "S6-B05", "S8-B12"],
+    "paths": ["apps/web/app/components/AuthSurface.vue:74", "apps/web/server/api/capabilities.get.ts:23"],
+    "finding": "Submit kontrollon capabilities.registration për të gjitha mënyrat e auth. Registration kërkon edhe trial policy/config; dështimi i tyre mund të ndalë nga UI hyrjen/rikuperimin e një llogarie ekzistuese.",
+    "remaining": "Ndaj gatishmërinë e login, signup, verification dhe reset; problemi i trial-it të ndalë vetëm veprimin që varet prej tij.",
+    "verification": "Llogari ekzistuese me trial policy të padisponueshme: login lejohet kur auth punon; signup jep gabim të qartë; recovery ndjek vetëm gatishmërinë e emailit/auth.",
+    "evidence": "Gjetje statike. Testet lokale të auth kalojnë në konfigurimin normal, jo në këtë fault mode."
+  },
+  {
+    "id": "DA-07", "priority": "P1", "title": "Historiku nuk është snapshot i plotë immutable",
+    "tasks": ["S3-A07", "S3-B06", "S4-A01", "S4-B01", "S4-B07"],
+    "paths": ["apps/web/server/api/workspaces/[id].put.ts", "apps/web/shared/schemas/workspace.ts", "apps/web/server/utils/post-validation.ts"],
+    "finding": "Historiku ruan caption/version/at, jo fotografinë, titullin, kanalin dhe provenance të çdo versioni. Statuset gjithashtu rrisin versionin; fingerprint-i i validimit lidhet me përmbajtjen, jo me një content_version immutable.",
+    "remaining": "Ndaj content revision nga workflow state; ruaj snapshot të plotë dhe approval/validation/attempt records që referojnë të njëjtin version.",
+    "verification": "Ndrysho fotografi/tekst/kanal pas miratimit; versioni i vjetër mbetet identik dhe approval i vjetër nuk autorizon versionin e ri; provo konkurencën.",
+    "evidence": "Struktura dhe guards u lexuan; stale-content checks kalojnë në suite, por nuk provojnë historik immutable të plotë."
+  },
+  {
+    "id": "DA-08", "priority": "P1", "title": "Workflow CI nuk përgatit varësitë e backend-it aktual",
+    "tasks": ["S0-A09", "S0-B07", "S0-B08", "S4-B08", "S8-B01"],
+    "paths": [".github/workflows/frontend.yml:18", "apps/web/tests/integration/server.test.ts", "apps/web/playwright.config.ts:29"],
+    "finding": "CI thërret integration/E2E pa provisionim PostgreSQL, SMTP, konfigurim testues dhe migrime. E2E me TEST_BASE_URL përdor preview; kjo nuk i siguron shërbimet. Kalimi lokal nuk provon required checks hosted.",
+    "remaining": "Përgatit services dhe kredenciale vetëm testuese, zbato migrimet, bëj cleanup të fixture-ve dhe verifiko një run hosted e një PR që dështon me qëllim.",
+    "verification": "CI nga checkout i pastër kalon testet me DB; heqja e një guard-i e bllokon merge-in. Arkivo raportet pa sekrete.",
+    "evidence": "Workflow u lexua; nuk u ekzekutua hosted CI. Workspace nuk përmban .git."
+  },
+  {
+    "id": "DA-09", "priority": "P2", "title": "Pagination-i i workspace-it është vetëm në klient",
+    "tasks": ["S2-B01", "S3-B01", "S5-A09", "S6-B13", "S8-B10"],
+    "paths": ["apps/web/app/composables/usePagination.ts:12", "apps/web/app/composables/useWorkspace.ts:27", "apps/web/app/composables/useWorkspace.ts:54", "apps/web/app/layouts/dashboard.vue:102"],
+    "finding": "Listat e postimeve/galerisë dhe kërkimi global ngarkojnë workspace-in e plotë; ruajtjet dërgojnë snapshot të plotë. Importet Meta kanë query pagination të veçantë. Prova me 13 postime kalon, por nuk është provë ngarkese.",
+    "remaining": "Shto API të kufizuara për lista/kërkim dhe commands të veçanta për mutacione, me revision/idempotency dhe thumbnails sipas nevojës.",
+    "verification": "Fixture 500+ asset dhe 1000 postime: mat bytes/p95/memorien; filtër/cursor nuk kalon tenant-in dhe ndryshimi i një postimi nuk rishkruan gjithë listën.",
+    "evidence": "Pagination desktop/mobile kaloi në rerun; shkallëzimi nuk u mat."
+  },
+  {
+    "id": "DA-10", "priority": "P1", "title": "Eksporti JSON nuk është arkiv i rikthyeshëm i biznesit",
+    "tasks": ["S6-A04", "S7-B07", "S8-A10"],
+    "paths": ["apps/web/app/composables/useWorkspace.ts:124", "apps/web/server/api/media/[id].get.ts"],
+    "finding": "Eksporti përmban workspace dhe drafts të skedës; fotografitë referohen me URL private dhe nuk futen si bytes. Importet sociale/audit/identity dhe manifest/checksums nuk janë pjesë e këtij eksporti.",
+    "remaining": "Përcakto kontratën e eksportit; krijo server job me manifest dhe media të autorizuara, expiry/recent-auth dhe përfshirje të dokumentuar të të dhënave.",
+    "verification": "Eksport me fotografi/import/history; kontrollo manifest/checksum dhe qasjen/expiry nga llogari tjetër. Mos e paraqit JSON-in aktual si backup të plotë.",
+    "evidence": "Përmbajtja e funksionit exportData u lexua; nuk është provuar eksport i plotë serveri."
+  },
+  {
+    "id": "DA-11", "priority": "P1", "title": "Retention dhe tërheqja e të drejtave kanë lifecycle të paplotë",
+    "tasks": ["S7-A05", "S6-A05", "S2-B03", "S8-A10"],
+    "paths": ["apps/web/server/utils/trials.ts:30", "apps/web/database/migrations/0004_trials_and_social.sql", "apps/web/server/api/workspaces/[id].put.ts", "apps/web/app/pages/app/[org]/[brand]/gallery.vue:298"],
+    "finding": "Cookie ka afat fiks 365 ditë; mungon purge për trial claims dhe të dhëna të tjera. Asset-et në përdorim nuk mund të hiqen dhe një rights=false refuzohet për referenca ekzistuese; UI e galerisë nuk ofron tërheqje të drejtash.",
+    "remaining": "Përcakto retention/consent policy, zbato afatet me jobs dhe rrugën e tërheqjes së të drejtave që ndalon përdorimin e ardhshëm pa falsifikuar historikun.",
+    "verification": "Revoko të drejtat e asset-it në postim të planifikuar, verifiko bllokimin e publikimit; provo purge/resume dhe përjashtimet e dokumentuara të ruajtjes.",
+    "evidence": "Gjetje statike; nuk pretendohet se API lejon revokim dhe pastaj publikim me validation të vjetër. Aktualisht vetë ndryshimi refuzohet."
+  },
+  {
+    "id": "DA-12", "priority": "P1", "title": "Numëruesi AI nuk përmbush ledger-in e kostove",
+    "tasks": ["S5-A07", "S6-A13", "S8-A12", "S7-A09"],
+    "paths": ["apps/web/server/api/ai/captions.post.ts", "apps/web/database/migrations/0006_ai_usage.sql"],
+    "finding": "Kërkesat kanë UUID dhe limit ditor, por mungojnë estimate/reserve/commit/release për kosto reale, usage tokens/images, refund policy dhe anomaly breaker. Dështimi pas rezervimit konsumon numëruesin e kërkesave.",
+    "remaining": "Ndaj rate limit nga kreditë monetare; ruaj usage dhe gjendjen e rezervimit me concurrency guards dhe politikë të qartë për dështimet.",
+    "verification": "Kërkesa paralele, provider timeout/error/duplicate, release vetëm një herë dhe ndalim para tejkalimit të buxhetit; replay i kostove për secilin plan.",
+    "evidence": "Kodi i endpoint-it u lexua; OpenAI live dhe cost workload replay nuk u ekzekutuan."
+  },
+  {
+    "id": "DA-13", "priority": "P2", "title": "Dokumentet dhe disa tekste nuk ndjekin sjelljen aktuale",
+    "tasks": ["S0-A01", "S6-B06", "S8-B13", "S5-B07", "S8-A10"],
+    "paths": ["README.md", "docs/VALIDATION.md", "docs/adr/ADR-001-frontend-demo.md", "apps/web/app/pages/help.vue:9", "apps/web/app/pages/pricing.vue:43", "apps/web/app/pages/app/[org]/[brand]/settings.vue:170", "apps/web/app/components/CopilotPanel.vue:12"],
+    "finding": "Dokumentet e demonstrimit nuk përfaqësojnë backend-in real. Help/pricing/settings përmendin verifikim emaili pa kusht; konfigurimi lokal e anashkalon. Copilot e rendit Meta si hap 2 pa shënimin opsional. Galeria ende ka fallback tekstual Unsplash.",
+    "remaining": "Përditëso ADR/README/validation dhe copy sipas capabilities, Meta opsionale dhe scope-it posts-only. Raporti BACKLOG-REVIEW-SQ është përditësuar nga ky audit; kjo nuk zëvendëson dokumentet e tjera.",
+    "verification": "Content review në local bypass dhe public verification, pa përshkrime të shërbimeve të paaktivizuara si aktive; operatori pranon versionin publik.",
+    "evidence": "Dokumentet dhe komponentët u krahasuan me konfigurimin/testet e tanishme."
+  },
+  {
+    "id": "DA-14", "priority": "P1", "title": "Mungon prova e worker-it me efekt të jashtëm",
+    "tasks": ["S4-A04", "S4-A07", "S4-A09", "S8-A11", "S8-A03"],
+    "paths": ["apps/web/server/utils/publishing.ts", "apps/web/tests/integration/server.test.ts", "apps/web/tests/e2e/optional-meta.spec.ts"],
+    "finding": "Suite provon guards, encryption, scope dhe radhitje, por nuk ekzekuton ciklin e publikimit me fault fixtures të Meta-s. Meta App/HTTPS/worker live nuk janë verifikuar; testet nuk provojnë publikim real exactly-once.",
+    "remaining": "Shto provider fixtures që ekzekutojnë worker-in; pastaj provo llogari testuese të autorizuara në staging me target/photo real dhe verifikim të rezultatit.",
+    "verification": "Facebook dhe Instagram: sukses, 429, 5xx, crash, expired token, cancel, timeout-after-write dhe dy worker-a; arkivo provider IDs pa tokenë.",
+    "evidence": "33 unit/integration dhe 8 E2E kaluan lokalisht; asnjë publikim real nuk u krye në audit."
+  },
+  {
+    "id": "DA-15", "priority": "P1", "title": "Katalogu i planeve nuk është kontratë e plotë entitlement/limits",
+    "tasks": ["S1-A07", "S5-A06", "S5-B03", "S5-B05", "S5-B06", "S7-A04"],
+    "paths": ["apps/web/server/utils/trials.ts:36", "apps/web/server/api/plans.get.ts", "apps/web/database/migrations/0002_businesses.sql"],
+    "finding": "Çmimet EUR vijnë nga DB, por feature arrays nuk kanë schema të plotë me enum/limit/version dhe kuotat e reklamuara nuk lidhen me enforcement të planit. Entitlements aktive nuk janë subscription lifecycle me provider.",
+    "remaining": "Unifiko katalogun dhe kontratën e tipizuar të limiteve; lidhi me enforcement dhe usage snapshot, pastaj konfirmo çmimet komerciale dhe checkout.",
+    "verification": "Për çdo plan/version provo features/limits të shfaqura kundrejt serverit, konfigurim të pavlefshëm, downgrade dhe expiry; pagesat kërkojnë sandbox më vete.",
+    "evidence": "DB catalog dhe trial expiry testohen; pagesat/faturat/abonimet nuk janë aktive."
+  },
+  {
+    "id": "DA-16", "priority": "P2", "title": "Parapamja shfaq crop katror që nuk eksportohet",
+    "tasks": ["S3-B02", "S2-B03", "S7-A03", "S3-B07"],
+    "paths": ["apps/web/app/components/ChannelPreview.vue:35", "apps/web/app/components/MediaImage.vue:29", "apps/web/server/utils/publishing.ts"],
+    "finding": "Fotografia në preview shfaqet aspect-square/object-cover. Publikimi përdor asset-in origjinal të sanitizuar, pa crop të ruajtur nga kjo parapamje. Pamja mund të ndryshojë për foto drejtkëndore.",
+    "remaining": "Pasqyro raportin real të asset-it ose ruaj crop të qartë si variant që përdoret edhe në publikim; registry i formatit duhet të jetë burim i përbashkët.",
+    "verification": "Foto katrore/portrait/landscape në të dy kanalet: krahaso preview me dimensionet e asset-it të dërguar; golden render për composer kur zbatohet.",
+    "evidence": "Gjetje vizuale nga CSS/rruga e medias; nuk është krahasim me një postim live në Meta."
+  },
+  {
+    "id": "DA-17", "priority": "P2", "title": "Testi i pagination-it kërkonte një numër të fshehur nga konfigurimi",
+    "tasks": ["S0-B08", "S3-B01", "S4-B08"],
+    "paths": ["apps/web/tests/e2e/live.spec.ts:161", "apps/web/app/components/ListPagination.vue:24"],
+    "finding": "sibling-count=0/show-edges=false shfaq vetëm numrin aktual; testi kërkonte butonin 2. Selektori u ndryshua te Next Page pa hequr assertion-in 11–13 nga 13.",
+    "remaining": "Gjetja e testit është korrigjuar. Mbetet lokalizimi i emrave aksesues Next Page/Page 2 dhe prova hosted CI e task-eve përkatëse.",
+    "verification": "Rerun live.spec.ts: 4/4 desktop/mobile, përfshirë pagination dhe axe në 7 faqe dashboard-i.",
+    "evidence": "E riprodhuar dhe e korrigjuar; hq-deep-audit-live-e2e.log (2 dështime) dhe hq-deep-audit-live-e2e-rerun.log (4 kalime)."
+  }
+]

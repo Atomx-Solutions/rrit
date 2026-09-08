@@ -1,0 +1,28 @@
+{
+  "workbook": "AI_Marketing_Platform_Engineering_Master_Backlog_2_Developers_v1.1.xlsx",
+  "date": "2026-09-07",
+  "task_count": 185,
+  "statuses": {
+    "In Progress": 106,
+    "Not Started": 35,
+    "In Review": 7,
+    "Deferred": 35,
+    "Blocked": 2
+  },
+  "scope_amendments": [
+    "S0-B04",
+    "S1-B02",
+    "S1-A07",
+    "S2-B08",
+    "S4-A02",
+    "S4-B02",
+    "S4-B03",
+    "S5-B03",
+    "S6-B10",
+    "S8-B13"
+  ],
+  "formula_count_verified": 706,
+  "backup": "docs\\backups\\AI_Marketing_Platform_Engineering_Master_Backlog_2_Developers_v1.1.before-audit-2026-09-07.xlsx",
+  "original_sha256": "ba9fdc728b7be9aa7a66ff598c8549dace4eb8ef6f5fb0bf2d9e661d1dedaf26",
+  "updated_sha256": "c2ca01af82300d8f2bae61fafae165aa050dd6826e58b33f986b550303f65b6c"
+}

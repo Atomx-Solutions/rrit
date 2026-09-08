@@ -1,0 +1,44 @@
+{
+  "date": "2026-09-07",
+  "workbook": "AI_Marketing_Platform_Engineering_Master_Backlog_2_Developers_v1.1.xlsx",
+  "tasks": 185,
+  "statuses": {
+    "In Progress": 106,
+    "Not Started": 35,
+    "In Review": 7,
+    "Deferred": 35,
+    "Blocked": 2
+  },
+  "source_files_reviewed": 133,
+  "source_lines": 10451,
+  "findings": 17,
+  "original_formulas_and_caches_preserved": 706,
+  "task_ids_and_estimated_hours_preserved": true,
+  "hours": 1449,
+  "backup": "docs/backups/AI_Marketing_Platform_Engineering_Master_Backlog_2_Developers_v1.1.before-deep-audit-2026-09-07.xlsx",
+  "before_sha256": "c2ca01af82300d8f2bae61fafae165aa050dd6826e58b33f986b550303f65b6c",
+  "after_sha256": "26a651b47f82d0b90a3941665ed6f196567198bdee800ba40f910c29fc8662f4",
+  "reviewed_source_changes": [
+    {
+      "path": "apps/web/tests/e2e/live.spec.ts",
+      "before": "c637527597cc8e7d7af243df01f0059e96e72a1a8b08c21153eba7a8afef571c",
+      "after": "7dd72b116286260812885ac3c51f19383896314361083e630d4a10b2f27ae96a",
+      "reason": "DA-17: select the visible Next Page control; retain result assertions."
+    }
+  ],
+  "checks": {
+    "unit_integration": "33 passed",
+    "e2e_final": "8 passed in two focused runs",
+    "initial_live_e2e": "2 passed, 2 failed; DA-17 corrected and rerun 4 passed",
+    "lint": "full exit 0; changed test eslint exit 0",
+    "app_types": "exit 0",
+    "server_types": "exit 0"
+  },
+  "not_executed": [
+    "production build/clean install",
+    "hosted CI",
+    "live Meta/OpenAI/billing",
+    "Firefox/WebKit/physical device",
+    "load/restore/security release/UAT"
+  ]
+}

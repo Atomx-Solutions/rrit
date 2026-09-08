@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+*.docx binary
+*.jpg binary
+*.png binary
+*.xlsx binary
+
+# Generated tabular export; the workbook is the canonical backlog source.
+docs/backlog.txt -diff

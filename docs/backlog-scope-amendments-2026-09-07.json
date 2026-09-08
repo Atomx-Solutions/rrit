@@ -1,0 +1,42 @@
+{
+  "S0-B04": {
+    "detail": "Integrate Better Auth sessions backed by PostgreSQL with signup, verify, login, forgot/reset and session-expired UI. Document the departure from Supabase Auth. Allow AUTH_REQUIRE_EMAIL_VERIFICATION=false only on loopback origins; support localhost and 127.0.0.1 on the same configured port.",
+    "acceptance": "Happy/error/expired flows work against local/staging auth; redirects are safe; session clears on logout. Local bypass sends no verification link and does not forge emailVerified=true. Public origins still require verification. Tests cover both loopback host aliases and reject foreign origins."
+  },
+  "S1-B02": {
+    "detail": "Build resumable Nuxt UI Stepper: business basics -> optional social profiles/Meta connection -> first post. Save completed progress in PostgreSQL, recover incomplete form input locally, and expose timezone/facts/settings clearly.",
+    "acceptance": "Refresh/logout/login resumes the correct completed step; user can continue, create posts, approve and plan without Meta. Validation is actionable; mobile has no horizontal scroll. Only actual business data is used; no demo workspace is created."
+  },
+  "S1-A07": {
+    "detail": "Implement DB-backed plan/version and typed entitlement resolver, plus a configurable 72-hour trial granted atomically on first business creation. Deduplicate trial claims by normalized email and signed browser identifier; claim Facebook/Instagram identities only when they connect. Keep missing provider setup distinct from feature entitlement.",
+    "acceptance": "Unknown entitlement fails safely; plan limits come from the database. Trial is not extended on retry; duplicate email/browser/social identities cannot obtain another grant. Expiry blocks new entitled writes while preserving reads/export. Social connection is optional; browser cookies are not represented as hardware identity. Plan/version and typed limit tests remain required."
+  },
+  "S2-B08": {
+    "detail": "Confirm Meta disconnect/reconnect and describe its consequences. Disconnect cancels pending automatic publications and preserves their dates as manual calendar entries. Keep uncertain publications visible and blocked for verification; retain local content validation.",
+    "acceptance": "Disconnect is owner-authorized and cannot interrupt a processing publication. Manual calendar entries and approvals remain available without Meta. Pending automatic work is cancelled; uncertain outcomes are not silently retried or represented as unsent. Reconnect never enables automatic publication for manual entries. Real revoke/reconnect scenarios are tested."
+  },
+  "S4-A02": {
+    "detail": "Persist UTC schedule with business timezone and explicit publicationMode: manual (default) or automatic. Manual is calendar organization only; automatic creates a durable publication job only after explicit confirmation, active entitlement, provider validation and worker readiness.",
+    "acceptance": "Cannot schedule an unapproved or invalid-content version. Manual calendar planning works without Meta, creates no publication job and may use dates beyond trial expiry while writes are entitled. Automatic scheduling requires fresh publication-scope checks and an eligible account valid at run time. Cancel/reschedule/DST/uniqueness and duplicate-command tests pass."
+  },
+  "S4-B02": {
+    "detail": "Build month/week/list calendar using Nuxt UI; list with pagination is the default on all screens. Use the guarded schedule modal for date changes; drag/reorder is deferred from the current simple posts-only UX. Clearly label calendar-only vs automatic publication.",
+    "acceptance": "Business timezone/DST fixtures pass. Approved posts can be saved and reloaded in the calendar without Meta. Date changes through the modal cannot bypass approval/content policy. Manual items never publish automatically after a later connection. Month/week/list and mobile core actions are usable."
+  },
+  "S4-B03": {
+    "detail": "Create a Nuxt UI schedule modal using business timezone, future/DST validation and an explicit automatic-publication checkbox, off by default. Manual calendar dates require no Meta; automatic mode shows entitlement/provider/worker blockers.",
+    "acceptance": "Ambiguous/nonexistent local times are rejected or resolved explicitly; double submit is safe. Manual dates save without an account and persist after refresh. Automatic publication cannot bypass fresh provider checks or server authorization. Invalid target capability is blocked only for external publishing."
+  },
+  "S5-B03": {
+    "detail": "Render euro (EUR) plan cards/features/limits from the PostgreSQL public plan catalog, including annual-discount data and purchasable state. Advertise the real configurable three-day trial, with no demo signup path. Keep proposed packages clearly distinct from active paid checkout.",
+    "acceptance": "No duplicate hardcoded commercial feature matrix; display matches server catalog and actual entitlements. EUR formatting, responsive layout, SSR/SEO and catalog failure states work. An unavailable plan cannot checkout. Proposed prices require commercial acceptance before paid launch."
+  },
+  "S6-B10": {
+    "detail": "Build a clean posts-focused Nuxt UI overview with real counts, approval/failure next actions, collapsed upcoming-post lists and quick-create. Show detailed posts only after an explicit view action. Strategy/campaign planning and standalone performance analytics are deferred.",
+    "acceptance": "Above-the-fold content prioritizes useful actions; post details are collapsed initially; data is real and empty/error states truthful. Quick-create/approve/calendar/manual planning work without Meta. Mobile navigation, accessibility, visual and performance/UAT evidence are required."
+  },
+  "S8-B13": {
+    "detail": "Provide a real-account onboarding checklist, contextual explanations, empty-state actions and a first-post path. Remove sample/demo runtime content. New eligible businesses receive the configured 72-hour trial; optional Meta connection does not block first value.",
+    "acceptance": "A fresh account starts with an empty private workspace, has a clear next action and persists real progress. No demonstration tenant or fabricated imported/generated/published result exists. Manual posts can be approved and planned without Meta. Trial eligibility/expiry is server-authoritative; fresh-account UAT and funnel evidence remain required."
+  }
+}

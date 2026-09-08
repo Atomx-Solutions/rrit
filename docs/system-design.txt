@@ -1,0 +1,2160 @@
+ENGINEERING BLUEPRINT
+AI Marketing Platform
+Production-Grade System Design, UX Architecture & Engineering Execution Specification
+Production baseline
+Modular monolith + durable workers; tenant-safe by construction; provider adapters; verified Business Brain; idempotent publishing; measurable SLOs.
+
+
+VERSION
+1.1
+DATE
+05 September 2026
+STATUS
+PRODUCTION MASTER / APPROVED FOR IMPLEMENTATION
+TEAM
+2 Software Engineers
+DELIVERY MODEL
+18 weeks / 9 two-week sprints to Production GA (S0-S8); S9-S10 are post-GA growth expansion
+PRIMARY STACK
+Nuxt 4 + FastAPI/Python 3.14 + Supabase + OpenAI + Meta APIs
+SECURITY BASELINE
+OWASP ASVS 5.0 L2-oriented + API Security Top 10
+ARCHITECTURE STYLE
+Modular Monolith + Durable Workers + Ports/Adapters
+
+Purpose: This document is the executable technical baseline for two engineers building the production V1. Changes that alter architecture, security boundaries, external contracts or data semantics require an ADR.
+
+Document map
+Section
+Coverage
+0-4
+Architecture baseline, product boundaries, principles, tenancy, journeys
+5-9
+Repository, bounded contexts, data/RLS, security, Meta integration
+10-15
+Business Brain, AI, media, content, publishing, analytics
+16-20
+Billing, API, async/outbox, notifications, observability/SLOs
+21-27
+Environments, CI/CD, testing, privacy, scale, DR, threat model
+28-33
+2-engineer delivery, DoR/DoD, release gates, ADRs, risks, evolution
+34-52
+Production UX, Nuxt frontend architecture, design/motion system, Marketing HQ, AI strategy/campaigns, feedback learning, safety, cost guardrails, admin/ops, responsive accessibility, performance, feature flags, legal/privacy and master release sequence
+Appendices A-H
+Data catalog, API inventory, queue jobs, coding standards, references, frontend page acceptance matrix, AI evaluation matrix and production non-negotiables
+
+How to use this document
+The DOCX defines invariants and engineering rules. The companion XLSX is the execution backlog. A task is not complete unless its acceptance criteria and linked release-gate evidence are satisfied.
+
+0. Executive architecture baseline
+Platforma eshte nje SaaS multi-tenant per biznese dhe agjenci qe lidh kanalet sociale, meson identitetin e biznesit nga burime te verifikueshme, organizon asetet reale, gjeneron permbajtje, kerkon aprovim sipas politikes, publikon ne menyre te sigurt dhe mat rezultatin. Qellimi i arkitektures eshte qe produkti te jete i thjeshte per dy programere sot, por pa krijuar borxh arkitekturor qe e bllokon rritjen neser.
+Vendimi kryesor
+V1.1 ndertohet si modular monolith me kufij te forte domeni dhe worker-e durable. Nuk ndahet ne microservices pa evidence nga load, ownership ose deployment isolation. Ports/adapters lejojne zevendesimin e Meta, OpenAI, billing, storage dhe runtime pa ndryshuar domain-in.
+
+Dimensioni
+Baseline production
+Frontend
+Nuxt 4.5.x on Node.js 24 LTS, TypeScript strict, Nuxt UI v4 as the primary component system, Tailwind CSS theme tokens, Motion for Vue for purposeful animation, SSR/hybrid rendering, typed OpenAPI client, route middleware, accessibility and explicit performance budgets.
+Backend
+FastAPI on Python 3.14, modular monolith, application services, repositories, domain policies.
+Data
+Supabase Postgres; tenant-scoped data model; RLS; migrations; append-only audit; outbox.
+Auth
+Supabase Auth; JWT verification server-side; MFA-ready; organization membership + RBAC + brand scope.
+Files
+Supabase Storage private buckets; signed upload/download; immutable originals; derived variants.
+Async
+Supabase Queues/pgmq; idempotent workers; visibility timeout; retry/backoff; terminal failures.
+AI
+Provider-neutral AI gateway using capability routing, pinned model snapshots, structured outputs, verified evidence packs, strategy/campaign orchestration, safety policies, eval gates, cost budgets and feedback-driven learning.
+Social
+Meta adapters for Facebook Pages and Instagram Professional accounts; OAuth; webhooks; rate-limit aware.
+Security
+OWASP ASVS 5.0 Level-2 oriented baseline, OWASP API Top 10 controls, threat modeling and secure SDLC.
+Delivery
+Docker, IaC-ready, separate local/test/staging/prod, CI/CD gates, progressive rollout and feature flags.
+
+
+Figure 1 - Target logical architecture. Domain logic remains independent from infrastructure providers.
+1. Product definition, boundaries and success criteria
+1.1 Product promise
+Perdoruesi duhet ta perceptoje platformen si nje Marketing Manager digjital: e njeh biznesin, punon me asetet reale, propozon cfare duhet publikuar, krijon versionet, respekton brand-in, kerkon miratim kur duhet dhe publikon vetem kur eshte e sigurt. Sistemi nuk duhet te shese iluzionin e autonomise; duhet te shese kontroll, cilesi, konsistence dhe kohe te kursyer.
+1.2 V1 in scope
+Landing page, pricing, authentication, onboarding dhe krijimi i Organization/Brand.
+Team membership, role-based access dhe brand-level access restriction.
+Lidhja e Facebook Page dhe Instagram Professional; status/health, token lifecycle, import i historikut te mbeshtetur.
+Gallery me fotografi reale, logo, brand assets dhe metadata; image variants dhe semantic asset retrieval.
+Business Brain me fakte te verifikuara, audience, tone-of-voice, guardrails, offers dhe source provenance.
+AI content planning, captions, creative brief, image edit/generation dhe deterministic brand compositor.
+Content Studio, versioning, approval, calendar, scheduling, publication dhe retry/reconciliation.
+Analytics bazike/te avancuara sipas entitlement, me raw snapshots dhe normalized metrics.
+Packages, quotas, usage ledger, subscription state dhe billing provider adapter.
+In-app/email notifications, audit trail, support/admin minimum viable tools, observability dhe production operations.
+1.3 Explicitly out of scope for V1
+TikTok, LinkedIn, Google Business Profile dhe kanale te tjera - arkitektura duhet t’i lejoje si adapters, por nuk bllokojne V1.
+Full ad-buying / Meta Ads automation, audience bidding dhe campaign budget optimization.
+Video generation i avancuar dhe long-form video editor.
+Autonomous publishing pa policy gates per industri sensitive; V1 fillon approval-first.
+Microservices, Kubernetes, event streaming cluster dhe data warehouse i vecante pa shkalle qe i justifikon.
+Custom ML model training; fillimisht perdoren provider models + evals + domain evidence.
+1.4 Product KPIs
+KPI
+Target pas beta
+Si matet
+Activation
+>= 70% e accounts qe perfundojne onboarding lidhin te pakten 1 kanal dhe krijojne Brand Brain
+Product analytics funnel
+Time to first usable post
+Median < 15 min pas onboarding
+created_at -> READY_FOR_REVIEW
+Approval rate
+>= 70% e gjenerimeve aprovohen pa full regenerate pas 4 jave learning
+Version + approval events
+Publishing reliability
+> 99% e jobs te vlefshme perfundojne ose japin failure te qarte, duke perjashtuar provider/account outages
+Publication attempts
+Tenant isolation
+0 cross-tenant findings
+Automated RLS/security tests + incidents
+Gross AI cost guardrail
+AI/media variable cost brenda entitlement budget per plan
+Usage ledger
+30-day retained businesses
+Track by cohort; target vendoset pas first 30 paying customers
+Subscription/product analytics
+
+2. Engineering principles and SOLID interpretation
+SOLID aplikohet ne kufijte e sistemit dhe ne drejtimin e dependencies, jo si ceremonial abstraction. Qellimi eshte qe biznes rules te testohen pa rrjet, pa Supabase, pa Meta dhe pa OpenAI.
+Parimi
+Rregulli praktik ne kete sistem
+Single Responsibility
+Module dhe application service kane nje arsye biznesi per te ndryshuar. Publishing nuk gjeneron content; Billing nuk di Meta API.
+Open/Closed
+Provider adapters implementojne ports; nje provider i ri shtohet pa ndryshuar domain service.
+Liskov
+Adapters respektojne contract semantics, error taxonomy dhe idempotency; nuk fshehin limitations.
+Interface Segregation
+Ports te vogla: SocialPublisher, SocialReader, AiTextGenerator, ImageEditor, BillingGateway, NotificationSender.
+Dependency Inversion
+Domain/Application varen nga interfaces; Infrastructure varet nga domain contracts.
+
+2.1 Additional non-negotiable rules
+Make invalid states hard to represent: status transitions kalojne vetem permes domain policy/service.
+No provider SDK objects cross the adapter boundary; mapohen ne internal DTO/value objects.
+No package-name conditionals ne feature code. Gjithcka kontrollohet nga EntitlementService.
+No raw model names ne domain code. Perdoret capability routing: fast_text, quality_text, premium_reasoning, image_edit.
+No irreversible DB migration ne te njejtin deployment me kodin qe e kerkon; perdoret expand -> backfill -> switch -> contract.
+No background side effect pa idempotency key, retry policy dhe observable attempt record.
+No AI-generated commercial fact pa evidence reference ose explicit user input.
+No production-only behavior qe nuk mund te testohet ne staging me provider sandbox/test account.
+3. Actors, tenancy, RBAC and authorization
+3.1 Tenant model
+Organization eshte kufiri i billing-ut, sigurise dhe data ownership. Organization mund te kete nje ose me shume Brands. Ky model e mbeshtet nje biznes me disa lokacione/brands dhe nje agjenci qe menaxhon kliente te shumte pa krijuar tenant model te ri.
+Role
+Capabilities kryesore
+Restricted actions
+Owner
+Gjithcka; billing; team; integrations; data export; organization deletion
+N/A; sensitive actions require recent auth/MFA when enabled
+Admin
+Team, brand config, integrations, content, analytics
+Nuk mbyll organization dhe nuk ndryshon owner pa policy
+Marketer
+Create/edit/generate/schedule content; gallery; campaigns
+Nuk menaxhon billing/team ose destructive org settings
+Approver
+Review, approve, reject, comments
+Nuk ndryshon integrations/billing; publish sipas policy
+Analyst
+Read content, analytics, reports
+Read-only
+Billing
+Invoices/subscription/payment settings
+Pa qasje ne content ose social tokens
+
+3.2 Brand scope
+Membership ruhet ne organization_members. Default access mund te jete ALL_BRANDS; restricted users kane organization_member_brand_access rows. AuthorizationService vlereson: identity -> organization membership -> role capability -> brand scope -> resource state. UI guards jane vetem UX; enforcement eshte server-side dhe DB-side.
+
+Figure 2 - Defense-in-depth tenant authorization path.
+Security invariant
+Nje request nuk mund te zgjedhe arbitrarisht organization_id. Active organization validohet nga membership dhe vendoset ne tenant context vetem pas authorization. Worker job gjithmone bart organization_id + resource id dhe e verifikon para side effects.
+
+4. Core user journeys and behavioral contracts
+4.1 Signup to first draft
+User krijon account dhe verifikon email-in. Sistemi krijon profile, por jo organization automatikisht pa sukses te onboarding step.
+User krijon Organization dhe Brand; sistemi cakton Owner membership ne nje transaction.
+Wizard mbledh category, locale, languages, timezone, goals dhe essential brand facts.
+User lidh Instagram/Facebook ose vazhdon manualisht. Connection test jep capability matrix, jo vetem connected=true.
+Sistemi importon metadata/post history ne background; progresi shfaqet ne UI dhe eshte resumable.
+Business Brain gjeneron candidate facts dhe brand voice. User i konfirmon faktet komerciale/sensitive.
+User ngarkon real assets; sistemi krijon variants/metadata dhe i ben searchable.
+AI krijon draftin e pare nga verified evidence pack. Drafti nuk publikohet pa approval ne default policy.
+4.2 Scheduled publication
+Marketer zgjedh immutable content version dhe target social accounts.
+Approver ose policy engine e kalon versionin ne APPROVED.
+Schedule ruhet ne UTC, por paraqitet ne brand timezone; DST edge cases testohen.
+Due dispatcher ben enqueue idempotent te publication job; queue consumer merr lock/visibility timeout.
+Publisher verifikon entitlement, token/account health, version status dhe duplicate guard para remote call.
+Attempt ruan request fingerprint dhe provider external id; pas timeout sistemi reconcile-on-read para retry.
+Final result kalon ne PUBLISHED ose explicit retryable/terminal failure; user njoftohet kur duhet.
+4.3 Disconnect / revoke
+Disconnect ndalon jobs te reja per account, invalidon local token reference, shenon connection REVOKED/DISCONNECTED, ruan historikun e posts/analytics sipas retention policy dhe nuk fshin data pa explicit deletion request. Scheduled jobs qe varen nga account kalojne ne BLOCKED dhe kerkojne reconnect ose retarget.
+5. Target architecture and repository layout
+5.1 Monorepo
+/apps  /web        # Nuxt 4  /api        # FastAPI HTTP application  /worker     # Queue consumers / scheduled dispatchers/packages  /contracts  # generated/open shared API schemas  /design     # UI tokens/components where useful/supabase  /migrations  /seed/infra        # Docker, deployment manifests, IaC modules/docs  /adr  /runbooks  /threat-models
+Monorepo ul integration friction per ekip prej dy programeresh dhe mban contract changes atomike. Build/deploy pipelines mbeten te ndara per web, api dhe worker.
+5.2 Backend module structure
+src/modules/<bounded_context>/  domain/          # entities, value objects, policies, domain events  application/     # commands, queries, use cases, ports  infrastructure/  # postgres repos, provider adapters  transport/       # FastAPI routers + request/response mapping
+5.3 Dependency rule
+transport -> application -> domain. infrastructure implementon application ports. Domain nuk importon FastAPI, SQLAlchemy, Supabase SDK, OpenAI SDK apo Meta SDK. Cross-module communication kalon permes public application contracts/domain events, jo me query direkte ne tabelat e modulit tjeter pa ownership agreement.
+6. Bounded contexts and ownership
+Context
+Owns
+Publikon/consumon
+Identity & Organizations
+profiles, organizations, memberships, roles, brand access
+member_changed, organization_deleted
+Brands
+brands, brand settings, business facts, voice, audiences, offers, guardrails
+brand_brain_changed
+Social Integrations
+oauth connections, social accounts, tokens refs, sync state, webhook events
+social_connected, social_revoked, post_imported
+Media
+gallery assets, variants, metadata, processing jobs, creative outputs
+asset_ready, asset_failed
+AI Orchestration
+prompt versions, model routes, ai runs/evals, evidence packs
+generation_completed/failed
+Content
+campaigns, plans, content items, versions, approvals, comments
+content_approved, content_revised
+Publishing
+schedules, publication jobs/attempts/provider ids
+publication_succeeded/failed
+Analytics
+metric snapshots, normalized rollups, recommendation evidence
+analytics_updated
+Billing & Entitlements
+plans, subscriptions, entitlements, usage ledger/reservations
+entitlement_changed
+Notifications
+templates, notification jobs, deliveries
+notification_sent/failed
+Audit & Operations
+audit events, admin actions, operational metadata
+read by support/security only
+
+7. Data architecture and multi-tenant persistence
+7.1 Database conventions
+Primary keys UUID; every tenant resource contains organization_id; brand-scoped resources additionally contain brand_id.
+All timestamps are timestamptz in UTC; brand timezone is an IANA timezone string and only affects display/scheduling input.
+Money stored as integer minor units + ISO currency; never floating point.
+JSONB limited to provider payload snapshots, extensible metadata and AI diagnostics; core business fields stay typed columns.
+Every mutable aggregate has created_at, updated_at and optional version integer for optimistic concurrency.
+Soft delete only where product semantics require recoverability; privacy deletion uses explicit purge workflows, not endless soft-delete.
+Foreign keys are explicit. Cascades are used only when ownership is unambiguous; security/audit records use restricted deletion rules.
+Indexes follow measured query paths: (organization_id, brand_id, status), scheduled_at partial indexes, provider external ids unique per account, created_at cursor indexes.
+7.2 RLS strategy
+RLS eshte aktiv per tenant tables. API runtime perdor DB role pa BYPASSRLS. Pas JWT + membership authorization, transaction vendos SET LOCAL app.user_id dhe app.organization_id; policies lejojne rows vetem kur organization_id perputhet me tenant context. Worker runtime perdor role te vecante dhe vendos organization context nga job i verifikuar. Migration/admin role nuk perdoret nga request path.
+Test requirement
+Cdo migration qe shton tenant table deshton ne CI nese tabela nuk ka organization_id kur kerkohet, RLS enabled, policy tests dhe negative cross-tenant test. Kjo eshte release gate, jo checklist manual.
+
+7.3 Transactional consistency
+State change dhe event/outbox row shkruhen ne te njejtin DB transaction. Worker side effects nuk nisen direkt nga HTTP handler. Ky pattern eliminon rastin ku DB commiton por enqueue/publish humbet, dhe mundeson replay te kontrolluar.
+8. Authentication, secrets and application security
+8.1 Authentication
+Supabase Auth eshte identity provider. API verifikon signature, issuer, audience, expiry dhe key rotation nga JWKS.
+Email verification kerkohet para external integrations. MFA architecture eshte e gatshme; Owner/billing/destructive actions mund te kerkojne step-up authentication.
+Session/token handling ndjek Supabase supported flow; asnje token autentikimi nuk log-ohet.
+Account lock/rate limits/bot protection konfigurohen sipas production checklist dhe risk profile.
+8.2 Social credentials
+Meta access tokens nuk ruhen plaintext ne application tables. Ruhet credential reference + encrypted ciphertext me envelope encryption; master key jashte DB ne managed secret/KMS. Metadata jo-sekrete perfshin provider, scopes, issued_at, expires_at, last_validated_at dhe token_version. Rotation dhe revoke trajtohen si first-class flows.
+8.3 Web security baseline
+Kontrolli
+Implementation requirement
+Transport
+HTTPS only; HSTS after domain validation; secure TLS defaults; provider callbacks only HTTPS.
+Browser
+CSP, frame-ancestors, nosniff, Referrer-Policy, secure/samesite cookies when cookies are used.
+CSRF
+State-changing cookie-auth endpoints require CSRF defense; bearer endpoints avoid ambient authorization.
+CORS
+Explicit production origins only; never wildcard with credentials.
+Rate limiting
+Per IP + identity + organization + expensive operation; provider retry-after respected.
+Uploads
+MIME magic-byte validation, size/dimension limits, decode/re-encode raster images, strip EXIF/GPS, reject/sanitize SVG.
+SSRF
+No arbitrary URL fetching. URL import, if enabled later, uses allowlist/proxy, DNS/IP validation and egress controls.
+Secrets
+No secrets in Git, logs, frontend runtime config or error payloads; secret scanning in CI.
+Audit
+Append-only events for role/integration/billing/publish/security-sensitive actions.
+Security verification
+OWASP ASVS 5.0 L2-oriented checklist + API Top 10 threat cases mapped to tests.
+
+9. Meta integration architecture
+9.1 Connection model
+SocialConnection perfaqeson OAuth grant/credential relationship; SocialAccount perfaqeson nje Facebook Page ose Instagram Professional account. Nje connection mund te zbuloje disa accounts. UI nuk supozon capability uniforme: adapter kthen capability matrix per READ_PROFILE, READ_MEDIA, READ_INSIGHTS, PUBLISH_IMAGE, PUBLISH_CAROUSEL, PUBLISH_REEL etj.
+9.2 OAuth and webhook rules
+OAuth initiation gjeneron cryptographically-random state dhe server-side pending record me expiry; PKCE perdoret ku provider flow e mbeshtet.
+Callback validohet nje here; code exchange behet server-side; token encrypted immediately; browser merr vetem result status.
+Scopes ruhen dhe krahasohen me required capability. Missing scope shfaqet si degraded connection, jo generic failure.
+Webhook challenge/signature verifikohet; raw event fingerprint ruhet per deduplication; processing behet async.
+Provider error codes mapohen ne internal taxonomy: AUTH_REVOKED, RATE_LIMITED, TEMPORARY, VALIDATION, PERMISSION, MEDIA_FETCH, UNKNOWN.
+API version pinning konfigurohet ne adapter dhe upgrade-ohet me contract tests, jo implicit latest.
+9.3 Import and sync
+Initial sync importon vetem data qe permissions/API e lejojne. Cursor/checkpoint ruhet per account. Re-sync eshte incremental, resumable dhe idempotent; external object unique key eshte (provider, social_account_id, external_id). Raw provider payload mund te ruhet me retention te shkurter per debugging, ndersa normalized fields ruhen per produkt.
+9.4 Publishing constraints
+Media final qendron private. Vetem gjate provider fetch krijohet short-lived signed/publicly-accessible URL me TTL minimal. Publisher nuk supozon se remote call failure do te thote no post: ne timeout/ambiguous outcome, ben reconciliation para retry per te shmangur duplicate post.
+10. Business Brain: trusted business knowledge
+Business Brain eshte asset-i kryesor i produktit. Ai nuk eshte nje paragraph prompt; eshte nje model i strukturuar i fakteve, zerit te brand-it, audiences, kufizimeve dhe ofertave me provenance. AI mund te propozoje, por produkti e dallon proposed nga verified.
+Component
+Fields / semantics
+Trust rule
+Business Fact
+type, value, source_type, source_ref, confidence, status, verified_by, valid_from/to
+Fakt komercial/sensitive perdoret vetem VERIFIED ose explicit in current request
+Brand Voice
+traits, vocabulary, banned phrases, emoji policy, formality, examples
+User override > inferred history
+Audience
+segment, locale, pain points, intent, exclusions
+No sensitive targeting inference pa business need/legal basis
+Offer
+title, terms, price_minor, currency, start/end, CTA, source
+Must be active + verified for exact price/terms
+Guardrail
+claim type, rule, severity, required approval
+Hard guardrail blocks generation/publish
+Visual Identity
+logo refs, colors, typography, layout rules, do/dont
+Exact deterministic rendering for logo/text/price
+Strategy
+goals, pillars, cadence, channel preferences
+Versioned and user-editable
+
+10.1 Knowledge build pipeline
+Collect explicit onboarding inputs and connected social profile/history.
+Normalize sources and create candidate evidence records.
+Run structured extraction; missing values become null, never invented defaults.
+Deduplicate/conflict-detect candidate facts; preserve source refs.
+Present high-impact facts/offers for user verification.
+Compile immutable Business Brain snapshot for each generation run.
+Store which fact IDs and asset IDs were used by each content version for traceability.
+11. AI orchestration and quality system
+
+Figure 3 - AI pipeline separates evidence, strategy, copy, image work, deterministic composition and quality gates.
+11.1 Model routing
+Capability
+Default route
+Rationale
+fast_text
+Low-cost current text model (e.g. GPT-5.6 Luna class)
+Extraction, classification, tags, variants, simple rewriting.
+quality_text
+Balanced current model (e.g. GPT-5.6 Terra class)
+Brand strategy, content planning, QA and high-value copy.
+premium_reasoning
+Feature-flagged strongest model when value justifies cost
+Complex planning, difficult exception cases; never hard dependency for baseline UX.
+image_edit_generate
+GPT-Image-2 pinned snapshot
+Real-asset reference editing/generation; snapshot pinning controls behavior drift.
+
+Model alias/config ruhet ne ModelRoute config, jo ne business code. Ndryshimi i modelit kalon eval suite, staged rollout dhe cost/latency comparison. Structured text calls perdorin JSON Schema strict output kur capability e mbeshtet.
+11.2 Prompt and output governance
+PromptVersion eshte immutable: key, semantic version, template hash, schema version, model route, created_by, evaluation status.
+AI run ruan prompt_version_id, model snapshot/alias, inputs fingerprint, evidence IDs, output schema, token/image usage, latency, estimated cost dhe outcome.
+Prompts nuk permbajne secrets. User/generated content konsiderohet untrusted data, jo system instruction.
+JSON validation failure ben controlled repair/retry me bounded attempts; pas limitit kthehet typed failure, jo silently malformed output.
+Caching perdoret vetem per deterministic/appropriate stages; business data isolation ruhet ne cache key.
+11.3 Golden evaluation suite
+Dimension
+Automatic check
+Human sample
+Factuality
+Every commercial claim maps to valid fact_ref/offer_ref
+Reviewer checks 10-20 examples per vertical
+Brand adherence
+Banned terms, tone features, locale/language, CTA rules
+Brand fit 1-5
+Duplication
+Similarity against recent posts and same batch
+Campaign variety assessment
+Safety/compliance
+Guardrail rule engine + provider moderation where applicable
+Sensitive vertical review
+Visual identity
+Logo/text exactness from compositor; required asset refs present
+Creative quality 1-5
+Commercial usefulness
+Goal/CTA alignment
+Would a marketer approve/use it?
+Cost/latency
+Budget and p95 threshold
+Not normally human-rated
+
+Release gate for AI changes
+Asnje model/prompt upgrade nuk promovohet direkt ne production. Duhet pass rate minimal ne golden set, no factual regression, cost within budget dhe canary per nje subset tenants.
+
+12. Media and creative pipeline
+12.1 Storage lifecycle
+API krijon upload session/signed URL per private bucket dhe regjistron pending asset.
+Client uploadon direkt; callback/finalize verifikon ownership, checksum, MIME/dimensions dhe size.
+Worker decode/re-encode raster image, strips EXIF/GPS, krijon thumbnails/working variants dhe perceptual hash.
+Vision metadata nxjerr objects/context/tags; text representation mund te embed-ohet per semantic retrieval.
+Original mbetet immutable. Edit/generation krijon child asset me lineage parent_asset_ids + ai_run_id.
+Final social creative eshte immutable version dhe lidhet me content version; logo/text/price overlay behet deterministically.
+12.2 Asset retrieval
+Asset selector kombinon filters te forta (brand, asset type, orientation, quality, permissions, recent usage) me semantic relevance. Nuk dergon gjithe gallery te model-i. Selection result ruhet per reproducibility dhe user mund ta pin/replace asset-in.
+12.3 Realism and brand integrity
+Default preferon edit/compose nga real assets perpara full synthetic generation.
+Staff/person identity nuk ndryshohet pa explicit user request dhe policy; high-risk face edits mund te bllokohen.
+Product/package/property geometry nuk transformohet ne menyre qe e paraqet produkt tjeter pa disclosure/policy.
+Logo, price, phone, address dhe critical text nuk renderohen nga image model; overlayohen nga deterministic composer.
+Generated image ruan provenance dhe prompt/evidence lineage per support dhe future watermark/provenance requirements.
+13. Content model, versioning and approval
+
+Figure 4 - Explicit state machine for content and publication.
+13.1 Version rules
+ContentItem eshte intent/container. ContentVersion eshte immutable snapshot i caption, creative refs, fact refs, channel rendering dhe QA results. Edit pas approval krijon version te ri dhe invalidon approval kur ndryshimi prek publishable content. Schedule gjithmone referon version_id, jo latest mutable draft.
+13.2 Approval policy
+Policy mode
+Behavior
+APPROVAL_REQUIRED
+Cdo publishable version duhet te aprovohet nga capability APPROVE_CONTENT. Default per beta.
+TRUSTED_AUTOPILOT
+Lejohet vetem per low-risk content types, verified facts, passing QA dhe eligible plan; user mund ta caktivizoje.
+MANUAL_ONLY
+AI krijon draft, por schedule/publish nuk lejohet automatikisht.
+SENSITIVE_VERTICAL
+Always approval + additional guardrails, pa marre parasysh general autopilot setting.
+
+14. Scheduling, durable jobs and publishing
+14.1 Scheduling model
+scheduled_at ruhet UTC dhe source timezone ruhet per audit. UI validon locale/timezone, por backend eshte authoritative. Dispatcher i lehte zgjedh due schedules me partial index, krijon outbox/job idempotently dhe nuk ben remote publish brenda cron transaction.
+14.2 Queue contract
+JobEnvelope {  job_id: UUID,  job_type: string,  schema_version: int,  organization_id: UUID,  aggregate_id: UUID,  idempotency_key: string,  attempt: int,  trace_id: string,  created_at: datetime}
+14.3 Retry taxonomy
+Class
+Examples
+Action
+Retryable transient
+429, 5xx, network timeout, temporary media processing
+Exponential backoff + jitter; bounded attempts; honor Retry-After.
+Ambiguous side effect
+Timeout after publish request
+Reconcile remote state/external id before any retry.
+Auth/permission
+Revoked token, missing scope
+Block account/jobs; notify reconnect; no blind retry.
+Validation
+Unsupported media, caption validation
+Terminal until content corrected.
+Business invariant
+Not approved, entitlement exhausted, schedule cancelled
+Do not call provider; explicit blocked/cancelled state.
+
+14.4 Idempotency
+API state-changing endpoints qe mund te retry-hen pranojne Idempotency-Key. Publication has unique logical key per (content_version, social_account, scheduled slot/operation). Database unique constraints mbrojne nga duplicate enqueue. Provider response/external id ruhet para state transition final kur eshte e mundur.
+15. Analytics and learning loop
+Analytics ndahet ne raw provider snapshots, normalized metric facts dhe derived insights. Kjo shmang humbjen e kontekstit kur Meta ndryshon fields dhe mundeson reprocessing te logic pa re-fetch te historikut.
+Layer
+Example
+Retention/usage
+Raw snapshot
+provider metric payload + fetched_at + API version
+Short/medium retention for replay/debug according to need
+Normalized fact
+post_id, metric_key, metric_value, window, observed_at
+Primary analytics history
+Rollup
+7d/30d engagement, top content pillar, cadence performance
+Dashboard queries
+Recommendation
+evidence refs, recommendation text, confidence, generated_at
+Never presented as certainty without evidence
+
+Performance feedback mund te ndikoje planifikimin, por sistemi nuk ben causal claims nga correlations te thjeshta. AI merr aggregates/evidence te kufizuara dhe recommendation ruan supporting metric refs.
+
+PART II - Commercial, operational and delivery architecture
+The remaining sections define how the product becomes operable, billable, secure, measurable and releasable - not merely functional in development.
+16. Billing, plans, quotas and entitlements
+16.1 Domain design
+Billing provider nuk eshte source of truth per feature checks. Subscription state sinkronizohet ne Billing context; EntitlementService llogarit capabilities dhe limits nga plan_version + overrides. Kjo e ben te mundur ndryshimin e payment provider-it dhe custom enterprise plans pa shperndare if plan == PRO ne kod.
+Entitlement key
+Type
+Example semantics
+brands.max
+integer
+1, 3, 10
+members.max
+integer
+1, 5, 20
+social_accounts.max
+integer
+2, 8, 30
+generation.image.monthly
+integer credits
+12, 40, 120
+generation.text.monthly
+integer credits
+100, 500, 2000
+publishing.auto
+boolean
+false/true
+analytics.level
+enum
+basic / advanced
+storage.bytes
+integer
+quota in bytes
+approval.workflow
+enum
+single / advanced
+support.level
+enum
+standard / priority
+
+16.2 Usage accounting
+Expensive operation rezervon usage para AI call, commiton actual usage pas suksesit dhe release-on reservation pas failure. UsageLedger eshte append-only me idempotency key. UI shfaq consumed, reserved dhe remaining. Hard limit nuk bazohet ne client-side counter.
+16.3 Provider events
+Billing webhooks verifikohen, deduplicohen dhe ruhen si provider_event. Subscription transitions jane idempotent. Grace period, past_due dhe cancellation policy implementohen ne domain, jo ne webhook handler. Sensitive billing UI kerkon Owner/Billing role.
+17. API contract and error model
+17.1 HTTP standards
+Public application API versioned under /api/v1. Breaking changes require /v2 or compatibility window.
+OpenAPI is generated from FastAPI and CI generates typed TypeScript client; drift between committed client and API fails CI.
+Cursor pagination for feeds/history; offset pagination only for small admin tables.
+Resource mutation uses optimistic concurrency where concurrent edit is plausible (version/If-Match equivalent).
+Idempotency-Key required/supported on create payment, generation request, schedule and other replay-prone commands.
+request_id and trace_id returned in errors for support; no stack traces or provider secrets to client.
+17.2 Error envelope
+Problem {  type: "https://docs.example.com/problems/<code>",  title: string,  status: int,  code: "CONTENT_NOT_APPROVED" | "META_RECONNECT_REQUIRED" | ...,  detail: safe string,  request_id: string,  field_errors?: [{ field, code, message }]}
+API errors mapohen nga domain/provider errors ne stable internal codes. Frontend nuk parse-on provider text. Error taxonomy dokumentohet dhe perdoret nga support runbooks.
+18. Async processing, outbox and event contracts
+18.1 Why durable asynchronous work
+AI, image processing, social sync dhe publishing jane remote/slow/failure-prone. HTTP request duhet vetem te validoje command-in, te ruaje intent-in dhe te enqueue durable work. UI merr job/resource status dhe mund te perdore polling/realtime notification si optimization.
+18.2 Outbox pattern
+Application transaction muton aggregate dhe shton outbox_event me unique event_id.
+Dispatcher lexon unsent events dhe i dergon ne queue me idempotency key.
+Consumer ruan processed marker/result sipas job type dhe kryen side effect.
+Pas suksesit message archived/deleted; pas transient failure visibility timeout/backoff e ben available perseri.
+Poison messages kalojne terminal/ops flow pas bounded attempts; nuk retry-hen pafund.
+18.3 Event compatibility
+Event payload ka schema_version. Consumers duhet te tolerojne additive fields. Breaking event changes krijojne version te ri dhe dual-publish/dual-read gjate migration window. Event payload nuk permban social access tokens ose raw secrets.
+19. Notifications and user communication
+Event
+Default channel
+Policy
+Approval required
+In-app + optional email
+Digest when many items; no spam per generated variant
+Publish failed terminal
+In-app + email
+Immediate for scheduled customer-visible failure
+Social reconnect required
+In-app + email
+Immediate; include safe remediation path
+Quota 80/100%
+In-app
+80% warning; 100% hard-limit message
+Team invite
+Email
+Signed/expiring invite flow
+Billing state issue
+Email + in-app
+Owner/Billing only
+Weekly performance summary
+Email opt-in
+Per brand/user preference
+
+Notification templates jane versioned dhe localized. Delivery provider implementon NotificationSender port. Notification job ka dedupe key per event/user/template-window.
+20. Observability, SLOs and operational readiness
+20.1 Telemetry standard
+Structured JSON logs me timestamp, level, service, env, request_id, trace_id, operation, organization_id/brand_id identifiers, error_code; pa prompt body/tokens/secrets by default.
+OpenTelemetry traces nga web/API ne worker/provider call ku praktike; spans per DB query, queue wait, AI call, Meta call dhe image processing.
+Metrics me bounded-cardinality labels; organization_id nuk perdoret si metric label ne time-series systems.
+Error tracker per uncaught exceptions dhe release correlation; source maps private per frontend.
+Audit events jane business/security record dhe nuk zevendesohen nga logs.
+20.2 Initial SLOs
+SLI/SLO
+Target
+Scope/exclusion
+API availability
+99.9% monthly
+Controlled API dependencies; planned maintenance documented
+CRUD latency
+p95 < 500 ms
+Non-AI requests in normal load
+Web LCP
+p75 < 2.5 s
+Key app/landing routes on supported devices/network
+Queue pickup
+95% < 60 s
+Normal queue depth; excludes intentionally delayed jobs
+Scheduled start
+95% within +/- 2 min
+Eligible, connected accounts; provider acceptance separate
+Publication processing
+>99% correctly resolved
+Success OR explicit classified failure; excludes invalid user/provider account state
+Tenant isolation
+0 incidents/findings
+Hard security invariant
+Privileged audit coverage
+100%
+Role/integration/billing/publish/destructive actions
+
+20.3 Alerts and runbooks
+Alerting fokusohet ne user-impact: queue oldest age, publication failure spike, OAuth revoke spike, AI provider error/latency, DB saturation, auth anomaly dhe 5xx rate. Cdo pager-worthy alert ka runbook: symptoms, dashboards, immediate containment, verification dhe escalation. Jo cdo exception dergon alert.
+21. Environments, configuration and deployment
+21.1 Environment isolation
+Environment
+Data
+External integrations
+Purpose
+Local
+Synthetic/seed
+Mock providers + developer test accounts
+Fast iteration
+Test/CI
+Ephemeral/synthetic
+Mocks/contract fixtures
+Automated tests
+Staging
+Separate Supabase project
+Meta test assets/accounts; AI budget-capped
+Production-like E2E/release candidate
+Production
+Production Supabase project
+Live providers
+Customer workload
+
+21.2 Runtime baseline
+Web, API dhe worker paketohen ne reproducible builds. FastAPI/worker perdorin Python 3.14 stable image dhe dependency lock; web perdor pinned Node active LTS/pnpm lock. Containers run as non-root where supported, read-only filesystem where practical dhe receive secrets only at runtime. API/worker deployohen ne managed containers ne te njejtin EU region sa me afer Supabase. Arkitektura nuk varet nga vendor-specific compute primitives.
+21.3 Configuration
+Configuration ndahet ne public build-time, non-secret runtime dhe secret runtime. Pydantic Settings / Nuxt runtime config validojne startup configuration; missing required production config ben fail-fast. Feature flags jane server-authoritative dhe auditohen kur ndryshojne behavior risk/entitlement.
+22. CI/CD and database change management
+22.1 Pull request quality gates
+Gate
+Web
+API/Worker/DB
+Formatting/lint
+ESLint + formatter
+Ruff
+Types
+vue-tsc/nuxt typecheck
+mypy/pyright policy as adopted + Pydantic validation
+Unit
+Vitest
+pytest
+Security
+dependency/secret scan
+dependency/secret/container scan
+Contracts
+Generated client clean
+OpenAPI snapshot + adapter contract tests
+DB/RLS
+N/A
+Migration lint, RLS tests, cross-tenant negative suite
+E2E
+Playwright critical journeys
+Supports seeded staging/test backend
+AI evals
+UI contract smoke
+Golden eval required when prompt/model route changes
+
+22.2 Delivery strategy
+Trunk-based development with short-lived branches; PR requires peer review nga programeri tjeter per critical modules.
+Merge to main deploys staging after gates. Production deploy eshte explicit promotion of same artifact digest.
+DB migrations run once with migration role before app rollout; backward-compatible expand first.
+Feature flags decouple deployment from release. New risky AI/publish capabilities launch per internal org -> beta cohort -> wider rollout.
+Rollback plan ekziston per app version. DB destructive rollback nuk supozohet; migration design duhet te lejoje forward fix/contract later.
+23. Testing strategy and quality pyramid
+Test layer
+What it proves
+When
+Domain unit
+State machines, entitlements, policies, error taxonomy
+Every PR
+Repository/DB
+Queries, constraints, transactions, RLS isolation
+Every PR
+Adapter contract
+Meta/OpenAI/Billing mapping against fixtures/test endpoints
+Every PR / nightly if remote
+API integration
+Authz + command/query + persistence + errors
+Every PR
+Frontend component
+UI states, validation, accessibility behavior
+Every PR
+E2E
+Signup/onboarding/generate/approve/schedule/publish simulation
+PR subset + staging full
+AI golden eval
+Factuality, brand, schema, duplicate, quality/cost regression
+Prompt/model changes + nightly
+Load/performance
+API, scheduler, queue throughput, large galleries
+Pre-release and capacity changes
+Security
+ASVS-derived cases, tenant attacks, uploads, webhooks, authz
+PR automated subset + release review
+Resilience
+Timeouts, provider 429/5xx, worker crash, duplicate delivery
+Before beta + scheduled regression
+
+23.1 Mandatory negative tests
+User from Organization A reads/updates every representative resource from Organization B -> denied and no existence leak.
+Marketer attempts Owner/Admin/Billing endpoints -> denied.
+Expired/revoked Meta token -> reconnect state, no endless retry.
+Duplicate queue delivery -> exactly one logical publication/result.
+Provider timeout after side effect -> reconcile prevents duplicate.
+AI output mentions unverified price/service -> QA rejects before READY_FOR_REVIEW.
+Malicious file/extension mismatch/oversized image -> rejected safely.
+Webhook replay/bad signature -> rejected/deduped.
+Quota race with concurrent generations -> no over-consumption beyond designed tolerance.
+24. Privacy, retention and data governance
+24.1 Data minimization
+Collect vetem data e nevojshme per product operation. Social data dhe metrics importohen vetem brenda permission/capability. Prompts/evidence payloads minimizohen; full raw business history nuk dergohet kur selector mund te dergoje vetem relevant subset. PII/secrets nuk futen ne logs ose analytics events.
+24.2 Retention classes
+Class
+Default policy
+Deletion behavior
+Auth/profile
+While account active + required legal period
+Delete/anonymize according to account request/legal need
+Gallery originals
+Until user deletion/organization closure
+Async purge originals + variants + derived refs
+Social imported content
+While connected/useful; configurable
+Delete on org purge; optional keep after disconnect until user deletes
+AI diagnostics
+Short retention for quality/support; minimize payload
+Purge raw prompts/content sooner than aggregate usage
+Audit/security
+Longer retention, e.g. 12 months baseline
+Restricted deletion; legal/security policy
+Billing records
+Per fiscal/legal requirements
+Not deleted if legally required; minimize unrelated product data
+
+Exact retention/legal basis duhet finalizuar me privacy/legal review para public launch. Produkti implementon data export, account/org deletion request, deletion progress dhe dependency-aware purge. AI provider data retention settings konfigurohen sipas account/privacy requirements.
+25. Performance and scalability plan
+25.1 Scale by measurement, not architecture theater
+Scale band
+Expected architecture
+Trigger for next step
+0-500 brands
+Single API service + worker pools + Supabase Postgres/Queues/Storage; no Redis required by default
+Queue age, DB CPU/IO, p95, cache evidence
+500-5,000 brands
+Horizontal API/workers; job-type concurrency controls; optional Redis only for measured hot cache/distributed rate-limit need
+Sustained bottleneck or DB contention
+5,000+ brands
+Partition/archive heavy analytics/events; dedicated analytics path; extract service only where ownership/scale requires
+Independent scaling/deploy/compliance boundary
+
+25.2 Performance rules
+No synchronous AI/image/social sync in page request path. Return accepted/job resource and stream/poll status.
+Use Supabase/Postgres connection pooling; bound worker DB concurrency and external provider concurrency.
+Use cursor pagination and selective columns; avoid SELECT * on heavy JSON/media tables.
+CDN/signed delivery for derived media; never proxy large images through FastAPI unless transformation/security requires it.
+Precompute dashboard rollups that prove expensive; do not prematurely create data warehouse.
+Load tests model bursts at common publish times and AI generation campaign batches, not only uniform traffic.
+26. Backup, disaster recovery and continuity
+Asset
+Protection
+Objective / verification
+Postgres
+Provider backups + PITR tier/config appropriate for production; migration history outside DB
+Target RPO <= 5 min when PITR enabled; monthly restore exercise
+Storage originals
+Checksums + inventory; secondary copy strategy when business critical / scale threshold reached
+Detect corruption/missing objects; restore sample quarterly
+Secrets/keys
+Managed KMS/secret store with rotation and protected recovery process
+No plaintext backup exports
+Infrastructure config
+Version-controlled Docker/IaC/config schemas
+Environment reproducible from repo + secrets
+Prompt/model config
+Versioned in DB/repo with immutable history
+Rollback AI behavior without code guesswork
+
+Initial application RTO objective: <= 60 minutes for controlled components after major outage, subject to provider incident recovery. Runbook defines restore order: auth/data -> API -> queues/workers -> web -> provider reconnect/reconciliation. Queue replay and publishing reconciliation are mandatory before declaring recovery complete.
+27. Security threat model summary
+Threat
+Primary controls
+Verification
+Cross-tenant data access
+AuthorizationService + RLS + tenant context + scoped repositories
+Automated negative RLS/API suite
+Stolen social token
+App encryption, secret/KMS, scope minimization, revoke/expiry health
+Secret scan + incident drill
+Duplicate/unauthorized publish
+Approval state, entitlement, idempotency unique keys, audit
+Fault injection + duplicate delivery tests
+Webhook spoof/replay
+Signature verification, timestamp/state where available, fingerprint dedupe
+Bad signature/replay tests
+Prompt injection from imported content
+Treat sources as data, structured extraction, allowlisted tools/no direct side effect from model
+Adversarial golden cases
+AI hallucinated business claim
+Verified fact refs + QA rule engine + approval
+Golden eval + content provenance assertions
+Malicious upload
+Signed ownership upload, magic bytes, decode/reencode, limits, metadata stripping
+Upload fuzz/security cases
+Privilege escalation
+Server RBAC, recent auth for sensitive actions, audit
+Role matrix tests
+Supply chain compromise
+Lockfiles, dependency scan, pinned actions/images, minimal runtime
+CI policy + periodic review
+Sensitive log leakage
+Structured logging allowlist, redaction, no raw prompts/tokens
+Log tests + production sample audit
+
+28. Delivery plan for two programmers
+Planifikimi baze deri ne Production GA eshte 18 jave, 9 sprint-e nga dy jave (S0-S8). S0-S5 ndertojne bazen dhe core commercial loop; S6-S7 perfundojne Marketing OS, safety, learning, administration dhe hardening; S8 eshte Production GA me kapacitet te qellimshem per blocker fixes, provider-review uncertainty, UAT dhe stabilization. S9-S10 jane growth expansion pas GA dhe nuk bllokojne launch-in. Excel-i shoqerues eshte source of execution truth me ownership, dependencies, acceptance criteria, test evidence dhe release gates.
+Sprint
+Weeks
+Primary outcome
+Programmer A - Platform/Backend/AI
+Programmer B - Product/Frontend/Media
+S0
+1-2
+Foundation secure skeleton
+Architecture, DB/RLS, auth backend, CI runtime
+Nuxt shell, design system, auth UX, landing baseline
+S1
+3-4
+Organization + Brand onboarding
+RBAC, brand domain, entitlements skeleton
+Onboarding, team, brand settings, responsive UX
+S2
+5-6
+Media + Meta connection
+OAuth, token vault, import/sync, webhooks
+Gallery, uploads, integration UI, sync states
+S3
+7-8
+Business Brain + AI creation
+AI gateway, prompts/evals, business brain, jobs
+Content Studio, asset selector UX, creative composer UI
+S4
+9-10
+Calendar + reliable publishing beta
+Scheduler, queues, Meta publisher, reconciliation
+Approval, calendar, schedule/publish status, notifications
+S5
+11-12
+Analytics + billing + hardening
+Metrics sync, billing adapter, security/perf
+Analytics/pricing/billing UI, product polish, E2E
+S6
+13-14
+Marketing OS
+Strategy/campaign services, feature flags, policy/cost foundations
+Marketing HQ, strategy/campaign UX, command palette and AI Copilot entry
+S7
+15-16
+GA feature completeness
+Feedback learning, vertical policy packs, billing lifecycle, admin/ops, AI safety/analytics
+Copilot tools, safety/admin/billing/settings UX, mobile productivity and autosave resilience
+S8
+17-18
+Production GA
+DR/security/provider readiness, failure injection, launch economics and progressive rollout
+Performance/a11y/visual/E2E final, UAT, guidance/motion QA and production smoke
+S9
+19-20
+Growth content formats
+Carousel/Reels/Story adapters + agency APIs
+Advanced formats + agency UX
+S10
+21-22
+Growth automation
+Experiment/autopilot/reporting APIs
+Multilingual, reports, productivity
+
+28.1 Ownership rule
+Programmer A owns Platform/Backend/AI correctness. Programmer B owns Product/Frontend/Media experience. Ownership nuk do te thote silo: cdo security-critical, schema, auth, publish dhe entitlement PR review-ohet nga programeri tjeter. Te dy mund te implementojne across layers kur vertical slice e kerkon.
+29. Definition of Ready and Definition of Done
+29.1 Definition of Ready
+Task ka user/business outcome dhe technical scope te qarte.
+Acceptance criteria jane testueshme; dependencies dhe external permissions jane identifikuar.
+Schema/API changes kane proposed contract; security/privacy impact eshte vleresuar.
+UI task ka states: loading, empty, success, validation, forbidden, degraded dhe failure ku aplikohen.
+Provider-dependent task ka fixture/test account strategy dhe rate-limit/error cases.
+Estimated hours <= 16; me i madh ndahet para sprintit.
+29.2 Definition of Done
+Code merged pas peer review; lint/types/tests green; no new high/critical dependency finding.
+Acceptance criteria automated ku praktike dhe manual evidence per external UX/provider flows.
+Tenant/authz negative test shtuar per resource/endpoint te ri.
+Observability: expected logs/metrics/error code; no secret/PII leakage.
+Docs/OpenAPI/ADR/runbook updated kur contract/operational behavior ndryshon.
+Migration backward-compatible dhe staging verified; rollback/forward-fix path understood.
+Feature flag/entitlement respected; analytics event only if product measurement requires.
+No unresolved P0/P1 defect; user-facing loading/error/empty states complete.
+For AI: schema validation, prompt version, usage accounting dhe golden eval pass.
+For publishing: idempotency, retry/reconciliation dhe audit event verified.
+30. Release gates
+Gate
+Must be true before public production
+RG-01 Architecture
+ADR-001 baseline accepted; dependency rule enforced; repo builds reproducibly.
+RG-02 Tenancy
+All tenant tables RLS-protected; automated cross-tenant suite green.
+RG-03 Auth/RBAC
+Role matrix tests green; sensitive actions audited; no service credentials in browser.
+RG-04 Meta readiness
+App configuration/review/access required for real customer accounts complete; reconnect flow tested.
+RG-05 Media security
+Upload validation/re-encode/EXIF strip/ownership and private delivery tests green.
+RG-06 AI quality
+Golden set thresholds pass; no unverified factual claim leakage in release sample; budget caps work.
+RG-07 Publish reliability
+Duplicate delivery, timeout reconciliation, 429/5xx, revoked token and schedule tests pass.
+RG-08 Billing
+Entitlement race/usage ledger/webhook dedupe and downgrade behavior tested.
+RG-09 Privacy
+Export/delete/retention paths documented and tested; privacy/legal review decisions recorded.
+RG-10 Observability
+Dashboards, alerts, trace correlation and critical runbooks verified in staging.
+RG-11 Performance
+Load test meets initial p95/queue/scheduler targets at >= expected 3x launch load.
+RG-12 Security
+ASVS-derived release checklist complete; no unresolved critical/high exploitable finding.
+RG-13 DR
+Backup/PITR config verified; restore exercise completed; publishing reconciliation runbook tested.
+RG-14 Product
+Critical E2E journeys pass desktop/mobile; accessibility baseline; support/admin workflow ready.
+
+31. Architecture Decision Records required
+ADR
+Decision
+ADR-001
+Modular monolith + durable workers; service extraction only on measured trigger.
+ADR-002
+Organization as tenant/billing/security boundary; Brand as sub-entity.
+ADR-003
+Supabase Auth/Postgres/Storage/Queues baseline; RLS + transaction tenant context.
+ADR-004
+Provider ports/adapters; no provider SDK types in domain/application contracts.
+ADR-005
+Transactional outbox + idempotent queue consumers for side effects.
+ADR-006
+Business Brain verified fact model and content provenance.
+ADR-007
+AI model capability routing + prompt versioning + golden evaluation before rollout.
+ADR-008
+Private media originals + derived immutable assets + deterministic text/logo compositor.
+ADR-009
+Content immutable versions + approval state machine + publish reconciliation.
+ADR-010
+Entitlements/usage ledger provider-neutral billing design.
+ADR-011
+OpenAPI-generated frontend client and stable internal error taxonomy.
+ADR-012
+Observability/SLO baseline and privacy-safe logging policy.
+
+32. Key risks and mitigations
+Risk
+Impact
+Mitigation
+Meta access/review delays
+Blocks public customer connection/publishing
+Start app setup/review in S0/S1; build mocks/test accounts; explicit RG-04.
+AI output looks generic/artificial
+Retention risk
+Real asset first, verified Business Brain, vertical-specific evals, deterministic brand composition.
+Token revoke/provider API changes
+Publishing failures
+Capability health checks, reconnect UX, pinned API version, adapter contract tests.
+Cross-tenant authorization bug
+Critical security incident
+RLS, tenant context, centralized authz, exhaustive negative tests.
+AI/image cost spikes
+Margin risk
+Entitlements, reservation ledger, routing, budget caps, cost telemetry.
+Over-engineering by 2-person team
+Schedule risk
+No microservices/Kubernetes; modular monolith; enforce scope and release gates.
+Queue backlog at peak publish times
+Customer impact
+Oldest-age metrics, concurrency tuning, horizontal workers, load test burst profile.
+User content contains malicious instructions
+AI/tool risk
+Treat imported text as data; no model-authorized side effects; structured outputs and policy gate.
+Privacy/retention ambiguity
+Legal/trust risk
+Data inventory, minimization, configurable retention, legal review before public launch.
+
+33. Evolution path after production V1
+Future functionality duhet te futet pa ndryshuar invariants. SocialProvider port lejon LinkedIn/TikTok; Brand model lejon locations; Billing entitlements lejojne agency plans; event/outbox lejon analytics warehouse; AI gateway lejon provider/model switching. Service extraction lejohet vetem kur nje bounded context ka independent load, independent release cadence, isolation/compliance need ose ekip ownership te vecante.
+Appendix A - Data model catalog
+Tabela me poshte definon source-of-truth entities. Emrat mund te rafinohen ne migrations, por ownership, tenant boundary dhe semantics nuk ndryshojne pa ADR/schema review.
+Table / entity
+Owner
+Key fields
+Invariant / note
+profiles
+Identity
+user_id, display_name, locale, timezone
+1:1 application profile for auth user; no tenant data.
+organizations
+Identity
+id, name, slug, status, owner_user_id
+Tenant/billing/security boundary.
+organization_members
+Identity
+organization_id, user_id, role, brand_scope, status
+Unique active membership per user/org.
+organization_member_brand_access
+Identity
+member_id, brand_id
+Rows only when member scope is RESTRICTED.
+organization_invites
+Identity
+org_id, email_hash/value, role, token_hash, expires_at
+Single-use, expiring invite; audit acceptance.
+brands
+Brands
+org_id, name, category, timezone, locale, status
+Sub-entity; all content/media/social data maps to a brand.
+brand_profiles
+Brands
+brand_id, description, website, contact fields, goals
+User-editable baseline facts.
+brand_facts
+Brands
+brand_id, fact_type, value_json, status, confidence, source_ref, verified_by
+PROPOSED/VERIFIED/REJECTED/EXPIRED.
+brand_voice_versions
+Brands
+brand_id, traits_json, rules_json, examples_json, version
+Immutable/versioned voice settings.
+brand_audiences
+Brands
+brand_id, name, attributes_json, active
+No unsupported sensitive inference.
+brand_offers
+Brands
+brand_id, terms, price_minor, currency, valid_from/to, status
+Exact commercial facts must be VERIFIED/ACTIVE.
+brand_guardrails
+Brands
+brand_id, rule_key, severity, config_json
+Blocks/warns/requires approval.
+brand_visual_identity
+Brands
+brand_id, logo_asset_id, colors, typography, layout_rules
+Exact deterministic rendering inputs.
+social_connections
+Social
+org_id, provider, status, scopes, credential_ref, expires_at
+OAuth grant, token reference encrypted externally/app-side.
+social_accounts
+Social
+brand_id, connection_id, provider, external_id, account_type, capabilities
+Unique provider/external_id; health status.
+social_sync_state
+Social
+social_account_id, resource_type, cursor, last_synced_at, status
+Incremental/resumable checkpoints.
+provider_webhook_events
+Social
+provider, event_id/fingerprint, received_at, payload_encrypted/minimized, status
+Deduped ingress + processing state.
+external_posts
+Social
+brand_id, social_account_id, external_id, text, published_at, permalink
+Imported/published normalized content.
+external_post_media
+Social
+external_post_id, type, remote_ref/local_asset_id
+Media mapping.
+metric_snapshots
+Analytics
+external_post_id, metric_key, value, window, observed_at
+Normalized immutable metric facts.
+gallery_assets
+Media
+org_id, brand_id, storage_key, checksum, mime, dimensions, status, parent_id
+Private immutable original/derived asset records.
+asset_variants
+Media
+asset_id, kind, storage_key, width, height, checksum
+Thumbnail/working/social variants.
+asset_metadata
+Media
+asset_id, tags, visual_summary, quality_score, embedding_ref
+Search/retrieval metadata.
+media_jobs
+Media
+asset_id, job_type, status, attempts, error_code
+Processing observability.
+campaigns
+Content
+brand_id, name, goal, start/end, status
+Optional grouping/strategy context.
+content_plans
+Content
+brand_id, period_start/end, strategy_snapshot, status
+Calendar planning artifact.
+content_items
+Content
+brand_id, campaign_id, intent, content_type, lifecycle_status
+Mutable aggregate/container.
+content_versions
+Content
+content_item_id, version, caption, creative_refs, fact_refs, qa_result, created_by
+Immutable publishable snapshot.
+content_approvals
+Content
+content_version_id, approver_id, decision, comment, decided_at
+Approval audit.
+content_comments
+Content
+content_item/version, author, body, created_at
+Collaboration thread.
+creative_assets
+Content/Media
+content_version_id, asset_id, role, channel_variant
+Final creative mapping.
+scheduled_publications
+Publishing
+content_version_id, social_account_id, scheduled_at, status, idempotency_key
+Unique logical schedule.
+publication_attempts
+Publishing
+schedule_id, attempt_no, provider_request_hash, external_id, outcome, error_code
+Every remote attempt/reconciliation.
+prompt_versions
+AI
+prompt_key, semver, schema_version, template_hash, eval_status
+Immutable prompt governance.
+model_routes
+AI
+capability, provider, model_alias/snapshot, config, enabled
+No model names in domain code.
+ai_runs
+AI
+org_id, brand_id, purpose, prompt_version_id, model_route, evidence_refs, usage, cost, status
+Traceability + cost.
+ai_eval_cases
+AI
+vertical, fixture_ref, expected_rules, active
+Golden test inputs.
+ai_eval_results
+AI
+case_id, run_config, scores, pass/fail
+Model/prompt release evidence.
+plans
+Billing
+key, display_name, status
+Stable product plan identity.
+plan_versions
+Billing
+plan_id, effective dates, price, currency, provider_price_ref
+Historical pricing semantics.
+plan_entitlements
+Billing
+plan_version_id, entitlement_key, value_json
+Feature/limit matrix.
+subscriptions
+Billing
+org_id, plan_version_id, provider_ref, status, period_start/end
+Local normalized subscription state.
+usage_ledger
+Billing
+org_id, entitlement_key, amount, state, idempotency_key, period
+Append-only reservation/commit/release usage.
+billing_events
+Billing
+provider_event_id, type, payload_min, processed_at
+Webhook dedupe/audit.
+notifications
+Notifications
+org_id, user_id, type, payload_ref, read_at
+In-app notifications.
+notification_deliveries
+Notifications
+notification_id, channel, status, attempts, provider_ref
+Delivery tracking/dedupe.
+outbox_events
+Platform
+event_id, org_id, event_type, schema_version, payload, status
+Transactional side-effect bridge.
+idempotency_records
+Platform
+scope, key, request_hash, result_ref, expires_at
+HTTP/command replay protection.
+audit_events
+Security
+org_id, actor_id, action, resource_type/id, result, metadata_min, occurred_at
+Append-only; restricted mutation.
+data_export_requests
+Privacy
+org_id, requested_by, status, artifact_ref, expires_at
+DSR export workflow.
+data_deletion_requests
+Privacy
+org_id/resource scope, requested_by, status, progress
+Dependency-aware purge workflow.
+
+Appendix B - Initial API inventory
+Verb
+Endpoint
+Purpose
+Authorization/guard
+POST
+/api/v1/organizations
+Create organization + owner membership atomically
+Authenticated
+GET
+/api/v1/organizations
+List memberships/organizations
+Authenticated
+GET/PATCH
+/api/v1/organizations/{orgId}
+Read/update organization
+Owner/Admin
+POST
+/api/v1/organizations/{orgId}/invites
+Invite member
+Owner/Admin
+PATCH/DELETE
+/api/v1/organizations/{orgId}/members/{memberId}
+Role/scope/remove
+Owner/Admin + invariants
+POST
+/api/v1/brands
+Create brand
+Owner/Admin
+GET/PATCH
+/api/v1/brands/{brandId}
+Brand settings
+Scoped member; write role
+GET/PATCH
+/api/v1/brands/{brandId}/brain
+Read/update Business Brain
+Marketer+; verified fact transitions protected
+POST
+/api/v1/brands/{brandId}/brain/infer
+Start inference job
+Marketer+ + entitlement
+POST
+/api/v1/social/meta/connect
+Start OAuth
+Admin+
+GET
+/api/v1/social/meta/callback
+OAuth callback
+State-bound public callback
+GET
+/api/v1/brands/{brandId}/social-accounts
+List account health/capabilities
+Scoped member
+POST
+/api/v1/social-accounts/{id}/sync
+Start incremental sync
+Marketer/Admin
+DELETE
+/api/v1/social-connections/{id}
+Disconnect/revoke local grant
+Admin+
+POST
+/api/v1/webhooks/meta
+Meta webhook ingestion
+Signature verified
+POST
+/api/v1/brands/{brandId}/assets/uploads
+Create signed upload session
+Marketer+
+POST
+/api/v1/assets/{assetId}/finalize
+Finalize/validate upload
+Uploader/scoped
+GET
+/api/v1/brands/{brandId}/assets
+Cursor list/search gallery
+Scoped member
+PATCH/DELETE
+/api/v1/assets/{assetId}
+Metadata/delete asset
+Marketer+ + reference checks
+POST
+/api/v1/brands/{brandId}/content/generations
+Start content generation
+Marketer+ + usage reservation
+GET
+/api/v1/generation-jobs/{jobId}
+Generation status/result
+Scoped member
+POST
+/api/v1/content-items
+Create manual/custom content item
+Marketer+
+GET/PATCH
+/api/v1/content-items/{id}
+Read/edit intent/draft; edit creates versions as needed
+Scoped write
+POST
+/api/v1/content-items/{id}/versions
+Create explicit version
+Marketer+
+POST
+/api/v1/content-versions/{id}/approve
+Approve immutable version
+Approver+
+POST
+/api/v1/content-versions/{id}/reject
+Reject/comment
+Approver+
+POST
+/api/v1/content-versions/{id}/schedule
+Schedule target accounts/time
+Marketer+ + approval/entitlement
+DELETE
+/api/v1/scheduled-publications/{id}
+Cancel if cancellable
+Marketer+
+GET
+/api/v1/brands/{brandId}/calendar
+Calendar range query
+Scoped member
+GET
+/api/v1/scheduled-publications/{id}/attempts
+Publish diagnostics
+Scoped member
+GET
+/api/v1/brands/{brandId}/analytics/summary
+Normalized dashboard metrics
+Entitlement/scoped
+GET
+/api/v1/brands/{brandId}/analytics/posts
+Post metrics cursor list
+Entitlement/scoped
+GET
+/api/v1/billing/subscription
+Current subscription/entitlements/usage
+Owner/Billing
+POST
+/api/v1/billing/checkout
+Provider-neutral checkout/session
+Owner/Billing + idempotency
+POST
+/api/v1/webhooks/billing
+Billing webhook
+Provider signature verified
+GET
+/api/v1/notifications
+User notification feed
+Authenticated
+POST
+/api/v1/notifications/{id}/read
+Mark read
+Owner of notification
+POST
+/api/v1/privacy/exports
+Request data export
+Owner
+POST
+/api/v1/privacy/deletions
+Request org/account deletion
+Owner + recent auth
+GET
+/api/v1/admin/health/providers
+Operational health summary
+Internal support/admin only
+
+Appendix C - Queue/job catalog
+Job type
+Purpose
+Key
+Visibility/timeout
+Attempts
+Rule
+social.initial_sync
+Import profile/history
+social_account_id
+10m
+5
+Backoff; checkpoint cursor; auth terminal
+social.incremental_sync
+Fetch new/changed data
+social_account_id + cursor
+5m
+4
+Dedup external IDs
+social.metrics_sync
+Refresh eligible metrics
+social_account_id/window
+5m
+4
+Provider rate-aware
+social.webhook_process
+Normalize webhook
+webhook_event_id
+2m
+5
+Fingerprint dedupe
+media.process_upload
+Validate/re-encode/variants
+asset_id
+5m
+3
+Terminal on invalid file
+media.analyze
+Visual summary/tags
+asset_id
+5m
+3
+AI budget/timeout
+brand.infer_brain
+Candidate facts/voice
+brand_id + source snapshot
+10m
+3
+No auto-verify high impact facts
+ai.generate_content
+Strategy/copy/QA
+generation_request_id
+10m
+3
+Usage reservation + schema validation
+ai.generate_image
+Edit/generate real-asset creative
+creative_request_id
+15m
+2
+Budget + provenance
+media.compose_creative
+Deterministic overlay/export
+creative_spec_id
+5m
+3
+Exact logo/text
+publish.dispatch_due
+Enqueue due schedules
+time bucket
+1m
+N/A
+DB lock/idempotent enqueue
+publish.social
+Publish one version/account
+scheduled_publication_id
+10m
+5
+Reconcile ambiguous attempts
+publish.reconcile
+Resolve remote state
+publication_attempt_id
+5m
+5
+No duplicate publish
+notification.deliver
+Send email/provider notification
+delivery_id
+2m
+5
+Dedupe per template/event
+billing.process_event
+Normalize billing webhook
+billing_event_id
+2m
+5
+Idempotent state transitions
+privacy.export
+Build tenant export
+export_request_id
+30m
+3
+Signed expiring result
+privacy.purge
+Dependency-aware deletion
+deletion_request_id
+30m
+5
+Resumable/checkpointed
+ops.outbox_dispatch
+Move durable outbox to queue
+event batch
+1m
+continuous
+Idempotent send/mark
+analytics.rollup
+Compute dashboard aggregates
+brand_id/window
+10m
+3
+Rebuildable from normalized facts
+
+Appendix D - Coding and review standards
+D.1 Python/FastAPI
+Python 3.14 stable; pyproject.toml + locked dependencies; ruff; strict-enough static typing policy; pytest.
+Pydantic request/response DTOs at transport boundary; domain entities are not HTTP schemas.
+Async only when I/O path benefits and driver is async; no fake async around CPU-heavy image work.
+Repository transaction boundaries explicit; no implicit commit inside low-level repository method.
+No broad except Exception without rethrow/mapping/telemetry; provider errors normalized at adapter boundary.
+Time comes from injected Clock in domain-sensitive tests; IDs/idempotency injectable where determinism matters.
+D.2 Nuxt/TypeScript
+Nuxt 4, TypeScript strict; API types from generated client; no hand-copied backend DTOs.
+Server/client boundary explicit; secrets never in public runtime config; SSR-safe composables.
+Pinia only for genuine cross-route client state; server state comes from typed query/composable pattern, not duplicated global store.
+Every primary screen implements loading, empty, error, forbidden/degraded states and responsive behavior.
+Accessibility baseline: semantic controls, keyboard paths, labels, focus, contrast, reduced-motion respect where relevant.
+No business authorization encoded only in route middleware; server remains authoritative.
+D.3 SQL and migrations
+Migration filename/order deterministic; every table has owner/context documented in migration comment or schema docs.
+Constraints enforce invariants that are truly data-level: uniqueness, FK, status check where stable, nonnegative usage.
+Index additions justified by query; unused/duplicate indexes reviewed after telemetry.
+Backfills resumable/batched for large tables; no table rewrite during peak without plan.
+RLS policy tests live beside migration tests and include allow + deny cases.
+D.4 Pull request checklist
+Area
+Reviewer asks
+Correctness
+Can invalid state occur? Are transactions/idempotency correct?
+Security
+Tenant/authz? Secret/PII? Upload/webhook/provider input untrusted?
+Contracts
+API/event/schema backward-compatible? Error codes stable?
+Async
+What if worker crashes before/after side effect? Duplicate delivery? Timeout?
+AI
+Evidence? structured schema? prompt version? eval? cost accounting?
+UX
+Loading/error/empty/retry/degraded/mobile/a11y states complete?
+Ops
+Logs/metrics/trace/runbook? Feature flag? Rollback/forward fix?
+Tests
+Positive + negative + cross-tenant/provider failure cases?
+
+Appendix E - Source and standards references
+Reference
+URL
+Use in blueprint
+Nuxt 4 documentation / v4.5.x
+https://nuxt.com/docs/4.x/guide/
+Framework baseline; Nuxt 3 reached EOL July 31, 2026.
+Nuxt security releases
+https://nuxt.com/blog/v4-5-security
+Keep patched stable line and lockfile current.
+FastAPI containers
+https://fastapi.tiangolo.com/deployment/docker/
+Container deployment baseline; Python 3.14 example.
+Python 3.14 docs
+https://docs.python.org/3/
+Current stable 3.14 documentation at blueprint date.
+Supabase production checklist
+https://supabase.com/docs/guides/deployment/going-into-prod
+RLS/security/load/production controls.
+Supabase Queues
+https://supabase.com/docs/guides/queues
+Postgres-native durable queues / pgmq.
+Meta Instagram API
+https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api
+Professional accounts, publishing/insights integration semantics.
+Meta content publishing guide
+https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api
+Media accessibility and publishing flow requirements.
+OpenAI Responses API reference
+https://developers.openai.com/api/reference/
+Structured output / response orchestration.
+GPT-Image-2 model
+https://developers.openai.com/api/docs/models/gpt-image-2
+Image generation/editing and snapshot pinning.
+OWASP ASVS
+https://owasp.org/www-project-application-security-verification-standard/
+ASVS 5.0.0 security verification baseline.
+OWASP API Security Top 10
+https://owasp.org/API-Security/
+API threat categories and secure design review.
+RFC 9457 Problem Details
+https://www.rfc-editor.org/rfc/rfc9457
+HTTP API problem detail envelope model.
+OpenTelemetry
+https://opentelemetry.io/docs/
+Vendor-neutral traces/metrics/logs instrumentation.
+Nuxt UI v4 components
+https://ui.nuxt.com/docs/components/
+Frontend primitives, dashboard, AI chat, editor, forms, overlays and marketing sections.
+Nuxt UI introduction
+https://ui.nuxt.com/docs/getting-started/
+Nuxt UI v4 / Reka UI accessibility and theming baseline.
+Motion for Vue
+https://motion.dev/docs/vue
+Purposeful layout/gesture/scroll animation with reduced-motion support.
+Node.js releases
+https://nodejs.org/en/about/previous-releases
+Node.js 24 LTS runtime baseline as of September 2026.
+OpenAI models
+https://platform.openai.com/docs/models
+Capability routing; exact snapshots revalidated before implementation.
+
+
+PART III - Product Experience, AI Marketing Operating System & Production Expansion
+v1.1 scope upgrade
+Ky version e zgjeron blueprint-in nga nje backend/platform production baseline ne nje implementation master qe specifikon gjithashtu UX/UI, frontend architecture, AI strategy, campaigns, safety, feedback learning, cost controls, platform administration dhe growth-ready content formats. Production GA targetohet pas S8; S9-S10 jane growth expansion dhe nuk duhet te bllokojne GA nese gates e S0-S8 jane green.
+
+34. Product experience principles and UX contract
+Produkti duhet te ndihet si nje marketing department i organizuar, jo si nje panel teknik me AI buttons. Cdo surface duhet t’i pergjigjet tri pyetjeve pa e detyruar user-in te kerkoje: cfare po ndodh, cfare duhet te bej tani, dhe a eshte puna ime e sigurt/ruajtur.
+Time-to-value: user-i duhet te arrije te nje draft i perdorshem brenda 15 minutave pa e konfiguruar sistemin ne detaje.
+Progressive disclosure: advanced controls shfaqen vetem kur duhen; defaults duhet te jene te sigurta dhe te kuptueshme.
+Approval-first by default: AI propozon dhe shpjegon; user-i kontrollon publikimin derisa policy lejon autopilot.
+Autosave everywhere: draft content, strategy edits, campaign configuration dhe long forms ruhen pa humbje.
+Zero dead ends: empty/error/degraded states gjithmone ofrojne next action ose remediation.
+Mobile-critical: approve, schedule, reconnect, quick-create, notifications dhe status duhet te funksionojne mire ne telefon.
+Keyboard-first power user path: command palette, shortcuts, focus order dhe fast navigation per user-at qe punojne cdo dite.
+Explainability without noise: provenance, policy reason, cost/quota dhe provider errors jane te disponueshme, por jo te imponuara ne primary flow.
+UX metric
+GA target
+Evidence
+Activation completion
+>=70% of qualified signups
+Funnel: signup -> org -> brand -> first draft
+Median first usable draft
+<15 minutes
+Server/client timestamps
+Critical task completion
+>=90% in scripted beta UAT
+UAT task success
+Draft loss
+0 known data-loss defects
+Autosave/recovery fault tests
+Mobile blocker rate
+0 P0/P1 blockers
+Playwright mobile + real-device spot checks
+Accessibility
+No serious/critical release findings
+axe + keyboard/screen-reader manual pass
+
+35. Frontend architecture - Nuxt 4 + Nuxt UI v4
+Frontend-i eshte nje application client i forte, por authority mbetet ne backend/RLS. Nuxt perdoret per public SSR/SEO surfaces dhe authenticated application shell; Nuxt UI v4 eshte component primitive layer. Custom components lejohen vetem kur kompozimi i Nuxt UI nuk e mbulon use-case-in pa kompromis te UX ose performance.
+Layer
+Responsibility
+Rule
+app/pages
+Route composition + data boundaries
+No business authorization logic; route metadata only.
+app/layouts
+Public/auth/dashboard/admin shells
+Dashboard shell uses persistent sidebar state and responsive mobile behavior.
+app/components/ui
+Thin branded wrappers over Nuxt UI
+No domain fetching; presentation only.
+app/components/domain
+Reusable domain widgets
+Typed props/events; composables own network orchestration.
+app/composables
+Query/mutation/session/feature state
+Abortable requests, typed errors, cache invalidation rules.
+app/stores
+Small client-only cross-route state
+No duplicate server source-of-truth; persisted state minimized.
+app/middleware
+Authentication/org/brand routing UX
+Never replaces backend authz.
+shared/contracts
+Generated API/types/constants
+Generated or schema-derived; no hand drift.
+
+Frontend dependency rule
+Page -> feature/domain component -> composable -> generated API client. Page/component nuk therras direkt provider SDK, Supabase service-role, Meta ose OpenAI. Browser-i nuk merr secret/service credentials.
+
+35.1 Nuxt UI component policy
+Surface
+Preferred Nuxt UI primitives
+Implementation rule
+Application shell
+DashboardGroup, DashboardSidebar, DashboardNavbar, DashboardToolbar, DashboardSearch
+Sidebar state persistent; mobile toggle; global command/search palette.
+Landing
+Header, PageHero, PageSection, PageFeature, PageGrid, PricingPlans/PricingTable, PageCTA, Footer
+SSR, SEO, fast LCP, restrained hero motion.
+Auth
+AuthForm, Form, FormField, Input, Button, Alert
+No custom auth form primitives unless missing requirement.
+Onboarding
+Stepper, Form, FormField, SelectMenu, InputTags, FileUpload, Progress
+Resumable; exit and resume; validation per step.
+Content/AI
+ChatMessages, ChatPrompt, ChatTool, Editor, Tabs, Slideover, Modal
+Chat is a work surface with tool status, not a toy chatbot.
+Gallery
+FileUpload, PageGrid, Card, ContextMenu, Slideover, Skeleton, Empty
+Bulk-select, accessible upload progress, asset metadata side panel.
+Calendar
+Calendar + domain calendar composition, Popover, Drawer, Badge
+Month/week/list; mobile uses drawer/list rather than cramped grid.
+Analytics
+Card, Table, Tabs, SelectMenu, Progress, Skeleton
+Charts remain custom lightweight components with accessible summaries.
+Settings/Admin
+Tabs, Table, Form, Switch, Modal, Drawer, Alert, Timeline
+Danger-zone actions require explicit confirmation/re-auth where needed.
+
+36. Design system, visual language and motion
+Design-i duhet te jete premium, i paster dhe contemporary: typography e forte, whitespace, depth i kontrolluar, gradients te lehta, cards me hierarchy te qarte dhe dark/light mode. Nuk lejohet UI e mbushur me glassmorphism, neon ose animacione pa funksion.
+Token family
+Requirements
+Examples
+Color
+Semantic tokens, light/dark, AA contrast, no raw hex in feature components
+bg/surface/elevated, text/muted, primary, success, warning, danger
+Type
+Responsive type scale, 2 weights primary, tabular numbers for KPIs
+display, h1-h4, body, label, caption
+Spacing
+4px base rhythm, consistent panel/page gutters
+4/8/12/16/24/32/48/64
+Radius
+Small set of radii; no random per-card styling
+sm/md/lg/xl
+Elevation
+Subtle borders/shadows; dark mode tuned separately
+base, raised, overlay
+Motion
+Duration/easing/spring tokens and reduced-motion fallback
+fast 120-180ms, standard 180-280ms, deliberate 300-450ms
+
+Use Motion for Vue for layout transitions, AnimatePresence, reorder/drag, progress transitions and high-value landing sequences.
+CSS transitions are preferred for simple hover/focus/opacity; Motion is not a default dependency for every component.
+No animation may block pointer/keyboard input or delay a destructive confirmation state.
+Respect prefers-reduced-motion: replace movement with immediate state change or subtle opacity.
+Target 60fps on supported devices; avoid animating layout-heavy width/height when transform/opacity can express the same change.
+Hero visual/3D effect, if used, must be lazy-loaded, isolated, pausing offscreen and excluded from core dashboard bundle.
+37. Route map and product navigation
+Area
+Route
+Purpose
+Primary UX
+Public
+/
+Landing / product story
+Header, PageHero, PageSection, Pricing teaser, CTA
+Public
+/pricing
+Pricing + FAQ
+PricingTable, Accordion, CTA
+Public
+/security
+Trust/security overview
+PageHeader, PageSection, Timeline/FAQ
+Auth
+/login /signup /forgot-password
+Identity entry
+AuthForm, Alert
+App
+/app
+Org/brand redirect + recent context
+Skeleton/Empty; deterministic redirect
+App
+/app/:org/:brand/overview
+Marketing HQ
+KPIs, work queue, suggested next actions, upcoming posts
+App
+.../strategy
+AI strategy center
+Objectives, audiences, pillars, cadence, monthly plan
+App
+.../campaigns
+Campaign list/workspace
+Campaign goals, dates, assets, content plan, performance
+App
+.../content
+Content Studio
+List/grid, status filters, bulk actions
+App
+.../content/new
+Create/AI compose
+Prompt/brief, assets, format, preview, QA
+App
+.../calendar
+Publishing calendar
+Month/week/list, drag/reschedule with guardrails
+App
+.../gallery
+Brand asset library
+Upload, search, tags, collections, metadata
+App
+.../analytics
+Performance & learning
+Overview, per-post, campaign, recommendations
+App
+.../integrations
+Social connections
+Connect, capabilities, sync/reconnect/health
+App
+.../brand
+Brand Brain/settings
+Facts, voice, audience, visual identity, policies
+App
+.../team
+Members/access
+Invites, roles, brand scope
+App
+.../billing
+Plan/usage/payment
+Subscription, quota, invoices/receipts where supported
+App
+.../settings
+User/org preferences
+Locale, timezone, notifications, security
+Admin
+/admin
+Platform operations
+Tenants, jobs, spend, incidents, support, flags
+
+38. Marketing HQ - default dashboard
+Overview nuk duhet te jete nje koleksion grafikesh. Ai eshte work queue e marketingut. Above-the-fold prioritizon punen qe kerkon vendim dhe ate qe AI ka pergatitur.
+Context bar: Organization, Brand, date range, connection health and plan usage.
+Today block: posts scheduled today, drafts requiring approval, failed/reconnect actions.
+AI Recommended Next Actions: maximum 3-5 ranked actions with reason and estimated impact, never an endless feed.
+Monthly plan progress: planned vs approved vs scheduled vs published; missing content pillars highlighted.
+Performance snapshot: trend, top post, underperformer and learning insight with link to analytics.
+Quick Create: post, campaign, upload asset and ask AI - accessible from desktop command palette and mobile FAB/action sheet.
+39. AI Marketing Operating System
+AI layer ndahet ne pipeline te kontrolluara. “Agent” eshte orchestration semantics, jo leje per te vepruar pa kufi. Cdo side-effect kalon permes domain services, permissions, entitlement, policy dhe audit.
+Capability
+Input
+Output / invariant
+Business Analyzer
+Verified Business Brain + connected history
+Business summary, gaps, confidence; no invented commercial fact.
+Marketing Strategist
+Goals, audience, history, seasonality, constraints
+Strategy version: objectives, pillars, cadence, channels, measurement plan.
+Campaign Planner
+Strategy + campaign goal + offer window
+Campaign brief, timeline, content mix and required assets.
+Content Planner
+Strategy/campaign + calendar gaps
+Publishable content plan with format, intent, CTA, evidence refs.
+Copywriter
+Content brief + verified evidence
+Caption variants, CTA, hashtags/keywords per platform policy.
+Creative Director
+Brief + asset candidates + brand visual rules
+Creative spec; reference assets; composition instructions.
+Safety/Brand Reviewer
+Draft + evidence + policy pack
+PASS/WARN/BLOCK with machine-readable reasons.
+Performance Analyst
+Normalized metrics + context
+Learning observation and recommended adjustment; no causality overclaim.
+
+No invisible autonomy
+AI may recommend, draft and prepare. It cannot bypass tenant authorization, plan entitlement, approval policy, safety policy, publication state machine or provider capability checks. Every externally visible action has an actor, reason, input version and audit record.
+
+40. Strategy engine and campaign domain
+Strategy eshte versioned business artifact. User mund ta pranoje, modifikoje ose ta rigjeneroje pjeserisht. Content nuk duhet te gjenerohet ne vakum; ai duhet te lidhet me strategy_id ose explicit ad-hoc intent.
+Entity
+Key fields
+Rule
+marketing_strategies
+brand_id, version, objectives, audience_refs, pillars, cadence, channel_mix, status
+Immutable once activated; new revision supersedes.
+campaigns
+brand_id, objective, start/end, offer_ref, audience_ref, status, strategy_id
+Dates/timezone valid; explicit lifecycle.
+campaign_content_slots
+campaign_id, intent, format, planned_at, content_item_id
+Can exist before content generation; tracks gaps.
+strategy_learnings
+strategy_id, observation, metric_refs, confidence, proposed_change
+Learning does not silently mutate strategy.
+
+41. Performance feedback and learning loop
+Sistemi duhet te mesoje pa krijuar nje black box. Learning ruhet si observation me metric refs dhe confidence. AI mund te propozoje ndryshim, por Business Brain facts dhe active strategy nuk modifikohen pa policy/user action.
+Collect normalized post/campaign metrics at defined windows (for example 24h/7d where provider data permits).
+Compare against same-brand baselines, format and goal; avoid misleading cross-industry benchmarks.
+Generate learning observation: what performed, what did not, and confidence/limitations.
+Propose one or more strategy/content adjustments.
+User accepts, rejects or defers material strategy changes; low-risk preference tuning can be automatic when enabled.
+Accepted learning becomes input to future planning and is traceable to metric evidence.
+42. Content formats and creative system
+Content domain nuk duhet te quhet ImagePost. Perdoret ContentFormat/ChannelCapability registry qe e lejon static image, carousel, story, reel/video upload dhe future channels. Production GA prioritizon static + carousel-ready architecture; S9-S10 aktivizojne advanced Meta formats sipas capabilities reale te API-se ne ate kohe.
+Format
+GA architecture
+Growth behavior
+STATIC_IMAGE
+Full create/edit/preview/publish
+Optimization/templates
+CAROUSEL
+Domain/schema/preview capable
+S9 production publishing + reorder/bulk crop
+REEL_VIDEO
+Domain/schema/capability-ready
+S9/S10 upload/transcode/publish; AI video generation is separate decision
+STORY
+Domain/schema/capability-ready
+Growth publish if provider permission/capability supports it
+TEXT/LINK
+Internal generic format
+Enabled only per target-channel support
+
+Critical text, price and logo placement is deterministic; AI imagery cannot silently alter exact commercial text.
+All generated images retain generation provenance/model/prompt version and reference asset IDs.
+Crop/safe-zone presets exist per target format; preview must approximate real social presentation.
+Original assets stay private; publication uses controlled temporary/provider-fetchable delivery path when required.
+43. AI safety, brand safety and policy packs
+Policy class
+Examples
+Default action
+Factuality
+Invented price, offer, service, address, availability
+BLOCK until verified fact/input exists
+Regulated claims
+Medical/financial/legal claims
+WARN/BLOCK per vertical policy; require approved source
+Testimonials
+Fabricated quote/review/results
+BLOCK
+Identity/likeness
+Unapproved employee/customer face manipulation
+BLOCK or require consent flag
+Defamation/comparisons
+Unsupported negative competitor claims
+BLOCK
+Copyright/brand
+Unlicensed asset/logo misuse
+WARN/BLOCK based on rights metadata
+Sensitive targeting
+Inferring sensitive personal attributes
+BLOCK
+Platform policy
+Unsupported content/format/permission
+BLOCK publish; explain remediation
+
+PolicyEngine output eshte structured dhe versioned: decision, codes, severity, evidence_refs, policy_version, override_allowed dhe required_capability. Human override, kur lejohet, kerkon reason dhe audit event.
+44. AI cost guardrails and unit economics protection
+Every AI/image job reserves estimated credits/cost before provider call and commits actual usage after completion.
+Organization and plan have monthly soft warning, hard quota and optional monetary safety budget.
+Provider/model routing considers quality requirement, remaining budget and retry history.
+Circuit breaker disables expensive generation class on anomaly/loop without disabling saved content or basic app access.
+Admin sees spend by organization, feature, model capability and day; user sees plan-relevant usage, not provider secret pricing details.
+Generation retries require explicit classification; policy/validation failures do not auto-retry as provider failures.
+45. Billing lifecycle and commercial edge cases
+State/event
+System behavior
+trialing/active
+Entitlements according to plan and effective period.
+payment_failed/past_due
+Grace policy is explicit; preserve data/drafts; block new expensive operations only when configured.
+upgrade
+Entitlements update only after verified provider event or safe immediate provider confirmation.
+downgrade
+Effective-date policy; warn about quota consequences; never delete content automatically.
+cancel_at_period_end
+Keep access until effective end; show date and reactivation action.
+refund/chargeback
+Audit; reconcile financial state; security/risk escalation when applicable.
+webhook duplicate/out-of-order
+Idempotent event store; version/effective-time checks before state transition.
+
+46. Platform administration and support operations
+Superadmin eshte platform operations tool, jo shortcut per tenant impersonation. Support access duhet te jete least-privilege, auditable dhe sa me shume metadata-first.
+Admin surface
+Capabilities
+Tenants
+Search org/brand, subscription, activation state, connection health, usage; no raw secrets.
+Jobs/Queues
+Queue age, failed/dead jobs, safe retry/cancel with reason and idempotency context.
+AI Spend
+Spend/credits by tenant/capability, anomaly flags, circuit breaker status.
+Integrations
+Provider status, token health metadata, webhook lag, reconnect requirement.
+Publishing
+Attempts, external IDs, reconciliation state, error taxonomy.
+Feature Flags
+Tenant/cohort rollout, audit, expiry/owner.
+Support
+Request IDs, incident notes, exportable diagnostic bundle without secrets.
+Audit
+Sensitive admin actions, actor, reason, target and timestamp.
+
+47. Frontend state, data fetching and reliability
+Use Nuxt useFetch/useAsyncData or a single approved query abstraction consistently; do not mix ad-hoc fetch clients.
+Generated TypeScript API contracts are the network boundary. Runtime validation is required for provider-originated/untrusted payloads where appropriate.
+Mutations use disabled/in-flight state and idempotency keys for commands that can duplicate server side effects.
+Autosave uses debounce + version/ETag semantics; conflict returns explicit UI, not silent last-write-wins for important content.
+Optimistic UI is allowed only when rollback is deterministic and server result cannot cause external side effect confusion.
+Route transitions preserve unsaved drafts or block navigation with an explicit decision.
+Offline/intermittent mode keeps local unsent draft only for low-risk authoring; publish/schedule always needs confirmed server state.
+48. Responsive, accessibility and interaction acceptance
+Breakpoint/context
+Acceptance
+Mobile 360-430px
+No horizontal page scroll; approval/quick-create/schedule/reconnect are first-class; complex calendar uses list/drawer fallback.
+Tablet
+Sidebar collapses; split panes become stacked/drawer where needed.
+Desktop
+Resizable dashboard panels only where value exists; keyboard navigation and command palette complete.
+Keyboard
+All critical flows reachable; visible focus; no focus trap except valid modal/dialog pattern.
+Screen reader
+Forms/errors/status changes announced; images have meaningful alt/empty alt; icon-only actions labeled.
+Reduced motion
+No essential information depends on animation; motion disabled/reduced automatically.
+
+49. Frontend performance budgets
+Public landing: prioritize LCP/CLS/INP; lazy-load noncritical animation and heavy visuals.
+Authenticated dashboard: route-level code splitting, virtualized/limited long lists, server pagination, image thumbnails and progressive loading.
+No large chart/editor/animation dependency in initial route unless surface requires it; use lazy components for expensive modules.
+Bundle budget is CI-observed; material regression requires explanation or optimization before merge.
+Image uploads use direct signed upload where safe; browser does not proxy large originals through Nuxt server.
+Web Vitals and frontend exceptions are captured privacy-safely with route/release context.
+50. Feature flags, experiments and rollout
+Feature flags jane operational controls, jo permanent architecture. Cdo flag ka owner, purpose, default, target cohort, created_at dhe expiry/review date. Security checks nuk fshihen pas client-only flag.
+Flag type
+Example
+Rule
+Release
+strategy_engine_v1
+Server + client agree; default off until dependencies green.
+Provider capability
+instagram_reels_publish
+Derived from adapter/account capability, not manually guessed.
+Experiment
+onboarding_variant_b
+No sensitive segmentation; event schema defined before rollout.
+Kill switch
+image_generation_enabled
+Server-authoritative emergency stop with admin audit.
+
+51. Legal, privacy and data lifecycle implementation checklist
+Privacy Policy, Terms of Service and subprocessor list must match actual data flows before public GA.
+Data inventory maps entity/category -> purpose -> retention -> deletion dependency -> export behavior.
+Organization export produces a documented machine-readable package without leaking secrets or cross-tenant data.
+Deletion is durable/resumable and records tombstone/audit evidence while removing provider/storage data according to policy.
+Social provider data-deletion callbacks/URLs are implemented when required by provider terms.
+Consent/rights metadata exists for uploaded assets where likeness/copyright-sensitive workflows require it.
+Cookie/analytics consent behavior is determined by actual analytics stack and legal review; essential auth/security cookies are separated from optional analytics.
+DPA/subprocessor operational documents are owned outside code but tracked as release-gate evidence.
+52. Master release sequence for two engineers
+Sprint
+Weeks
+Release intent
+Key focus
+S0
+1-2
+Foundation
+Repo, RLS/auth, Nuxt UI design system, typed contracts, CI/E2E.
+S1
+3-4
+Core tenant UX
+Organizations, RBAC, onboarding, brand brain editing, responsive shell.
+S2
+5-6
+Assets + connections
+Gallery/media security, Meta OAuth/sync/webhooks, capability health.
+S3
+7-8
+AI creation
+Evidence-grounded generation, Content Studio, image pipeline, evals.
+S4
+9-10
+Closed beta publish
+Approval, calendar, scheduling, reliable Meta publishing.
+S5
+11-12
+Commercial core
+Analytics, billing, entitlements, app-wide hardening.
+S6
+13-14
+Marketing OS
+Strategy, campaigns, Marketing HQ, AI copilot entry, cost/safety foundations.
+S7
+15-16
+GA feature completeness
+Feedback loop, full safety, billing edge cases, admin/ops, UX resilience.
+S8
+17-18
+Production GA
+Security/DR/load/UAT/Meta gate, progressive rollout and production smoke.
+S9
+19-20
+Growth formats
+Carousel/Reels/Story capabilities and agency multi-brand productivity.
+S10
+21-22
+Growth automation
+Experiments, advanced reports, multilingual and safe autopilot improvements.
+
+Fastest safe path
+S0-S8 jane Production GA scope. S9-S10 jane growth expansion. Nese external Meta review vonohet, engineering vazhdon me mocks/test accounts, por RG-04 mbetet blocker per public social connection/publishing. Nuk shkurtohen tenant isolation, security, AI factuality, publish idempotency ose restore/UAT gates per te fituar kalendar.
+
+Appendix F - Frontend page acceptance matrix
+Page
+Release acceptance
+Landing
+SSR content visible without client JS dependency for core text; responsive; CTA; pricing; FAQ; Lighthouse/perf budget; reduced-motion.
+Auth
+Clear errors; no account enumeration; recovery; callback loading/error; safe redirect.
+Onboarding
+Resume; step validation; skip Meta allowed; first-value path; mobile; progress persisted.
+Marketing HQ
+Actionable work queue; no fake metrics; live status; skeleton/empty/error; quick create.
+Strategy
+Versioned strategy; evidence/context; accept/edit/regenerate parts; campaign creation.
+Content Studio
+Filters/status, preview, immutable versions, autosave custom draft, AI regeneration controls.
+Calendar
+Timezone-safe; month/week/list; drag guarded; failed/scheduled states distinct; mobile fallback.
+Gallery
+Direct upload, progress, bulk select, rights metadata, search/tags, safe delete dependency warning.
+Analytics
+Metric definitions, loading windows, no false causality, accessible summaries.
+Admin
+Least privilege, no secrets, audited actions, confirmation for retry/circuit breaker/tenant-impacting actions.
+
+Appendix G - AI evaluation matrix
+Dimension
+Gate
+Evidence
+Factuality
+0 unsupported hard commercial claims in release golden set
+fact_ref/offer_ref validator + human sample
+Brand adherence
+>= target score per vertical/brand test set
+rubric + deterministic banned-term checks
+Visual identity
+Logo/text exact; product/people integrity threshold
+image QA + visual/manual review
+Safety
+All BLOCK fixtures blocked; WARN fixtures explainable
+policy unit/golden tests
+Diversity
+No excessive semantic duplication within plan window
+embedding/similarity checks
+Strategy usefulness
+Human reviewer accepts majority without full rewrite
+scripted vertical review
+Learning quality
+Recommendation cites metrics and states uncertainty
+metric-ref validation + human sample
+Cost
+Per-plan COGS within configured budget under load fixture
+usage ledger/replay
+
+Appendix H - Production non-negotiables v1.1
+No cross-tenant read/write under any UI/API/background path.
+No social/provider secret in browser, logs, analytics or support bundle.
+No publish without state/policy/entitlement/capability/idempotency checks.
+No AI commercial fact without verified evidence or explicit current user input.
+No prompt/model/policy upgrade to production without evaluation evidence and rollback path.
+No expensive AI operation without reservation/cost guardrail.
+No public GA without restore drill, security gate, Meta readiness, UAT, accessibility and production smoke.
+No UI action may appear successful before confirmed server semantics for irreversible/external side effects.

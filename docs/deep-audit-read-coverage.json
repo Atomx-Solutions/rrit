@@ -1,0 +1,668 @@
+{
+  "apps/web/server/utils/access.ts": {
+    "sha256": "6a0f6a68f1de00ca2332e7633291d55c42674e57f0c093a208276d0cbfbf1cdd",
+    "lines": 19,
+    "batch": 0
+  },
+  "apps/web/server/utils/auth-configuration.ts": {
+    "sha256": "c472adf3af6d7e64d908f89c345c74fb9e9dec4051911f6ebaffac299e149cb8",
+    "lines": 28,
+    "batch": 0
+  },
+  "apps/web/server/utils/auth.ts": {
+    "sha256": "629e58ae228397a61809a7a604f653210fde17b1a079846425d2994a9805e828",
+    "lines": 81,
+    "batch": 0
+  },
+  "apps/web/server/utils/body.ts": {
+    "sha256": "462e6982d66c40ec824c9a8ab8e4d1ebaa4a697a42ae780ed703ee2479854e74",
+    "lines": 20,
+    "batch": 0
+  },
+  "apps/web/server/utils/database.ts": {
+    "sha256": "486882fffaaa30a2088fc3e5edadfe27d70ca848e649ba39f2644219ac277ed3",
+    "lines": 13,
+    "batch": 0
+  },
+  "apps/web/server/utils/meta.ts": {
+    "sha256": "b74d18569ae11db54197a420e52e2e6b2c87d3173dcd965c51c144050883262d",
+    "lines": 183,
+    "batch": 0
+  },
+  "apps/web/server/utils/post-validation.ts": {
+    "sha256": "09cb8c8b0f89588863de113fb44692d2117d46f3163dc3048e5ab279b9127165",
+    "lines": 217,
+    "batch": 1
+  },
+  "apps/web/server/utils/publishing.ts": {
+    "sha256": "1d2550eed49786330b7ceeff4e9016579488fc8977184b0b8f0a1164b0261f78",
+    "lines": 273,
+    "batch": 2
+  },
+  "apps/web/server/utils/trials.ts": {
+    "sha256": "6db9200c289dc09ea6904a7098257a281a80cc881c9c8cb63b84d3b8ccf50088",
+    "lines": 165,
+    "batch": 2
+  },
+  "apps/web/server/utils/workspaces.ts": {
+    "sha256": "238bccceae12d720a36ff1a0211dc550dbecac63a0041bd6eb1f9df43fb0e092",
+    "lines": 25,
+    "batch": 2
+  },
+  "apps/web/server/api/ai/captions.post.ts": {
+    "sha256": "bbb3f3539483a5dd075738cee325b2039c834f51b13996a90af23d18e6fca0fa",
+    "lines": 173,
+    "batch": 3
+  },
+  "apps/web/server/api/auth/[...all].ts": {
+    "sha256": "8a9f944755558d8c6e7fb1cb8f0797aace59384338b32432ded7af17580c3c82",
+    "lines": 1,
+    "batch": 3
+  },
+  "apps/web/server/api/business.get.ts": {
+    "sha256": "302455f9929da7f2f11a095088a2b2f6430e0d1fd468acb604bc6a082c8ecda0",
+    "lines": 9,
+    "batch": 3
+  },
+  "apps/web/server/api/business.post.ts": {
+    "sha256": "d98b44dcf62e968c8edd7e27bf709ed1a123a7978615599dac9069d579023a46",
+    "lines": 53,
+    "batch": 3
+  },
+  "apps/web/server/api/capabilities.get.ts": {
+    "sha256": "4bcb827f0f7edcda528084effa8c127ecb2dae58cc97d1c93ccf332c55358cf6",
+    "lines": 31,
+    "batch": 3
+  },
+  "apps/web/server/api/media/[id].get.ts": {
+    "sha256": "aaded1b75dbf9aea39e34154c03903132c6eed2f0d6c664e1096ab73c6c55f7f",
+    "lines": 15,
+    "batch": 3
+  },
+  "apps/web/server/api/meta/callback.get.ts": {
+    "sha256": "1a9e9dc09668842f5eea90d3060bdb5d28c4cf9fa9c7db9fad78d33e347ed893",
+    "lines": 74,
+    "batch": 3
+  },
+  "apps/web/server/api/meta/disconnect.post.ts": {
+    "sha256": "5c94be8dc79d123fe82a62d31d365bbebc6d7a80e751c76edda72c53588edd15",
+    "lines": 41,
+    "batch": 3
+  },
+  "apps/web/server/api/meta/pages.get.ts": {
+    "sha256": "1496dc367473d4cfe109979e86387ab2bc7dc5238012ca6ef19b4768eb37394b",
+    "lines": 50,
+    "batch": 3
+  },
+  "apps/web/server/api/meta/posts.get.ts": {
+    "sha256": "52d617cfee63aef775bd67ce599004a1df5495dbc139dba9a5459982606f4e93",
+    "lines": 39,
+    "batch": 4
+  },
+  "apps/web/server/api/meta/select.post.ts": {
+    "sha256": "ad2f48c1f6254972aa3664868d183bdcc36d7c0671818a1863a0cf56a13c1f30",
+    "lines": 101,
+    "batch": 4
+  },
+  "apps/web/server/api/meta/start.post.ts": {
+    "sha256": "b765d71e618ef9f5d134413a96aedcf8d5db67eb7e3005265ad872f3bbf1a30d",
+    "lines": 35,
+    "batch": 4
+  },
+  "apps/web/server/api/meta/status.get.ts": {
+    "sha256": "d32657bf6d1590061b9bd8b502b605272ca0f3e2e69d180a3ad20beb8067a937",
+    "lines": 37,
+    "batch": 4
+  },
+  "apps/web/server/api/meta/sync.post.ts": {
+    "sha256": "90fbb8e03ce1e64f04b93abe92ab86a75c59cead7220f907e6d4841c689554bd",
+    "lines": 110,
+    "batch": 4
+  },
+  "apps/web/server/api/plans.get.ts": {
+    "sha256": "44560b5349e304fe2f8d846fd8fedcc85a808aebc71add061124aa897a8e08ff",
+    "lines": 13,
+    "batch": 4
+  },
+  "apps/web/server/api/posts/[id]/publication.get.ts": {
+    "sha256": "98c1c97c1b2f5dcffe2e5ffae883f8aaa96e66804f2e8aa9ea001d161451decb",
+    "lines": 24,
+    "batch": 4
+  },
+  "apps/web/server/api/posts/[id]/publish.post.ts": {
+    "sha256": "2e7ab5ad97a535064b7496bd14b994217b15a21513f6e84737e6eb4c8207be3a",
+    "lines": 58,
+    "batch": 4
+  },
+  "apps/web/server/api/posts/[id]/validate.post.ts": {
+    "sha256": "3522c29af03a3ea076f69b81d5791d9ca29ae938b03e15de768d67a6f3af2ac7",
+    "lines": 75,
+    "batch": 5
+  },
+  "apps/web/server/api/publishing-media/[id].get.ts": {
+    "sha256": "4aef6dfe849a93f13375d7ea8d33a39fe4f04bebccfad71d698eed1373547a78",
+    "lines": 20,
+    "batch": 5
+  },
+  "apps/web/server/api/site.get.ts": {
+    "sha256": "0048fc06379ee903051caf56a51e23d6a3f53c6bd5ae3cf79d09357c7a5d65c7",
+    "lines": 5,
+    "batch": 5
+  },
+  "apps/web/server/api/templates.get.ts": {
+    "sha256": "9bcd613128fc414fa1bded29af46bd340425012ce4c8f2ca26583aa6bdd6d866",
+    "lines": 7,
+    "batch": 5
+  },
+  "apps/web/server/api/trial.get.ts": {
+    "sha256": "35010a7a2026a8d9b8833f1017652240872ffb207ac7bfddd75be1306c86019e",
+    "lines": 6,
+    "batch": 5
+  },
+  "apps/web/server/api/workspaces/[id].get.ts": {
+    "sha256": "c6ca2389456702652deb45c118aa5d53799bb7d1295b94acec49df68221a385b",
+    "lines": 8,
+    "batch": 5
+  },
+  "apps/web/server/api/workspaces/[id].put.ts": {
+    "sha256": "47b22df31e6da58e39bc8977f795ce03dbe02aeab5d6c72c544e9e26ad28d0f8",
+    "lines": 319,
+    "batch": 6
+  },
+  "apps/web/database/migrations/0001_auth.sql": {
+    "sha256": "af1258915a9b5f62b0a5a016fdc18ee8360b2632080c58003aab3d8313627673",
+    "lines": 16,
+    "batch": 6
+  },
+  "apps/web/database/migrations/0002_businesses.sql": {
+    "sha256": "2c0df5b831f2d81275d6856c72a16f0a7a8f0a67adfd599a572e9e28cb7d0610",
+    "lines": 56,
+    "batch": 6
+  },
+  "apps/web/database/migrations/0003_templates.sql": {
+    "sha256": "343f1e433ac5912bfb5b3dd3f2291a5b0e504400ffff8d25beaed37265efeda8",
+    "lines": 12,
+    "batch": 7
+  },
+  "apps/web/database/migrations/0004_trials_and_social.sql": {
+    "sha256": "75d7b41b212d9759477fe20ed6a29b3efde3347a1d11318b22d70512e13152a4",
+    "lines": 101,
+    "batch": 7
+  },
+  "apps/web/database/migrations/0005_media_and_catalog.sql": {
+    "sha256": "81669e5a4a66afaeafd47422b8b0ba1625a5d2b9514962353049f6864afa81af",
+    "lines": 12,
+    "batch": 7
+  },
+  "apps/web/database/migrations/0006_ai_usage.sql": {
+    "sha256": "97edc822d004014e81265fdac1cd41278deb5d6109864563f1d03b746cf6ca27",
+    "lines": 16,
+    "batch": 7
+  },
+  "apps/web/database/migrations/0007_optional_meta_calendar.sql": {
+    "sha256": "11440f1d04b4a13d901fa692d8e7026a3d44e54b35cf27ae72b4705d9dcdc479",
+    "lines": 8,
+    "batch": 7
+  },
+  "apps/web/shared/schemas/catalog.ts": {
+    "sha256": "a50d62030559b0f4d684d465e7af745aed08b2cef6a2b530495205b60b45eedd",
+    "lines": 12,
+    "batch": 7
+  },
+  "apps/web/shared/schemas/workspace.ts": {
+    "sha256": "084a8678ea6acc00f6c3a31b47bfdc8374a392163de1685ddec5403c8c78ec78",
+    "lines": 101,
+    "batch": 7
+  },
+  "apps/web/shared/utils/calendar.ts": {
+    "sha256": "36d401f62b8464bfdf4c7048a7f41da1d25adb289e3621e4b93c9276fc5e4074",
+    "lines": 54,
+    "batch": 7
+  },
+  "apps/web/shared/utils/empty-workspace.ts": {
+    "sha256": "94a9816b9619d53632c211a809d8c6a428e8091c1b9be4418b15c51e1d5a830f",
+    "lines": 34,
+    "batch": 7
+  },
+  "apps/web/shared/utils/format.ts": {
+    "sha256": "d515d76e23dd0973c29e0f23835e2176a27ceec2da2e1bca08ff9b30eba898a7",
+    "lines": 88,
+    "batch": 7
+  },
+  "apps/web/tests/e2e/live.spec.ts": {
+    "sha256": "7dd72b116286260812885ac3c51f19383896314361083e630d4a10b2f27ae96a",
+    "lines": 202,
+    "batch": 8,
+    "previous_sha256": "c637527597cc8e7d7af243df01f0059e96e72a1a8b08c21153eba7a8afef571c"
+  },
+  "apps/web/tests/e2e/local-registration.spec.ts": {
+    "sha256": "b66c8e67943570739449d585bb6dad5ab873b84fe9e970b92b59393741d5af0d",
+    "lines": 48,
+    "batch": 8
+  },
+  "apps/web/tests/e2e/optional-meta.spec.ts": {
+    "sha256": "46e4c680dfecf05d9893d27671c0c66512df09d79b672ae550e0205f4cd19540",
+    "lines": 201,
+    "batch": 9
+  },
+  "apps/web/tests/fixtures/workspace.ts": {
+    "sha256": "1c7b8e77b6e726bee07fb119e45dc071690bbd8b60b778ff8c8cec657b5c6e80",
+    "lines": 182,
+    "batch": 9
+  },
+  "apps/web/tests/integration/server.test.ts": {
+    "sha256": "c111ba5dc5b5eff6595d376845c7814cf4ad572bf9d8de911964c4f134b7e78d",
+    "lines": 405,
+    "batch": 10
+  },
+  "apps/web/tests/unit/auth-configuration.test.ts": {
+    "sha256": "f54bf53604c238fc71fba14f314865ee938e57628dd940cc4d842acefd284419",
+    "lines": 29,
+    "batch": 10
+  },
+  "apps/web/tests/unit/workspace.test.ts": {
+    "sha256": "ca5465ec60010478950cc4a4f769343935bc783efa2d6e39bfa5320542f77d40",
+    "lines": 69,
+    "batch": 11
+  },
+  "apps/web/app/components/AccountSecurity.vue": {
+    "sha256": "90b60873cd37a3c16bf3632dae810569491f38bd5ef13e56b1728c51e81632af",
+    "lines": 145,
+    "batch": 11
+  },
+  "apps/web/app/components/AuthSurface.vue": {
+    "sha256": "05c3e1097799372a5960ed4f541488c2887d6bc8423e73fa0e72981fd730b1a9",
+    "lines": 265,
+    "batch": 11
+  },
+  "apps/web/app/components/BrandLogo.vue": {
+    "sha256": "77e8be6eae717f67f3eed0c1ebc7d70ec10bf9bcd2e2f70b59bd6018993bd055",
+    "lines": 10,
+    "batch": 11
+  },
+  "apps/web/app/components/BusinessOnboarding.vue": {
+    "sha256": "713496b26b50fb272cdc98eb62386898c80530f0a73546a5050cc0ce8ef0d903",
+    "lines": 252,
+    "batch": 12
+  },
+  "apps/web/app/components/CaptionAssistant.vue": {
+    "sha256": "8be0da5b8a04af3a4c4379b57a322efe2a27257614cba71c551cb4f8c6010aca",
+    "lines": 101,
+    "batch": 12
+  },
+  "apps/web/app/components/ChannelPreview.vue": {
+    "sha256": "ed68567f5f55741c85af09098b17838347fdaa9d95735a1ae75599b9c5dd0b8f",
+    "lines": 71,
+    "batch": 12
+  },
+  "apps/web/app/components/ContentEditor.vue": {
+    "sha256": "41d0bc2596d638e918cca1b96f9a64496c57e76560cc074c98cf13fca9b5c9ad",
+    "lines": 653,
+    "batch": 13
+  },
+  "apps/web/app/components/CopilotPanel.vue": {
+    "sha256": "2ced3fe052cb77fd631b6dcaeeea201d6b0c64f4b921f06516a492e97b647f5d",
+    "lines": 56,
+    "batch": 14
+  },
+  "apps/web/app/components/DashboardEmpty.vue": {
+    "sha256": "83a7d73da2259e3ac53f87771dd7d259e293f7774c09e2f3eb8a60e50bf3c462",
+    "lines": 19,
+    "batch": 14
+  },
+  "apps/web/app/components/DashboardPage.vue": {
+    "sha256": "28adba2ffe2b661f657ad4af4a3bd83139aabec5cf8cbba7a1b58130623d5cb7",
+    "lines": 113,
+    "batch": 14
+  },
+  "apps/web/app/components/LandingMotion.vue": {
+    "sha256": "ec78151cce75db25efb5526e13233ec86bdc730300a339647984a7e70221dfdf",
+    "lines": 13,
+    "batch": 14
+  },
+  "apps/web/app/components/LandingProductPreview.vue": {
+    "sha256": "f1125b0f72ae0bf79f1429f172912a0ae0fd17856c09e87e7409f0ecdc33fdda",
+    "lines": 49,
+    "batch": 14
+  },
+  "apps/web/app/components/ListPagination.vue": {
+    "sha256": "3e19f3fb462f756775b3436fac14778597fe7f733c47ef3cdf4f241bc27b568d",
+    "lines": 32,
+    "batch": 14
+  },
+  "apps/web/app/components/MediaImage.vue": {
+    "sha256": "bb62421435e8974de30f2fbff5c271a64fcc9ef29548875f19d19a5b1b7d88b2",
+    "lines": 44,
+    "batch": 14
+  },
+  "apps/web/app/components/PageHeader.vue": {
+    "sha256": "73199e8db2450db2123ac688ffc80bd4dd6fce0027d83c44b60fd1c5970d3029",
+    "lines": 21,
+    "batch": 14
+  },
+  "apps/web/app/components/PhotoUpload.vue": {
+    "sha256": "c059ef44483c6640a870d66e1654209ba0c524bf2fb5b405cd39d3a0e259050a",
+    "lines": 106,
+    "batch": 14
+  },
+  "apps/web/app/components/PlanCards.vue": {
+    "sha256": "26cbdd3a32c5be4b467c7303bb4ae1d4b8a0e70f19a914b847ecb0935204a102",
+    "lines": 38,
+    "batch": 14
+  },
+  "apps/web/app/components/PolicyPage.vue": {
+    "sha256": "616b5f6c6f76d5cc6a62c68b5838e4d62c4dd8d0f3f550df883942103a28f858",
+    "lines": 101,
+    "batch": 15
+  },
+  "apps/web/app/components/PostCard.vue": {
+    "sha256": "79b865ce1fdd0a7f9f8076f2aaad8fd30012f055f80fd7bb617b90c01453cd0d",
+    "lines": 66,
+    "batch": 15
+  },
+  "apps/web/app/components/PostsTable.vue": {
+    "sha256": "8ed1e6dc4626f40c3678aaea2ccf07707c13e04b094d96629258a7dda99eb31e",
+    "lines": 112,
+    "batch": 15
+  },
+  "apps/web/app/components/SocialConnections.vue": {
+    "sha256": "4332949a3059cfd6a772be486cbacf480c546c39c7670b7e1aa3c1cad0c35ddb",
+    "lines": 250,
+    "batch": 16
+  },
+  "apps/web/app/components/StatusBadge.vue": {
+    "sha256": "6ab7dc237f86e92228122a2e8a0389be8d8501172a69fd027defddb1497bbfef",
+    "lines": 25,
+    "batch": 16
+  },
+  "apps/web/app/components/TrialBanner.vue": {
+    "sha256": "64a7e2ad11ead4cb51dc510e99c7f4c6026816a4e8280f38240345e503f39005",
+    "lines": 63,
+    "batch": 16
+  },
+  "apps/web/app/pages/app/[org]/[brand]/billing.vue": {
+    "sha256": "6973cbdbf632f669cbefc0e6b9dfc0a4a2873de5622c5b0e33afb7ef5f371117",
+    "lines": 153,
+    "batch": 16
+  },
+  "apps/web/app/pages/app/[org]/[brand]/brand.vue": {
+    "sha256": "67574deeb85bdbc778f12e5e203242f592046fa5e329021726cf4172f256e4d1",
+    "lines": 189,
+    "batch": 17
+  },
+  "apps/web/app/pages/app/[org]/[brand]/calendar.vue": {
+    "sha256": "708b01bdd8693354b3549b0c449237a1a8cb6ca62dc7fb61a315cafffc3b202c",
+    "lines": 155,
+    "batch": 17
+  },
+  "apps/web/app/pages/app/[org]/[brand]/content/[id].vue": {
+    "sha256": "154217b0f5f49efb0d7b069fe6c1da08725a09da8c0b56cafcb00ac93d19d703",
+    "lines": 6,
+    "batch": 17
+  },
+  "apps/web/app/pages/app/[org]/[brand]/content/index.vue": {
+    "sha256": "3dec5e05b9b6bb09bb950718748cb19e6c8c93c3cebd2ba272ea9657c46ac07f",
+    "lines": 120,
+    "batch": 17
+  },
+  "apps/web/app/pages/app/[org]/[brand]/content/new.vue": {
+    "sha256": "b40c4a8c7cf6ee32a0d80a3202e54600c10e1803c51362d48c2c3f9e01c63774",
+    "lines": 5,
+    "batch": 17
+  },
+  "apps/web/app/pages/app/[org]/[brand]/gallery.vue": {
+    "sha256": "7df42510c17289d60555dcf703ec4887d59c62bab0e5cceccf6bd6d925625161",
+    "lines": 335,
+    "batch": 18
+  },
+  "apps/web/app/pages/app/[org]/[brand]/overview.vue": {
+    "sha256": "3d753b186395467273fedcc7a6ed2b8293e693a5735428b20a7d7216fc5ac50f",
+    "lines": 211,
+    "batch": 19
+  },
+  "apps/web/app/pages/app/[org]/[brand]/settings.vue": {
+    "sha256": "68e280cbc6acd85370414e82865d532cc8bf12a9ccf5df81c0abc4fd6d9009c3",
+    "lines": 211,
+    "batch": 19
+  },
+  "apps/web/app/pages/app/[org]/[brand]/social-posts.vue": {
+    "sha256": "056621fe357d8b7cea171be8ce459e0f0a8894493ff1e846e46feae29af66391",
+    "lines": 190,
+    "batch": 20
+  },
+  "apps/web/app/pages/app/[org]/[brand]/templates.vue": {
+    "sha256": "a88b6dafd0fe91ff3a3d2be7ae824260dda95ee6bf80c6bf2161931a425806df",
+    "lines": 99,
+    "batch": 20
+  },
+  "apps/web/app/pages/app/index.vue": {
+    "sha256": "78472800d6b07c4f9bc880931efb70912490b62de90ba72a374843933a939010",
+    "lines": 8,
+    "batch": 20
+  },
+  "apps/web/app/pages/auth/callback.vue": {
+    "sha256": "700640e6baa3aeadde892f73797e180418a82811d83fdabc71939f5e30a385e2",
+    "lines": 5,
+    "batch": 20
+  },
+  "apps/web/app/pages/forgot-password.vue": {
+    "sha256": "2db98d96743111ec4492649486c6daa39cb844a4bb6f7e5356990d534c45c0be",
+    "lines": 5,
+    "batch": 20
+  },
+  "apps/web/app/pages/help.vue": {
+    "sha256": "676fd5b85a9234f18a329967367227fa1c2096865d46c1f8ea5de69400e374ca",
+    "lines": 78,
+    "batch": 20
+  },
+  "apps/web/app/pages/index.vue": {
+    "sha256": "647577c8a4ac02841dbbd256bec72943a7d01c649084749f505156a98c27bc0e",
+    "lines": 255,
+    "batch": 21
+  },
+  "apps/web/app/pages/login.vue": {
+    "sha256": "8fc631beca6b15d48cb321369e28c574eed7cd80f948f9e7c6480c6a8071d401",
+    "lines": 5,
+    "batch": 21
+  },
+  "apps/web/app/pages/onboarding.vue": {
+    "sha256": "e9837cadaa434232e070670de3e50f6aeb3b7cbdcdb8aae09ddbd8c511f00731",
+    "lines": 5,
+    "batch": 21
+  },
+  "apps/web/app/pages/pricing.vue": {
+    "sha256": "23d580515c227de1e81f03801d13a100db98980f026e5201e7b1e0bff5383a33",
+    "lines": 73,
+    "batch": 21
+  },
+  "apps/web/app/pages/privacy.vue": {
+    "sha256": "ca75cd7d30412f5b8c200ba4848e3bdc82d131f4cc0bd9ef7a5cd195f96c36e0",
+    "lines": 5,
+    "batch": 21
+  },
+  "apps/web/app/pages/reset-password.vue": {
+    "sha256": "9f40ef63624fe56b271d8070304238f8e7e446814507019437eb143d01aee4fb",
+    "lines": 5,
+    "batch": 21
+  },
+  "apps/web/app/pages/security.vue": {
+    "sha256": "fc791fcbf2e5c932b7f8790a722a903dc3cbf98c2812d55497999c2d5ed00af8",
+    "lines": 5,
+    "batch": 21
+  },
+  "apps/web/app/pages/signup.vue": {
+    "sha256": "3816973d9884a0676739716d9ed8a7d0469d73a0bc0e2fc9a4333c8b8fc437f2",
+    "lines": 5,
+    "batch": 21
+  },
+  "apps/web/app/pages/terms.vue": {
+    "sha256": "57e8f2101b00fdc3ba0c18e07f028504a5a45f752520921f4261a11ef8e25440",
+    "lines": 5,
+    "batch": 21
+  },
+  "apps/web/app/pages/verify-email.vue": {
+    "sha256": "0853c25cb9ca99acebdbd4cb6106cc447798907bc5e6389b36ecf98c8b1ef8ad",
+    "lines": 5,
+    "batch": 21
+  },
+  ".github/workflows/frontend.yml": {
+    "sha256": "81f408eca8a9f92dc2c8a96c850392053cca291ac5192364c76ff18a823b76cb",
+    "lines": 43,
+    "batch": 21
+  },
+  "apps/web/app/app.config.ts": {
+    "sha256": "10cb7c631d95c4d221086b0ea9b4417ae4892b9296f82e2b68fe6a8e52186202",
+    "lines": 13,
+    "batch": 21
+  },
+  "apps/web/app/app.vue": {
+    "sha256": "2498aea267d70b54b4524774bad60115ee547d4838a5fcd325311153552224fd",
+    "lines": 16,
+    "batch": 21
+  },
+  "apps/web/app/assets/css/main.css": {
+    "sha256": "e2a5c0a11a2b6fd4f77312c7fe816627dfc21ed2230b519981604334b41f5a82",
+    "lines": 625,
+    "batch": 22
+  },
+  "apps/web/app/composables/useApi.ts": {
+    "sha256": "e2276383509b5b8416190019a0251d872abd1ddf7959961ed2feca7ebe861f60",
+    "lines": 40,
+    "batch": 22
+  },
+  "apps/web/app/composables/useDraft.ts": {
+    "sha256": "866cff60aa1f2ccc4c89551f72fff20fdb3e7a710a063bd21ca5c7e780165aea",
+    "lines": 49,
+    "batch": 22
+  },
+  "apps/web/app/composables/usePagination.ts": {
+    "sha256": "f63df69fa5bb3cecd7b16f1a5cf1380f4f324074d883955d28cf5c102e4dcee3",
+    "lines": 16,
+    "batch": 22
+  },
+  "apps/web/app/composables/usePlanCatalog.ts": {
+    "sha256": "56afeffe6c7520347fa00dda6eb8fcaf82825fe76f164f939dbf0d8f863d82ac",
+    "lines": 5,
+    "batch": 22
+  },
+  "apps/web/app/composables/useWorkspace.ts": {
+    "sha256": "c7169d02050991adb5ec320ad844f9047f139863988deac5ffbd00e8099f7bc7",
+    "lines": 163,
+    "batch": 23
+  },
+  "apps/web/app/data/navigation.ts": {
+    "sha256": "15173cd17b2888babe98a5324a594f580e28634e67582f0f7e1534de1ac7ba13",
+    "lines": 25,
+    "batch": 23
+  },
+  "apps/web/app/error.vue": {
+    "sha256": "6564ffdc0e45de3dbe48534879b46b22bdb814d3a78e118b6a0ab56d1999a2ae",
+    "lines": 24,
+    "batch": 23
+  },
+  "apps/web/app/layouts/auth.vue": {
+    "sha256": "632409e3f63d8ded7c48d81f377d06029758219057f51598e372b09e80473799",
+    "lines": 30,
+    "batch": 23
+  },
+  "apps/web/app/layouts/dashboard.vue": {
+    "sha256": "8b552ebd6b73ef34cf48d0906ba24d772e871c6dcb6abb3065e22e16bb95297b",
+    "lines": 293,
+    "batch": 23
+  },
+  "apps/web/app/layouts/public.vue": {
+    "sha256": "286c5dda5dd07a72d1bc5a8ad910b17d31d30b42d7f67a9b9e1d49002e6c2628",
+    "lines": 40,
+    "batch": 24
+  },
+  "apps/web/app/middleware/post-focus.global.ts": {
+    "sha256": "92ace57ea94e4b7f06020324fc023b37574b7aa03c1743229d2b90a3c5b7234e",
+    "lines": 8,
+    "batch": 24
+  },
+  "apps/web/app/middleware/workspace.ts": {
+    "sha256": "bf5d85e652def55b71a70e59bc53dafd5194791f36979b5da6b6b5cda6f98030",
+    "lines": 22,
+    "batch": 24
+  },
+  "apps/web/app/spa-loading-template.html": {
+    "sha256": "8ded896d07b0a275b0e76e34324719d0745685954a23a5808080a18e45945599",
+    "lines": 23,
+    "batch": 24
+  },
+  "apps/web/app/utils/auth-client.ts": {
+    "sha256": "26112e327a2e5f8f1a39d743a4d48043aaf25cef03bccaddba8238d8147eeb55",
+    "lines": 2,
+    "batch": 24
+  },
+  "apps/web/app/utils/dashboard.ts": {
+    "sha256": "8e71300f1c91c6002f1f4d7f4bd2b0b215680db1f5a0bf66e82b90fa5948e075",
+    "lines": 6,
+    "batch": 24
+  },
+  "apps/web/eslint.config.mjs": {
+    "sha256": "e9df5886692192a32637eb25c67262c2243dd1f1afda93d93c9d04b818c36aa5",
+    "lines": 28,
+    "batch": 24
+  },
+  "apps/web/nuxt.config.ts": {
+    "sha256": "49d256af15a04c5bde049bcc6272d0b07c3323ad944012b4bce7693a021b8dff",
+    "lines": 39,
+    "batch": 24
+  },
+  "apps/web/playwright.config.ts": {
+    "sha256": "9ec5f6fb07467653bfb456f0792758a834222045eab39abbcdaa647aaedd1038",
+    "lines": 37,
+    "batch": 24
+  },
+  "apps/web/public/favicon.svg": {
+    "sha256": "80da119169731514a50d04a3579311a526c2610467fe07e3e950af6fadb30ea4",
+    "lines": 1,
+    "batch": 24
+  },
+  "apps/web/public/logo-light.svg": {
+    "sha256": "252d574ff5819cce4a79c2498d728a7a6a8e3be40b5f7637dd9451223aa86300",
+    "lines": 1,
+    "batch": 24
+  },
+  "apps/web/public/logo.svg": {
+    "sha256": "0f17cccb75f2c4852ae4788acd35ee112378908ec9373c89078bac9196c3a74f",
+    "lines": 1,
+    "batch": 24
+  },
+  "apps/web/scripts/bundle-budget.mjs": {
+    "sha256": "b64cf6d814289510ece5d2e80ba2e27cb69c3b7b5d3989e3a712d99d499c110e",
+    "lines": 33,
+    "batch": 24
+  },
+  "apps/web/scripts/generate-auth-migration.mjs": {
+    "sha256": "c5f164a5ed2e5d0e56478eda0ab5de4c13c379d749933ef54dfa78131879a594",
+    "lines": 26,
+    "batch": 24
+  },
+  "apps/web/scripts/migrate.mjs": {
+    "sha256": "fc3045bb9c7fd1bbc5be01f268cf454afd3f2e769b4aed66fa49f9bbd79a5478",
+    "lines": 47,
+    "batch": 24
+  },
+  "apps/web/server/plugins/publisher.ts": {
+    "sha256": "81c6d160dc6affee5b95f0a48716dccce2417bfc0483b54c2e20ca6a64784504",
+    "lines": 21,
+    "batch": 24
+  },
+  "apps/web/vitest.config.ts": {
+    "sha256": "5e60118d67039897afb209c77f3d90f9834396647e476d76517d1c2c4c36ced5",
+    "lines": 2,
+    "batch": 24
+  },
+  "compose.yaml": {
+    "sha256": "3fab3b91e78763f3e06e2c96f4a95e40b54f935aed80c173ded26457cf999877",
+    "lines": 26,
+    "batch": 24
+  },
+  "scripts/setup-local.mjs": {
+    "sha256": "f81f7a36a5c2a7d2bc5ec54baff3217fd45cd94e8bc4cf0751367b870aa9a979",
+    "lines": 29,
+    "batch": 24
+  }
+}

@@ -1,0 +1,667 @@
+[
+  {
+    "path": "scripts/setup-local.mjs",
+    "lines": 29,
+    "bytes": 1635
+  },
+  {
+    "path": "compose.yaml",
+    "lines": 26,
+    "bytes": 631
+  },
+  {
+    "path": "apps/web/vitest.config.ts",
+    "lines": 2,
+    "bytes": 219
+  },
+  {
+    "path": "apps/web/eslint.config.mjs",
+    "lines": 28,
+    "bytes": 678
+  },
+  {
+    "path": "apps/web/tests/unit/workspace.test.ts",
+    "lines": 69,
+    "bytes": 2952
+  },
+  {
+    "path": "apps/web/tests/unit/auth-configuration.test.ts",
+    "lines": 29,
+    "bytes": 1428
+  },
+  {
+    "path": "apps/web/tests/integration/server.test.ts",
+    "lines": 405,
+    "bytes": 16320
+  },
+  {
+    "path": "apps/web/database/migrations/0007_optional_meta_calendar.sql",
+    "lines": 8,
+    "bytes": 476
+  },
+  {
+    "path": "apps/web/database/migrations/0006_ai_usage.sql",
+    "lines": 16,
+    "bytes": 627
+  },
+  {
+    "path": "apps/web/database/migrations/0005_media_and_catalog.sql",
+    "lines": 12,
+    "bytes": 1519
+  },
+  {
+    "path": "apps/web/database/migrations/0004_trials_and_social.sql",
+    "lines": 101,
+    "bytes": 4713
+  },
+  {
+    "path": "apps/web/database/migrations/0003_templates.sql",
+    "lines": 12,
+    "bytes": 1589
+  },
+  {
+    "path": "apps/web/database/migrations/0002_businesses.sql",
+    "lines": 56,
+    "bytes": 3091
+  },
+  {
+    "path": "apps/web/database/migrations/0001_auth.sql",
+    "lines": 16,
+    "bytes": 1897
+  },
+  {
+    "path": "apps/web/tests/fixtures/workspace.ts",
+    "lines": 182,
+    "bytes": 5687
+  },
+  {
+    "path": "apps/web/tests/e2e/optional-meta.spec.ts",
+    "lines": 201,
+    "bytes": 8135
+  },
+  {
+    "path": "apps/web/tests/e2e/local-registration.spec.ts",
+    "lines": 48,
+    "bytes": 2243
+  },
+  {
+    "path": "apps/web/tests/e2e/live.spec.ts",
+    "lines": 202,
+    "bytes": 8856
+  },
+  {
+    "path": "apps/web/app/utils/dashboard.ts",
+    "lines": 6,
+    "bytes": 175
+  },
+  {
+    "path": "apps/web/app/utils/auth-client.ts",
+    "lines": 2,
+    "bytes": 96
+  },
+  {
+    "path": "apps/web/app/spa-loading-template.html",
+    "lines": 23,
+    "bytes": 533
+  },
+  {
+    "path": ".github/workflows/frontend.yml",
+    "lines": 43,
+    "bytes": 1195
+  },
+  {
+    "path": "apps/web/shared/utils/format.ts",
+    "lines": 88,
+    "bytes": 2695
+  },
+  {
+    "path": "apps/web/shared/utils/empty-workspace.ts",
+    "lines": 34,
+    "bytes": 702
+  },
+  {
+    "path": "apps/web/shared/utils/calendar.ts",
+    "lines": 54,
+    "bytes": 1988
+  },
+  {
+    "path": "apps/web/shared/schemas/workspace.ts",
+    "lines": 101,
+    "bytes": 3364
+  },
+  {
+    "path": "apps/web/shared/schemas/catalog.ts",
+    "lines": 12,
+    "bytes": 282
+  },
+  {
+    "path": "apps/web/app/pages/verify-email.vue",
+    "lines": 5,
+    "bytes": 190
+  },
+  {
+    "path": "apps/web/app/pages/terms.vue",
+    "lines": 5,
+    "bytes": 162
+  },
+  {
+    "path": "apps/web/app/pages/signup.vue",
+    "lines": 5,
+    "bytes": 185
+  },
+  {
+    "path": "apps/web/app/pages/security.vue",
+    "lines": 5,
+    "bytes": 165
+  },
+  {
+    "path": "apps/web/app/pages/reset-password.vue",
+    "lines": 5,
+    "bytes": 189
+  },
+  {
+    "path": "apps/web/app/pages/privacy.vue",
+    "lines": 5,
+    "bytes": 168
+  },
+  {
+    "path": "apps/web/app/pages/pricing.vue",
+    "lines": 73,
+    "bytes": 2931
+  },
+  {
+    "path": "apps/web/app/pages/onboarding.vue",
+    "lines": 5,
+    "bytes": 220
+  },
+  {
+    "path": "apps/web/app/pages/login.vue",
+    "lines": 5,
+    "bytes": 176
+  },
+  {
+    "path": "apps/web/app/pages/index.vue",
+    "lines": 255,
+    "bytes": 9946
+  },
+  {
+    "path": "apps/web/app/pages/help.vue",
+    "lines": 78,
+    "bytes": 3667
+  },
+  {
+    "path": "apps/web/app/pages/forgot-password.vue",
+    "lines": 5,
+    "bytes": 190
+  },
+  {
+    "path": "apps/web/app/pages/auth/callback.vue",
+    "lines": 5,
+    "bytes": 195
+  },
+  {
+    "path": "apps/web/nuxt.config.ts",
+    "lines": 39,
+    "bytes": 1389
+  },
+  {
+    "path": "apps/web/playwright.config.ts",
+    "lines": 37,
+    "bytes": 970
+  },
+  {
+    "path": "apps/web/app/composables/useWorkspace.ts",
+    "lines": 163,
+    "bytes": 5306
+  },
+  {
+    "path": "apps/web/app/composables/usePlanCatalog.ts",
+    "lines": 5,
+    "bytes": 220
+  },
+  {
+    "path": "apps/web/app/composables/usePagination.ts",
+    "lines": 16,
+    "bytes": 593
+  },
+  {
+    "path": "apps/web/app/composables/useDraft.ts",
+    "lines": 49,
+    "bytes": 1516
+  },
+  {
+    "path": "apps/web/app/composables/useApi.ts",
+    "lines": 40,
+    "bytes": 1189
+  },
+  {
+    "path": "apps/web/server/utils/workspaces.ts",
+    "lines": 25,
+    "bytes": 1115
+  },
+  {
+    "path": "apps/web/server/utils/trials.ts",
+    "lines": 165,
+    "bytes": 6084
+  },
+  {
+    "path": "apps/web/server/utils/publishing.ts",
+    "lines": 273,
+    "bytes": 11325
+  },
+  {
+    "path": "apps/web/server/utils/post-validation.ts",
+    "lines": 217,
+    "bytes": 7842
+  },
+  {
+    "path": "apps/web/server/utils/meta.ts",
+    "lines": 183,
+    "bytes": 6917
+  },
+  {
+    "path": "apps/web/server/utils/database.ts",
+    "lines": 13,
+    "bytes": 413
+  },
+  {
+    "path": "apps/web/server/utils/body.ts",
+    "lines": 20,
+    "bytes": 699
+  },
+  {
+    "path": "apps/web/server/utils/auth.ts",
+    "lines": 81,
+    "bytes": 2793
+  },
+  {
+    "path": "apps/web/server/utils/auth-configuration.ts",
+    "lines": 28,
+    "bytes": 976
+  },
+  {
+    "path": "apps/web/server/utils/access.ts",
+    "lines": 19,
+    "bytes": 853
+  },
+  {
+    "path": "apps/web/public/logo.svg",
+    "lines": 1,
+    "bytes": 320
+  },
+  {
+    "path": "apps/web/public/logo-light.svg",
+    "lines": 1,
+    "bytes": 320
+  },
+  {
+    "path": "apps/web/server/plugins/publisher.ts",
+    "lines": 21,
+    "bytes": 533
+  },
+  {
+    "path": "apps/web/public/favicon.svg",
+    "lines": 1,
+    "bytes": 140
+  },
+  {
+    "path": "apps/web/app/app.vue",
+    "lines": 16,
+    "bytes": 479
+  },
+  {
+    "path": "apps/web/app/app.config.ts",
+    "lines": 13,
+    "bytes": 562
+  },
+  {
+    "path": "apps/web/app/layouts/public.vue",
+    "lines": 40,
+    "bytes": 1561
+  },
+  {
+    "path": "apps/web/app/error.vue",
+    "lines": 24,
+    "bytes": 819
+  },
+  {
+    "path": "apps/web/app/layouts/dashboard.vue",
+    "lines": 293,
+    "bytes": 10273
+  },
+  {
+    "path": "apps/web/app/layouts/auth.vue",
+    "lines": 30,
+    "bytes": 939
+  },
+  {
+    "path": "apps/web/app/data/navigation.ts",
+    "lines": 25,
+    "bytes": 837
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/templates.vue",
+    "lines": 99,
+    "bytes": 3447
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/social-posts.vue",
+    "lines": 190,
+    "bytes": 6271
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/settings.vue",
+    "lines": 211,
+    "bytes": 7991
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/overview.vue",
+    "lines": 211,
+    "bytes": 7910
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/gallery.vue",
+    "lines": 335,
+    "bytes": 11572
+  },
+  {
+    "path": "apps/web/app/middleware/workspace.ts",
+    "lines": 22,
+    "bytes": 841
+  },
+  {
+    "path": "apps/web/app/middleware/post-focus.global.ts",
+    "lines": 8,
+    "bytes": 355
+  },
+  {
+    "path": "apps/web/app/components/DashboardEmpty.vue",
+    "lines": 19,
+    "bytes": 553
+  },
+  {
+    "path": "apps/web/app/components/CopilotPanel.vue",
+    "lines": 56,
+    "bytes": 1713
+  },
+  {
+    "path": "apps/web/app/components/ContentEditor.vue",
+    "lines": 653,
+    "bytes": 24217
+  },
+  {
+    "path": "apps/web/app/components/ChannelPreview.vue",
+    "lines": 71,
+    "bytes": 2541
+  },
+  {
+    "path": "apps/web/app/components/CaptionAssistant.vue",
+    "lines": 101,
+    "bytes": 3389
+  },
+  {
+    "path": "apps/web/app/components/BusinessOnboarding.vue",
+    "lines": 252,
+    "bytes": 8350
+  },
+  {
+    "path": "apps/web/app/components/BrandLogo.vue",
+    "lines": 10,
+    "bytes": 325
+  },
+  {
+    "path": "apps/web/app/components/AuthSurface.vue",
+    "lines": 265,
+    "bytes": 9724
+  },
+  {
+    "path": "apps/web/app/assets/css/main.css",
+    "lines": 625,
+    "bytes": 10413
+  },
+  {
+    "path": "apps/web/app/components/AccountSecurity.vue",
+    "lines": 145,
+    "bytes": 5029
+  },
+  {
+    "path": "apps/web/app/components/ListPagination.vue",
+    "lines": 32,
+    "bytes": 1011
+  },
+  {
+    "path": "apps/web/app/components/LandingProductPreview.vue",
+    "lines": 49,
+    "bytes": 1796
+  },
+  {
+    "path": "apps/web/app/components/LandingMotion.vue",
+    "lines": 13,
+    "bytes": 369
+  },
+  {
+    "path": "apps/web/app/components/TrialBanner.vue",
+    "lines": 63,
+    "bytes": 2280
+  },
+  {
+    "path": "apps/web/app/components/DashboardPage.vue",
+    "lines": 113,
+    "bytes": 3750
+  },
+  {
+    "path": "apps/web/app/components/StatusBadge.vue",
+    "lines": 25,
+    "bytes": 671
+  },
+  {
+    "path": "apps/web/app/components/PolicyPage.vue",
+    "lines": 101,
+    "bytes": 4682
+  },
+  {
+    "path": "apps/web/app/components/SocialConnections.vue",
+    "lines": 250,
+    "bytes": 8526
+  },
+  {
+    "path": "apps/web/app/components/PlanCards.vue",
+    "lines": 38,
+    "bytes": 1278
+  },
+  {
+    "path": "apps/web/app/components/PostsTable.vue",
+    "lines": 112,
+    "bytes": 4073
+  },
+  {
+    "path": "apps/web/app/components/PhotoUpload.vue",
+    "lines": 106,
+    "bytes": 3300
+  },
+  {
+    "path": "apps/web/app/components/PostCard.vue",
+    "lines": 66,
+    "bytes": 2267
+  },
+  {
+    "path": "apps/web/app/components/PageHeader.vue",
+    "lines": 21,
+    "bytes": 846
+  },
+  {
+    "path": "apps/web/app/components/MediaImage.vue",
+    "lines": 44,
+    "bytes": 1092
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/billing.vue",
+    "lines": 153,
+    "bytes": 5880
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/brand.vue",
+    "lines": 189,
+    "bytes": 7421
+  },
+  {
+    "path": "apps/web/app/pages/app/index.vue",
+    "lines": 8,
+    "bytes": 297
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/calendar.vue",
+    "lines": 155,
+    "bytes": 6182
+  },
+  {
+    "path": "apps/web/server/api/business.post.ts",
+    "lines": 53,
+    "bytes": 1868
+  },
+  {
+    "path": "apps/web/server/api/business.get.ts",
+    "lines": 9,
+    "bytes": 430
+  },
+  {
+    "path": "apps/web/server/api/workspaces/[id].put.ts",
+    "lines": 319,
+    "bytes": 13935
+  },
+  {
+    "path": "apps/web/server/api/workspaces/[id].get.ts",
+    "lines": 8,
+    "bytes": 381
+  },
+  {
+    "path": "apps/web/server/api/trial.get.ts",
+    "lines": 6,
+    "bytes": 317
+  },
+  {
+    "path": "apps/web/server/api/templates.get.ts",
+    "lines": 7,
+    "bytes": 317
+  },
+  {
+    "path": "apps/web/server/api/site.get.ts",
+    "lines": 5,
+    "bytes": 202
+  },
+  {
+    "path": "apps/web/server/api/capabilities.get.ts",
+    "lines": 31,
+    "bytes": 1072
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/content/[id].vue",
+    "lines": 6,
+    "bytes": 275
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/content/new.vue",
+    "lines": 5,
+    "bytes": 190
+  },
+  {
+    "path": "apps/web/app/pages/app/[org]/[brand]/content/index.vue",
+    "lines": 120,
+    "bytes": 3750
+  },
+  {
+    "path": "apps/web/server/api/plans.get.ts",
+    "lines": 13,
+    "bytes": 526
+  },
+  {
+    "path": "apps/web/server/api/posts/[id]/validate.post.ts",
+    "lines": 75,
+    "bytes": 3171
+  },
+  {
+    "path": "apps/web/server/api/posts/[id]/publish.post.ts",
+    "lines": 58,
+    "bytes": 2394
+  },
+  {
+    "path": "apps/web/server/api/posts/[id]/publication.get.ts",
+    "lines": 24,
+    "bytes": 941
+  },
+  {
+    "path": "apps/web/server/api/auth/[...all].ts",
+    "lines": 1,
+    "bytes": 82
+  },
+  {
+    "path": "apps/web/server/api/media/[id].get.ts",
+    "lines": 15,
+    "bytes": 761
+  },
+  {
+    "path": "apps/web/server/api/publishing-media/[id].get.ts",
+    "lines": 20,
+    "bytes": 767
+  },
+  {
+    "path": "apps/web/server/api/ai/captions.post.ts",
+    "lines": 173,
+    "bytes": 7142
+  },
+  {
+    "path": "apps/web/scripts/migrate.mjs",
+    "lines": 47,
+    "bytes": 1733
+  },
+  {
+    "path": "apps/web/scripts/generate-auth-migration.mjs",
+    "lines": 26,
+    "bytes": 1111
+  },
+  {
+    "path": "apps/web/scripts/bundle-budget.mjs",
+    "lines": 33,
+    "bytes": 1324
+  },
+  {
+    "path": "apps/web/server/api/meta/callback.get.ts",
+    "lines": 74,
+    "bytes": 3290
+  },
+  {
+    "path": "apps/web/server/api/meta/disconnect.post.ts",
+    "lines": 41,
+    "bytes": 1839
+  },
+  {
+    "path": "apps/web/server/api/meta/sync.post.ts",
+    "lines": 110,
+    "bytes": 4252
+  },
+  {
+    "path": "apps/web/server/api/meta/status.get.ts",
+    "lines": 37,
+    "bytes": 1415
+  },
+  {
+    "path": "apps/web/server/api/meta/start.post.ts",
+    "lines": 35,
+    "bytes": 1213
+  },
+  {
+    "path": "apps/web/server/api/meta/select.post.ts",
+    "lines": 101,
+    "bytes": 3841
+  },
+  {
+    "path": "apps/web/server/api/meta/posts.get.ts",
+    "lines": 39,
+    "bytes": 1596
+  },
+  {
+    "path": "apps/web/server/api/meta/pages.get.ts",
+    "lines": 50,
+    "bytes": 1759
+  }
+]
