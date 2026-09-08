@@ -21,7 +21,15 @@ export default defineNuxtConfig({
       link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
     },
   },
-  runtimeConfig: { public: { apiBase: '' } },
+  runtimeConfig: {
+    public: {
+      apiBase: '',
+      // Publishable Supabase credentials are safe to expose to the browser.
+      // Domain data access must continue through the server API and Supabase Auth.
+      supabaseUrl: process.env.SUPABASE_URL || '',
+      supabaseKey: process.env.SUPABASE_KEY || '',
+    },
+  },
   routeRules: {
     '/app': { ssr: false },
     '/app/**': { ssr: false, headers: { 'X-Robots-Tag': 'noindex, nofollow' } },

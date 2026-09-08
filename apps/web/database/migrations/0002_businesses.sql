@@ -1,6 +1,6 @@
 CREATE TABLE businesses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_id uuid NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE RESTRICT,
+  owner_id uuid NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE RESTRICT,
   slug text NOT NULL CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,79}$'),
   state jsonb NOT NULL,
   revision integer NOT NULL DEFAULT 0 CHECK (revision >= 0),
@@ -33,7 +33,7 @@ CREATE INDEX assets_business_created ON assets (business_id, created_at DESC, id
 CREATE TABLE audit_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-  actor_id uuid NOT NULL REFERENCES "user"(id) ON DELETE RESTRICT,
+  actor_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
   action text NOT NULL,
   revision integer NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()

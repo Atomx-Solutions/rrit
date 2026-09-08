@@ -20,7 +20,7 @@ CREATE TABLE post_content_versions (
   fingerprint text NOT NULL CHECK (length(fingerprint) > 0),
   snapshot jsonb NOT NULL,
   source text NOT NULL CHECK (source IN ('migration','editor')),
-  actor_id uuid REFERENCES "user"(id) ON DELETE SET NULL,
+  actor_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (post_id, content_version),
   CHECK ((snapshot->>'contentVersion')::integer = content_version),
@@ -56,7 +56,7 @@ CREATE TABLE post_approval_records (
   business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   content_version integer NOT NULL,
   fingerprint text NOT NULL CHECK (length(fingerprint) > 0),
-  actor_id uuid NOT NULL REFERENCES "user"(id) ON DELETE RESTRICT,
+  actor_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
   decision text NOT NULL CHECK (decision IN ('approved','reopened')),
   source text NOT NULL CHECK (source IN ('migration','editor')),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -102,7 +102,7 @@ FROM posts p
 WHERE p.id = j.post_id;
 ALTER TABLE publication_jobs ALTER COLUMN content_version SET NOT NULL;
 
-CREATE FUNCTION reject_immutable_record_change() RETURNS trigger
+CREATE OR REPLACE FUNCTION reject_immutable_record_change() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'immutable record cannot be changed';

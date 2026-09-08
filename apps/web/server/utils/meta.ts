@@ -88,7 +88,7 @@ export function metaConfiguration() {
   const redirect = new URL(redirectUri)
   if (
     redirect.protocol !== 'https:' ||
-    redirect.origin !== new URL(process.env.BETTER_AUTH_URL!).origin ||
+    redirect.origin !== new URL(process.env.APP_URL!).origin ||
     !/^v\d+\.0$/.test(version) ||
     Buffer.from(key, 'base64').length !== 32
   )

@@ -1,7 +1,7 @@
 import { createError } from 'h3'
 
 export function authConfiguration() {
-  const value = process.env.BETTER_AUTH_URL
+  const value = process.env.APP_URL
   if (!value)
     throw createError({ statusCode: 503, message: 'Adresa e aplikacionit nuk është konfiguruar.' })
   let url: URL
@@ -22,7 +22,6 @@ export function authConfiguration() {
   return {
     baseURL: url.origin,
     trustedOrigins: [...origins],
-    // Temporary local shortcut. Accounts retain emailVerified=false until actually verified.
     requireEmailVerification: !(local && process.env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'false'),
   }
 }
@@ -35,21 +34,20 @@ export function authCapabilities(databaseReady: boolean, trialReady: boolean) {
     requireEmailVerification = config.requireEmailVerification
     validUrl = true
   } catch {
-    /* Every capability remains unavailable when the base URL is invalid. */
+    /* Every capability remains unavailable when the application URL is invalid. */
   }
   const authentication = !!(
     databaseReady &&
     validUrl &&
     process.env.DATABASE_URL &&
-    process.env.BETTER_AUTH_SECRET &&
-    process.env.BETTER_AUTH_SECRET.length >= 32
+    process.env.SUPABASE_URL &&
+    process.env.SUPABASE_KEY
   )
-  const emailDelivery = !!(authentication && process.env.SMTP_HOST && process.env.SMTP_FROM)
+  const emailDelivery = authentication
   return {
     authentication,
-    registration:
-      authentication && trialReady && (!requireEmailVerification || emailDelivery),
-    passwordRecovery: emailDelivery,
+    registration: authentication && trialReady,
+    passwordRecovery: authentication,
     emailDelivery,
     emailVerificationRequired: requireEmailVerification,
   }
