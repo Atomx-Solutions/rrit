@@ -1,0 +1,16 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+**/node_modules
+**/.nuxt
+**/.output
+**/test-results
+**/playwright-report
+**/__pycache__
+**/*.log
+docs
+scripts
+*.xlsx
+*.png

@@ -1,0 +1,132 @@
+name: rrit
+x-runtime-security: &runtime-security
+  read_only: true
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  stop_grace_period: 30s
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: rrit
+      POSTGRES_USER: rrit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run npm run setup:local first}
+    ports:
+      - '127.0.0.1:15432:5432'
+    volumes:
+      - rrit_postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U rrit -d rrit']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  mailpit:
+    image: axllent/mailpit:v1.30.2
+    ports:
+      - '127.0.0.1:8029:8025'
+      - '127.0.0.1:1029:1025'
+    restart: unless-stopped
+  db-roles:
+    profiles: [app]
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run npm run setup:local first}
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?Run npm run setup:local first}
+    volumes:
+      - ./infra/postgres/provision-runtime.sh:/provision-runtime.sh:ro
+    entrypoint: ['/bin/sh', '/provision-runtime.sh']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+  migrate:
+    profiles: [app]
+    build:
+      context: .
+      target: migrations
+    environment:
+      DATABASE_URL: postgresql://rrit:${POSTGRES_PASSWORD}@postgres:5432/rrit
+    depends_on:
+      db-roles:
+        condition: service_completed_successfully
+    restart: "no"
+  web:
+    <<: *runtime-security
+    profiles: [app]
+    build:
+      context: .
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql://rrit_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/rrit
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-true}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      TRIAL_HASH_KEY: ${TRIAL_HASH_KEY}
+      META_TOKEN_KEY: ${META_TOKEN_KEY}
+      MEDIA_SIGNING_KEY: ${MEDIA_SIGNING_KEY}
+      PROCESS_ROLE: web
+      PUBLISHING_ENABLED: "false"
+      PUBLISHING_REQUIRED: ${PUBLISHING_REQUIRED:-false}
+      MAINTENANCE_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+  publisher:
+    <<: *runtime-security
+    profiles: [app]
+    build:
+      context: .
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql://rrit_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/rrit
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      TRIAL_HASH_KEY: ${TRIAL_HASH_KEY}
+      META_TOKEN_KEY: ${META_TOKEN_KEY}
+      MEDIA_SIGNING_KEY: ${MEDIA_SIGNING_KEY}
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_LOGIN_CONFIG_ID: ${META_LOGIN_CONFIG_ID:-}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v26.0}
+      META_REDIRECT_URI: ${META_REDIRECT_URI:-}
+      PROCESS_ROLE: publisher
+      PUBLISHING_ENABLED: "true"
+      PUBLISHING_BATCH_SIZE: ${PUBLISHING_BATCH_SIZE:-5}
+      PUBLISHING_POLL_INTERVAL_MS: ${PUBLISHING_POLL_INTERVAL_MS:-5000}
+      PUBLISHING_MAX_ATTEMPTS: ${PUBLISHING_MAX_ATTEMPTS:-5}
+      MAINTENANCE_ENABLED: "false"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+  maintenance:
+    <<: *runtime-security
+    profiles: [app]
+    build:
+      context: .
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql://rrit_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/rrit
+      PROCESS_ROLE: maintenance
+      PUBLISHING_ENABLED: "false"
+      MAINTENANCE_ENABLED: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+volumes:
+  rrit_postgres:
