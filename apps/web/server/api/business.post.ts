@@ -1,0 +1,53 @@
+import { z } from 'zod'
+import { emptyWorkspace } from '../../shared/utils/empty-workspace'
+const schema = z.object({
+  name: z.string().trim().min(2).max(120),
+  city: z.string().trim().min(2).max(120),
+  industry: z.string().max(200),
+  description: z.string().trim().min(10).max(2000),
+  voice: z.string().max(1000),
+})
+export default defineEventHandler(async (event) => {
+  requireSameOrigin(event)
+  const user = await requireUser(event)
+  const parsed = schema.safeParse(await boundedBody(event, 16384))
+  if (!parsed.success)
+    throw createError({
+      statusCode: 422,
+      message: 'Plotëso emrin, qytetin dhe përshkrimin e biznesit.',
+    })
+  const state = emptyWorkspace(user.name, user.email)
+  Object.assign(state.brand, parsed.data)
+  state.onboarding = 1
+  const { posts: _posts, assets: _assets, ...profile } = state
+  const slug = parsed.data.name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 70)
+    .padEnd(2, '0')
+  const device = deviceIdentity(event)
+  const client = await database().connect()
+  try {
+    await client.query('BEGIN')
+    const result = await client.query(
+      'INSERT INTO businesses (owner_id, slug, state) VALUES ($1, $2, $3) ON CONFLICT (owner_id) DO NOTHING RETURNING id',
+      [user.id, slug, JSON.stringify(profile)],
+    )
+    const id =
+      result.rows[0]?.id ||
+      (await client.query('SELECT id FROM businesses WHERE owner_id = $1', [user.id])).rows[0].id
+    if (result.rows.length) await grantTrial(client, id, user.email, device)
+    const business = await loadWorkspace(client, id, user.id)
+    await client.query('COMMIT')
+    setResponseStatus(event, 201)
+    return business
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+})
