@@ -68,6 +68,8 @@ if (!databaseUrl || !['127.0.0.1', 'localhost'].includes(new URL(databaseUrl).ho
 const schema = 'rrit_test_' + randomUUID().replaceAll('-', '')
 const admin = new Pool({ connectionString: databaseUrl })
 const pool = new Pool({ connectionString: databaseUrl, options: `-c search_path=${schema},public` })
+let createdAuthSchema = false
+let createdAuthUsersTable = false
 beforeAll(async () => {
   vi.stubGlobal('createError', createError)
   vi.stubGlobal('database', () => pool)
@@ -77,13 +79,33 @@ beforeAll(async () => {
   vi.stubEnv('META_APP_SECRET', 'test-secret')
   vi.stubEnv('META_LOGIN_CONFIG_ID', '67890')
   vi.stubEnv('META_GRAPH_VERSION', 'v26.0')
-  vi.stubEnv('BETTER_AUTH_URL', 'https://rrit.test')
+  vi.stubEnv('APP_URL', 'https://rrit.test')
   vi.stubEnv('META_REDIRECT_URI', 'https://rrit.test/api/meta/callback')
   vi.stubEnv('META_TOKEN_KEY', Buffer.alloc(32, 7).toString('base64'))
   vi.stubEnv('MEDIA_SIGNING_KEY', 'test-media-key-at-least-thirty-two-characters')
   vi.stubEnv('AI_INPUT_MICRO_EUR_PER_MILLION_TOKENS', '1000000')
   vi.stubEnv('AI_OUTPUT_MICRO_EUR_PER_MILLION_TOKENS', '2000000')
   vi.stubEnv('AI_DAILY_BUDGET_MICRO_EUR', '100000000')
+  const authSchema = await admin.query("SELECT 1 FROM pg_namespace WHERE nspname = 'auth'")
+  if (!authSchema.rowCount) {
+    await admin.query('CREATE SCHEMA auth')
+    createdAuthSchema = true
+  }
+  const authUsers = await admin.query(
+    "SELECT 1 FROM pg_class WHERE relnamespace = 'auth'::regnamespace AND relname = 'users'",
+  )
+  if (!authUsers.rowCount) {
+    await admin.query(`
+      CREATE TABLE auth.users (
+        id uuid PRIMARY KEY,
+        email text,
+        raw_user_meta_data jsonb,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `)
+    createdAuthUsersTable = true
+  }
   await admin.query(`CREATE SCHEMA "${schema}"`)
   const directory = new URL('../../database/migrations/', import.meta.url)
   for (const file of (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort())
@@ -100,6 +122,8 @@ afterAll(async () => {
   await pool.end()
   if (!/^rrit_test_[a-f0-9]{32}$/.test(schema)) throw new Error('Unsafe test schema')
   await admin.query(`DROP SCHEMA "${schema}" CASCADE`)
+  if (createdAuthUsersTable) await admin.query('DROP TABLE auth.users CASCADE')
+  if (createdAuthSchema) await admin.query('DROP SCHEMA auth CASCADE')
   await admin.end()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
@@ -109,8 +133,8 @@ async function business() {
     id = randomUUID(),
     email = `${user}@example.test`
   await pool.query(
-    'INSERT INTO "user" (id,name,email,"emailVerified","createdAt","updatedAt") VALUES ($1,$2,$3,true,now(),now())',
-    [user, 'Test account', email],
+    'INSERT INTO auth.users (id,email,raw_user_meta_data,created_at,updated_at) VALUES ($1,$2,$3,now(),now())',
+    [user, email, JSON.stringify({ name: 'Test account' })],
   )
   await pool.query('INSERT INTO businesses (id,owner_id,slug,state) VALUES ($1,$2,$3,$4)', [
     id,
@@ -179,8 +203,9 @@ describe('durable transactional outbox', () => {
       })
     const concurrent = await Promise.all([consume(), consume()])
     expect(concurrent.reduce((sum, item) => sum + item.processed, 0)).toBe(1)
-    expect((await pool.query('SELECT count(*)::integer AS count FROM outbox_test_effects')).rows[0])
-      .toEqual({ count: 1 })
+    expect(
+      (await pool.query('SELECT count(*)::integer AS count FROM outbox_test_effects')).rows[0],
+    ).toEqual({ count: 1 })
 
     const recoveryKey = randomUUID()
     const recoveryClient = await pool.connect()
@@ -215,8 +240,11 @@ describe('durable transactional outbox', () => {
     })
     expect(recovered).toMatchObject({ processed: 1, completed: true, messageId: recoveryId })
     expect(
-      (await pool.query('SELECT status,attempt_count FROM outbox_messages WHERE id=$1', [recoveryId]))
-        .rows[0],
+      (
+        await pool.query('SELECT status,attempt_count FROM outbox_messages WHERE id=$1', [
+          recoveryId,
+        ])
+      ).rows[0],
     ).toEqual({ status: 'completed', attempt_count: 2 })
     expect(
       (await pool.query('SELECT status FROM outbox_messages WHERE id=$1', [messageId])).rows[0],
@@ -449,9 +477,9 @@ describe('retention policy', () => {
     expect((await retentionPolicy(pool)).trial_claim_days).toBe(365)
     const result = await runRetentionBatch(pool)
     expect(result).toMatchObject({ aiGenerations: 1, trialClaims: 1 })
-    expect((await pool.query('SELECT id FROM ai_generations WHERE id=$1', [generation])).rowCount).toBe(
-      0,
-    )
+    expect(
+      (await pool.query('SELECT id FROM ai_generations WHERE id=$1', [generation])).rowCount,
+    ).toBe(0)
     const run = await pool.query(
       "SELECT last_completed_at,result,failure FROM maintenance_runs WHERE name='retention'",
     )
@@ -531,11 +559,7 @@ describe('optional Meta calendar', () => {
       ),
     ).toBeNull()
     expect(
-      uniquePublicationMatch(
-        [{ ...exact, created_time: '2026-09-07T11:50:00.000Z' }],
-        post,
-        runAt,
-      ),
+      uniquePublicationMatch([{ ...exact, created_time: '2026-09-07T11:50:00.000Z' }], post, runAt),
     ).toBeNull()
   })
   it('allows uncertain recovery only through the original provider targets', () => {
@@ -550,7 +574,11 @@ describe('optional Meta calendar', () => {
     expect(reconnectionMatchesTargets(uncertain, 'page-b', 'instagram-a')).toBe(false)
     expect(reconnectionMatchesTargets(uncertain, 'page-a', 'instagram-b')).toBe(false)
     expect(
-      reconnectionMatchesTargets([{ ...uncertain[0]!, status: 'processing' }], 'page-a', 'instagram-a'),
+      reconnectionMatchesTargets(
+        [{ ...uncertain[0]!, status: 'processing' }],
+        'page-a',
+        'instagram-a',
+      ),
     ).toBe(false)
   })
   it('keeps identical provider post IDs separate for different source accounts', async () => {
@@ -756,8 +784,7 @@ describe('optional Meta calendar', () => {
           writes++
           return new Response(JSON.stringify({ post_id: `${pageId}_post-1` }))
         }
-        if (path === pageId)
-          return new Response(JSON.stringify({ id: pageId }))
+        if (path === pageId) return new Response(JSON.stringify({ id: pageId }))
         if (path === `${pageId}_post-1`)
           return new Response(JSON.stringify({ id: `${pageId}_post-1` }))
         throw new Error(`Unexpected fixture URL: ${url.pathname}`)
@@ -780,11 +807,12 @@ describe('optional Meta calendar', () => {
       'SELECT id,attempt_number,event_type,request_hash FROM publication_attempts WHERE post_id=$1 ORDER BY attempt_number,id',
       [first.id],
     )
-    expect(firstAttempts.rows.map(({ attempt_number, event_type }) => ({ attempt_number, event_type })))
-      .toEqual([
-        { attempt_number: 1, event_type: 'started' },
-        { attempt_number: 1, event_type: 'published' },
-      ])
+    expect(
+      firstAttempts.rows.map(({ attempt_number, event_type }) => ({ attempt_number, event_type })),
+    ).toEqual([
+      { attempt_number: 1, event_type: 'started' },
+      { attempt_number: 1, event_type: 'published' },
+    ])
     expect(new Set(firstAttempts.rows.map((attempt) => attempt.request_hash)).size).toBe(1)
     expect(firstAttempts.rows[0].request_hash).toMatch(/^[a-f0-9]{64}$/)
     await expect(
@@ -896,11 +924,12 @@ describe('optional Meta calendar', () => {
       [post.id, item.id, pageId],
     )
     vi.stubEnv('PUBLISHING_ENABLED', 'true')
-    const fetcher = vi.fn().mockImplementation(async () =>
-      new Response(JSON.stringify({ error: { code: 4, is_transient: true } }), {
-        status: 429,
-        headers: { 'Retry-After': '90' },
-      }),
+    const fetcher = vi.fn().mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ error: { code: 4, is_transient: true } }), {
+          status: 429,
+          headers: { 'Retry-After': '90' },
+        }),
     )
     vi.stubGlobal('fetch', fetcher)
 
@@ -944,16 +973,16 @@ describe('optional Meta calendar', () => {
       'SELECT attempt_number,event_type,request_hash FROM publication_attempts WHERE post_id=$1 ORDER BY attempt_number,id',
       [post.id],
     )
-    expect(attempts.rows.map(({ attempt_number, event_type }) => [attempt_number, event_type])).toEqual(
-      [
-        [1, 'started'],
-        [1, 'retry_scheduled'],
-        [2, 'started'],
-        [2, 'retry_scheduled'],
-        [3, 'started'],
-        [3, 'failed'],
-      ],
-    )
+    expect(
+      attempts.rows.map(({ attempt_number, event_type }) => [attempt_number, event_type]),
+    ).toEqual([
+      [1, 'started'],
+      [1, 'retry_scheduled'],
+      [2, 'started'],
+      [2, 'retry_scheduled'],
+      [3, 'started'],
+      [3, 'failed'],
+    ])
     expect(new Set(attempts.rows.map((attempt) => attempt.request_hash)).size).toBe(1)
   })
 })
@@ -984,7 +1013,13 @@ describe('immutable post content and approvals', () => {
     )
     await pool.query(
       "INSERT INTO post_content_versions(post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES($1,$2,1,$3,$4,'editor',$5)",
-      [post.id, item.id, postFingerprint(post), JSON.stringify(postContentSnapshot(post)), item.user],
+      [
+        post.id,
+        item.id,
+        postFingerprint(post),
+        JSON.stringify(postContentSnapshot(post)),
+        item.user,
+      ],
     )
     await pool.query(
       "INSERT INTO post_approval_records(post_id,business_id,content_version,fingerprint,actor_id,decision,source) VALUES($1,$2,1,$3,$4,'approved','editor')",
@@ -1129,12 +1164,9 @@ describe('Meta transport and token security', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')))
     const safeRead = await graphRequest('me', 'private-token').catch((error) => error)
-    const uncertainWrite = await graphRequest(
-      '123/photos',
-      'private-token',
-      {},
-      'POST',
-    ).catch((error) => error)
+    const uncertainWrite = await graphRequest('123/photos', 'private-token', {}, 'POST').catch(
+      (error) => error,
+    )
     expect(safeRead).toMatchObject({ category: 'network', safeToRetry: true })
     expect(uncertainWrite).toMatchObject({ category: 'network', safeToRetry: false })
 
@@ -1162,7 +1194,11 @@ describe('Meta transport and token security', () => {
     ]) {
       vi.stubGlobal(
         'fetch',
-        vi.fn().mockResolvedValue(new Response(JSON.stringify(fixture.body), { status: fixture.status })),
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response(JSON.stringify(fixture.body), { status: fixture.status }),
+          ),
       )
       await expect(graphRequest('me', 'private-token')).rejects.toMatchObject(fixture.expected)
     }
