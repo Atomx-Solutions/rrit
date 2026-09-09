@@ -1,59 +1,35 @@
-# Validimi i ekzekutuar
+# Validimi i S0-A03
 
-Data: 2026-09-08. Kodi synon Node.js 24.20.0 dhe npm 11.19.0 nga `.nvmrc`/`package.json`, Nuxt 4.5.2 dhe Nuxt UI 4.11.1.
+Data e rishikimit: 2026-09-09.
 
-| Kontrolli | Rezultati aktual |
-| --- | --- |
-| Migrimet PostgreSQL | Migrimet 0001–0017 u aplikuan edhe nga container-i `migrations`; `0017_publication_logical_keys.sql` është versioni minimal i readiness |
-| Health | `/api/health/live` ktheu `200`; `/api/health/ready` ktheu databazën dhe migrimet `ready` |
-| Vitest unit/integration | 52/52 kaluan |
-| ESLint | Kaloi, exit 0 |
-| Clean Node 24 Docker build | `npm ci`, Nuxt prepare, `nuxt typecheck` dhe `nuxt build` kaluan me Node 24.20.0 |
-| Production container | U ngrit healthy si përdorues jo-root, root filesystem vetëm-lexim, `cap_drop: ALL` dhe `no-new-privileges` |
-| Worker container | Roli `publisher` u ngrit veçmas, mbeti healthy dhe `/api/health/live` ktheu `200` |
-| PostgreSQL role isolation | Migruesi zotëron skemën; `rrit_runtime` lexoi 13 migrimet dhe kaloi E2E, por DDL u refuzua |
-| E2E production | 14/14 kaluan kundër container-it production në Chromium desktop/mobile |
-| Accessibility | Axe WCAG 2 A/AA pa gjetje serious/critical në landing, login, signup e dashboard; fokus i dukshëm me tastierë, reduced motion dhe pa overflow në desktop/mobile |
-| Dependency audit | 0 moderate, 0 high, 0 critical; 1 low dev-only nga `esbuild` për dev server në Windows |
-
-## Evidenca S0-A03
-
-Target-i i pastër Docker `build`, pa përdorur `node_modules` të host-it, u ekzekutua me imazhin e fiksuar `node:24.20.0-alpine` dhe digest-in e versionuar. Rezultatet:
+RRIT përdor Node.js/Nitro dhe Supabase si databazë të jashtme për v1. Docker nuk përdoret dhe nuk është acceptance gate.
 
 | Kontrolli | Rezultati |
 | --- | --- |
-| `npm ci --ignore-scripts` nga lockfile v3 | Kaloi; 991 paketa u instaluan në clean layer |
-| `npm run toolchain:check` | Kaloi; Node.js 24.20.0 dhe npm 11.19.0 |
+| Node/npm toolchain | Node.js 24.21.0 dhe npm 11.19.0 kaluan `toolchain:check` |
 | ESLint | Kaloi, exit 0 |
 | Nuxt TypeScript typecheck | Kaloi, exit 0 |
-| Vitest unit determinist | 24/24 kaluan |
-| Vitest PostgreSQL integration | 28/28 kaluan në container-in e njëjtë kundrejt PostgreSQL 18 të përkohshëm |
-| Nuxt/Nitro production build | Kaloi; Docker image `rrit-s0-a03-validation` u krijua |
+| Vitest unit | 24/24 kaluan |
+| Vitest integration | 28/28 kaluan në CI me PostgreSQL test service |
+| Nuxt/Nitro production build | Kaloi lokalisht dhe në CI |
+| Production readiness | `/api/health/live` dhe `/api/health/ready` verifikohen nga Node production server në CI |
+| Dependency audit | Nuk ka moderate/high/critical të pambyllura |
 
-PostgreSQL i provës ishte container pa volume dhe u hoq pas suitës. Build-i lokal brenda sandbox-it Windows arriti kompilimin por u ndal nga leja `EPERM` gjatë `readlink C:\Users\Lenovo`; build-i Linux clean-room përfundoi, ndaj kjo evidencë nuk klasifikohet si defekt i aplikacionit.
-
-Implementimi i task-ut është i plotë në kod dhe është vendosur `In Review`. Hosted GitHub Actions dhe miratimi i reviewer-it/branch protection nuk mund të deklarohen si të ekzekutuara nga workspace-i lokal; ato janë hapi administrativ i mbetur para statusit formal `Done` dhe mbylljes së RG-01.
-
-Shënim sigurie për v1: `.env` lidhet me Supabase Pooler remote dhe përmban të dhëna testimi të aplikacionit. Integration tests pranojnë vetëm `DATABASE_URL` ose `MIGRATION_DATABASE_URL` lokale dhe refuzojnë çdo host remote; Supabase v1 nuk preket nga testet.
-
-Testet mbulojnë regjistrimin pa email-verifikim në mjedisin lokal, sesionet valid/forged/revoked/expired, biznesin privat, validimin, pagination, Meta opsionale, miratimin/planifikimin për Facebook e Instagram dhe bazën e aksesueshmërisë për faqet publike/auth/dashboard. Testet unit/integration mbulojnë trial identity, katalogun/limitet, retention-in, AI cost ledger, outbox-in transaksional, Retry-After/backoff/jitter/attempt limits, fault taxonomy, logical-key dedupe, ledger-in immutable të tentimeve dhe reconciliation pa ridërgim.
-
-## Kufiri i evidencës
-
-Këto janë prova lokale të artefaktit production. Hosted CI, Meta/OpenAI/billing me kredenciale reale, Firefox/WebKit/pajisje fizike, load/soak, backup/restore, pentest, UAT dhe release rehearsal mbeten gate të pakaluara. Asnjë task që i kërkon këto prova nuk shënohet `Done`.
-
-Alarmi `low` i auditimit prek vetëm serverin e zhvillimit të `esbuild` në Windows. Varësia vjen transitivisht nga `@nuxt/fonts > fontless`; detyrimi i një majori të papajtueshëm nuk u aplikua. Runtime image është Linux dhe përmban vetëm `.output`, jo dev serverin apo `node_modules`.
-
-## Riprodhimi
+## Riprodhimi lokal
 
 ```powershell
-npm.cmd test --workspace apps/web
-npm.cmd run lint --workspace apps/web
-docker build --target runtime --tag rrit-web:local .
-docker compose --profile app run --rm --build migrate
-docker compose --profile app up -d --build web publisher
-$env:TEST_BASE_URL='http://127.0.0.1:3000'
-npm.cmd run test:e2e --workspace apps/web
+nvm use 24.21.0
+node --version
+npm.cmd --version
+npm.cmd ci
+npm.cmd run check
+npm.cmd run build
 ```
 
-Rendi i plotë i deploy-it dhe rollback-ut gjendet në `docs/DEPLOYMENT.md`.
+Për `npm.cmd run verify` dhe integration tests duhet një PostgreSQL test service i dedikuar. Mos përdor URL-në e Supabase v1 për teste destruktive dhe mos ekzekuto `supabase db push`.
+
+## CI
+
+Workflow-i `.github/workflows/frontend.yml` përdor të njëjtat quality commands, ndërton output-in Nuxt me `npm run build`, nis drejtpërdrejt `apps/web/.output/server/index.mjs`, pret `/api/health/ready` me versionin e lockuar të `wait-on` dhe ekzekuton E2E kundër serverit Node. Log-u i serverit ruhet si artifact kur ka dështim.
+
+Hosted GitHub Actions, review i Programmer B dhe RG-01 mbeten prova të jashtme; për këtë arsye ticket-i nuk shënohet `Done` vetëm nga validimi lokal.

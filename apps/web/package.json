@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": "24.20.0",
+    "node": "24.21.0",
     "npm": "11.19.0"
   },
   "scripts": {
@@ -40,6 +40,7 @@
     "prettier": "^3.9.6",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0",
-    "vue-tsc": "^3.2.0"
+    "vue-tsc": "^3.2.0",
+    "wait-on": "9.1.0"
   }
 }

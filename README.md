@@ -6,7 +6,7 @@ Frontend në shqip, i ndërtuar nga dokumenti **Production Grade System Design v
 
 ## Nisja lokale
 
-Përdor saktësisht Node.js **24.20.0** (`.nvmrc`) dhe npm **11.19.0**.
+Përdor saktësisht Node.js **24.21.0** (`.nvmrc`) dhe npm **11.19.0**.
 
 ```sh
 npm ci

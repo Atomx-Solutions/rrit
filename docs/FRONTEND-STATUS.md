@@ -22,7 +22,7 @@ Rrugët e vjetra për kampanja dhe strategji janë të shtyra dhe ridrejtojnë t
 
 ## Kufijtë e provuar
 
-Kontrollet aktuale lokale përfshijnë 52 teste unit/integration, lint të plotë, clean install/typecheck/build në Node 24, migrimet nga databazë bosh deri te `0017_publication_logical_keys.sql`, container smoke për web/worker dhe 14 teste browser kundër artefaktit production në desktop/mobile. Shiko [VALIDATION.md](VALIDATION.md) për rezultatet e ekzekutuara.
+Kontrollet aktuale lokale përfshijnë 52 teste unit/integration, lint të plotë dhe clean install/typecheck/build në Node 24. CI nis output-in production drejtpërdrejt me Node dhe ekzekuton testet browser në të njëjtin proces. Shiko [VALIDATION.md](VALIDATION.md) për rezultatet e ekzekutuara.
 
 Kjo provë nuk mbyll ende release-in enterprise. Ende kërkohen Meta App Review dhe test me llogari reale jo-developer, CI i hostuar me required checks/branch protection, testet e ngarkesës dhe rikthimit, siguria/tenant-isolation e audituar, WebKit/Firefox/pajisje reale, monitorimi i prodhimit, UAT dhe miratimet ligjore/komerciale. Për secilin task, kolona `AA` në Excel tregon çfarë mungon dhe `AB–AC` dallojnë provën e kërkuar nga ajo e ekzekutuar.
 

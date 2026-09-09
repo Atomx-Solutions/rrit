@@ -3,8 +3,8 @@ import { spawnSync } from 'node:child_process'
 
 const hook = new URL('../.githooks/pre-commit', import.meta.url)
 
-// npm ci also runs in Docker dependency stages where the Git checkout and hooks
-// are intentionally absent. That environment must remain a successful no-op.
+// npm ci may run without a Git checkout (for example in a clean CI workspace).
+// That environment must remain a successful no-op.
 if (!existsSync(new URL('../.git', import.meta.url)) || !existsSync(hook)) {
   console.log('Git checkout not present; skipping local hook installation.')
   process.exit(0)
