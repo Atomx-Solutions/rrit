@@ -80,20 +80,20 @@ def update(path):
     row = rows["S0-A03"]
 
     updates = {
-        4: "Pin Node.js 24.20.0 and npm 11.19.0 toolchain",
+        4: "Pin Node.js 24.21.0 and npm 11.19.0 toolchain",
         5: "Apply ADR-002's Nitro/TypeScript replacement: pin runtime/package manager, enforce the npm lockfile, ESLint/type policy, deterministic Vitest settings, a versioned pre-commit hook and identical local/CI quality commands.",
-        6: "Clean npm ci from lock; exact toolchain check plus lint/type/unit commands reproducible locally, in the Docker clean-room target and CI.",
+        6: "Clean npm ci from lock; exact toolchain check plus lint/type/unit commands reproducible locally and in CI; Docker is out of scope for v1.",
         12: "In Review",
-        13: "Clean Node 24.20.0 Docker build: toolchain/lint/type/24 unit/28 integration/build passed",
-        15: "Dependency lock and supply-chain baseline; Docker image pinned by version and digest.",
+        13: "Clean Node 24.21.0 install: toolchain/lint/type/24 unit tests passed; integration/build represented in CI",
+        15: "Dependency lock and supply-chain baseline; Supabase external database configuration.",
         16: "package manifests + package-lock + .npmrc + hooks + docs/TOOLCHAIN.md",
         19: "docs/S0-A03-REPORT-SQ.md",
         25: "Implementuar — në pranim",
-        26: "ADR-002 maps the unimplemented Python backend to Nitro/TypeScript. Node.js 24.20.0/npm 11.19.0, engine enforcement, npm lockfile, shared quality commands, deterministic Vitest, pre-commit, CI parity and Docker quality gate are implemented.",
+        26: "ADR-002 maps the unimplemented Python backend to Nitro/TypeScript. Node.js 24.21.0/npm 11.19.0, engine enforcement, npm lockfile, shared quality commands, deterministic Vitest, pre-commit and CI parity are implemented; Docker is out of scope for v1.",
         27: "Kodi i task-ut nuk ka punë të mbetur. Ekzekuto hosted GitHub Actions; Programmer B konfirmon required check dhe regjistron RG-01 para statusit Done.",
         28: "Fresh environment build: clean npm ci; exact toolchain, lint, typecheck, unit/integration and production build; same gate in CI; reviewer/RG-01 sign-off.",
-        29: "Validimi 2026-09-08: Docker clean-room me Node.js 24.20.0/npm 11.19.0 instaloi 991 paketa nga lockfile; toolchain/lint/typecheck kaluan; 24/24 unit dhe 28/28 PostgreSQL integration tests kaluan; Nuxt/Nitro production build përfundoi. Hosted CI/reviewer sign-off nuk u deklarua lokalisht.",
-        30: ".nvmrc; .npmrc; package.json; package-lock.json; apps/web/package.json; apps/web/vitest.config.ts; .githooks/pre-commit; scripts/check-toolchain.mjs; scripts/install-git-hooks.mjs; Dockerfile; .github/workflows/frontend.yml; docs/TOOLCHAIN.md; docs/VALIDATION.md; docs/S0-A03-REPORT-SQ.md",
+        29: "Validimi 2026-09-09: clean npm ci me Node.js 24.21.0/npm 11.19.0; toolchain/lint/typecheck kaluan; 24/24 unit tests kaluan. Hosted CI/integration/build dhe reviewer sign-off mbeten për verifikim.",
+        30: ".nvmrc; .npmrc; package.json; package-lock.json; apps/web/package.json; apps/web/vitest.config.ts; .githooks/pre-commit; scripts/check-toolchain.mjs; scripts/install-git-hooks.mjs; .github/workflows/frontend.yml; docs/TOOLCHAIN.md; docs/VALIDATION.md; docs/S0-A03-REPORT-SQ.md",
         31: "Kryer në kod — pret pranim/gate",
         32: "Jo për scope-in e rreshtit",
         33: "Po — hosted CI/reviewer",
@@ -139,8 +139,8 @@ def update(path):
     audit["A32"] = "S0-A03 production-grade toolchain implementation"
     audit["B32"] = (
         "Nitro/TypeScript mapping, exact Node/npm pins, lock enforcement, deterministic tests, "
-        "pre-commit, shared CI commands and Docker clean-room gate implemented. 24 unit + 28 "
-        "integration tests and production build passed; hosted CI/reviewer RG-01 sign-off remains."
+        "pre-commit and shared CI commands implemented; Docker is out of scope for v1. "
+        "24 unit tests passed locally; hosted CI/reviewer RG-01 sign-off remains."
     )
     for column in (1, 2):
         audit.cell(32, column)._style = copy(audit.cell(31, column)._style)

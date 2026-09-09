@@ -26,6 +26,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rrit_ci
       APP_URL: http://127.0.0.1:3000
+      HOST: 127.0.0.1
+      PORT: '3000'
       AUTH_REQUIRE_EMAIL_VERIFICATION: 'false'
       TRIAL_HASH_KEY: ci-only-trial-hash-key-at-least-thirty-two-characters
       META_TOKEN_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
@@ -57,26 +59,22 @@ jobs:
       - run: npm run db:migrate
       - run: npm run build
       - run: node apps/web/scripts/bundle-budget.mjs
-      - name: Build production container
-        run: docker build --target runtime --tag rrit-web-ci .
       - run: npx playwright install --with-deps chromium
-      - name: Start hardened production container
-        run: >-
-          docker run --detach --name rrit-web-ci --network host
-          --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m
-          --cap-drop ALL --security-opt no-new-privileges
-          -e DATABASE_URL -e APP_URL
-          -e AUTH_REQUIRE_EMAIL_VERIFICATION -e TRIAL_HASH_KEY
-          -e META_TOKEN_KEY -e MEDIA_SIGNING_KEY -e PUBLISHING_ENABLED
-          -e HOST=0.0.0.0 -e PORT=3000 rrit-web-ci
+      - name: Start production server
+        run: |
+          nohup node apps/web/.output/server/index.mjs > apps/web/production-server.log 2>&1 &
+          echo $! > apps/web/production-server.pid
       - name: Wait for production readiness
         run: npm exec --workspace apps/web -- wait-on --timeout 120000 --interval 1000 http://127.0.0.1:3000/api/health/ready
       - run: npm run test:e2e
         env:
           TEST_BASE_URL: http://127.0.0.1:3000
-      - name: Save production container log
+      - name: Stop production server
         if: always()
-        run: docker logs rrit-web-ci > apps/web/production-container.log 2>&1 || true
+        run: |
+          if [ -f apps/web/production-server.pid ]; then
+            kill "$(cat apps/web/production-server.pid)" || true
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -85,4 +83,4 @@ jobs:
             apps/web/playwright-report
             apps/web/test-results
             apps/web/bundle-report.json
-            apps/web/production-container.log
+            apps/web/production-server.log

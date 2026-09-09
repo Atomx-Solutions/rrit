@@ -14,7 +14,7 @@ Data: 2026-09-08. Platforma është një modular monolith Nuxt/Nitro me PostgreS
 | Media | Ruajtje private, validim, signed URL dhe tërheqje e të drejtave me anulim të përdorimit të ardhshëm | Object storage i prodhimit, antivirus, retention holds dhe load/failure tests |
 | AI | Adapter, quota dhe cost ledger reserve/commit/release me hard budget | Factuality/evaluation, anomaly alerts, live concurrency dhe provider fallback të provuar |
 | Billing | Katalog/version/entitlements/limits të tipizuara në PostgreSQL, EUR dhe usage snapshot | Checkout/portal/webhooks realë, subscription lifecycle, tatimet/faturat dhe reconciliation end-to-end |
-| Operimi | `/api/health/live`, `/api/health/ready`, migrime, role PostgreSQL migration/runtime, container roles dhe workflow CI | CI i hostuar me required checks, observability, backup/restore, incident/DR dhe deploy/rollback rehearsal |
+| Operimi | `/api/health/live`, `/api/health/ready`, migrime, role PostgreSQL dhe procese Node; workflow CI | CI i hostuar me required checks, observability, backup/restore, incident/DR dhe deploy/rollback rehearsal |
 | Privatësia | Faqe publike, retention policy/job dhe rights withdrawal | Export/delete/purge i qëndrueshëm, provider deletion callbacks, DPA/subprocessors dhe shqyrtim ligjor |
 
 ## Konfigurimi i jashtëm
