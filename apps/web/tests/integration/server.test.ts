@@ -381,7 +381,12 @@ describe('trial transactions with PostgreSQL', () => {
       }),
     )
     expect(plans).toHaveLength(3)
-    expect(plans.every((plan) => plan.currency === 'EUR' && plan.version === 1)).toBe(true)
+    expect(plans.every((plan) => plan.currency === 'EUR')).toBe(true)
+    expect(plans.map(({ name, version }) => ({ name, version }))).toEqual([
+      { name: 'Fillimi', version: 1 },
+      { name: 'Përditë', version: 1 },
+      { name: 'Më shumë', version: 2 },
+    ])
     expect(plans.find((plan) => plan.name === 'Fillimi')?.limits.posts_per_month).toBe(12)
     expect(plans.find((plan) => plan.name === 'Përditë')?.entitlements).toContain('ai')
   })
