@@ -2,6 +2,7 @@
 FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY .nvmrc .nvmrc
 COPY apps/web/package.json apps/web/package.json
 RUN npm ci --ignore-scripts && npm cache clean --force
 
