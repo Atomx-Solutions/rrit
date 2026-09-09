@@ -42,6 +42,17 @@ jobs:
       - run: npm run toolchain:check
       - run: npm ci
       - run: npm run check
+      - name: Prepare Supabase auth compatibility schema
+        run: >-
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1
+          -c "CREATE SCHEMA IF NOT EXISTS auth;
+          CREATE TABLE IF NOT EXISTS auth.users (
+          id uuid PRIMARY KEY,
+          email text,
+          raw_user_meta_data jsonb,
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now()
+          );"
       - run: npm run test:integration
       - run: npm audit --audit-level=moderate
       - run: npm run db:migrate

@@ -29,7 +29,7 @@ CREATE TABLE entitlements (
 );
 CREATE TABLE meta_oauth_states (
   state_hash text PRIMARY KEY,
-  user_id uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   return_path text NOT NULL,
   expires_at timestamptz NOT NULL,

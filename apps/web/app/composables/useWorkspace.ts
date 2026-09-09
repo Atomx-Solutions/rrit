@@ -25,7 +25,10 @@ export function useWorkspace() {
     conflict.value = false
   }
   async function initLive() {
-    const result = await $fetch('/api/business')
+    const result = await $fetch<{
+      user: { name: string; email: string }
+      business: { id: string; slug: string; workspace: Workspace } | null
+    }>('/api/business')
     if (result.business) applyBusiness(result.business)
     else {
       data.value = emptyWorkspace(result.user.name, result.user.email)

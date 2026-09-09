@@ -31,7 +31,7 @@ export function deviceIdentity(event: H3Event) {
   const value = randomBytes(24).toString('hex')
   setCookie(event, 'rrit-device', `${value}.${identityHash('device', value)}`, {
     httpOnly: true,
-    secure: process.env.BETTER_AUTH_URL?.startsWith('https://'),
+    secure: process.env.APP_URL?.startsWith('https://'),
     sameSite: 'lax',
     path: '/',
     maxAge: 365 * 24 * 60 * 60,

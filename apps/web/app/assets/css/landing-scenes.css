@@ -1,0 +1,678 @@
+.landing-stories {
+  padding-top: 32px;
+}
+.landing-feature-section {
+  padding-block: 60px;
+  overflow-x: clip;
+}
+.landing .landing-feature-row {
+  display: grid;
+  grid-template-columns: 1fr 1.18fr;
+  align-items: center;
+  gap: 72px;
+}
+.landing-feature-copy {
+  max-width: 390px;
+}
+.landing-feature-copy h2 {
+  margin-top: 20px;
+  font-size: clamp(30px, 3vw, 42px);
+  line-height: 1.18;
+}
+.landing-feature-copy h2 span {
+  color: var(--landing-green);
+}
+.landing-feature-copy > p:not(.landing-kicker) {
+  margin-top: 22px;
+  max-width: 330px;
+  color: var(--landing-muted);
+  font-size: 14px;
+  line-height: 1.9;
+}
+.landing-feature-detail {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 30px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--landing-muted);
+}
+.landing-feature-detail > .iconify {
+  width: 26px;
+  height: 26px;
+  color: var(--landing-green);
+  flex-shrink: 0;
+}
+.landing-feature-detail strong {
+  font-weight: 550;
+  color: var(--landing-ink);
+}
+.landing-tennis-section .landing-feature-copy {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+.landing-tennis-section .landing-feature-scene {
+  grid-column: 1;
+  grid-row: 1;
+}
+.landing-tennis-section .landing-feature-row {
+  grid-template-columns: 1.18fr 1fr;
+}
+.landing-feature-scene {
+  min-width: 0;
+  width: 100%;
+  border-radius: 26px;
+}
+.landing-scene-stage {
+  position: relative;
+  container-type: inline-size;
+  aspect-ratio: 1.32;
+  perspective: 1100px;
+}
+.landing-feature-scene figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 45px;
+  padding: 0 15px 12px;
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--landing-muted);
+}
+.landing-scene-content {
+  position: absolute;
+  inset: 0;
+  perspective: 1100px;
+  transform: rotateX(var(--scene-x, 0deg)) rotateY(var(--scene-y, 0deg));
+  transition: transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.landing-studio-scene {
+  background: radial-gradient(ellipse at 58% 30%, #fae1b336, transparent 65%);
+}
+.landing-studio-orbit {
+  position: absolute;
+  width: 78%;
+  aspect-ratio: 1;
+  top: 8%;
+  left: 11%;
+  border-radius: 50%;
+  border: 1px solid #adab813d;
+  transform: rotateX(55deg) rotateZ(-20deg);
+}
+.landing-depth-item {
+  animation-duration: 10s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-play-state: paused;
+}
+.landing-feature-scene.is-moving .landing-depth-item {
+  animation-play-state: running;
+}
+.landing-source-photo {
+  position: absolute;
+  left: 6%;
+  top: 25%;
+  width: 31%;
+  transform: rotateY(15deg) rotateZ(-13deg);
+  background: #fffdf8;
+  color: #4f5349;
+  box-shadow: 0 18px 25px -15px #24382f66;
+  --tw-ring-color: transparent;
+  border-radius: 6px;
+  animation-name: rrit-source-drift;
+}
+.landing-source-photo img {
+  width: 100%;
+  aspect-ratio: 0.85;
+  object-fit: cover;
+  border-radius: 3px;
+}
+.landing-source-photo span {
+  display: block;
+  text-align: center;
+  padding-top: 8px;
+  font-size: 1.45cqw;
+  letter-spacing: 0.12cqw;
+}
+.landing-composed-post {
+  position: absolute;
+  left: 36%;
+  top: 8%;
+  width: 47%;
+  aspect-ratio: 4/5;
+  container-type: inline-size;
+  transform: rotateY(-8deg) rotateZ(6deg);
+  background: #efb267;
+  color: #362114;
+  border-radius: 8px;
+  box-shadow: 0 25px 34px -16px #273b3270;
+  --tw-ring-color: transparent;
+  overflow: hidden;
+  animation-name: rrit-composition-drift;
+}
+.landing-composed-art {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.landing-composed-art > span {
+  padding: 6cqw 7cqw;
+  font-size: 2.7cqw;
+  letter-spacing: 0.1cqw;
+  font-weight: 600;
+}
+.landing-composed-art > p {
+  font-weight: 700;
+  letter-spacing: -0.65cqw;
+  padding: 2cqw 7cqw 6cqw;
+  font-size: 14cqw;
+  line-height: 1;
+}
+.landing-composed-art > p em {
+  font-family: Georgia, serif;
+  font-weight: 400;
+}
+.landing-composed-art > img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: cover;
+}
+.landing-composed-art > span:last-child {
+  background: #362114;
+  color: #ffe2b6;
+  padding-block: 4cqw;
+  font-size: 2.25cqw;
+}
+.landing-palette {
+  position: absolute;
+  right: 4%;
+  top: 4%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fffdf6;
+  color: #362114;
+  border: 1px solid #dbdfd2;
+  box-shadow: 0 12px 18px -12px #31403177;
+  transform: rotate(7deg);
+  animation-name: rrit-token-drift;
+}
+.landing-palette i {
+  width: 2.9cqw;
+  height: 2.9cqw;
+  border-radius: 50%;
+  background: #efb267;
+}
+.landing-palette i:nth-child(2) {
+  background: #f7e8c9;
+}
+.landing-palette i:nth-child(3) {
+  background: #362114;
+}
+.landing-palette > span {
+  margin-left: 5px;
+  font-family: Georgia, serif;
+  font-size: 3.8cqw;
+}
+.landing-review-chip {
+  position: absolute;
+  bottom: 7%;
+  left: 14%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #224b35;
+  background: #f8fff2;
+  border: 1px solid #b8d692;
+  box-shadow: 0 12px 22px -12px #263d3b66;
+  font-size: 2.15cqw;
+  font-weight: 550;
+  transform: rotate(-5deg);
+  animation-name: rrit-token-drift;
+  animation-delay: -4s;
+}
+.landing-review-chip .iconify {
+  width: 3.3cqw;
+  height: 3.3cqw;
+}
+.landing-tennis-scene {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.landing-tennis-scene .landing-scene-stage {
+  aspect-ratio: 1.04;
+  perspective: 1100px;
+}
+.landing-tennis-scene .landing-depth-item {
+  animation-duration: 10s;
+}
+.landing-tennis-ground {
+  position: absolute;
+  inset: 0;
+  container-type: inline-size;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  animation-name: rrit-tennis-drift;
+}
+.landing-tennis-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 55%;
+  /* Blend the actual court into either page appearance, without a rectangular edge. */
+  mask-image: radial-gradient(ellipse 66% 65% at 50% 51%, #000 48%, transparent 78%);
+  animation-name: rrit-tennis-reveal;
+}
+.dark .landing-tennis-photo {
+  filter: brightness(0.78);
+}
+.landing-tennis-copy {
+  position: absolute;
+  inset: 9% auto auto 12%;
+  color: #143a30;
+  animation-name: rrit-copy-assemble;
+}
+.landing-tennis-copy > span {
+  font-size: 2.1cqw;
+  letter-spacing: 0.25cqw;
+  font-weight: 650;
+}
+.landing-tennis-copy > p {
+  margin-top: 3cqw;
+  font-size: 10.5cqw;
+  font-weight: 750;
+  line-height: 1.04;
+  letter-spacing: -0.4cqw;
+}
+.landing-tennis-copy em {
+  font-style: normal;
+  color: #174b3d;
+}
+.dark .landing-tennis-copy {
+  color: #f5f8eb;
+}
+.dark .landing-tennis-copy em {
+  color: #eff9cc;
+}
+.landing-tennis-signature {
+  position: absolute;
+  inset: auto auto 12% 12%;
+  color: var(--landing-ink);
+  font-size: 3cqw;
+  line-height: 1.35;
+  font-family: Georgia, serif;
+  font-style: italic;
+  animation-name: rrit-signature-assemble;
+}
+.landing-tennis-cursor {
+  position: absolute;
+  right: 15%;
+  bottom: 16%;
+  z-index: 1;
+  color: #e6f6b8;
+  opacity: 0;
+  pointer-events: none;
+  animation-name: rrit-edit-cursor;
+}
+.landing-tennis-cursor .iconify {
+  width: 4.5cqw;
+  height: 4.5cqw;
+  filter: drop-shadow(1px 1px 1px #163b29);
+}
+.landing-tennis-publish {
+  position: absolute;
+  right: 10%;
+  bottom: 14%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2cqw;
+  width: 24%;
+  padding: 2cqw;
+  border-radius: 1.4cqw;
+  background: #214d38;
+  color: #ffffff;
+  font-size: 2.5cqw;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  animation-name: rrit-publish-click;
+}
+.landing-tennis-publish .iconify {
+  width: 3cqw;
+  height: 3cqw;
+}
+.landing-tennis-published {
+  opacity: 0;
+  pointer-events: none;
+  animation-name: rrit-published-preview;
+}
+.landing-tennis-instagram {
+  position: absolute;
+  top: 1%;
+  left: 17%;
+  width: 66%;
+  container-type: inline-size;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--ui-bg);
+  color: var(--landing-ink);
+  --tw-ring-color: var(--landing-line);
+  box-shadow: 0 20px 40px -28px #102f2660;
+}
+.landing-instagram-account {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+  padding: 3.5cqw 4cqw;
+  font-size: 3.6cqw;
+  line-height: 1.45;
+}
+.landing-instagram-account strong {
+  font-weight: 650;
+}
+.landing-instagram-account small {
+  display: block;
+  font-size: 2.8cqw;
+  color: var(--landing-muted);
+}
+.landing-instagram-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 9cqw;
+  height: 9cqw;
+  border-radius: 50%;
+  background: #e0f0bd;
+  color: #214d38;
+  font-size: 4cqw;
+  font-weight: 650;
+}
+.landing-instagram-account > .iconify {
+  width: 5cqw;
+  height: 5cqw;
+}
+.landing-instagram-mark {
+  margin-left: auto;
+}
+.landing-tennis-preview-art {
+  position: relative;
+  aspect-ratio: 1.04;
+  container-type: inline-size;
+  overflow: hidden;
+}
+.landing-tennis-preview-art .landing-tennis-photo {
+  mask-image: none;
+  filter: none;
+}
+.landing-tennis-preview-art .landing-tennis-copy,
+.landing-tennis-preview-art .landing-tennis-copy em,
+.landing-tennis-preview-art .landing-tennis-signature {
+  color: #143a30;
+}
+.landing-tennis-preview-art > * {
+  animation: none;
+}
+.landing-instagram-footer {
+  padding: 3cqw 4cqw 4cqw;
+}
+.landing-instagram-actions {
+  display: flex;
+  align-items: center;
+  gap: 4cqw;
+}
+.landing-instagram-actions .iconify {
+  width: 6cqw;
+  height: 6cqw;
+}
+.landing-instagram-actions .iconify:last-child {
+  margin-left: auto;
+}
+.landing-instagram-footer > p {
+  margin-top: 3cqw;
+  font-size: 3.2cqw;
+  line-height: 1.5;
+}
+.landing-instagram-footer > p strong {
+  font-weight: 650;
+  margin-right: 1cqw;
+}
+.landing-instagram-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 1.5cqw;
+  margin-top: 2cqw;
+  color: var(--landing-green);
+  font-size: 2.7cqw;
+}
+.landing-instagram-confirmation .iconify {
+  width: 3.5cqw;
+  height: 3.5cqw;
+}
+@keyframes rrit-source-drift {
+  0%,
+  100% {
+    transform: rotateY(15deg) rotateZ(-13deg);
+  }
+  50% {
+    transform: translateY(-9px) rotateY(5deg) rotateZ(-9deg);
+  }
+}
+@keyframes rrit-composition-drift {
+  0%,
+  100% {
+    transform: rotateY(-8deg) rotateZ(6deg);
+  }
+  50% {
+    transform: translateY(9px) rotateY(3deg) rotateZ(2deg);
+  }
+}
+@keyframes rrit-tennis-drift {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotateX(2deg);
+  }
+  30%,
+  46%,
+  74%,
+  90% {
+    opacity: 1;
+    transform: translateY(-4px) rotateX(0);
+  }
+  49%,
+  69% {
+    opacity: 0;
+    transform: translateY(-8px) rotateX(0) scale(0.94);
+  }
+}
+@keyframes rrit-tennis-reveal {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  6%,
+  94% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes rrit-copy-assemble {
+  0%,
+  9%,
+  100% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  18%,
+  94% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rrit-signature-assemble {
+  0%,
+  18%,
+  100% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  25%,
+  94% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rrit-edit-cursor {
+  0%,
+  34%,
+  49%,
+  100% {
+    opacity: 0;
+    transform: translate(-8cqw, -18cqw);
+  }
+  39% {
+    opacity: 1;
+    transform: translate(-4cqw, -6cqw);
+  }
+  43%,
+  45% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.88);
+  }
+  47% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+}
+@keyframes rrit-publish-click {
+  0%,
+  31%,
+  47%,
+  100% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  37%,
+  43% {
+    opacity: 1;
+    transform: translateY(0);
+    background: #214d38;
+    color: white;
+  }
+  45% {
+    opacity: 1;
+    transform: scale(0.95);
+    background: #d6f57d;
+    color: #214d38;
+  }
+}
+@keyframes rrit-published-preview {
+  0%,
+  47%,
+  72%,
+  100% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  49%,
+  69% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rrit-token-drift {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -9px;
+  }
+}
+@media (max-width: 1023px) {
+  .landing .landing-feature-row {
+    gap: 35px;
+  }
+  .landing-feature-copy h2 {
+    font-size: 32px;
+  }
+  .landing-feature-copy .landing-kicker {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 767px) {
+  .landing-stories {
+    padding-top: 14px;
+  }
+  .landing-feature-section {
+    padding-block: 34px;
+  }
+  .landing .landing-feature-row {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+  .landing-tennis-section .landing-feature-copy,
+  .landing-tennis-section .landing-feature-scene {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .landing-feature-copy,
+  .landing-tennis-section .landing-feature-copy {
+    max-width: 430px;
+    margin-inline: auto;
+    justify-self: stretch;
+    width: 100%;
+  }
+  .landing-feature-copy h2 {
+    font-size: 30px;
+  }
+  .landing-feature-copy > p:not(.landing-kicker) {
+    margin-top: 16px;
+    font-size: 13px;
+    max-width: 360px;
+  }
+  .landing-feature-detail {
+    margin-top: 20px;
+    font-size: 11px;
+  }
+  .landing-feature-scene {
+    max-width: 480px;
+    margin-inline: auto;
+  }
+  .landing-feature-scene figcaption {
+    font-size: 9px;
+    padding-inline: 8px;
+  }
+  .landing-palette {
+    padding: 7px;
+    gap: 4px;
+  }
+  .landing-review-chip {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-scene-content {
+    transform: none;
+    transition: none;
+  }
+  .landing-depth-item {
+    animation: none !important;
+  }
+}
