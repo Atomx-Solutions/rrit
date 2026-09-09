@@ -15,6 +15,7 @@
     "check": "npm run toolchain:check && npm run lint && npm run typecheck && npm run test:unit",
     "verify": "npm run check && npm run test:integration && npm run build",
     "db:migrate": "npm run db:migrate --workspace apps/web",
+    "db:verify-runtime": "npm run db:verify-runtime --workspace apps/web",
     "dev": "npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/web",
     "typecheck": "npm run typecheck --workspace apps/web",

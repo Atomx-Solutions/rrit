@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "nuxt dev --host 127.0.0.1 --dotenv ../../.env",
     "db:migrate": "node --env-file-if-exists=../../.env scripts/migrate.mjs",
+    "db:verify-runtime": "node --env-file-if-exists=../../.env scripts/verify-runtime-role.mjs",
     "build": "nuxt build",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
