@@ -1,255 +1,183 @@
 <script setup lang="ts">
+import '~/assets/css/landing.css'
+import '~/assets/css/landing-scenes.css'
 import { formatMoney } from '~~/shared/utils/format'
-const { plans } = usePlanCatalog()
-const { data: capabilities } = await useFetch('/api/capabilities')
 definePageMeta({ layout: 'public' })
+const landingRoot = ref<HTMLElement>()
+useLandingMotion(landingRoot)
+const { capabilities, trialDuration, trialLabel, canRegister, refresh } = useLandingOffer()
+const { plans, error } = usePlanCatalog()
+const startingPlan = computed(() =>
+  error.value ? undefined : [...plans.value].sort((a, b) => a.price - b.price)[0],
+)
 useSeoMeta({
-  title: 'Rrit — Postimet e biznesit, më thjesht',
+  title: 'Rrit — Postime që bien në sy.',
   description:
-    'Një hapësirë e thjeshtë në shqip për të përgatitur, kontrolluar dhe planifikuar postimet e biznesit. Për bizneset në Kosovë.',
-  ogTitle: 'Rrit — Postimet e biznesit, më thjesht',
+    'Përgatit, mirato dhe planifiko postimet në shqip. Plane në euro për bizneset në Kosovë.',
+  ogTitle: 'Biznesi yt meriton të shihet. Rrit.',
+  ogDescription: 'Më pak kohë me postimet. Më shumë me biznesin.',
   ogType: 'website',
 })
-const steps = [
-  {
-    number: '01',
-    icon: 'i-lucide-store',
-    title: 'Na njofto me biznesin',
-    description: 'Trego çfarë ofron dhe si dëshiron të flasësh me klientët. Me fjalët e tua.',
-  },
-  {
-    number: '02',
-    icon: 'i-lucide-image-plus',
-    title: 'Përgatit postimin',
-    description: 'Zgjidh një fotografi dhe shkruaj mesazhin. Drafti ruhet gjatë punës.',
-  },
-  {
-    number: '03',
-    icon: 'i-lucide-check-check',
-    title: 'Kontrollo dhe planifiko',
-    description: 'Lexoje edhe një herë, jep miratimin dhe zgjidh ditën në kalendar.',
-  },
-]
 const questions = computed(() => [
   {
-    label: 'A duhet të kem njohuri për marketing?',
+    label: 'Si filloj?',
     content:
-      'Jo. Fillo me emrin e biznesit, një përshkrim të shkurtër dhe një fotografi. Hapat dhe udhëzimet janë në shqip.',
+      'Krijo llogarinë, na trego për biznesin dhe shto fotografinë e parë. Regjistrimi të udhëzon në shqip. Facebook dhe Instagram mund t’i lidhësh më vonë.',
   },
   {
-    label: 'A mund ta ndryshoj postimin para miratimit?',
-    content:
-      'Po. Mund ta ndryshosh tekstin dhe fotografinë, ta ruash si draft dhe të kthehesh më vonë. Fjala e fundit mbetet e jotja.',
+    label: 'A publikohen postimet vetë?',
+    content: capabilities.value?.publishing
+      ? 'Vetëm pas miratimit tënd dhe në orarin që zgjedh. Publikimi kërkon llogari të lidhura dhe leje aktive.'
+      : 'Publikimi automatik ende nuk është aktiv. Tani mund t’i përgatitësh, miratosh dhe planifikosh postimet, pastaj t’i publikosh manualisht.',
   },
   {
-    label: 'A lidhen tani Facebook dhe Instagram?',
-    content: capabilities.value?.socialImport
-      ? 'Po. Lidh llogarinë tënde përmes Meta, zgjidh faqen e biznesit dhe lexo postimet. Për Instagram kërkohet profil profesional i lidhur me atë faqe.'
-      : 'Lidhja me Meta është në përgatitje nga platforma. Ndërkohë, mund të regjistrosh biznesin dhe të përgatitësh postime.',
-  },
-  {
-    label: 'Si funksionon trial-i falas?',
-    content: capabilities.value?.trialHours
-      ? `Pas krijimit të biznesit, përdoruesit e rinj që plotësojnë kushtet marrin ${capabilities.value.trialHours / 24} ditë falas. Pa kartë dhe pa rinovim automatik.`
-      : 'Periudha falas shfaqet gjatë regjistrimit. Nuk kërkohet kartë bankare.',
+    label: 'Çfarë ndodh pas provës?',
+    content: trialDuration.value
+      ? `Ke ${trialDuration.value} për shërbimet e aktivizuara, sipas kushteve të provës. Nuk kërkohet kartë dhe nuk ka pagesë automatike. Kur prova mbaron, të dhënat mbeten të lexueshme dhe të eksportueshme.`
+      : 'Disponueshmëria e provës konfirmohet gjatë regjistrimit. Nuk kërkohet kartë dhe nuk ka pagesë automatike.',
   },
 ])
 </script>
 <template>
-  <div class="bg-default">
-    <UPageHero
-      :ui="{
-        container: 'pt-14 pb-12 sm:pt-20 sm:pb-16 lg:pt-20 lg:pb-16 gap-10 sm:gap-14',
-        title: 'text-5xl sm:text-6xl lg:text-7xl leading-[1.06] tracking-[-.045em] font-semibold',
-        description: 'text-base sm:text-lg leading-relaxed max-w-xl mx-auto text-muted',
-        links: 'gap-3',
-      }"
-    >
-      <template #headline
-        ><div class="inline-flex items-center gap-2 text-xs font-medium text-muted">
-          <span class="size-1.5 rounded-full bg-primary" />Për bizneset në Kosovë<USeparator
-            orientation="vertical"
-            class="h-3 mx-1"
-          />Në shqip
-        </div></template
-      >
-      <template #title
-        >Postimet e tua.<br /><span class="text-primary">Një punë më pak.</span></template
-      >
-      <template #description
-        >Idetë, fotografitë dhe postimet e biznesit, në një vend të qartë. Përgatiti me qetësi.
-        Ndryshoji kur të duash. Miratoji vetë.</template
-      >
-      <template #links
-        ><UButton to="/signup" size="xl" variant="outline" trailing-icon="i-lucide-arrow-right"
-          >Fillo falas</UButton
-        ><UButton to="/onboarding" size="xl" color="neutral" variant="ghost"
-          >Nis me biznesin tënd</UButton
-        ></template
-      >
-      <template #body
-        ><p class="text-xs text-muted mt-2">
-          {{
-            capabilities?.trialHours ? capabilities.trialHours / 24 + ' ditë trial falas · ' : ''
-          }}Pa kartë bankare
-        </p></template
-      >
-      <LandingProductPreview />
-    </UPageHero>
-
-    <UContainer
-      ><div
-        class="flex flex-wrap justify-center items-center gap-x-8 gap-y-3 text-sm text-muted pb-14 sm:pb-20"
-      >
-        <span class="inline-flex gap-2 items-center"
-          ><UIcon name="i-lucide-facebook" class="size-4" />Facebook</span
-        ><span class="inline-flex gap-2 items-center"
-          ><UIcon name="i-lucide-instagram" class="size-4" />Instagram</span
-        ><span class="hidden sm:block w-px h-4 bg-border" /><span
-          >Për kafenetë, dyqanet dhe shërbimet e lagjes.</span
-        >
-      </div></UContainer
-    >
-
-    <div class="border-y border-default bg-elevated/25">
-      <UPageSection
-        id="features"
-        orientation="horizontal"
-        title="Biznesi yt ka çfarë të tregojë."
-        description="Një produkt i ri. Një detaj nga puna. Një moment i zakonshëm. Postimi i radhës shpesh është tashmë aty."
-        :ui="{
-          container: 'py-14 sm:py-20 lg:py-24 gap-10 lg:gap-16',
-          title: 'text-3xl sm:text-4xl leading-tight tracking-tight',
-          description: 'text-base leading-relaxed text-muted',
-        }"
-      >
-        <template #body>
-          <div class="space-y-5 mt-2">
-            <div class="flex gap-3">
-              <UIcon name="i-lucide-folder-open" class="size-5 text-primary shrink-0 mt-0.5" />
-              <div>
-                <h3 class="text-sm font-semibold">Fotografitë bashkë</h3>
-                <p class="text-sm text-muted mt-1">
-                  Gjej fotografinë e duhur, pa kërkuar nëpër biseda.
-                </p>
-              </div>
-            </div>
-            <div class="flex gap-3">
-              <UIcon name="i-lucide-pencil-line" class="size-5 text-primary shrink-0 mt-0.5" />
-              <div>
-                <h3 class="text-sm font-semibold">Fjalët e tua</h3>
-                <p class="text-sm text-muted mt-1">
-                  Shkruaj natyrshëm dhe përmirësoje tekstin para miratimit.
-                </p>
-              </div>
-            </div>
-            <div class="flex gap-3">
-              <UIcon name="i-lucide-calendar-check" class="size-5 text-primary shrink-0 mt-0.5" />
-              <div>
-                <h3 class="text-sm font-semibold">Një kalendar i qartë</h3>
-                <p class="text-sm text-muted mt-1">
-                  Mbaj në sy çfarë ke përgatitur dhe çfarë vjen më pas.
-                </p>
-              </div>
-            </div>
+  <div ref="landingRoot" class="landing">
+    <section class="landing-hero" aria-labelledby="hero-title">
+      <UContainer class="landing-container landing-hero-grid">
+        <div class="landing-hero-copy">
+          <p class="landing-kicker">
+            <span class="landing-live-dot" /> PËR BIZNESET QË KANË ÇFARË TË TREGOJNË
+          </p>
+          <h1 id="hero-title">Postime që<br /><span>bien në sy.</span></h1>
+          <p class="landing-hero-description">
+            Ti ke biznesin për të mbajtur.<br />Jepu postimeve më pak nga dita jote.
+          </p>
+          <p class="landing-hero-detail">
+            Përgatit, mirato dhe planifiko për Facebook e Instagram. Në një vend. Në shqip.
+          </p>
+          <div class="landing-button-row">
+            <UButton
+              v-if="canRegister"
+              to="/signup"
+              size="xl"
+              trailing-icon="i-lucide-arrow-up-right"
+              class="landing-primary-button"
+              >{{ trialLabel }}</UButton
+            >
+            <UButton
+              v-else
+              size="xl"
+              variant="outline"
+              color="neutral"
+              icon="i-lucide-refresh-cw"
+              @click="refresh()"
+              >Kontrollo regjistrimin</UButton
+            >
+            <UButton to="#cmimet" variant="link" color="neutral" size="lg">Shiko paketat</UButton>
           </div>
-        </template>
-        <div class="grid grid-cols-2 gap-3 sm:gap-4">
-          <div class="pt-10">
-            <img
-              src="/images/coffee.jpg"
-              alt="Kafe, një detaj për postimin e një kafeneje"
-              width="360"
-              height="440"
-              loading="lazy"
-              class="w-full aspect-[4/5] object-cover rounded-xl"
-            />
-            <p class="text-xs text-muted mt-3">Një produkt.</p>
+          <p v-if="canRegister" class="landing-smallprint">
+            Pa kartë bankare.<template v-if="startingPlan">
+              Nga {{ formatMoney(startingPlan.price) }}/muaj.</template
+            >
+          </p>
+          <p v-else class="landing-smallprint" role="status">
+            Regjistrimi nuk u konfirmua. Provo sërish pas pak.
+          </p>
+        </div>
+        <LandingPostShowcase />
+      </UContainer>
+    </section>
+    <section id="perse" class="landing-process" aria-label="Çfarë bën me Rrit">
+      <UContainer class="landing-container">
+        <div class="landing-process-inner">
+          <p>Gjithë muaji.<br /><strong>Nën kontroll.</strong></p>
+          <ol>
+            <li>
+              <span>01</span><UIcon name="i-lucide-image-plus" /><strong>Foto & tekst</strong>
+            </li>
+            <li>
+              <span>02</span><UIcon name="i-lucide-circle-check" /><strong>Miratimi yt</strong>
+            </li>
+            <li>
+              <span>03</span><UIcon name="i-lucide-calendar-days" /><strong>Në kalendar</strong>
+            </li>
+          </ol>
+        </div>
+      </UContainer>
+    </section>
+    <LandingStories />
+    <section id="cmimet" class="landing-pricing-section" aria-labelledby="pricing-title">
+      <UContainer class="landing-container">
+        <div class="landing-section-heading">
+          <p class="landing-kicker">BUXHET I QARTË. POSTIM PAS POSTIMI.</p>
+          <h2 id="pricing-title">Sa postime të duhen?</h2>
+          <p>Një paketë për ritmin tënd. Çmimin për çdo postim e sheh menjëherë.</p>
+        </div>
+        <LandingPricing />
+      </UContainer>
+    </section>
+    <section id="pyetje" class="landing-faq-section" aria-labelledby="faq-title">
+      <UContainer class="landing-container">
+        <div class="landing-faq-layout">
+          <div class="landing-faq-intro">
+            <p class="landing-kicker">MIRË TA DISH</p>
+            <h2 id="faq-title">Para se<br /><span>të nisësh.</span></h2>
+            <p class="landing-faq-description">Pak qartësi për hapin e parë.</p>
+            <UButton
+              to="/help"
+              variant="link"
+              color="neutral"
+              class="landing-faq-help"
+              trailing-icon="i-lucide-arrow-up-right"
+              >Ke pyetje tjetër?</UButton
+            >
           </div>
-          <div>
-            <img
-              src="/images/interior.jpg"
-              alt="Ambient kafeneje me bimë dhe dritë natyrale"
-              width="360"
-              height="440"
-              loading="lazy"
-              class="w-full aspect-[4/5] object-cover rounded-xl"
-            />
-            <p class="text-xs text-muted mt-3">Një vend. Një histori.</p>
+          <div class="landing-faq-answers">
+            <UAccordion
+              :items="questions"
+              trailing-icon="i-lucide-plus"
+              :ui="{
+                root: 'landing-faq-accordion',
+                item: 'landing-faq-item',
+                trigger: 'landing-faq-trigger',
+                trailingIcon: 'landing-faq-toggle',
+                body: 'landing-faq-body',
+              }"
+            >
+              <template #leading="{ index }"
+                ><span class="landing-faq-number" aria-hidden="true"
+                  >0{{ index + 1 }}</span
+                ></template
+              >
+            </UAccordion>
           </div>
         </div>
-      </UPageSection>
-    </div>
-
-    <UPageSection
-      title="Nga ideja te postimi, në tre hapa."
-      description="Pa menu të ndërlikuara. Pa pasur nevojë të jesh ekspert."
-      :ui="{
-        container: 'py-14 sm:py-20 lg:py-24 gap-10',
-        title: 'text-3xl sm:text-4xl tracking-tight',
-        description: 'text-base text-muted',
-      }"
-    >
-      <UPageGrid class="gap-4 lg:gap-6"
-        ><UPageCard
-          v-for="step in steps"
-          :key="step.number"
-          variant="outline"
-          :ui="{ container: 'p-6 sm:p-7 gap-4' }"
-          ><div class="flex justify-between items-center">
-            <span class="text-xs font-medium text-muted">{{ step.number }}</span
-            ><UIcon :name="step.icon" class="size-5 text-primary" />
-          </div>
-          <h3 class="text-base font-semibold mt-3">{{ step.title }}</h3>
-          <p class="text-sm text-muted leading-relaxed">{{ step.description }}</p></UPageCard
-        ></UPageGrid
-      >
-    </UPageSection>
-
-    <UContainer class="pb-14 sm:pb-20"
-      ><UPageCTA
-        title="Pak më shumë rregull. Më shumë kohë për biznesin."
-        description="Krijo hapësirën e biznesit dhe shiko si i përshtatet mënyrës tënde të punës."
-        variant="outline"
-        orientation="horizontal"
-        :ui="{
-          container: 'p-7 sm:p-10 lg:p-12 gap-8',
-          title: 'text-2xl sm:text-3xl tracking-tight',
-          description: 'text-sm sm:text-base text-muted',
-        }"
-        ><div class="space-y-4">
-          <p class="text-xs text-muted">Planet e propozuara, nga</p>
-          <p v-if="plans.length" class="text-4xl font-semibold tracking-tight">
-            {{ formatMoney(plans[0]!.price)
-            }}<span class="text-sm text-muted font-normal tracking-normal"> / muaj</span>
+      </UContainer>
+    </section>
+    <UContainer class="landing-container">
+      <section class="landing-final" aria-labelledby="closing-title">
+        <div class="landing-final-copy">
+          <p class="landing-kicker">POSTIMI YT I RADHËS</p>
+          <h2 id="closing-title">Tash, le të <span>të shohin.</span></h2>
+          <p class="landing-final-description">
+            Biznesi yt ka historinë. Jepi një vend në postimin e radhës.
           </p>
+        </div>
+        <div class="landing-final-next">
           <UButton
-            to="/pricing"
-            variant="outline"
-            color="neutral"
-            trailing-icon="i-lucide-arrow-right"
-            >Shiko planet</UButton
+            :to="canRegister ? '/signup' : '/help'"
+            size="xl"
+            variant="link"
+            class="landing-final-action"
           >
-        </div></UPageCTA
-      ></UContainer
-    >
-
-    <UPageSection
-      title="Para se të fillosh."
-      :ui="{
-        container: 'pt-0 sm:pt-0 lg:pt-0 pb-14 sm:pb-20 lg:pb-20 gap-8 max-w-3xl',
-        title: 'text-3xl sm:text-3xl tracking-tight',
-      }"
-      ><UAccordion
-        :items="questions"
-        :ui="{
-          trigger: 'py-5 text-sm sm:text-base',
-          body: 'text-sm text-muted leading-relaxed pb-5',
-        }"
-      />
-      <p class="text-xs text-muted text-center mt-4">
-        Ti kontrollon lidhjet e biznesit dhe miraton çdo postim.
-      </p></UPageSection
-    >
+            {{ canRegister ? trialLabel : 'Shiko si funksionon' }}
+            <template #trailing>
+              <span class="landing-final-arrow" aria-hidden="true">
+                <UIcon name="i-lucide-arrow-up-right" />
+              </span>
+            </template>
+          </UButton>
+          <p v-if="canRegister" class="landing-final-note">Në shqip. Pa kartë bankare.</p>
+        </div>
+      </section>
+    </UContainer>
   </div>
 </template>
