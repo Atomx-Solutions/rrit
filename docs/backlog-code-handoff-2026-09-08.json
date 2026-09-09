@@ -1055,6 +1055,7 @@
   "reclassified_as_code_complete": [
     "S0-A01",
     "S0-A02",
+    "S0-A03",
     "S0-A04",
     "S0-A07",
     "S0-A08",
@@ -1074,15 +1075,15 @@
     "S4-A07"
   ],
   "formal_counts": {
-    "In Review": 23,
-    "Not Started": 35,
+    "In Review": 24,
+    "Not Started": 34,
     "In Progress": 90,
     "Deferred": 35,
     "Blocked": 2
   },
   "code_counts": {
-    "Kryer në kod — pret pranim/gate": 23,
-    "Pa filluar": 35,
+    "Kryer në kod — pret pranim/gate": 24,
+    "Pa filluar": 34,
     "Pjesërisht — kërkon zhvillim": 90,
     "Shtyrë nga scope-i aktual": 35,
     "Bllokuar nga varësi e jashtme": 2
@@ -1122,17 +1123,17 @@
     {
       "task_id": "S0-A03",
       "sprint": "S0",
-      "title": "Pin Python 3.14 toolchain",
-      "formal_status": "Not Started",
-      "code_state": "Pa filluar",
+      "title": "Pin Node.js 24.20.0 and npm 11.19.0 toolchain",
+      "formal_status": "In Review",
+      "code_state": "Kryer në kod — pret pranim/gate",
       "owner": "Programmer A",
       "reviewer": "Programmer B",
       "priority": "P0",
       "release_gate": "RG-01",
-      "next_action": "Vendos ADR për zëvendësimin e Python backend me Nitro/TypeScript. Pastaj fikso runtime/toolchain/lock dhe komandat lint/type/test në ambient të pastër; Python i auditit nuk përmbush task-un e backend-it.",
-      "required_evidence": "Prova e kërkuar nga backlog-u: Fresh environment build\n\nKriteri për t'u verifikuar (nuk deklarohet i kaluar): Clean install from lock; lint/type/unit commands reproducible locally and CI.\n\nPranimi kërkon edhe gate-et: RG-01. Asnjë gate nuk është shënuar Passed nga ky audit.",
-      "observed_evidence": "U rishikuan kodi/artefaktet dhe u kërkua implementimi i kësaj detyre. Nuk ka provë të ekzekutuar specifike që mbyll të gjithë kriterin; kontrollet globale nuk e zëvendësojnë atë.",
-      "paths": "Nuk u gjet implementim specifik; shiko kriterin dhe hapat në AA/AB."
+      "next_action": "Ekzekuto workflow-in e versionuar në hosted GitHub Actions; Programmer B konfirmon required check dhe regjistron RG-01 para kalimit formal në Done.",
+      "required_evidence": "Fresh environment build: clean npm ci nga lockfile; exact toolchain, lint, typecheck, unit/integration dhe production build; i njëjti quality gate në CI; RG-01 review.",
+      "observed_evidence": "Validimi 2026-09-08: Docker clean-room me Node.js 24.20.0/npm 11.19.0 instaloi 991 paketa nga lockfile; toolchain/lint/typecheck kaluan; 24/24 unit dhe 28/28 PostgreSQL integration tests kaluan; Nuxt/Nitro production build përfundoi. Hosted CI/reviewer sign-off nuk u deklarua lokalisht.",
+      "paths": ".nvmrc; .npmrc; package.json; package-lock.json; apps/web/package.json; apps/web/vitest.config.ts; .githooks/pre-commit; scripts/check-toolchain.mjs; scripts/install-git-hooks.mjs; Dockerfile; .github/workflows/frontend.yml; docs/TOOLCHAIN.md; docs/VALIDATION.md; docs/S0-A03-REPORT-SQ.md"
     },
     {
       "task_id": "S0-A04",

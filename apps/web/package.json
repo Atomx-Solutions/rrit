@@ -2,6 +2,10 @@
   "name": "@rrit/web",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24.20.0",
+    "npm": "11.19.0"
+  },
   "scripts": {
     "dev": "nuxt dev --host 127.0.0.1 --dotenv ../../.env",
     "db:migrate": "node --env-file-if-exists=../../.env scripts/migrate.mjs",
@@ -11,6 +15,8 @@
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test"
   },
   "dependencies": {

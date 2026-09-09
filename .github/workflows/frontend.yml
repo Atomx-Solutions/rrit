@@ -38,9 +38,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+          check-latest: false
+      - run: npm run toolchain:check
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
+      - run: npm run check
       - name: Prepare Supabase auth compatibility schema
         run: >-
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1
@@ -52,7 +53,7 @@ jobs:
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now()
           );"
-      - run: npm run test
+      - run: npm run test:integration
       - run: npm audit --audit-level=moderate
       - run: npm run db:migrate
       - run: npm run build

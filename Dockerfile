@@ -1,15 +1,18 @@
 # syntax=docker/dockerfile:1.7
-FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS dependencies
+FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 RUN npm ci --ignore-scripts && npm cache clean --force
 
-FROM dependencies AS build
+FROM dependencies AS quality
+COPY scripts/check-toolchain.mjs scripts/check-toolchain.mjs
 COPY apps/web apps/web
 RUN npm run postinstall --workspace apps/web \
-  && npm run typecheck --workspace apps/web \
-  && npm run build --workspace apps/web
+  && npm run check
+
+FROM quality AS build
+RUN npm run build --workspace apps/web
 
 FROM dependencies AS migrations
 ENV NODE_ENV=production
@@ -17,7 +20,7 @@ COPY apps/web/scripts/migrate.mjs apps/web/scripts/migrate.mjs
 COPY apps/web/database/migrations apps/web/database/migrations
 CMD ["node", "apps/web/scripts/migrate.mjs"]
 
-FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS runtime
+FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS runtime
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
