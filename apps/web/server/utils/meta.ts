@@ -1,4 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto'
+import type { Pool, PoolClient } from 'pg'
+import { setTenantContext, withUserTransaction } from './database'
 
 export interface MetaPage {
   id: string
@@ -256,16 +258,16 @@ export async function exchangeMetaCode(code: string) {
     scopes: debug.data.scopes || [],
   }
 }
-export async function businessForUser(userId: string) {
-  const result = await database().query('SELECT id, slug FROM businesses WHERE owner_id = $1', [
+export async function businessForUser(userId: string, db: Pool | PoolClient = database()) {
+  const result = await db.query('SELECT id, slug FROM businesses WHERE owner_id = $1', [
     userId,
   ])
   if (!result.rows[0])
     throw createError({ statusCode: 404, message: 'Plotëso fillimisht profilin e biznesit.' })
   return result.rows[0] as { id: string; slug: string }
 }
-export async function connectedMeta(businessId: string) {
-  const result = await database().query(
+export async function connectedMeta(businessId: string, db: Pool | PoolClient = database()) {
+  const result = await db.query(
     "SELECT * FROM meta_connections WHERE business_id = $1 AND status = 'connected' AND expires_at > now()",
     [businessId],
   )
@@ -281,4 +283,15 @@ export async function connectedMeta(businessId: string) {
     scopes: string[]
     expires_at: Date
   }
+}
+
+export async function withBusinessTransaction<T>(
+  userId: string,
+  work: (client: PoolClient, business: { id: string; slug: string }) => Promise<T>,
+) {
+  return withUserTransaction(userId, async (client) => {
+    const business = await businessForUser(userId, client)
+    await setTenantContext(client, { userId, organizationId: business.id })
+    return work(client, business)
+  })
 }

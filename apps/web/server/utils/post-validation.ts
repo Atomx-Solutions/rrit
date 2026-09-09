@@ -149,10 +149,10 @@ export async function localPostChecks(
 export async function providerPostChecks(
   post: Post,
   businessId: string,
-  options: { throwProviderFailure?: boolean } = {},
+  options: { throwProviderFailure?: boolean; db?: Pool | PoolClient } = {},
 ): Promise<PostCheck[]> {
   try {
-    const connection = await connectedMeta(businessId)
+    const connection = await connectedMeta(businessId, options.db)
     const permission =
       post.channel === 'Instagram' ? 'instagram_content_publish' : 'pages_manage_posts'
     if (!connection.scopes.includes(permission))
@@ -207,7 +207,7 @@ export async function providerPostChecks(
     ]
   } catch (error) {
     if (error instanceof MetaFailure && error.code === 190)
-      await database().query(
+      await (options.db || database()).query(
         "UPDATE meta_connections SET status='expired',updated_at=now() WHERE business_id=$1",
         [businessId],
       )

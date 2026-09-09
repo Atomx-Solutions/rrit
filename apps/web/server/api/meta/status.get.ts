@@ -1,10 +1,9 @@
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
-  const result = await database().query(
+  const result = await withBusinessTransaction(user.id, async (client, business) => client.query(
     'SELECT status,page_id,page_name,instagram_id,instagram_username,expires_at,last_sync_at,scopes FROM meta_connections WHERE business_id=$1',
     [business.id],
-  )
+  ))
   const row = result.rows[0] as
     | {
         status: string

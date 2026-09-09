@@ -1,12 +1,14 @@
 import type { MetaList, MetaPage } from '../../utils/meta'
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
-  const result = await database().query(
-    "SELECT token_ciphertext FROM meta_connections WHERE business_id=$1 AND status IN ('pending','connected') AND expires_at>now()",
-    [business.id],
-  )
-  if (!result.rows[0])
+  const { business, tokenCiphertext } = await withBusinessTransaction(user.id, async (client, business) => {
+    const result = await client.query(
+      "SELECT token_ciphertext FROM meta_connections WHERE business_id=$1 AND status IN ('pending','connected') AND expires_at>now()",
+      [business.id],
+    )
+    return { business, tokenCiphertext: result.rows[0]?.token_ciphertext as string | undefined }
+  })
+  if (!tokenCiphertext)
     throw createError({
       statusCode: 409,
       message: 'Nise lidhjen me Meta përpara se të zgjedhësh faqen.',
@@ -17,7 +19,7 @@ export default defineEventHandler(async (event) => {
   try {
     const pages = await graphRequest<MetaList<MetaPage>>(
       'me/accounts',
-      decryptMetaToken(result.rows[0].token_ciphertext, business.id),
+      decryptMetaToken(tokenCiphertext, business.id),
       {
         fields: 'id,name,access_token,tasks,instagram_business_account{id,username}',
         limit: '50',

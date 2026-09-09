@@ -1,10 +1,9 @@
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
-  const [access, usage] = await Promise.all([
-    trialStatus(business.id),
-    usageSnapshot(business.id),
-  ])
+  const { access, usage } = await withBusinessTransaction(user.id, async (client, business) => ({
+    access: await trialStatus(business.id, client),
+    usage: await usageSnapshot(business.id, client),
+  }))
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
     plan: access.plan,

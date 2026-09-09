@@ -4,8 +4,9 @@ import { postContentVersion } from '../../../utils/post-validation'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
-  await requireEntitlement(business.id, 'validation')
+  const business = await withUserTransaction(user.id, (contextClient) =>
+    businessForUser(user.id, contextClient),
+  )
   const input = z
     .object({ scope: z.enum(['content', 'publication']).default('content') })
     .safeParse(await boundedBody(event, 1024))
@@ -13,17 +14,28 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 422, message: 'Zgjidh një kontroll të vlefshëm.' })
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
   if (!id.success) throw createError({ statusCode: 404 })
-  const row = await database().query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [
-    id.data,
-    business.id,
-  ])
-  if (!row.rows[0]) throw createError({ statusCode: 404, message: 'Postimi nuk u gjet.' })
-  const post = postSchema.parse(row.rows[0].payload)
-  const contentChecks = await localPostChecks(post, business.id)
-  const checks = [
-    ...contentChecks,
-    ...(input.data.scope === 'publication' ? await providerPostChecks(post, business.id) : []),
-  ]
+  const { post, contentChecks, checks } = await withBusinessTransaction(
+    user.id,
+    async (client, currentBusiness) => {
+      if (currentBusiness.id !== business.id)
+        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sÃ«rish.' })
+      await requireEntitlement(business.id, 'validation', client)
+      const row = await client.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [
+        id.data,
+        business.id,
+      ])
+      if (!row.rows[0]) throw createError({ statusCode: 404, message: 'Postimi nuk u gjet.' })
+      const post = postSchema.parse(row.rows[0].payload)
+      const contentChecks = await localPostChecks(post, business.id, client)
+      const checks = [
+        ...contentChecks,
+        ...(input.data.scope === 'publication'
+          ? await providerPostChecks(post, business.id, { db: client })
+          : []),
+      ]
+      return { post, contentChecks, checks }
+    },
+  )
   const contentPassed = contentChecks.every((check) => check.passed)
   const result = {
     scope: input.data.scope,
@@ -36,6 +48,7 @@ export default defineEventHandler(async (event) => {
   const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await setTenantContext(client, { userId: user.id, organizationId: business.id })
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
     const current = await client.query(
       'SELECT payload FROM posts WHERE id=$1 AND business_id=$2 FOR UPDATE',

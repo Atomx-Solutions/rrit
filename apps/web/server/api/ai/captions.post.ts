@@ -15,8 +15,9 @@ const outputSchema = z.object({
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
-  await requireEntitlement(business.id, 'ai')
+  const business = await withUserTransaction(user.id, (contextClient) =>
+    businessForUser(user.id, contextClient),
+  )
   const key = process.env.OPENAI_API_KEY,
     model = process.env.OPENAI_MODEL
   if (!key || !model || !aiCostConfigured())
@@ -40,7 +41,9 @@ export default defineEventHandler(async (event) => {
   const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await setTenantContext(client, { userId: user.id, organizationId: business.id })
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
+    await requireEntitlement(business.id, 'ai', client)
     const previous = await client.query(
       'SELECT business_id,input_hash,status,output FROM ai_generations WHERE id=$1',
       [input.data.requestId],
@@ -107,11 +110,17 @@ export default defineEventHandler(async (event) => {
     client.release()
   }
   try {
-    const { workspace } = await loadWorkspace(database(), business.id, user.id)
-    const history = await database().query(
-      "SELECT sp.caption,sp.channel FROM social_posts sp WHERE sp.business_id=$1 AND EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) ORDER BY sp.published_at DESC LIMIT 8",
-      [business.id],
-    )
+    const { workspace, history } = await withBusinessTransaction(user.id, async (client, currentBusiness) => {
+      if (currentBusiness.id !== business.id)
+        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sÃ«rish.' })
+      return {
+        workspace: (await loadWorkspace(client, business.id, user.id)).workspace,
+        history: await client.query(
+          "SELECT sp.caption,sp.channel FROM social_posts sp WHERE sp.business_id=$1 AND EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) ORDER BY sp.published_at DESC LIMIT 8",
+          [business.id],
+        ),
+      }
+    })
     const context = {
       business: {
         name: workspace.brand.name,
@@ -188,6 +197,7 @@ export default defineEventHandler(async (event) => {
     const settlement = await database().connect()
     try {
       await settlement.query('BEGIN')
+      await setTenantContext(settlement, { userId: user.id, organizationId: business.id })
       await settlement.query(
         "UPDATE ai_generations SET status='completed',output=$1,completed_at=now() WHERE id=$2 AND business_id=$3 AND status='pending'",
         [JSON.stringify(output), input.data.requestId, business.id],
@@ -214,6 +224,7 @@ export default defineEventHandler(async (event) => {
     const release = await database().connect()
     try {
       await release.query('BEGIN')
+      await setTenantContext(release, { userId: user.id, organizationId: business.id })
       const released = await release.query(
         "UPDATE ai_cost_ledger SET status='released',settled_at=now() WHERE generation_id=$1 AND business_id=$2 AND status='reserved' RETURNING id",
         [input.data.requestId, business.id],

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { emptyWorkspace } from '../../shared/utils/empty-workspace'
+import { setTenantContext, setUserContext } from '../utils/database'
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
   city: z.string().trim().min(2).max(120),
@@ -32,6 +33,7 @@ export default defineEventHandler(async (event) => {
   const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await setUserContext(client, user.id)
     const result = await client.query(
       'INSERT INTO businesses (owner_id, slug, state) VALUES ($1, $2, $3) ON CONFLICT (owner_id) DO NOTHING RETURNING id',
       [user.id, slug, JSON.stringify(profile)],
@@ -39,6 +41,7 @@ export default defineEventHandler(async (event) => {
     const id =
       result.rows[0]?.id ||
       (await client.query('SELECT id FROM businesses WHERE owner_id = $1', [user.id])).rows[0].id
+    await setTenantContext(client, { userId: user.id, organizationId: id })
     if (result.rows.length) await grantTrial(client, id, user.email, device)
     const business = await loadWorkspace(client, id, user.id)
     await client.query('COMMIT')

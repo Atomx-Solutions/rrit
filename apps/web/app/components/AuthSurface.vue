@@ -57,31 +57,86 @@ const available = computed(() => {
   if (props.mode === 'callback') return true
   return capabilities.value?.authentication
 })
-onMounted(() => {
+onMounted(async () => {
   hydrated.value = true
+  if (props.mode !== 'callback') return
+
+  busy.value = true
+  try {
+    const result = await authClient.handleCallback()
+    if (result.error) error.value = errorText(result.error)
+    else if (!result.data.session)
+      error.value = 'Lidhja nuk u përfundua. Kërko një email të ri konfirmimi dhe provo sërish.'
+    else await navigateTo(safeRedirect(route.query.next, '/onboarding'), { replace: true })
+  } catch (caught) {
+    error.value = errorText({ message: caught instanceof Error ? caught.message : '' })
+  } finally {
+    busy.value = false
+  }
 })
-function errorText(problem: { code?: string; status?: number; message?: string }) {
+function errorText(problem: {
+  code?: string | undefined
+  status?: number | undefined
+  message?: string | undefined
+}) {
   const normalizedCode = problem.code?.toLowerCase() || ''
   const normalizedMessage = problem.message?.toLowerCase() || ''
   if (
-    normalizedCode === 'email_not_confirmed' ||
-    normalizedCode === 'email_not_verified' ||
-    normalizedMessage.includes('email not confirmed')
+    problem.status === 429 ||
+    normalizedCode.includes('rate_limit') ||
+    normalizedCode.includes('too_many_requests') ||
+    normalizedCode.includes('over_email_send_rate_limit')
+  ) {
+    return 'Ke provuar disa herë. Prit pak dhe provo sërish.'
+  }
+  if (
+    normalizedCode.includes('email_not_confirmed') ||
+    normalizedCode.includes('email_not_verified') ||
+    normalizedCode.includes('user_not_confirmed') ||
+    normalizedMessage.includes('email not confirmed') ||
+    normalizedMessage.includes('email is not confirmed') ||
+    normalizedMessage.includes('confirm your email') ||
+    normalizedMessage.includes('verify your email')
   ) {
     return 'Shko në emailin tënd dhe konfirmoje llogarinë përpara hyrjes. Kontrollo edhe dosjen Spam.'
   }
-  const messages: Record<string, string> = {
-    INVALID_EMAIL_OR_PASSWORD: 'Emaili ose fjalëkalimi nuk është i saktë.',
-    EMAIL_NOT_VERIFIED: 'Konfirmo emailin përpara hyrjes. Kontrollo kutinë e emailit.',
-    INVALID_TOKEN: 'Lidhja ka skaduar ose është përdorur. Kërko një lidhje të re.',
-    TOKEN_EXPIRED: 'Lidhja ka skaduar. Kërko një lidhje të re.',
-    USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL:
-      'Nuk mund të vazhdojmë me këtë adresë. Provo hyrjen ose rikuperimin.',
-    PASSWORD_TOO_SHORT: 'Përdor të paktën 12 karaktere.',
+  if (
+    normalizedCode === 'invalid_credentials' ||
+    normalizedCode === 'invalid_login_credentials' ||
+    normalizedMessage.includes('invalid login credentials') ||
+    normalizedMessage.includes('invalid credentials')
+  ) {
+    return 'Emaili ose fjalëkalimi nuk është i saktë.'
   }
-  return problem.status === 429
-    ? 'Ke provuar disa herë. Prit pak dhe provo sërish.'
-    : messages[problem.code || ''] || 'Veprimi nuk përfundoi. Kontrollo të dhënat dhe provo sërish.'
+  const messages: Record<string, string> = {
+    invalid_email: 'Vendos një adresë emaili të vlefshme.',
+    email_address_invalid: 'Vendos një adresë emaili të vlefshme.',
+    invalid_email_or_password: 'Emaili ose fjalëkalimi nuk është i saktë.',
+    email_not_verified: 'Konfirmo emailin përpara hyrjes. Kontrollo kutinë e emailit.',
+    invalid_token: 'Lidhja ka skaduar ose është përdorur. Kërko një lidhje të re.',
+    token_expired: 'Lidhja ka skaduar. Kërko një lidhje të re.',
+    otp_expired: 'Kodi ose lidhja ka skaduar. Kërko një lidhje të re.',
+    pkce_code_verifier_not_found:
+      'Hape linkun në të njëjtin browser ku e krijove llogarinë ose kërko një link të ri.',
+    user_already_exists: 'Kjo adresë ka tashmë një llogari. Provo hyrjen ose rikuperimin.',
+    user_already_exists_use_another_email:
+      'Nuk mund të vazhdojmë me këtë adresë. Provo hyrjen ose rikuperimin.',
+    password_too_short: 'Përdor të paktën 12 karaktere.',
+    weak_password: 'Zgjidh një fjalëkalim më të fortë me të paktën 12 karaktere.',
+    user_banned: 'Kjo llogari nuk mund të përdoret për momentin.',
+  }
+  if (
+    normalizedMessage.includes('invalid email') ||
+    normalizedMessage.includes('email address is invalid')
+  )
+    return messages.invalid_email ?? 'Vendos një adresë emaili të vlefshme.'
+  if (normalizedMessage.includes('already registered'))
+    return messages.user_already_exists ?? 'Kjo adresë ka tashmë një llogari.'
+  if (normalizedMessage.includes('password') && normalizedMessage.includes('weak'))
+    return messages.weak_password ?? 'Zgjidh një fjalëkalim më të fortë.'
+  if (normalizedMessage.includes('fetch') || normalizedMessage.includes('network'))
+    return 'Lidhja me serverin dështoi. Kontrollo internetin dhe provo sërish.'
+  return messages[normalizedCode] || 'Veprimi nuk përfundoi. Kontrollo të dhënat dhe provo sërish.'
 }
 async function submit() {
   if (busy.value) return
@@ -103,12 +158,13 @@ async function submit() {
         name: state.name.trim(),
         email: state.email.trim(),
         password: state.password,
-        callbackURL: '/onboarding',
+        callbackURL: '/auth/callback?next=/onboarding',
       })
       if (result.error) error.value = errorText(result.error)
       else {
-        const verificationRequired = capabilities.value?.emailVerificationRequired ?? true
-        pendingEmail.value = verificationRequired ? state.email : ''
+        const verificationRequired =
+          capabilities.value?.emailVerificationRequired === true || !result.data.session
+        pendingEmail.value = verificationRequired ? state.email.trim() : ''
         state.password = ''
         clearNuxtData('account-sessions')
         await navigateTo(verificationRequired ? '/verify-email' : '/onboarding')
@@ -134,7 +190,7 @@ async function submit() {
     } else if (props.mode === 'verify') {
       const result = await authClient.sendVerificationEmail({
         email: state.email.trim(),
-        callbackURL: '/onboarding',
+        callbackURL: '/auth/callback?next=/onboarding',
       })
       if (result.error) error.value = errorText(result.error)
       else success.value = 'Nëse llogaria pret verifikim, lidhja do të mbërrijë në email.'
@@ -152,8 +208,8 @@ async function submit() {
         success.value = 'Fjalëkalimi u ndryshua. Tani mund të hysh në llogari.'
       }
     }
-  } catch {
-    error.value = 'Lidhja me serverin dështoi. Provo sërish.'
+  } catch (caught) {
+    error.value = errorText({ message: caught instanceof Error ? caught.message : '' })
   } finally {
     busy.value = false
   }
@@ -270,7 +326,7 @@ async function submit() {
     >
   </UForm>
   <UButton
-    v-if="(mode === 'reset' && success) || mode === 'callback'"
+    v-if="(mode === 'reset' && success) || (mode === 'callback' && error)"
     to="/login"
     block
     variant="outline"

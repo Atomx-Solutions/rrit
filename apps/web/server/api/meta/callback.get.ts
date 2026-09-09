@@ -11,10 +11,10 @@ export default defineEventHandler(async (event) => {
   )
     throw createError({ statusCode: 400, message: 'Autorizimi ka skaduar. Nise lidhjen sërish.' })
   const user = await requireUser(event)
-  const stored = await database().query(
+  const stored = await withUserTransaction(user.id, (client) => client.query(
     'UPDATE meta_oauth_states SET consumed_at = now() WHERE state_hash=$1 AND user_id=$2 AND consumed_at IS NULL AND expires_at>now() RETURNING business_id,return_path',
     [hashState(state), user.id],
-  )
+  ))
   if (!stored.rows[0])
     throw createError({
       statusCode: 400,
@@ -30,9 +30,8 @@ export default defineEventHandler(async (event) => {
       !token.scopes.includes('pages_read_engagement')
     )
       return sendRedirect(event, `${returnPath}?meta=permissions`)
-    const client = await database().connect()
-    try {
-      await client.query('BEGIN')
+    await withUserTransaction(user.id, async (client) => {
+      await setTenantContext(client, { userId: user.id, organizationId: businessId })
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [businessId])
       const jobs = await client.query(
         "SELECT id FROM publication_jobs WHERE business_id=$1 AND status IN ('pending','processing') LIMIT 1",
@@ -60,13 +59,7 @@ export default defineEventHandler(async (event) => {
           JSON.stringify(token.scopes),
         ],
       )
-      await client.query('COMMIT')
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
+    })
     return sendRedirect(event, `${returnPath}?meta=select`)
   } catch {
     return sendRedirect(event, `${returnPath}?meta=failed`)

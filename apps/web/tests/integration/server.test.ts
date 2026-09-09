@@ -56,6 +56,7 @@ import { planCatalogSchema } from '../../shared/schemas/catalog'
 import { retentionPolicy, runRetentionBatch } from '../../server/utils/retention'
 import { aiCostConfigured, calculateAiCost } from '../../server/utils/ai-costs'
 import { consumeNextOutbox, enqueueOutbox } from '../../server/utils/outbox'
+import { setTenantContext } from '../../server/utils/database'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
@@ -156,6 +157,77 @@ async function grant(id: string, email: string, device: string) {
     client.release()
   }
 }
+
+describe('tenant row-level security', () => {
+  it('denies cross-tenant reads and writes and fails closed without context', async () => {
+    const first = await business()
+    const second = await business()
+    const firstPost = randomUUID()
+    const secondPost = randomUUID()
+    const payload = (caption: string) =>
+      JSON.stringify({
+        title: 'Tenant test',
+        caption,
+        status: 'draft',
+        channel: 'Instagram',
+      })
+    await pool.query('INSERT INTO posts(id,business_id,payload) VALUES($1,$2,$3)', [
+      firstPost,
+      first.id,
+      payload('First tenant'),
+    ])
+    await pool.query('INSERT INTO posts(id,business_id,payload) VALUES($1,$2,$3)', [
+      secondPost,
+      second.id,
+      payload('Second tenant'),
+    ])
+
+    const client = await admin.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('SET LOCAL ROLE app_runtime')
+      await client.query(`SET LOCAL search_path TO "${schema}", public`)
+      await setTenantContext(client, { userId: first.user, organizationId: first.id })
+      expect((await client.query('SELECT id FROM posts ORDER BY id')).rows).toEqual([
+        { id: firstPost },
+      ])
+      await expect(
+        client.query('INSERT INTO posts(id,business_id,payload) VALUES($1,$2,$3)', [
+          randomUUID(),
+          second.id,
+          payload('Forged tenant'),
+        ]),
+      ).rejects.toMatchObject({ code: '42501' })
+      expect(
+        (
+          await client.query('UPDATE posts SET payload=$1 WHERE id=$2', [
+            payload('Changed'),
+            secondPost,
+          ])
+        ).rowCount,
+      ).toBe(0)
+      expect((await client.query('DELETE FROM posts WHERE id=$1', [secondPost])).rowCount).toBe(0)
+      await expect(client.query('CREATE TABLE rls_forbidden (id integer)')).rejects.toMatchObject({
+        code: '42501',
+      })
+      await client.query('ROLLBACK')
+    } finally {
+      client.release()
+    }
+
+    const missingContext = await admin.connect()
+    try {
+      await missingContext.query('BEGIN')
+      await missingContext.query('SET LOCAL ROLE app_runtime')
+      await missingContext.query(`SET LOCAL search_path TO "${schema}", public`)
+      expect((await missingContext.query('SELECT id FROM posts')).rows).toEqual([])
+      await missingContext.query('ROLLBACK')
+    } finally {
+      missingContext.release()
+    }
+  })
+})
+
 describe('durable transactional outbox', () => {
   it('commits with domain data, deduplicates delivery and recovers a stale claim', async () => {
     await pool.query('CREATE TABLE outbox_test_effects (message_id uuid PRIMARY KEY, value text)')

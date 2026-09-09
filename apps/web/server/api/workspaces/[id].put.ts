@@ -5,6 +5,7 @@ import {
   postContentVersion,
   requireCurrentApproval,
 } from '../../utils/post-validation'
+import { setTenantContext, setUserContext } from '../../utils/database'
 
 const schema = workspaceSchema.extend({
   revision: z.number().int().min(1),
@@ -46,12 +47,10 @@ export default defineEventHandler(async (event) => {
   const parsed = schema.safeParse(await boundedBody(event))
   if (!parsed.success) fail('Kontrollo fushat. Një vlerë është jashtë kufijve të lejuar.')
   const input = parsed.data
-  const owner = await businessForUser(user.id)
-  if (owner.id !== id.data) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+  const client = await database().connect()
   const decoded = new Map<string, Awaited<ReturnType<typeof decodePhoto>>>()
   const uploads = input.assets.filter((asset) => asset.url.startsWith('data:'))
   if (uploads.length) {
-    await requireEntitlement(id.data, 'media')
     for (const asset of uploads) {
       if (!asset.rights || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(asset.url))
         fail('Ngarko JPG dhe konfirmo të drejtat.')
@@ -60,9 +59,13 @@ export default defineEventHandler(async (event) => {
       decoded.set(asset.id, await decodePhoto(bytes))
     }
   }
-  const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await setUserContext(client, user.id)
+    const owner = await businessForUser(user.id, client)
+    if (owner.id !== id.data) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+    await setTenantContext(client, { userId: user.id, organizationId: id.data })
+    if (uploads.length) await requireEntitlement(id.data, 'media', client)
     const locked = await client.query(
       'SELECT revision FROM businesses WHERE id = $1 AND owner_id = $2 FOR UPDATE',
       [id.data, user.id],
