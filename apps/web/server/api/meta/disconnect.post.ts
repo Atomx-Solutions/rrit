@@ -1,10 +1,7 @@
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
-  const client = await database().connect()
-  try {
-    await client.query('BEGIN')
+  return withBusinessTransaction(user.id, async (client, business) => {
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
     const running = await client.query(
       "SELECT id FROM publication_jobs WHERE business_id=$1 AND status='processing' LIMIT 1",
@@ -30,12 +27,6 @@ export default defineEventHandler(async (event) => {
       [business.id],
     )
     await client.query('UPDATE businesses SET revision=revision+1 WHERE id=$1', [business.id])
-    await client.query('COMMIT')
     return { disconnected: true }
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  } finally {
-    client.release()
-  }
+  })
 })

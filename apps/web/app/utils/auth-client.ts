@@ -19,17 +19,14 @@ function callbackUrl(path?: string) {
 }
 
 function errorResult(error: AuthError | null) {
-  return { error: error ? { message: error.message, code: error.code, status: error.status } : null }
+  return {
+    error: error ? { message: error.message, code: error.code, status: error.status } : null,
+  }
 }
 
 export const authClient = {
   signUp: {
-    async email(input: {
-      name: string
-      email: string
-      password: string
-      callbackURL?: string
-    }) {
+    async email(input: { name: string; email: string; password: string; callbackURL?: string }) {
       const result = await supabase().auth.signUp({
         email: input.email,
         password: input.password,
@@ -46,6 +43,21 @@ export const authClient = {
       const result = await supabase().auth.signInWithPassword(input)
       return { data: result.data, ...errorResult(result.error) }
     },
+  },
+  async handleCallback() {
+    const url = new URL(window.location.href)
+    const callbackError = url.searchParams.get('error_description') || url.searchParams.get('error')
+    if (callbackError)
+      return {
+        data: { session: null },
+        error: { message: callbackError, code: 'callback_error' },
+      }
+
+    const initialized = await supabase().auth.initialize()
+    if (initialized.error) return { data: { session: null }, ...errorResult(initialized.error) }
+
+    const result = await supabase().auth.getSession()
+    return { data: result.data, ...errorResult(result.error) }
   },
   async signOut() {
     const result = await supabase().auth.signOut()

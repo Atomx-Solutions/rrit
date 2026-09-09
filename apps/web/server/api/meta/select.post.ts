@@ -4,16 +4,20 @@ import { reconnectionMatchesTargets } from '../../utils/publishing'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
+  const business = await withUserTransaction(user.id, (client) => businessForUser(user.id, client))
   const input = z
     .object({ pageId: z.string().regex(/^\d+$/) })
     .safeParse(await boundedBody(event, 1024))
   if (!input.success)
     throw createError({ statusCode: 422, message: 'Zgjidh një faqe të vlefshme.' })
-  const stored = await database().query(
+  const stored = await withBusinessTransaction(user.id, async (client, currentBusiness) => {
+    if (currentBusiness.id !== business.id)
+      throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Rifillo zgjedhjen e faqes.' })
+    return client.query(
     "SELECT token_ciphertext,page_id,instagram_id FROM meta_connections WHERE business_id=$1 AND status IN ('pending','connected') AND expires_at>now()",
     [business.id],
-  )
+    )
+  })
   if (!stored.rows[0])
     throw createError({ statusCode: 409, message: 'Nise lidhjen me Meta sërish.' })
   // The page is resolved with this user's verified token, never a token supplied by the browser.
@@ -46,6 +50,7 @@ export default defineEventHandler(async (event) => {
   const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await setTenantContext(client, { userId: user.id, organizationId: business.id })
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
     const jobs = await client.query(
       "SELECT status,target_page_id,target_instagram_id FROM publication_jobs WHERE business_id=$1 AND status IN ('pending','processing','uncertain')",

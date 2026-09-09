@@ -5,11 +5,17 @@ import { MetaFailure } from '../../../utils/meta'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
+  const business = await withUserTransaction(user.id, (contextClient) =>
+    businessForUser(user.id, contextClient),
+  )
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
   if (!id.success) throw createError({ statusCode: 404 })
   try {
-    return await reconcileUncertainPublication(id.data, business.id)
+    return await withBusinessTransaction(user.id, (client, currentBusiness) => {
+      if (currentBusiness.id !== business.id)
+        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sÃ«rish.' })
+      return reconcileUncertainPublication(id.data, business.id, client)
+    })
   } catch (error) {
     if (error instanceof MetaFailure)
       throw createError({

@@ -15,13 +15,14 @@ type RemotePost = {
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
-  await requireEntitlement(business.id, 'social_import')
+  const { business, connection } = await withBusinessTransaction(user.id, async (client, business) => {
+    await requireEntitlement(business.id, 'social_import', client)
+    return { business, connection: await connectedMeta(business.id, client) }
+  })
   const input = z
     .object({ channel: z.enum(['Facebook', 'Instagram']), after: z.string().max(2000).optional() })
     .safeParse(await boundedBody(event, 4096))
   if (!input.success) throw createError({ statusCode: 422, message: 'Zgjidh rrjetin social.' })
-  const connection = await connectedMeta(business.id)
   const instagram = input.data.channel === 'Instagram'
   if (instagram && !connection.instagram_id)
     throw createError({
@@ -44,9 +45,11 @@ export default defineEventHandler(async (event) => {
     )
   } catch (error) {
     if (error instanceof MetaFailure && error.code === 190)
-      await database().query(
-        "UPDATE meta_connections SET status='expired',updated_at=now() WHERE id=$1",
-        [connection.id],
+      await withBusinessTransaction(user.id, (client) =>
+        client.query(
+          "UPDATE meta_connections SET status='expired',updated_at=now() WHERE id=$1",
+          [connection.id],
+        ),
       )
     throw createError({
       statusCode: 502,
@@ -58,6 +61,7 @@ export default defineEventHandler(async (event) => {
   const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await setTenantContext(client, { userId: user.id, organizationId: business.id })
     const current = await client.query(
       "SELECT id FROM meta_connections WHERE id=$1 AND business_id=$2 AND status='connected' AND page_id=$3 FOR UPDATE",
       [connection.id, business.id, connection.page_id],

@@ -347,17 +347,19 @@ async function finishJob(
   state: 'published' | 'failed' | 'uncertain',
   code: string | null,
   providerId?: string,
+  db: Pool | PoolClient = database(),
 ) {
-  const client = await database().connect()
+  const ownsTransaction = 'connect' in db
+  const client = (ownsTransaction ? await db.connect() : db) as PoolClient
   try {
-    await client.query('BEGIN')
+    if (ownsTransaction) await client.query('BEGIN')
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [job.business_id])
     const updated = await client.query(
       "UPDATE publication_jobs SET status=$1,failure_code=$2,provider_post_id=COALESCE($3,provider_post_id),locked_at=null,last_attempt_at=now(),updated_at=now() WHERE id=$4 AND status IN ('processing','uncertain') RETURNING id",
       [state, code, providerId || null, job.id],
     )
     if (!updated.rowCount) {
-      await client.query('COMMIT')
+      if (ownsTransaction) await client.query('COMMIT')
       return
     }
     await recordPublicationAttempt(client, job, state, code, providerId || null)
@@ -388,17 +390,21 @@ async function finishJob(
         [job.business_id, `publication.${state}`],
       )
     }
-    await client.query('COMMIT')
+    if (ownsTransaction) await client.query('COMMIT')
   } catch (error) {
-    await client.query('ROLLBACK')
+    if (ownsTransaction) await client.query('ROLLBACK')
     throw error
   } finally {
-    client.release()
+    if (ownsTransaction) client.release()
   }
 }
 
-export async function reconcileUncertainPublication(postId: string, businessId: string) {
-  const result = await database().query(
+export async function reconcileUncertainPublication(
+  postId: string,
+  businessId: string,
+  db: Pool | PoolClient = database(),
+) {
+  const result = await db.query(
     "SELECT j.*,p.payload FROM publication_jobs j JOIN posts p ON p.id=j.post_id AND p.business_id=j.business_id WHERE j.post_id=$1 AND j.business_id=$2 AND j.status='uncertain' ORDER BY j.created_at DESC LIMIT 1",
     [postId, businessId],
   )
@@ -406,7 +412,7 @@ export async function reconcileUncertainPublication(postId: string, businessId: 
   if (!job)
     throw createError({ statusCode: 409, message: 'Nuk ka publikim që pret verifikim.' })
   const post = postSchema.parse(job.payload)
-  const connection = await connectedMeta(businessId)
+  const connection = await connectedMeta(businessId, db)
   if (
     connection.page_id !== job.target_page_id ||
     (post.channel === 'Instagram' && connection.instagram_id !== job.target_instagram_id)
@@ -435,13 +441,13 @@ export async function reconcileUncertainPublication(postId: string, businessId: 
     providerId = uniquePublicationMatch(candidates.data || [], post, job.run_at)?.id || null
   }
   if (!providerId) {
-    await database().query(
+    await db.query(
       "UPDATE publication_jobs SET failure_code='reconciliation_no_unique_match',updated_at=now() WHERE id=$1 AND status='uncertain'",
       [job.id],
     )
     return { resolved: false as const }
   }
-  await finishJob(job, 'published', null, providerId)
+  await finishJob(job, 'published', null, providerId, db)
   return { resolved: true as const, providerPostId: providerId }
 }
 // Claims use SKIP LOCKED; network calls never hold a database transaction open.

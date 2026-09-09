@@ -2,19 +2,23 @@ import { randomBytes } from 'node:crypto'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
   const config = metaConfiguration()
   const input = (await boundedBody(event, 1024)) as { onboarding?: boolean }
   const state = randomBytes(32).toString('hex')
-  await database().query(
-    "INSERT INTO meta_oauth_states (state_hash,user_id,business_id,return_path,expires_at) VALUES ($1,$2,$3,$4,now()+interval '10 minutes')",
-    [
-      hashState(state),
-      user.id,
-      business.id,
-      input.onboarding ? '/onboarding' : `/app/${business.id}/${business.slug}/social-posts`,
-    ],
-  )
+  await withUserTransaction(user.id, async (client) => {
+    const business = await businessForUser(user.id, client)
+    await setTenantContext(client, { userId: user.id, organizationId: business.id })
+    await client.query(
+      "INSERT INTO meta_oauth_states (state_hash,user_id,business_id,return_path,expires_at) VALUES ($1,$2,$3,$4,now()+interval '10 minutes')",
+      [
+        hashState(state),
+        user.id,
+        business.id,
+        input.onboarding ? '/onboarding' : `/app/${business.id}/${business.slug}/social-posts`,
+      ],
+    )
+    return business
+  })
   setCookie(event, 'rrit-meta-state', state, {
     httpOnly: true,
     secure: true,

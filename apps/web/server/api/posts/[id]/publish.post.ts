@@ -4,7 +4,9 @@ import { requireCurrentApproval } from '../../../utils/post-validation'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const business = await businessForUser(user.id)
+  const business = await withUserTransaction(user.id, (contextClient) =>
+    businessForUser(user.id, contextClient),
+  )
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
   const input = z
     .object({ confirmed: z.literal(true), version: z.number().int().positive() })
@@ -14,6 +16,7 @@ export default defineEventHandler(async (event) => {
   const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await setTenantContext(client, { userId: user.id, organizationId: business.id })
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
     const logicalKey = publicationLogicalKey(business.id, id.data, input.data.version)
     const replay = await client.query(
