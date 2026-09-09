@@ -28,6 +28,10 @@ npm.cmd run build
 
 Për `npm.cmd run verify` dhe integration tests duhet një PostgreSQL test service i dedikuar. Mos përdor URL-në e Supabase v1 për teste destruktive dhe mos ekzekuto `supabase db push`.
 
+## S0-B02 — Sistemi i dizajnit
+
+Kontrata e tokenave dhe prova e implementimit ruhen te `docs/S0-B02-REPORT-SQ.md`. Lokalisht kaluan `npm.cmd run check`, production build dhe 13/13 Playwright landing tests me kontroll light/dark. Testi i dashboard-it krijon të dhëna sintetike, prandaj duhet të ekzekutohet në ambient të dedikuar/CI dhe jo kundër Supabase v1. RG-14 dhe review mbeten të nevojshme para statusit `Done`.
+
 ## CI
 
 Workflow-i `.github/workflows/frontend.yml` përdor të njëjtat quality commands, ndërton output-in Nuxt me `npm run build`, nis drejtpërdrejt `apps/web/.output/server/index.mjs`, pret `/api/health/ready` me versionin e lockuar të `wait-on` dhe ekzekuton E2E kundër serverit Node. Log-u i serverit ruhet si artifact kur ka dështim.

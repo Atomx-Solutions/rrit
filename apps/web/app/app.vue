@@ -11,6 +11,6 @@ const locale = {
 </script>
 <template>
   <UApp :locale="locale" :toaster="{ label: 'Njoftimet' }"
-    ><NuxtLoadingIndicator color="#137d59" /><NuxtLayout><NuxtPage /></NuxtLayout
+    ><NuxtLoadingIndicator color="var(--rrit-color-primary-strong)" /><NuxtLayout><NuxtPage /></NuxtLayout
   ></UApp>
 </template>

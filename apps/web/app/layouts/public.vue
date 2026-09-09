@@ -116,15 +116,15 @@ const year = new Date().getFullYear()
   }
 }
 .marketing-footer {
-  background: #e4ebde;
-  color: #182722;
-  --ui-text-muted: #52634f;
+  background: var(--rrit-color-marketing-footer);
+  color: var(--rrit-color-marketing-text);
+  --ui-text-muted: var(--rrit-color-marketing-footer-muted);
   padding-top: 56px;
 }
 :global(.dark .marketing-footer) {
-  background: #0b1914;
-  color: #edf5e9;
-  --ui-text-muted: #a9bfaf;
+  background: var(--rrit-color-marketing-footer);
+  color: var(--rrit-color-marketing-text);
+  --ui-text-muted: var(--rrit-color-marketing-footer-muted);
 }
 .marketing-footer-content {
   max-width: 1220px;

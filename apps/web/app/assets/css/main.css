@@ -4,47 +4,107 @@
   --font-sans: 'Inter Variable', sans-serif;
 }
 :root {
-  --ui-text-muted: #606b64;
+  /* Shared design tokens: landing and dashboard consume these semantic values. */
+  --rrit-font-sans: 'Inter Variable', sans-serif;
+  --rrit-text-xs: 0.75rem;
+  --rrit-text-sm: 0.875rem;
+  --rrit-text-base: 1rem;
+  --rrit-leading-body: 1.7;
+
+  --rrit-space-1: 0.25rem;
+  --rrit-space-2: 0.5rem;
+  --rrit-space-3: 0.75rem;
+  --rrit-space-4: 1rem;
+  --rrit-space-5: 1.25rem;
+  --rrit-space-6: 1.5rem;
+  --rrit-space-8: 2rem;
+  --rrit-space-10: 2.5rem;
+  --rrit-space-12: 3rem;
+
+  --rrit-radius-control: 0.5rem;
+  --rrit-radius-card: 0.875rem;
+  --rrit-radius-pill: 999px;
+  --rrit-shadow-card: 0 1px 2px rgb(22 34 27 / 8%);
+  --rrit-shadow-floating: 0 18px 42px -26px rgb(18 42 30 / 30%);
+  --rrit-motion-fast: 150ms;
+  --rrit-motion-standard: 220ms;
+  --rrit-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  --rrit-color-canvas: #f7f8f6;
+  --rrit-color-surface: #fff;
+  --rrit-color-text: #202822;
+  --rrit-color-muted: #66716c;
+  --rrit-color-border: #e8ece8;
+  --rrit-color-primary: #147653;
+  --rrit-color-primary-strong: #13734c;
+  --rrit-color-primary-subtle: #edf6ee;
+  --rrit-color-focus: #147653;
+  --rrit-color-warm: #f7f4ed;
+  --rrit-color-sidebar: #fff;
+  --rrit-color-warning: #855800;
+  --rrit-color-danger: #bd2739;
+  --rrit-color-info: #2457b4;
+
+  /* Approved landing palette, kept separate from illustration-only colours. */
+  --rrit-color-marketing-canvas: #f7f8f5;
+  --rrit-color-marketing-text: #182722;
+  --rrit-color-marketing-muted: #57665e;
+  --rrit-color-marketing-border: #d7dfd6;
+  --rrit-color-marketing-tint: #edf1e8;
+  --rrit-color-marketing-accent: #176546;
+  --rrit-color-marketing-action: #214d38;
+  --rrit-color-marketing-action-hover: #173a2a;
+  --rrit-color-on-marketing-action: #fff;
+  --rrit-color-marketing-footer: #e4ebde;
+  --rrit-color-marketing-footer-muted: #52634f;
+
+  /* Legacy aliases keep existing pages stable while they consume shared tokens. */
+  --canvas: var(--rrit-color-canvas);
+  --surface: var(--rrit-color-surface);
+  --ink: var(--rrit-color-text);
+  --muted: var(--rrit-color-muted);
+  --line: var(--rrit-color-border);
+  --green: var(--rrit-color-primary);
+  --green-soft: var(--rrit-color-primary-subtle);
+  --warm: var(--rrit-color-warm);
+  --sidebar: var(--rrit-color-sidebar);
+  --radius: var(--rrit-radius-card);
+  --ui-primary: var(--rrit-color-primary);
+  --ui-bg: var(--rrit-color-surface);
+  --ui-text: var(--rrit-color-text);
+  --ui-text-muted: var(--rrit-color-muted);
+  --ui-warning: var(--rrit-color-warning);
+  --ui-error: var(--rrit-color-danger);
+  --ui-info: var(--rrit-color-info);
+  --ui-success: var(--rrit-color-primary-strong);
 }
 .dark {
-  --ui-text-muted: #b4bfb8;
-}
-:root {
-  --canvas: #f7f8f6;
-  --surface: #fff;
-  --ink: #202822;
-  --muted: #66716c;
-  --line: #e8ece8;
-  --green: #147653;
-  --green-soft: #edf6ee;
-  --warm: #f7f4ed;
-  --sidebar: #fff;
-  --radius: 14px;
-  --ui-primary: #147653;
-  --ui-bg: #fff;
-  --ui-text: #202822;
-  --ui-warning: #855800;
-  --ui-error: #bd2739;
-  --ui-info: #2457b4;
-  --ui-success: #13734c;
-}
-.dark {
-  --canvas: #121814;
-  --surface: #1b231e;
-  --ink: #edf3ee;
-  --muted: #a8b4ac;
-  --line: #354137;
-  --green: #8bdbb2;
-  --green-soft: #203c2b;
-  --warm: #2c2b22;
-  --sidebar: #171f19;
-  --ui-primary: #8bdbb2;
-  --ui-bg: #1b231e;
-  --ui-text: #edf3ee;
-  --ui-warning: #f3c66c;
-  --ui-error: #fda4af;
-  --ui-info: #93b8ff;
-  --ui-success: #8bdbb2;
+  --rrit-color-canvas: #121814;
+  --rrit-color-surface: #1b231e;
+  --rrit-color-text: #edf3ee;
+  --rrit-color-muted: #a8b4ac;
+  --rrit-color-border: #354137;
+  --rrit-color-primary: #8bdbb2;
+  --rrit-color-primary-strong: #8bdbb2;
+  --rrit-color-primary-subtle: #203c2b;
+  --rrit-color-focus: #8bdbb2;
+  --rrit-color-warm: #2c2b22;
+  --rrit-color-sidebar: #171f19;
+  --rrit-color-warning: #f3c66c;
+  --rrit-color-danger: #fda4af;
+  --rrit-color-info: #93b8ff;
+
+  --rrit-color-marketing-canvas: #12211b;
+  --rrit-color-marketing-text: #edf5e9;
+  --rrit-color-marketing-muted: #b0c2b6;
+  --rrit-color-marketing-border: #3a5144;
+  --rrit-color-marketing-tint: #1e352a;
+  --rrit-color-marketing-accent: #b8e28e;
+  --rrit-color-marketing-action: #214d38;
+  --rrit-color-marketing-action-hover: #173a2a;
+  --rrit-color-on-marketing-action: #fff;
+  --rrit-color-marketing-footer: #0b1914;
+  --rrit-color-marketing-footer-muted: #a9bfaf;
 }
 * {
   box-sizing: border-box;
@@ -53,7 +113,8 @@ body {
   margin: 0;
   background: var(--canvas);
   color: var(--ink);
-  font-size: 14px;
+  font-family: var(--rrit-font-sans);
+  font-size: var(--rrit-text-sm);
   -webkit-font-smoothing: antialiased;
 }
 button,
@@ -68,7 +129,7 @@ select {
   cursor: pointer;
 }
 :focus-visible {
-  outline: 3px solid var(--green);
+  outline: 3px solid var(--rrit-color-focus);
   outline-offset: 4px;
 }
 @layer base {

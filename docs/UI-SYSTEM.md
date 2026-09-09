@@ -6,6 +6,16 @@ The frontend uses Nuxt 4.5.2 and Nuxt UI 4.11.0, verified against the stable rel
 
 Official release references: [Nuxt 4.5.2](https://github.com/nuxt/nuxt/releases/tag/v4.5.2), [Nuxt UI 4.11.0](https://github.com/nuxt/ui/releases/tag/v4.11.0).
 
+## Shared design tokens
+
+S0-B02 keeps the approved landing design and the dashboard visually consistent through one shared token contract. The source is `apps/web/app/assets/css/main.css`; token names begin with `--rrit-` and cover semantic colour, typography, spacing, radius, elevation and motion. `apps/web/app/utils/design-system.ts` records the same contract for application configuration and unit tests.
+
+- Landing and dashboard use the shared semantic tokens for standard UI: surfaces, text, borders, primary actions, focus, spacing and radii.
+- The landing's approved art direction (illustrations, scene gradients and image-specific colours) may retain local values; these are not generic UI tokens.
+- Light and dark values are defined together in `main.css`. New UI must use semantic tokens rather than introduce an unrelated hex colour or arbitrary spacing value.
+- Nuxt UI v4 remains the primary component system. Use `i-lucide-*` icons through Nuxt UI; do not add a second icon library. Create RRIT wrappers only for product composition or brand-specific presentation.
+- The accessibility suite verifies light and dark mode for public pages and the dashboard shell, including serious/critical Axe findings, focus visibility and horizontal overflow.
+
 ## Component ownership
 
 | Product surface | Nuxt UI components |
