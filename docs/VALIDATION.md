@@ -42,7 +42,7 @@ Testet mbulojnë regjistrimin pa email-verifikim në mjedisin lokal, sesionet va
 
 Këto janë prova lokale të artefaktit production. Hosted CI, Meta/OpenAI/billing me kredenciale reale, Firefox/WebKit/pajisje fizike, load/soak, backup/restore, pentest, UAT dhe release rehearsal mbeten gate të pakaluara. Asnjë task që i kërkon këto prova nuk shënohet `Done`.
 
-Alarmi `low` i auditimit prek vetëm serverin e zhvillimit të `esbuild` në Windows. Varësia vjen transitivisht nga `@nuxt/fonts > fontless`; detyrimi i një majori të papajtueshëm nuk u aplikua. Runtime image është Linux dhe përmban vetëm `.output`, jo dev serverin apo `node_modules`.
+Alarmi `low` i auditimit prek vetëm serverin e zhvillimit të `esbuild` në Windows. Varësia vjen transitivisht nga `@nuxt/fonts > fontless`; detyrimi i një majori të papajtueshëm nuk u aplikua. Runtime image është Linux dhe përmban `.output` plus vetëm production dependencies të prunuara, jo dev dependencies apo dev server.
 
 ## Riprodhimi
 

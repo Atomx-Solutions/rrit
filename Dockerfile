@@ -15,6 +15,10 @@ RUN npm run postinstall --workspace apps/web \
 FROM quality AS build
 RUN npm run build --workspace apps/web
 
+FROM dependencies AS production-dependencies
+RUN npm prune --omit=dev --ignore-scripts \
+  && npm cache clean --force
+
 FROM dependencies AS migrations
 ENV NODE_ENV=production
 COPY apps/web/scripts/migrate.mjs apps/web/scripts/migrate.mjs
@@ -28,6 +32,7 @@ ENV NODE_ENV=production \
     PROCESS_ROLE=web
 RUN addgroup -S rrit && adduser -S -G rrit -u 10001 rrit
 WORKDIR /app
+COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=build --chown=rrit:rrit /app/apps/web/.output ./
 USER rrit
 EXPOSE 3000

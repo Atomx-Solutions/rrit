@@ -25,8 +25,7 @@ jobs:
           --health-retries 20
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rrit_ci
-      BETTER_AUTH_URL: http://127.0.0.1:3000
-      BETTER_AUTH_SECRET: ci-only-better-auth-secret-at-least-32-characters
+      APP_URL: http://127.0.0.1:3000
       AUTH_REQUIRE_EMAIL_VERIFICATION: 'false'
       TRIAL_HASH_KEY: ci-only-trial-hash-key-at-least-thirty-two-characters
       META_TOKEN_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
@@ -66,12 +65,12 @@ jobs:
           docker run --detach --name rrit-web-ci --network host
           --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m
           --cap-drop ALL --security-opt no-new-privileges
-          -e DATABASE_URL -e BETTER_AUTH_URL -e BETTER_AUTH_SECRET
+          -e DATABASE_URL -e APP_URL
           -e AUTH_REQUIRE_EMAIL_VERIFICATION -e TRIAL_HASH_KEY
           -e META_TOKEN_KEY -e MEDIA_SIGNING_KEY -e PUBLISHING_ENABLED
           -e HOST=0.0.0.0 -e PORT=3000 rrit-web-ci
       - name: Wait for production readiness
-        run: npx wait-on http://127.0.0.1:3000/api/health/ready
+        run: npm exec --workspace apps/web -- wait-on --timeout 120000 --interval 1000 http://127.0.0.1:3000/api/health/ready
       - run: npm run test:e2e
         env:
           TEST_BASE_URL: http://127.0.0.1:3000
