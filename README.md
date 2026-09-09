@@ -2,11 +2,11 @@
 
 **Scope-i aktual: postimet për bizneset në Kosovë.** Facebook/Instagram → njohja e biznesit → krijimi, miratimi dhe kalendari i postimeve. Çmimet janë në EUR. Fushatat dhe strategjitë janë shtyrë nga përvoja aktive sipas kërkesës së fundit; shiko [scope-in aktual](docs/PRODUCT-SCOPE.md) dhe [rishikimin e backlog-ut](docs/BACKLOG-REVIEW-SQ.md).
 
-Frontend në shqip, i ndërtuar nga dokumenti **Production Grade System Design v1.1** dhe backlog-u shoqërues. Emri **Rrit**, marka shembull dhe paketat tregtare janë propozime të implementimit.
+Frontend në shqip, i ndërtuar nga dokumenti **Production Grade System Design v1.1** dhe backlog-u shoqërues. Emri **Rrit**, marka shembull dhe paketat tregtare janë propozime të implementimit. Backend-i i launch-it është Nitro/TypeScript sipas [ADR-002](docs/adr/ADR-002-production-modular-monolith.md); baseline-i i riprodhueshëm i zhvillimit përshkruhet te [toolchain-i](docs/TOOLCHAIN.md).
 
 ## Nisja lokale
 
-Përdor Node.js **24 LTS** (`.nvmrc`) dhe npm.
+Përdor saktësisht Node.js **24.20.0** (`.nvmrc`) dhe npm **11.19.0**.
 
 ```sh
 npm ci
@@ -30,11 +30,16 @@ Meta, OpenAI, emaili publik dhe billing aktivizohen vetëm kur konfigurimi përk
 
 ## Kontrolli i cilësisë
 
+Kontrolli standard lokal dhe në CI është:
+
 ```sh
-npm run lint
-npm run typecheck
-npm run test
-npm run build
+npm run check
+```
+
+Ai verifikon versionet e toolchain-it, lint-in, tipet dhe testet unit pa kërkuar databazë. Me PostgreSQL lokal të konfiguruar, `npm run verify` shton integration tests dhe ndërton artefaktin production.
+
+```sh
+npm run verify
 node apps/web/scripts/bundle-budget.mjs
 npx playwright install chromium
 npm run test:e2e

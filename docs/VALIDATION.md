@@ -1,6 +1,6 @@
 # Validimi i ekzekutuar
 
-Data: 2026-09-08. Kodi synon Node.js 24 nga `.nvmrc`, Nuxt 4.5.2 dhe Nuxt UI 4.11.1.
+Data: 2026-09-08. Kodi synon Node.js 24.20.0 dhe npm 11.19.0 nga `.nvmrc`/`package.json`, Nuxt 4.5.2 dhe Nuxt UI 4.11.1.
 
 | Kontrolli | Rezultati aktual |
 | --- | --- |
@@ -15,6 +15,26 @@ Data: 2026-09-08. Kodi synon Node.js 24 nga `.nvmrc`, Nuxt 4.5.2 dhe Nuxt UI 4.1
 | E2E production | 14/14 kaluan kundër container-it production në Chromium desktop/mobile |
 | Accessibility | Axe WCAG 2 A/AA pa gjetje serious/critical në landing, login, signup e dashboard; fokus i dukshëm me tastierë, reduced motion dhe pa overflow në desktop/mobile |
 | Dependency audit | 0 moderate, 0 high, 0 critical; 1 low dev-only nga `esbuild` për dev server në Windows |
+
+## Evidenca S0-A03
+
+Target-i i pastër Docker `build`, pa përdorur `node_modules` të host-it, u ekzekutua me imazhin e fiksuar `node:24.20.0-alpine` dhe digest-in e versionuar. Rezultatet:
+
+| Kontrolli | Rezultati |
+| --- | --- |
+| `npm ci --ignore-scripts` nga lockfile v3 | Kaloi; 991 paketa u instaluan në clean layer |
+| `npm run toolchain:check` | Kaloi; Node.js 24.20.0 dhe npm 11.19.0 |
+| ESLint | Kaloi, exit 0 |
+| Nuxt TypeScript typecheck | Kaloi, exit 0 |
+| Vitest unit determinist | 24/24 kaluan |
+| Vitest PostgreSQL integration | 28/28 kaluan në container-in e njëjtë kundrejt PostgreSQL 18 të përkohshëm |
+| Nuxt/Nitro production build | Kaloi; Docker image `rrit-s0-a03-validation` u krijua |
+
+PostgreSQL i provës ishte container pa volume dhe u hoq pas suitës. Build-i lokal brenda sandbox-it Windows arriti kompilimin por u ndal nga leja `EPERM` gjatë `readlink C:\Users\Lenovo`; build-i Linux clean-room përfundoi, ndaj kjo evidencë nuk klasifikohet si defekt i aplikacionit.
+
+Implementimi i task-ut është i plotë në kod dhe është vendosur `In Review`. Hosted GitHub Actions dhe miratimi i reviewer-it/branch protection nuk mund të deklarohen si të ekzekutuara nga workspace-i lokal; ato janë hapi administrativ i mbetur para statusit formal `Done` dhe mbylljes së RG-01.
+
+Shënim sigurie për v1: `.env` lidhet me Supabase Pooler remote dhe përmban të dhëna testimi të aplikacionit. Integration tests pranojnë vetëm `DATABASE_URL` ose `MIGRATION_DATABASE_URL` lokale dhe refuzojnë çdo host remote; Supabase v1 nuk preket nga testet.
 
 Testet mbulojnë regjistrimin pa email-verifikim në mjedisin lokal, sesionet valid/forged/revoked/expired, biznesin privat, validimin, pagination, Meta opsionale, miratimin/planifikimin për Facebook e Instagram dhe bazën e aksesueshmërisë për faqet publike/auth/dashboard. Testet unit/integration mbulojnë trial identity, katalogun/limitet, retention-in, AI cost ledger, outbox-in transaksional, Retry-After/backoff/jitter/attempt limits, fault taxonomy, logical-key dedupe, ledger-in immutable të tentimeve dhe reconciliation pa ridërgim.
 

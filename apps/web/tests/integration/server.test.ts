@@ -59,11 +59,10 @@ import { consumeNextOutbox, enqueueOutbox } from '../../server/utils/outbox'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
-const databaseUrl =
-  process.env.TEST_DATABASE_URL || process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
+const databaseUrl = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
 if (!databaseUrl || !['127.0.0.1', 'localhost'].includes(new URL(databaseUrl).hostname))
   throw new Error(
-    'Integration tests require a local TEST_DATABASE_URL or DATABASE_URL. Remote databases are never used.',
+    'Integration tests require a local DATABASE_URL or MIGRATION_DATABASE_URL. Remote databases are never used.',
   )
 const schema = 'rrit_test_' + randomUUID().replaceAll('-', '')
 const admin = new Pool({ connectionString: databaseUrl })

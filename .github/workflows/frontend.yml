@@ -38,10 +38,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+          check-latest: false
+      - run: npm run toolchain:check
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test
+      - run: npm run check
+      - run: npm run test:integration
       - run: npm audit --audit-level=moderate
       - run: npm run db:migrate
       - run: npm run build
