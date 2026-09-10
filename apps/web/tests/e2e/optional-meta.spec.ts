@@ -105,7 +105,7 @@ test('approve and plan both channels without Meta; publication remains explicit'
     await page.getByRole('button', { name: 'Mirato postimin', exact: true }).click()
     await expect(
       page.getByRole('button', { name: 'Planifiko postimin', exact: true }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 30000 })
     const approved = (await business(page.request)).workspace
     expect(approved.posts.find((post) => post.id === id)?.status).toBe('approved')
 

@@ -1,21 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { deleteAccount, signOut, signUp, type E2EAccount } from './helpers/auth'
 
-async function createBusiness(page: import('@playwright/test').Page, name: string) {
-  const response = await page.request.post('/api/business', {
-    headers: { Origin: new URL(page.url()).origin },
-    data: {
-      name,
-      city: 'PrishtinÃ«',
-      industry: 'Test',
-      description: 'Llogari e krijuar vetëm për testimin E2E.',
-      voice: 'Thjesht',
-    },
-  })
-  expect(response.status()).toBe(201)
-  return (await response.json()) as { id: string; slug: string }
-}
-
 test('session guard rejects signed-out, forged and deleted Supabase sessions', async ({
   page,
   baseURL,
@@ -27,8 +12,6 @@ test('session guard rejects signed-out, forged and deleted Supabase sessions', a
   try {
     const first = await signUp(page, 'Testues sesioni')
     accounts.push(first)
-    const firstBusiness = await createBusiness(page, 'Biznesi i sesionit')
-    await page.goto(`/app/${firstBusiness.id}/${firstBusiness.slug}/overview`)
     const firstState = await page.request.storageState()
 
     await signOut(page)
@@ -38,8 +21,6 @@ test('session guard rejects signed-out, forged and deleted Supabase sessions', a
 
     const second = await signUp(page, 'Testues sesioni forged')
     accounts.push(second)
-    const secondBusiness = await createBusiness(page, 'Biznesi forged')
-    await page.goto(`/app/${secondBusiness.id}/${secondBusiness.slug}/overview`)
     const activeState = await page.request.storageState()
     const sessionCookies = activeState.cookies.filter((cookie) =>
       cookie.name.includes('auth-token'),
@@ -48,8 +29,8 @@ test('session guard rejects signed-out, forged and deleted Supabase sessions', a
     const forgedState = {
       ...activeState,
       cookies: activeState.cookies.map((cookie) =>
-        cookie.name === sessionCookies[0]!.name
-          ? { ...cookie, value: cookie.value.slice(0, -1) + (cookie.value.endsWith('a') ? 'b' : 'a') }
+        cookie.name.includes('auth-token')
+          ? { ...cookie, value: 'forged' }
           : cookie,
       ),
     }

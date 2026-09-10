@@ -163,7 +163,7 @@ test('public pages offer real registration with no demonstration routes', async 
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Postime që')
   await expect(page.locator('a[href*="/app/demo"]')).toHaveCount(0)
-  await expect(page.getByText(/3 ditë trial falas/).first()).toBeVisible()
+  await expect(page.getByText(/3 ditë falas/).first()).toBeVisible()
   await page.goto('/signup')
   await expect(
     page.getByRole('button', { name: 'Krijo llogarinë e biznesit', exact: true }),

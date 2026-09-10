@@ -1,4 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
+import { existsSync } from 'node:fs'
+
+const envFile = new URL('../../.env', import.meta.url)
+if (existsSync(envFile)) process.loadEnvFile(envFile)
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
