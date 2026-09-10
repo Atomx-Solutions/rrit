@@ -1,11 +1,12 @@
 import { z } from 'zod'
+import { downloadAsset } from '../../utils/asset-storage'
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
   if (!id.success) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
   const result = await withBusinessTransaction(user.id, (client) =>
     client.query(
-      'SELECT a.bytes, a.mime FROM assets a JOIN businesses b ON b.id = a.business_id WHERE a.id = $1 AND b.owner_id = $2',
+      'SELECT a.storage_path, a.bytes, a.mime FROM assets a JOIN businesses b ON b.id = a.business_id WHERE a.id = $1 AND b.owner_id = $2',
       [id.data, user.id],
     ),
   )
@@ -13,5 +14,7 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', result.rows[0].mime)
   setHeader(event, 'Cache-Control', 'private, no-store')
   setHeader(event, 'X-Content-Type-Options', 'nosniff')
-  return result.rows[0].bytes
+  return result.rows[0].storage_path
+    ? await downloadAsset(result.rows[0].storage_path)
+    : result.rows[0].bytes
 })

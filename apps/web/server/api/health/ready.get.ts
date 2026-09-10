@@ -2,7 +2,8 @@ export default defineEventHandler(async (event) => {
   try {
     const result = await database().query(
       `SELECT
-        EXISTS (SELECT 1 FROM schema_migrations WHERE name='0019_tenant_rls_reconcile.sql') AS migrated,
+        EXISTS (SELECT 1 FROM schema_migrations WHERE name='0019_tenant_rls_reconcile.sql')
+          AND EXISTS (SELECT 1 FROM schema_migrations WHERE name='0023_signed_storage_reader.sql') AS migrated,
         EXISTS (SELECT 1 FROM worker_heartbeats WHERE name='publisher' AND last_seen_at>now()-interval '2 minutes') AS publisher_alive,
         (SELECT count(*)::integer FROM publication_jobs WHERE status='pending') AS pending_jobs,
         (SELECT COALESCE(EXTRACT(EPOCH FROM now()-min(run_at)),0)::integer FROM publication_jobs WHERE status='pending' AND run_at<=now()) AS oldest_due_seconds`,

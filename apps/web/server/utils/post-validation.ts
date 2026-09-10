@@ -91,7 +91,7 @@ export async function localPostChecks(
   const asset = match
     ? (
         await db.query(
-          'SELECT rights,octet_length(bytes) AS size,width,height FROM assets WHERE id=$1 AND business_id=$2',
+          'SELECT rights,COALESCE(size_bytes, octet_length(bytes))::integer AS size,width,height FROM assets WHERE id=$1 AND business_id=$2',
           [match[1], businessId],
         )
       ).rows[0]

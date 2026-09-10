@@ -5,6 +5,12 @@ import {
   postContentVersion,
   requireCurrentApproval,
 } from '../../utils/post-validation'
+import {
+  assetStorageFolder,
+  assetStoragePath,
+  removeAsset,
+  uploadAsset,
+} from '../../utils/asset-storage'
 import { setTenantContext, setUserContext } from '../../utils/database'
 
 const schema = workspaceSchema.extend({
@@ -49,6 +55,8 @@ export default defineEventHandler(async (event) => {
   const input = parsed.data
   const client = await database().connect()
   const decoded = new Map<string, Awaited<ReturnType<typeof decodePhoto>>>()
+  const uploadedStoragePaths: string[] = []
+  const removedStoragePaths: string[] = []
   const uploads = input.assets.filter((asset) => asset.url.startsWith('data:'))
   if (uploads.length) {
     for (const asset of uploads) {
@@ -162,14 +170,21 @@ export default defineEventHandler(async (event) => {
           bytes[bytes.length - 1] !== 217
         )
           fail('Fotografia nuk është një JPG i vlefshëm deri në 2 MB.')
+        const storagePath = assetStoragePath(
+          assetStorageFolder(owner.slug, id.data),
+          asset.name,
+        )
+        await uploadAsset(storagePath, bytes)
+        uploadedStoragePaths.push(storagePath)
         await client.query(
-          "INSERT INTO assets (id, business_id, name, tags, rights, mime, bytes,width,height) VALUES ($1,$2,$3,$4,true,'image/jpeg',$5,$6,$7)",
+          "INSERT INTO assets (id, business_id, name, tags, rights, mime, bytes, storage_path, size_bytes, width, height) VALUES ($1,$2,$3,$4,true,'image/jpeg',NULL,$5,$6,$7,$8)",
           [
             asset.id,
             id.data,
             asset.name,
             JSON.stringify(asset.tags),
-            bytes,
+            storagePath,
+            bytes.length,
             photo.info.width,
             photo.info.height,
           ],
@@ -348,6 +363,13 @@ export default defineEventHandler(async (event) => {
     const removedAssets = current.assets.filter(
       (a) => !input.assets.some((incoming) => incoming.id === a.id),
     )
+    if (removedAssets.length) {
+      const stored = await client.query(
+        'SELECT storage_path FROM assets WHERE id = ANY($1::uuid[]) AND business_id = $2 AND storage_path IS NOT NULL',
+        [removedAssets.map((asset) => asset.id), id.data],
+      )
+      removedStoragePaths.push(...stored.rows.map((row) => row.storage_path as string))
+    }
     for (const asset of removedAssets) {
       if (input.posts.some((p) => p.image === asset.url)) fail('Fotografia përdoret në një postim.')
       await client.query('DELETE FROM assets WHERE id = $1 AND business_id = $2', [
@@ -368,9 +390,26 @@ export default defineEventHandler(async (event) => {
     )
     const result = await loadWorkspace(client, id.data, user.id)
     await client.query('COMMIT')
+    for (const storagePath of removedStoragePaths) {
+      try {
+        await removeAsset(storagePath)
+      } catch (error) {
+        console.error('Failed to remove deleted asset from storage', { storagePath, error })
+      }
+    }
     return result
   } catch (error) {
     await client.query('ROLLBACK')
+    for (const storagePath of uploadedStoragePaths) {
+      try {
+        await removeAsset(storagePath)
+      } catch (cleanupError) {
+        console.error('Failed to clean up uploaded asset after rollback', {
+          storagePath,
+          cleanupError,
+        })
+      }
+    }
     throw error
   } finally {
     client.release()

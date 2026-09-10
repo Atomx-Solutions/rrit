@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { downloadAsset } from '../../utils/asset-storage'
 export default defineEventHandler(async (event) => {
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
   const query = getQuery(event)
@@ -9,10 +10,12 @@ export default defineEventHandler(async (event) => {
     !validMediaSignature(id.data, query.expires, query.signature)
   )
     throw createError({ statusCode: 404 })
-  const row = await database().query('SELECT bytes,mime FROM app.read_signed_asset($1)', [id.data])
+  const row = await database().query('SELECT storage_path,bytes,mime FROM app.read_signed_asset_location($1)', [id.data])
   if (!row.rows[0]) throw createError({ statusCode: 404 })
   setHeader(event, 'Content-Type', row.rows[0].mime)
   setHeader(event, 'Cache-Control', 'private, no-store')
   setHeader(event, 'X-Robots-Tag', 'noindex, nofollow')
-  return row.rows[0].bytes as Buffer
+  return row.rows[0].storage_path
+    ? await downloadAsset(row.rows[0].storage_path)
+    : (row.rows[0].bytes as Buffer)
 })

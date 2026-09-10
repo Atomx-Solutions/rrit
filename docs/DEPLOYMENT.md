@@ -51,6 +51,8 @@ Sekretet vendosen në secret manager të host-it dhe nuk futen në image, reposi
 
 Origin-i publik në `APP_URL` duhet të jetë HTTPS dhe identik me origin-in e përdorur nga browser-i. Databaza Supabase nuk duhet të ekspozohet publikisht.
 
+PÃ«r media storage, `SUPABASE_SERVICE_ROLE_KEY` duhet tÃ« vendoset vetÃ«m nÃ« server secret manager dhe nuk duhet tÃ« ekspozohet nÃ« runtime config publik. `MEDIA_BUCKET` duhet tÃ« jetÃ« `assets`; bucket-i duhet tÃ« mbetet privat.
+
 ## Provat para release-it
 
 Release-i kërkon workflow-n e hostuar të gjelbër, backup/restore rehearsal, Meta staging me llogari jo-developer, SMTP publik, security review, load/soak dhe UAT. Provat lokale nuk zëvendësojnë këto gate të jashtme.
