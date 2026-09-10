@@ -70,6 +70,7 @@ const admin = new Pool({ connectionString: databaseUrl })
 const pool = new Pool({ connectionString: databaseUrl, options: `-c search_path=${schema},public` })
 let createdAuthSchema = false
 let createdAuthUsersTable = false
+let createdPublicAssetsTable = false
 beforeAll(async () => {
   vi.stubGlobal('createError', createError)
   vi.stubGlobal('database', () => pool)
@@ -106,6 +107,20 @@ beforeAll(async () => {
     `)
     createdAuthUsersTable = true
   }
+  const publicAssets = await admin.query("SELECT to_regclass('public.assets') AS relation")
+  if (!publicAssets.rows[0]?.relation) {
+    await admin.query(`
+      CREATE TABLE public.assets (
+        id uuid PRIMARY KEY,
+        rights boolean NOT NULL DEFAULT false,
+        mime text NOT NULL,
+        bytes bytea,
+        storage_path text,
+        size_bytes bigint
+      )
+    `)
+    createdPublicAssetsTable = true
+  }
   await admin.query(`CREATE SCHEMA "${schema}"`)
   const directory = new URL('../../database/migrations/', import.meta.url)
   for (const file of (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort())
@@ -122,6 +137,7 @@ afterAll(async () => {
   await pool.end()
   if (!/^rrit_test_[a-f0-9]{32}$/.test(schema)) throw new Error('Unsafe test schema')
   await admin.query(`DROP SCHEMA "${schema}" CASCADE`)
+  if (createdPublicAssetsTable) await admin.query('DROP TABLE public.assets CASCADE')
   if (createdAuthUsersTable) await admin.query('DROP TABLE auth.users CASCADE')
   if (createdAuthSchema) await admin.query('DROP SCHEMA auth CASCADE')
   await admin.end()
