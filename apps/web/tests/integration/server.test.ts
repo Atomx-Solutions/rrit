@@ -507,7 +507,7 @@ describe('real photo decoding and validation', () => {
         .toBuffer(),
     )
     await pool.query(
-      "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,size_bytes) VALUES($1,$2,'Photo','[]',true,'image/jpeg',$3,800,800,octet_length($3))",
+      "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,size_bytes) VALUES($1,$2,'Photo','[]',true,'image/jpeg',$3,800,800,octet_length($3::bytea))",
       [assetId, a.id, photo.data],
     )
     const post: Post = {
@@ -797,7 +797,7 @@ describe('optional Meta calendar', () => {
         .toBuffer(),
     )
     await pool.query(
-      "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,size_bytes) VALUES($1,$2,'Worker photo','[]',true,'image/jpeg',$3,800,800,octet_length($3))",
+      "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,size_bytes) VALUES($1,$2,'Worker photo','[]',true,'image/jpeg',$3,800,800,octet_length($3::bytea))",
       [assetId, item.id, photo.data],
     )
     const pageId = '123456789'
@@ -978,7 +978,7 @@ describe('optional Meta calendar', () => {
         .toBuffer(),
     )
     await pool.query(
-      "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,size_bytes) VALUES($1,$2,'Retry photo','[]',true,'image/jpeg',$3,800,800,octet_length($3))",
+      "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,size_bytes) VALUES($1,$2,'Retry photo','[]',true,'image/jpeg',$3,800,800,octet_length($3::bytea))",
       [assetId, item.id, photo.data],
     )
     const pageId = 'retry-page-1'
