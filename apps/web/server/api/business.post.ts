@@ -3,6 +3,7 @@ import { emptyWorkspace } from '../../shared/utils/empty-workspace'
 import { ianaTimezoneSchema } from '../../shared/schemas/brand'
 import { recordAuditEvent, transitionMetadata } from '../utils/audit'
 import { setTenantContext, setUserContext } from '../utils/database'
+import { ensureOrganizationForLegacyBusiness } from '../utils/organizations'
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
   city: z.string().trim().min(2).max(120),
