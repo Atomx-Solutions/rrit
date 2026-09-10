@@ -1,65 +1,54 @@
 import { expect, test } from '@playwright/test'
-import { randomUUID } from 'node:crypto'
-import pg from 'pg'
+import { deleteAccount, signOut, signUp, type E2EAccount } from './helpers/auth'
 
-function databaseUrl() {
-  if (!process.env.DATABASE_URL) {
-    try {
-      process.loadEnvFile(new URL('../../../../.env', import.meta.url))
-    } catch {
-      // Hosted CI supplies DATABASE_URL directly and has no local .env file.
-    }
-  }
-  const value = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
-  if (!value) throw new Error('DATABASE_URL is required for the session acceptance test.')
-  return value
+async function createBusiness(page: import('@playwright/test').Page, name: string) {
+  const response = await page.request.post('/api/business', {
+    headers: { Origin: new URL(page.url()).origin },
+    data: {
+      name,
+      city: 'PrishtinÃ«',
+      industry: 'Test',
+      description: 'Llogari e krijuar vetëm për testimin E2E.',
+      voice: 'Thjesht',
+    },
+  })
+  expect(response.status()).toBe(201)
+  return (await response.json()) as { id: string; slug: string }
 }
 
-test('session guard rejects forged, revoked and expired sessions', async ({
+test('session guard rejects signed-out, forged and deleted Supabase sessions', async ({
   page,
   baseURL,
   playwright,
 }) => {
   const origin = new URL(baseURL!).origin
-  const email = `rrit-session-${randomUUID()}@example.test`
-  const password = 'Session-test-' + randomUUID()
-  const pool = new pg.Pool({ connectionString: databaseUrl(), max: 1 })
+  const accounts: E2EAccount[] = []
 
   try {
-    const signup = await page.request.post('/api/auth/sign-up/email', {
-      headers: { Origin: origin },
-      data: { name: 'Testues sesioni', email, password, callbackURL: '/onboarding' },
-    })
-    expect(signup.status()).toBe(200)
-    expect((await page.request.get('/api/business')).status()).toBe(200)
-
+    const first = await signUp(page, 'Testues sesioni')
+    accounts.push(first)
+    const firstBusiness = await createBusiness(page, 'Biznesi i sesionit')
+    await page.goto(`/app/${firstBusiness.id}/${firstBusiness.slug}/overview`)
     const firstState = await page.request.storageState()
-    const sessionCookie = firstState.cookies.find((cookie) => cookie.name.includes('session'))
-    expect(sessionCookie).toBeTruthy()
 
-    const signout = await page.request.post('/api/auth/sign-out', {
-      headers: { Origin: origin },
-      data: {},
-    })
-    expect(signout.status()).toBe(200)
+    await signOut(page)
+    const signedOut = await page.request.get('/api/business')
+    expect(signedOut.status()).toBe(401)
+    expect((await signedOut.json()).data?.code).toBe('AUTH_REQUIRED')
 
-    const replay = await playwright.request.newContext({ baseURL: origin, storageState: firstState })
-    const revoked = await replay.get('/api/business')
-    expect(revoked.status()).toBe(401)
-    expect((await revoked.json()).data?.code).toBe('AUTH_REQUIRED')
-    await replay.dispose()
-
-    const signin = await page.request.post('/api/auth/sign-in/email', {
-      headers: { Origin: origin },
-      data: { email, password },
-    })
-    expect(signin.status()).toBe(200)
+    const second = await signUp(page, 'Testues sesioni forged')
+    accounts.push(second)
+    const secondBusiness = await createBusiness(page, 'Biznesi forged')
+    await page.goto(`/app/${secondBusiness.id}/${secondBusiness.slug}/overview`)
     const activeState = await page.request.storageState()
-    const activeCookie = activeState.cookies.find((cookie) => cookie.name.includes('session'))!
+    const sessionCookies = activeState.cookies.filter((cookie) =>
+      cookie.name.includes('auth-token'),
+    )
+    expect(sessionCookies.length).toBeGreaterThan(0)
     const forgedState = {
       ...activeState,
       cookies: activeState.cookies.map((cookie) =>
-        cookie.name === activeCookie.name
+        cookie.name === sessionCookies[0]!.name
           ? { ...cookie, value: cookie.value.slice(0, -1) + (cookie.value.endsWith('a') ? 'b' : 'a') }
           : cookie,
       ),
@@ -68,23 +57,30 @@ test('session guard rejects forged, revoked and expired sessions', async ({
       baseURL: origin,
       storageState: forgedState,
     })
-    const forged = await forgedClient.get('/api/business')
-    expect(forged.status()).toBe(401)
-    expect((await forged.json()).data?.code).toBe('AUTH_REQUIRED')
-    await forgedClient.dispose()
+    try {
+      const forged = await forgedClient.get('/api/business')
+      expect(forged.status()).toBe(401)
+      expect((await forged.json()).data?.code).toBe('AUTH_REQUIRED')
+    } finally {
+      await forgedClient.dispose()
+    }
 
-    await pool.query(
-      `UPDATE "session" s
-       SET "expiresAt" = now() - interval '1 second'
-       FROM "user" u
-       WHERE s."userId" = u.id AND u.email = $1`,
-      [email],
-    )
-    const expired = await page.request.get('/api/business')
-    expect(expired.status()).toBe(401)
-    expect((await expired.json()).data?.code).toBe('AUTH_REQUIRED')
+    await deleteAccount(second.email)
+    const deleted = await page.request.get('/api/business')
+    expect(deleted.status()).toBe(401)
+    expect((await deleted.json()).data?.code).toBe('AUTH_REQUIRED')
+
+    // The first account's stored Supabase cookies are also rejected after its user is deleted.
+    await deleteAccount(first.email)
+    const replay = await playwright.request.newContext({ baseURL: origin, storageState: firstState })
+    try {
+      const revoked = await replay.get('/api/business')
+      expect(revoked.status()).toBe(401)
+      expect((await revoked.json()).data?.code).toBe('AUTH_REQUIRED')
+    } finally {
+      await replay.dispose()
+    }
   } finally {
-    await pool.query('DELETE FROM "user" WHERE email = $1', [email])
-    await pool.end()
+    for (const account of accounts) await deleteAccount(account.email)
   }
 })

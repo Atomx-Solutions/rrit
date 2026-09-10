@@ -1,41 +1,12 @@
-import { test, expect, type APIRequestContext } from '@playwright/test'
+import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { signUp } from './helpers/auth'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import type { Workspace } from '../../shared/schemas/workspace'
 
-async function verifiedAccount(request: APIRequestContext, origin: string) {
-  const email = `rrit-e2e-${randomUUID()}@example.test`
-  const password = 'Test-only-' + randomUUID()
-  const signup = await request.post('/api/auth/sign-up/email', {
-    headers: { Origin: origin },
-    data: { name: 'Testuesi Rrit', email, password, callbackURL: '/onboarding' },
-  })
-  expect(signup.status()).toBe(200)
-  const capabilities = await (await request.get('/api/capabilities')).json()
-  if (!capabilities.emailVerificationRequired) return { email, password }
-  let verification = ''
-  await expect
-    .poll(
-      async () => {
-        const response = await request.get('http://127.0.0.1:8029/api/v1/messages')
-        const body = await response.json()
-        const message = body.messages.find((item: { To: { Address: string }[] }) =>
-          item.To.some((to) => to.Address === email),
-        )
-        if (!message) return false
-        const mail = await (
-          await request.get(`http://127.0.0.1:8029/api/v1/message/${message.ID}`)
-        ).json()
-        verification = mail.Text.match(/https?:\/\/[^\s]+/)?.[0] || ''
-        return !!verification
-      },
-      { timeout: 15000 },
-    )
-    .toBe(true)
-  const verify = await request.get(verification, { maxRedirects: 0 })
-  expect([200, 302, 303]).toContain(verify.status())
-  return { email, password }
+async function verifiedAccount(page: Page) {
+  return signUp(page, 'Testuesi Rrit')
 }
 async function state(request: APIRequestContext) {
   const response = await request.get('/api/business')
@@ -49,7 +20,7 @@ test('verified business, private content, validation and paginated dashboard', a
 }, testInfo) => {
   test.setTimeout(120000)
   const origin = new URL(baseURL!).origin
-  await verifiedAccount(page.request, origin)
+  await verifiedAccount(page)
   await page.goto('/onboarding')
   await page.getByLabel('Emri i biznesit', { exact: true }).fill('Studio Testi')
   await page.getByLabel('Qyteti', { exact: true }).fill('Prishtinë')
