@@ -65,7 +65,24 @@ jobs:
           nohup node apps/web/.output/server/index.mjs > apps/web/production-server.log 2>&1 &
           echo $! > apps/web/production-server.pid
       - name: Wait for production readiness
-        run: npm exec --workspace apps/web -- wait-on --timeout 120000 --interval 1000 http://127.0.0.1:3000/api/health/ready
+        run: |
+          if npm exec --workspace apps/web -- wait-on --timeout 120000 --interval 1000 http://127.0.0.1:3000/api/health/ready; then
+            exit 0
+          fi
+          echo 'Production readiness timed out. Server diagnostics:'
+          if [ -f apps/web/production-server.pid ]; then
+            server_pid="$(cat apps/web/production-server.pid)"
+            ps -p "$server_pid" -o pid,ppid,stat,cmd || true
+          fi
+          echo 'Readiness response:'
+          curl -i --max-time 10 http://127.0.0.1:3000/api/health/ready || true
+          echo 'Production server log:'
+          if [ -f apps/web/production-server.log ]; then
+            tail -200 apps/web/production-server.log
+          else
+            echo 'production-server.log was not created'
+          fi
+          exit 1
       - run: npm run test:e2e
         env:
           TEST_BASE_URL: http://127.0.0.1:3000
