@@ -80,6 +80,15 @@ jobs:
               exit 1
             fi
           done
+          case "$SUPABASE_KEY" in
+            sb_secret_*)
+              echo 'SUPABASE_KEY must be the publishable/anon key, not a secret service-role key.'
+              exit 1
+              ;;
+          esac
+          curl --fail-with-body --silent --show-error \
+            -H "apikey: $SUPABASE_KEY" \
+            "$SUPABASE_URL/auth/v1/settings" >/dev/null
       - name: Start production server
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}

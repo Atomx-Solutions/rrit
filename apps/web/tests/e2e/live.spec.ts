@@ -161,7 +161,7 @@ test('verified business, private content, validation and paginated dashboard', a
 })
 test('public pages offer real registration with no demonstration routes', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Postimet e tua')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Postime që')
   await expect(page.locator('a[href*="/app/demo"]')).toHaveCount(0)
   await expect(page.getByText(/3 ditë trial falas/).first()).toBeVisible()
   await page.goto('/signup')
