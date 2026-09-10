@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto'
 import {
   assertAffectedRows,
   assertAllowed,
-  assertDenied,
   assertDeniedInSavepoint,
   assertInvisible,
   assertVisibleIds,
