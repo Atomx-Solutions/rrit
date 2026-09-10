@@ -1,4 +1,7 @@
+import { designSystem } from './utils/design-system'
+
 export default defineAppConfig({
+  rrit: { designSystem },
   ui: {
     colors: { primary: 'emerald', neutral: 'zinc' },
     button: {

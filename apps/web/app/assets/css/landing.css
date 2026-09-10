@@ -1,22 +1,22 @@
 /* Landing-only visual system. Controls and cards are provided by Nuxt UI. */
 .landing {
-  --landing-paper: #f7f8f5;
-  --landing-ink: #182722;
-  --landing-muted: #57665e;
-  --landing-line: #d7dfd6;
-  --landing-tint: #edf1e8;
-  --landing-green: #176546;
+  --landing-paper: var(--rrit-color-marketing-canvas);
+  --landing-ink: var(--rrit-color-marketing-text);
+  --landing-muted: var(--rrit-color-marketing-muted);
+  --landing-line: var(--rrit-color-marketing-border);
+  --landing-tint: var(--rrit-color-marketing-tint);
+  --landing-green: var(--rrit-color-marketing-accent);
   background: var(--landing-paper);
   color: var(--landing-ink);
   padding-bottom: 40px;
 }
 .dark .landing {
-  --landing-paper: #12211b;
-  --landing-ink: #edf5e9;
-  --landing-muted: #b0c2b6;
-  --landing-line: #3a5144;
-  --landing-tint: #1e352a;
-  --landing-green: #b8e28e;
+  --landing-paper: var(--rrit-color-marketing-canvas);
+  --landing-ink: var(--rrit-color-marketing-text);
+  --landing-muted: var(--rrit-color-marketing-muted);
+  --landing-line: var(--rrit-color-marketing-border);
+  --landing-tint: var(--rrit-color-marketing-tint);
+  --landing-green: var(--rrit-color-marketing-accent);
 }
 .landing .landing-container {
   max-width: 1220px;
@@ -92,16 +92,16 @@
   margin-top: 30px;
 }
 .landing-primary-button {
-  background: #214d38;
-  color: white;
-  border-radius: 9px;
+  background: var(--rrit-color-marketing-action);
+  color: var(--rrit-color-on-marketing-action);
+  border-radius: var(--rrit-radius-control);
   padding: 14px 21px;
   font-size: 13px;
   font-weight: 600;
   min-height: 47px;
 }
 .landing-primary-button:hover {
-  background: #173a2a;
+  background: var(--rrit-color-marketing-action-hover);
 }
 .landing-smallprint {
   font-size: 11px;

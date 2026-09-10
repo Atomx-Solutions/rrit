@@ -20,6 +20,13 @@ async function expectAccessible(page: Page) {
   )
 }
 
+async function expectReadableInDarkMode(page: Page) {
+  await page.evaluate(() => document.documentElement.classList.add('dark'))
+  await expectAccessible(page)
+  await expectVisibleKeyboardFocus(page)
+  await page.evaluate(() => document.documentElement.classList.remove('dark'))
+}
+
 async function expectVisibleKeyboardFocus(page: Page) {
   await page.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -116,7 +123,7 @@ async function createBusiness(page: Page, origin: string) {
   return (await response.json()) as { id: string; slug: string }
 }
 
-test('landing and authentication pages meet the automated accessibility baseline', async ({
+test('landing and authentication pages meet the light and dark accessibility baseline', async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -126,13 +133,14 @@ test('landing and authentication pages meet the automated accessibility baseline
     await expect(page.locator('main')).toBeVisible()
     await expectAccessible(page)
     await expectVisibleKeyboardFocus(page)
+    await expectReadableInDarkMode(page)
   }
 
   await page.goto('/')
   await expectReducedMotion(page)
 })
 
-test('the authenticated dashboard shell meets the automated accessibility baseline', async ({
+test('the authenticated dashboard shell meets the light and dark accessibility baseline', async ({
   page,
   baseURL,
 }) => {
@@ -143,4 +151,5 @@ test('the authenticated dashboard shell meets the automated accessibility baseli
   await expect(page.locator('main')).toBeVisible()
   await expectAccessible(page)
   await expectVisibleKeyboardFocus(page)
+  await expectReadableInDarkMode(page)
 })
