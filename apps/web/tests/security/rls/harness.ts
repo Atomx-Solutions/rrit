@@ -25,7 +25,7 @@ function databaseUrl() {
   const value = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
   if (!value || !['127.0.0.1', 'localhost'].includes(new URL(value).hostname)) {
     throw new Error(
-      'The optional RLS harness accepts only a local PostgreSQL connection. Use Supabase SQL Editor for manual verification.',
+      'The RLS harness accepts only a local PostgreSQL connection. It never runs migrations against Supabase.',
     )
   }
   return value

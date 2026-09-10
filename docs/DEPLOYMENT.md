@@ -53,6 +53,22 @@ Origin-i publik në `APP_URL` duhet të jetë HTTPS dhe identik me origin-in e p
 
 PÃ«r media storage, `SUPABASE_SERVICE_ROLE_KEY` duhet tÃ« vendoset vetÃ«m nÃ« server secret manager dhe nuk duhet tÃ« ekspozohet nÃ« runtime config publik. `MEDIA_BUCKET` duhet tÃ« jetÃ« `assets`; bucket-i duhet tÃ« mbetet privat.
 
+## Testimi i migration-eve me Supabase-only
+
+Kur nuk ka PostgreSQL lokal, migration-et e reja testohen fillimisht ne nje
+schema te izoluar `migration_test`. Per Brand 0025, rendi i sigurt eshte:
+
+1. Ekzekuto `apps/web/database/migration-tests/0025_brands_isolated.sql` ne SQL Editor.
+2. Ekzekuto `0025_brands_verify.sql` dhe `0025_brands_rls_verify.sql` dhe ruaj rezultatet.
+3. Konfirmo workflow-n CI te gjelber; ai teston migration-et ne PostgreSQL disposable.
+4. Vetem pas ketyre hapave ekzekuto migration runner-in e aprovuar ndaj Supabase-it real.
+
+Skriptet e testit perdorin vetem `migration_test`, fixture-a sintetike dhe
+transaction rollback per testet me shkrim. Ato nuk lexojne ose ndryshojne
+`public.businesses`, `auth.users`, `schema_migrations` ose te dhena reale.
+Mos ekzekuto `npm run db:migrate` nga nje ambient ku `DATABASE_URL` ose
+`MIGRATION_DATABASE_URL` ende tregojne te Supabase, vetem per testim.
+
 ## Provat para release-it
 
 Release-i kërkon workflow-n e hostuar të gjelbër, backup/restore rehearsal, Meta staging me llogari jo-developer, SMTP publik, security review, load/soak dhe UAT. Provat lokale nuk zëvendësojnë këto gate të jashtme.

@@ -41,7 +41,36 @@ export default defineEventHandler(async (event) => {
     const id =
       result.rows[0]?.id ||
       (await client.query('SELECT id FROM businesses WHERE owner_id = $1', [user.id])).rows[0].id
+    await client.query(
+      `INSERT INTO organizations (id, slug, name, created_by)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO NOTHING`,
+      [id, slug, parsed.data.name, user.id],
+    )
     await setTenantContext(client, { userId: user.id, organizationId: id })
+    await client.query(
+      `INSERT INTO organization_memberships (organization_id, user_id, role, brand_scope)
+       VALUES ($1, $2, 'owner', 'ALL_BRANDS')
+       ON CONFLICT (organization_id, user_id) DO NOTHING`,
+      [id, user.id],
+    )
+    await client.query(
+      `INSERT INTO brands (organization_id, slug, name, profile, settings, timezone, locale, category)
+       VALUES ($1, $2, $3, $4, $5, 'Europe/Belgrade', 'sq-XK', $6)
+       ON CONFLICT (organization_id, slug) DO NOTHING`,
+      [
+        id,
+        slug,
+        parsed.data.name,
+        JSON.stringify(state.brand),
+        JSON.stringify({
+          emailApprovals: state.preferences.emailApprovals,
+          emailPublished: state.preferences.emailPublished,
+          emailTips: state.preferences.emailTips,
+        }),
+        parsed.data.industry.trim() || 'general',
+      ],
+    )
     if (result.rows.length) await grantTrial(client, id, user.email, device)
     const business = await loadWorkspace(client, id, user.id)
     await client.query('COMMIT')

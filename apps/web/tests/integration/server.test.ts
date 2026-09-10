@@ -57,6 +57,15 @@ import { retentionPolicy, runRetentionBatch } from '../../server/utils/retention
 import { aiCostConfigured, calculateAiCost } from '../../server/utils/ai-costs'
 import { consumeNextOutbox, enqueueOutbox } from '../../server/utils/outbox'
 import { setTenantContext } from '../../server/utils/database'
+import {
+  archiveBrand,
+  createBrand,
+  deleteArchivedBrand,
+  getBrand,
+  listBrands,
+  updateBrand,
+} from '../../server/utils/brands'
+import { brandCreateSchema } from '../../shared/schemas/brand'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
@@ -242,6 +251,55 @@ describe('tenant row-level security', () => {
       await missingContext.query('ROLLBACK')
     } finally {
       missingContext.release()
+    }
+  })
+})
+
+describe('brand domain lifecycle', () => {
+  it('supports create, read, update, archive and guarded delete', async () => {
+    const item = await business()
+    await pool.query('INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)', [
+      item.id,
+      `brand-org-${item.id.slice(0, 8)}`,
+      'Brand test organization',
+      item.user,
+    ])
+    await pool.query(
+      "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
+      [item.id, item.user],
+    )
+    const input = brandCreateSchema.parse({
+      name: 'Test Brand',
+      slug: 'test-brand',
+      timezone: 'Europe/Tirane',
+      locale: 'sq-XK',
+      category: 'cafe',
+    })
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const created = await createBrand(client, item.id, input)
+      expect(created.organizationId).toBe(item.id)
+      expect((await listBrands(client, item.id)).map((brand) => brand.id)).toContain(created.id)
+      expect((await getBrand(client, item.id, created.id)).name).toBe('Test Brand')
+      expect((await updateBrand(client, item.id, created.id, { name: 'Updated Brand' })).name).toBe(
+        'Updated Brand',
+      )
+      const archived = await archiveBrand(client, item.id, created.id)
+      expect(archived.status).toBe('archived')
+      await expect(updateBrand(client, item.id, created.id, { name: 'Rejected Update' })).rejects.toMatchObject({
+        statusCode: 409,
+      })
+      await expect(deleteArchivedBrand(client, item.id, created.id)).resolves.toEqual({
+        deleted: true,
+        id: created.id,
+      })
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
     }
   })
 })

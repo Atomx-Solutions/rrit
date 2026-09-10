@@ -36,22 +36,42 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
     const postsForB = await harness.asTenant(data.organizationB, (client) =>
       assertAllowed(() => client.query('SELECT id FROM posts ORDER BY id')),
     )
+    const brandsForA = await harness.asTenant(data.organizationA, (client) =>
+      assertAllowed(() => client.query('SELECT id FROM brands ORDER BY id')),
+    )
+    const brandsForB = await harness.asTenant(data.organizationB, (client) =>
+      assertAllowed(() => client.query('SELECT id FROM brands ORDER BY id')),
+    )
 
     assertVisibleIds(postsForA, [data.postAId])
     assertVisibleIds(assetsForA, [data.assetAId])
     assertVisibleIds(postsForB, [data.postBId])
+    assertVisibleIds(brandsForA, [data.brandAId])
+    assertVisibleIds(brandsForB, [data.brandBId])
   })
 
   it('fails closed when app_runtime has no tenant context', async () => {
     await fixtures()
-    const result = await harness.withoutTenantContext((client) =>
-      assertAllowed(() => client.query('SELECT id FROM posts')),
-    )
+    const result = await harness.withoutTenantContext(async (client) => {
+      const posts = await client.query('SELECT id FROM posts')
+      const brands = await client.query('SELECT id FROM brands')
+      return { rowCount: (posts.rowCount || 0) + (brands.rowCount || 0), rows: [] }
+    })
     assertInvisible(result)
   })
 
   it('allows own inserts and denies an INSERT forged for another organization', async () => {
     const data = await fixtures()
+    const ownBrandInsert = await harness.asTenant(data.organizationA, (client) =>
+      assertAllowed(() =>
+        client.query(
+          `INSERT INTO brands(organization_id,slug,name,profile,settings,timezone,locale,category)
+           VALUES($1,$2,$3,'{}','{}','Europe/Tirane','sq-XK','cafe')`,
+          [data.organizationA.organizationId, 'brand-a-second', 'Brand A Second'],
+        ),
+      ),
+    )
+    assertAffectedRows(ownBrandInsert, 1)
     const ownInsert = await harness.asTenant(data.organizationA, (client) =>
       assertAllowed(() =>
         client.query('INSERT INTO posts(id,business_id,payload) VALUES($1,$2,$3)', [
@@ -70,6 +90,13 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
           data.organizationB.organizationId,
           newPostPayload('Forged B insert'),
         ]),
+      )
+      await assertDenied(() =>
+        client.query(
+          `INSERT INTO brands(organization_id,slug,name,profile,settings,timezone,locale,category)
+           VALUES($1,$2,$3,'{}','{}','Europe/Tirane','sq-XK','cafe')`,
+          [data.organizationB.organizationId, 'forged-brand', 'Forged Brand'],
+        ),
       )
     })
   })
@@ -103,7 +130,68 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
           data.postAId,
         ]),
       )
+      await assertDenied(() =>
+        client.query('UPDATE brands SET organization_id=$1 WHERE id=$2', [
+          data.organizationB.organizationId,
+          data.brandAId,
+        ]),
+      )
     })
+  })
+
+  it('allows brand archive/delete only for the owning organization through RLS', async () => {
+    const data = await fixtures()
+    const archivedForA = await harness.asTenant(data.organizationA, (client) =>
+      assertAllowed(() =>
+        client.query("UPDATE brands SET status='archived', archived_at=now() WHERE id=$1", [
+          data.brandAId,
+        ]),
+      ),
+    )
+    const crossDeleteForB = await harness.asTenant(data.organizationB, (client) =>
+      assertAllowed(() => client.query('DELETE FROM brands WHERE id=$1', [data.brandAId])),
+    )
+    const deleteForA = await harness.asTenant(data.organizationA, (client) =>
+      assertAllowed(() => client.query('DELETE FROM brands WHERE id=$1', [data.brandAId])),
+    )
+    assertAffectedRows(archivedForA, 1)
+    assertInvisible(crossDeleteForB)
+    assertAffectedRows(deleteForA, 1)
+  })
+
+  it('limits a restricted member to assigned brands and permits the assigned brand update', async () => {
+    const data = await fixtures()
+    const extraBrandId = randomUUID()
+    const restrictedUserId = randomUUID()
+    await harness.unrestricted.query(
+      'INSERT INTO auth.users (id,email,raw_user_meta_data) VALUES ($1,$2,$3)',
+      [restrictedUserId, `restricted-${restrictedUserId}@example.test`, JSON.stringify({ name: 'Restricted' })],
+    )
+    harness.trackUserId(restrictedUserId)
+    await harness.unrestricted.query(
+      "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'marketer','RESTRICTED')",
+      [data.organizationA.organizationId, restrictedUserId],
+    )
+    await harness.unrestricted.query(
+      `INSERT INTO brands (id,organization_id,slug,name,profile,settings,timezone,locale,category)
+       VALUES ($1,$2,'brand-a-extra','Brand A Extra','{}','{}','Europe/Tirane','sq-XK','cafe')`,
+      [extraBrandId, data.organizationA.organizationId],
+    )
+    await harness.unrestricted.query(
+      'INSERT INTO brand_access (organization_id,brand_id,user_id) VALUES ($1,$2,$3)',
+      [data.organizationA.organizationId, data.brandAId, restrictedUserId],
+    )
+
+    const visible = await harness.asTenant(
+      { organizationId: data.organizationA.organizationId, userId: restrictedUserId },
+      (client) => client.query('SELECT id FROM brands ORDER BY id'),
+    )
+    expect(visible.rows).toEqual([{ id: data.brandAId }])
+    const updated = await harness.asTenant(
+      { organizationId: data.organizationA.organizationId, userId: restrictedUserId },
+      (client) => client.query('UPDATE brands SET name=$1 WHERE id=$2', ['Assigned update', data.brandAId]),
+    )
+    assertAffectedRows(updated, 1)
   })
 
   it('allows own deletes and filters cross-tenant deletes for both organizations', async () => {

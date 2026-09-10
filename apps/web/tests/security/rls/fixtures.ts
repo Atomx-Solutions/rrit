@@ -9,6 +9,8 @@ export type TenantFixture = {
 export type TenantPairFixture = {
   organizationA: TenantFixture
   organizationB: TenantFixture
+  brandAId: string
+  brandBId: string
   postAId: string
   postBId: string
   assetAId: string
@@ -42,6 +44,16 @@ async function createTenant(
     `rls-${label.toLowerCase()}-${organizationId.slice(0, 8)}`,
     JSON.stringify({}),
   ])
+  await pool.query('INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)', [
+    organizationId,
+    `org-${label.toLowerCase()}-${organizationId.slice(0, 8)}`,
+    `Organization ${label}`,
+    userId,
+  ])
+  await pool.query(
+    "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
+    [organizationId, userId],
+  )
   return { organizationId, userId }
 }
 
@@ -53,8 +65,17 @@ export async function seedTenantPair(
   const organizationB = await createTenant(pool, 'B', trackUserId)
   const postAId = randomUUID()
   const postBId = randomUUID()
+  const brandAId = randomUUID()
+  const brandBId = randomUUID()
   const assetAId = randomUUID()
   const assetBId = randomUUID()
+
+  await pool.query(
+    `INSERT INTO brands (id,organization_id,slug,name,profile,settings,timezone,locale,category)
+     VALUES ($1,$2,'brand-a','Brand A','{}','{}','Europe/Tirane','sq-XK','cafe'),
+            ($3,$4,'brand-b','Brand B','{}','{}','Europe/Tirane','sq-XK','cafe')`,
+    [brandAId, organizationA.organizationId, brandBId, organizationB.organizationId],
+  )
 
   await pool.query('INSERT INTO posts (id,business_id,payload) VALUES ($1,$2,$3),($4,$5,$6)', [
     postAId,
@@ -76,7 +97,7 @@ export async function seedTenantPair(
     ],
   )
 
-  return { organizationA, organizationB, postAId, postBId, assetAId, assetBId }
+  return { organizationA, organizationB, brandAId, brandBId, postAId, postBId, assetAId, assetBId }
 }
 
 export function newPostPayload(label: string) {
