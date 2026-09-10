@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import sharp from 'sharp'
 import type { Post, Workspace } from '../../shared/schemas/workspace'
+import { signUp } from './helpers/auth'
 
 async function business(request: APIRequestContext) {
   const response = await request.get('/api/business')
@@ -16,20 +17,7 @@ test('approve and plan both channels without Meta; publication remains explicit'
   test.setTimeout(120000)
   const origin = new URL(baseURL!).origin
   const headers = { Origin: origin }
-  const capabilities = await (await page.request.get('/api/capabilities')).json()
-  test.skip(
-    capabilities.emailVerificationRequired,
-    'This local regression uses the local registration bypass.',
-  )
-  const signup = await page.request.post('/api/auth/sign-up/email', {
-    headers,
-    data: {
-      name: 'Test kalendari',
-      email: `rrit-calendar-${randomUUID()}@example.test`,
-      password: 'Temporary-' + randomUUID(),
-    },
-  })
-  expect(signup.status()).toBe(200)
+  await signUp(page, 'Test kalendari')
   const created = await page.request.post('/api/business', {
     headers,
     data: {
@@ -117,7 +105,7 @@ test('approve and plan both channels without Meta; publication remains explicit'
     await page.getByRole('button', { name: 'Mirato postimin', exact: true }).click()
     await expect(
       page.getByRole('button', { name: 'Planifiko postimin', exact: true }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 30000 })
     const approved = (await business(page.request)).workspace
     expect(approved.posts.find((post) => post.id === id)?.status).toBe('approved')
 

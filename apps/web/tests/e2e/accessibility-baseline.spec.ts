@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { randomUUID } from 'node:crypto'
+import { expect, test, type Page } from '@playwright/test'
+import { signUp } from './helpers/auth'
 
 const publicRoutes = ['/', '/login', '/signup'] as const
 
@@ -87,8 +87,11 @@ async function expectReducedMotion(page: Page) {
   expect(longestDuration).toBeLessThanOrEqual(parseMotionTime('0.01ms'))
 }
 
-async function createBusiness(request: APIRequestContext, origin: string) {
-  const signup = await request.post('/api/auth/sign-up/email', {
+async function createBusiness(page: Page, origin: string) {
+  await signUp(page, 'Kontrolli i aksesueshmÃ«risÃ«')
+  const request = page.request
+  /* Legacy request flow kept as a reference while the test uses the Supabase UI flow.
+  const signup = await request.post('/api/supabase-auth-placeholder', {
     headers: { Origin: origin },
     data: {
       name: 'Kontrolli i aksesueshmërisë',
@@ -97,7 +100,7 @@ async function createBusiness(request: APIRequestContext, origin: string) {
       callbackURL: '/onboarding',
     },
   })
-  expect(signup.status()).toBe(200)
+  expect(signup.status()).toBe(200) */
 
   const response = await request.post('/api/business', {
     headers: { Origin: origin },
@@ -134,7 +137,7 @@ test('the authenticated dashboard shell meets the automated accessibility baseli
   baseURL,
 }) => {
   const origin = new URL(baseURL!).origin
-  const business = await createBusiness(page.request, origin)
+  const business = await createBusiness(page, origin)
 
   await page.goto(`/app/${business.id}/${business.slug}/overview`)
   await expect(page.locator('main')).toBeVisible()

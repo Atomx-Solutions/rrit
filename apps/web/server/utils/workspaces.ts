@@ -11,7 +11,7 @@ export async function loadWorkspace(db: Pool | PoolClient, id: string, owner: st
   const [posts, assets] = await Promise.all([
     db.query('SELECT payload FROM posts WHERE business_id = $1 ORDER BY created_at DESC, id', [id]),
     db.query(
-      'SELECT id, name, tags, rights, octet_length(bytes) AS size FROM assets WHERE business_id = $1 ORDER BY created_at DESC, id',
+      'SELECT id, name, tags, rights, COALESCE(size_bytes, octet_length(bytes))::integer AS size FROM assets WHERE business_id = $1 ORDER BY created_at DESC, id',
       [id],
     ),
   ])

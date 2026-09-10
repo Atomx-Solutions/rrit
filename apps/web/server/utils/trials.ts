@@ -189,7 +189,7 @@ export async function usageSnapshot(
     db.query(
       `SELECT
         (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND created_at>=date_trunc('month',now())) AS posts_per_month,
-        (SELECT COALESCE(sum(octet_length(bytes)),0)::bigint FROM assets WHERE business_id=$1) AS media_storage_bytes,
+        (SELECT COALESCE(sum(COALESCE(size_bytes, octet_length(bytes))),0)::bigint FROM assets WHERE business_id=$1) AS media_storage_bytes,
         (SELECT COALESCE(requests,0)::integer FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date) AS ai_requests_per_day,
         (SELECT CASE WHEN instagram_id IS NOT NULL THEN 2 ELSE 1 END FROM meta_connections WHERE business_id=$1 AND status='connected') AS social_accounts`,
       [businessId],

@@ -58,17 +58,74 @@ jobs:
       - run: npm audit --audit-level=moderate
       - run: npm run db:migrate
       - run: npm run build
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          NUXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NUXT_PUBLIC_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       - run: node apps/web/scripts/bundle-budget.mjs
       - run: npx playwright install --with-deps chromium
+      - name: Validate Supabase E2E configuration
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          NUXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NUXT_PUBLIC_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: |
+          for name in SUPABASE_URL SUPABASE_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_DATABASE_URL; do
+            if [ -z "${!name}" ]; then
+              echo "Missing GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+          case "$SUPABASE_KEY" in
+            sb_secret_*)
+              echo 'SUPABASE_KEY must be the publishable/anon key, not a secret service-role key.'
+              exit 1
+              ;;
+          esac
+          curl --fail-with-body --silent --show-error \
+            -H "apikey: $SUPABASE_KEY" \
+            "$SUPABASE_URL/auth/v1/settings" >/dev/null
       - name: Start production server
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          NUXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NUXT_PUBLIC_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MEDIA_BUCKET: assets
+          MAINTENANCE_ENABLED: 'false'
         run: |
           nohup node apps/web/.output/server/index.mjs > apps/web/production-server.log 2>&1 &
           echo $! > apps/web/production-server.pid
       - name: Wait for production readiness
-        run: npm exec --workspace apps/web -- wait-on --timeout 120000 --interval 1000 http://127.0.0.1:3000/api/health/ready
+        run: |
+          if npm exec --workspace apps/web -- wait-on --timeout 120000 --interval 1000 http-get://127.0.0.1:3000/api/health/ready; then
+            exit 0
+          fi
+          echo 'Production readiness timed out. Server diagnostics:'
+          if [ -f apps/web/production-server.pid ]; then
+            server_pid="$(cat apps/web/production-server.pid)"
+            ps -p "$server_pid" -o pid,ppid,stat,cmd || true
+          fi
+          echo 'Readiness response:'
+          curl -i --max-time 10 http://127.0.0.1:3000/api/health/ready || true
+          echo 'Production server log:'
+          if [ -f apps/web/production-server.log ]; then
+            tail -200 apps/web/production-server.log
+          else
+            echo 'production-server.log was not created'
+          fi
+          exit 1
       - run: npm run test:e2e
         env:
           TEST_BASE_URL: http://127.0.0.1:3000
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Stop production server
         if: always()
         run: |

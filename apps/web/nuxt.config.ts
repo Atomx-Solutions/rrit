@@ -26,8 +26,8 @@ export default defineNuxtConfig({
       apiBase: '',
       // Publishable Supabase credentials are safe to expose to the browser.
       // Domain data access must continue through the server API and Supabase Auth.
-      supabaseUrl: process.env.SUPABASE_URL || '',
-      supabaseKey: process.env.SUPABASE_KEY || '',
+      supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '',
+      supabaseKey: process.env.NUXT_PUBLIC_SUPABASE_KEY || process.env.SUPABASE_KEY || '',
     },
   },
   routeRules: {
