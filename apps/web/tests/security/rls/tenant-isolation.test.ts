@@ -60,6 +60,75 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
     assertInvisible(result)
   })
 
+  it('installs the append-only audit ledger schema and runtime policy', async () => {
+    const definition = await harness.withAdminTransaction(async (client) => {
+      const [columns, constraints, indexes, policies, triggers, functions] = await Promise.all([
+        client.query(
+          `SELECT column_name
+           FROM information_schema.columns
+           WHERE table_schema = current_schema() AND table_name = 'audit_events'
+           ORDER BY column_name`,
+        ),
+        client.query(
+          `SELECT conname
+           FROM pg_constraint
+           WHERE conrelid = 'audit_events'::regclass
+           ORDER BY conname`,
+        ),
+        client.query(
+          `SELECT indexname
+           FROM pg_indexes
+           WHERE schemaname = current_schema() AND tablename = 'audit_events'
+           ORDER BY indexname`,
+        ),
+        client.query(
+          `SELECT policyname, cmd
+           FROM pg_policies
+           WHERE schemaname = current_schema() AND tablename = 'audit_events'`,
+        ),
+        client.query(
+          `SELECT tgname
+           FROM pg_trigger
+           WHERE tgrelid = 'audit_events'::regclass AND NOT tgisinternal`,
+        ),
+        client.query(
+          `SELECT proname
+           FROM pg_proc
+           WHERE pronamespace = 'app'::regnamespace
+             AND proname IN ('record_audit_event', 'audit_metadata_is_safe', 'reject_audit_event_mutation')`,
+        ),
+      ])
+      return { columns, constraints, indexes, policies, triggers, functions }
+    })
+
+    expect(definition.columns.rows.map((row) => row.column_name)).toEqual(expect.arrayContaining([
+      'actor_id',
+      'organization_id',
+      'resource_type',
+      'resource_id',
+      'action',
+      'result',
+      'metadata',
+    ]))
+    expect(definition.constraints.rows.map((row) => row.conname)).toEqual(expect.arrayContaining([
+      'audit_events_business_id_fkey',
+      'audit_events_organization_id_fkey',
+      'audit_events_result_check',
+      'audit_events_metadata_safe_check',
+    ]))
+    expect(definition.indexes.rows.map((row) => row.indexname)).toEqual(expect.arrayContaining([
+      'audit_events_organization_created',
+      'audit_events_resource_created',
+    ]))
+    expect(definition.policies.rows).toEqual([{ policyname: 'audit_events_read_own', cmd: 'SELECT' }])
+    expect(definition.triggers.rows).toEqual([{ tgname: 'audit_events_append_only' }])
+    expect(definition.functions.rows.map((row) => row.proname)).toEqual(expect.arrayContaining([
+      'record_audit_event',
+      'audit_metadata_is_safe',
+      'reject_audit_event_mutation',
+    ]))
+  })
+
   it('allows own inserts and denies an INSERT forged for another organization', async () => {
     const data = await fixtures()
     const ownBrandInsert = await harness.asTenant(data.organizationA, (client) =>
@@ -157,6 +226,95 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
     assertAffectedRows(archivedForA, 1)
     assertInvisible(crossDeleteForB)
     assertAffectedRows(deleteForA, 1)
+  })
+
+  it('keeps audit events append-only and tenant-isolated', async () => {
+    const data = await fixtures()
+    const event = await harness.asTenant(data.organizationA, (client) =>
+      client.query(
+        `SELECT app.record_audit_event($1,$2,$3,$4,$5,$6,$7,$8,$9) AS id`,
+        [
+          data.organizationA.userId,
+          data.organizationA.organizationId,
+          data.organizationA.organizationId,
+          'brand',
+          data.brandAId,
+          'brand.archived',
+          'succeeded',
+          JSON.stringify({ source: 'rls_test' }),
+          3,
+        ],
+      ),
+    )
+    const eventId = event.rows[0]!.id as string
+
+    const ownEvent = await harness.asTenant(data.organizationA, (client) =>
+      client.query(
+        'SELECT id,actor_id,organization_id,resource_type,resource_id,action,result,metadata FROM audit_events WHERE id=$1',
+        [eventId],
+      ),
+    )
+    expect(ownEvent.rows).toEqual([
+      expect.objectContaining({
+        id: eventId,
+        actor_id: data.organizationA.userId,
+        organization_id: data.organizationA.organizationId,
+        resource_type: 'brand',
+        resource_id: data.brandAId,
+        action: 'brand.archived',
+        result: 'succeeded',
+        metadata: { source: 'rls_test' },
+      }),
+    ])
+
+    const crossTenantEvent = await harness.asTenant(data.organizationB, (client) =>
+      client.query('SELECT id FROM audit_events WHERE id=$1', [eventId]),
+    )
+    assertInvisible(crossTenantEvent)
+
+    await harness.asTenant(data.organizationA, async (client) => {
+      await assertDenied(() =>
+        client.query(
+          `INSERT INTO audit_events
+            (business_id,actor_id,action,revision,organization_id,resource_type,resource_id,result,metadata)
+           VALUES ($1,$2,'brand.created',0,$1,'brand',$3,'succeeded','{}')`,
+          [data.organizationA.organizationId, data.organizationA.userId, data.brandAId],
+        ),
+      )
+      await assertDenied(() => client.query("UPDATE audit_events SET action='brand.updated' WHERE id=$1", [eventId]))
+      await assertDenied(() => client.query('DELETE FROM audit_events WHERE id=$1', [eventId]))
+      await assertDenied(() =>
+        client.query(
+          'SELECT app.record_audit_event($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+          [
+            data.organizationA.userId,
+            data.organizationA.organizationId,
+            data.organizationA.organizationId,
+            'brand',
+            data.brandAId,
+            'brand.updated',
+            'succeeded',
+            JSON.stringify({ accessToken: 'forbidden' }),
+            3,
+          ],
+        ),
+        '23514',
+      )
+    })
+
+    await expect(
+      harness.withAdminTransaction((client) =>
+        client.query("UPDATE audit_events SET action='brand.updated' WHERE id=$1", [eventId]),
+      ),
+    ).rejects.toMatchObject({ code: '55000' })
+    await expect(
+      harness.withAdminTransaction((client) => client.query('DELETE FROM audit_events WHERE id=$1', [eventId])),
+    ).rejects.toMatchObject({ code: '55000' })
+
+    const unchanged = await harness.asTenant(data.organizationA, (client) =>
+      client.query('SELECT action,result,metadata FROM audit_events WHERE id=$1', [eventId]),
+    )
+    expect(unchanged.rows).toEqual([{ action: 'brand.archived', result: 'succeeded', metadata: { source: 'rls_test' } }])
   })
 
   it('limits a restricted member to assigned brands and permits the assigned brand update', async () => {

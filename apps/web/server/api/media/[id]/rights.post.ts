@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { postSchema } from '../../../../shared/schemas/workspace'
+import { recordAuditEvent, transitionMetadata } from '../../../utils/audit'
 import { postContentVersion, postFingerprint } from '../../../utils/post-validation'
 
 export default defineEventHandler(async (event) => {
@@ -52,6 +53,7 @@ export default defineEventHandler(async (event) => {
     for (const row of rows.rows) {
       const post = postSchema.parse(row.payload)
       if (!inFlight.has(post.id)) {
+        const previousStatus = post.status
         post.status = 'draft'
         post.scheduledAt = null
         post.publicationMode = 'manual'
@@ -73,6 +75,18 @@ export default defineEventHandler(async (event) => {
             user.id,
           ],
         )
+        await recordAuditEvent(client, {
+          actorId: user.id,
+          organizationId: business.id,
+          resourceType: 'post',
+          resourceId: post.id,
+          action: 'approval.reopened',
+          metadata: {
+            ...transitionMetadata({ status: [previousStatus, post.status] }),
+            contentVersion: postContentVersion(post),
+            reason: 'rights_withdrawn',
+          },
+        })
       }
     }
     await client.query('UPDATE assets SET rights=false WHERE id=$1 AND business_id=$2', [
@@ -80,10 +94,17 @@ export default defineEventHandler(async (event) => {
       business.id,
     ])
     await client.query('UPDATE businesses SET revision=revision+1 WHERE id=$1', [business.id])
-    await client.query(
-      "INSERT INTO audit_events(business_id,actor_id,action,revision) SELECT id,$2,'media.rights_withdrawn',revision FROM businesses WHERE id=$1",
-      [business.id, user.id],
-    )
+    await recordAuditEvent(client, {
+      actorId: user.id,
+      organizationId: business.id,
+      resourceType: 'asset',
+      resourceId: id.data,
+      action: 'media.rights_withdrawn',
+      metadata: {
+        ...transitionMetadata({ rights: [Boolean(asset.rows[0].rights), false] }),
+        affectedPosts: rows.rowCount || 0,
+      },
+    })
     await client.query('COMMIT')
     return { withdrawn: true, affectedPosts: rows.rowCount || 0, inFlight: inFlight.size }
   } catch (error) {

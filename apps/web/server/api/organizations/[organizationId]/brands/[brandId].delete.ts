@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { deleteArchivedBrand, requireOrganizationManager, withOrganizationTransaction } from '../../../../utils/brands'
+import { recordAuditEvent, transitionMetadata } from '../../../../utils/audit'
+import { deleteArchivedBrand, getBrand, requireOrganizationManager, withOrganizationTransaction } from '../../../../utils/brands'
 
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -10,6 +11,22 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
   return withOrganizationTransaction(user.id, organizationId.data, async (client) => {
     await requireOrganizationManager(client, user.id, organizationId.data)
-    return deleteArchivedBrand(client, organizationId.data, brandId.data)
+    const previous = await getBrand(client, organizationId.data, brandId.data)
+    const result = await deleteArchivedBrand(client, organizationId.data, brandId.data)
+    await recordAuditEvent(client, {
+      actorId: user.id,
+      organizationId: organizationId.data,
+      resourceType: 'brand',
+      resourceId: brandId.data,
+      action: 'brand.deleted',
+      metadata: transitionMetadata({
+        status: [previous.status, 'deleted'],
+        name: [previous.name, null],
+        slug: [previous.slug, null],
+        city: [previous.profile.city, null],
+        industry: [previous.profile.industry, null],
+      }),
+    })
+    return result
   })
 })

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { recordAuditEvent, transitionMetadata } from '../../../utils/audit'
 import { requireOrganizationManager, withOrganizationTransaction } from '../../../utils/brands'
 
 const schema = z.object({
@@ -17,17 +18,24 @@ export default defineEventHandler(async (event) => {
   try {
     return await withOrganizationTransaction(user.id, organizationId.data, async (client) => {
       await requireOrganizationManager(client, user.id, organizationId.data)
-      if (parsed.data.enabled) {
-        await client.query(
+      const changed = parsed.data.enabled
+        ? Boolean((await client.query(
           'INSERT INTO brand_access (organization_id,brand_id,user_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
           [organizationId.data, parsed.data.brandId, parsed.data.userId],
-        )
-      } else {
-        await client.query(
+        )).rowCount)
+        : Boolean((await client.query(
           'DELETE FROM brand_access WHERE organization_id=$1 AND brand_id=$2 AND user_id=$3',
           [organizationId.data, parsed.data.brandId, parsed.data.userId],
-        )
-      }
+        )).rowCount)
+      if (changed)
+        await recordAuditEvent(client, {
+          actorId: user.id,
+          organizationId: organizationId.data,
+          resourceType: 'brand_access',
+          resourceId: `${parsed.data.brandId}:${parsed.data.userId}`,
+          action: parsed.data.enabled ? 'brand_access.granted' : 'brand_access.revoked',
+          metadata: transitionMetadata({ enabled: [!parsed.data.enabled, parsed.data.enabled] }),
+        })
       return { organizationId: organizationId.data, ...parsed.data }
     })
   } catch (error) {

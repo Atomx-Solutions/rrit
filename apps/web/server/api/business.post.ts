@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { emptyWorkspace } from '../../shared/utils/empty-workspace'
+import { recordAuditEvent, transitionMetadata } from '../utils/audit'
 import { setTenantContext, setUserContext } from '../utils/database'
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -54,10 +55,11 @@ export default defineEventHandler(async (event) => {
        ON CONFLICT (organization_id, user_id) DO NOTHING`,
       [id, user.id],
     )
-    await client.query(
+    const initialBrand = await client.query<{ id: string }>(
       `INSERT INTO brands (organization_id, slug, name, profile, settings, timezone, locale, category)
        VALUES ($1, $2, $3, $4, $5, 'Europe/Belgrade', 'sq-XK', $6)
-       ON CONFLICT (organization_id, slug) DO NOTHING`,
+       ON CONFLICT (organization_id, slug) DO NOTHING
+       RETURNING id`,
       [
         id,
         slug,
@@ -71,7 +73,48 @@ export default defineEventHandler(async (event) => {
         parsed.data.industry.trim() || 'general',
       ],
     )
-    if (result.rows.length) await grantTrial(client, id, user.email, device)
+    if (result.rows.length) {
+      await recordAuditEvent(client, {
+        actorId: user.id,
+        organizationId: id,
+        resourceType: 'organization',
+        resourceId: id,
+        action: 'organization.created',
+        metadata: transitionMetadata({
+          status: ['absent', 'active'],
+          name: [null, parsed.data.name],
+          slug: [null, slug],
+        }),
+      })
+      await recordAuditEvent(client, {
+        actorId: user.id,
+        organizationId: id,
+        resourceType: 'membership',
+        resourceId: `${id}:${user.id}`,
+        action: 'membership.owner_granted',
+        metadata: transitionMetadata({
+          membership_status: ['absent', 'active'],
+          role: [null, 'owner'],
+          brand_scope: [null, 'ALL_BRANDS'],
+        }),
+      })
+      if (initialBrand.rows[0])
+        await recordAuditEvent(client, {
+          actorId: user.id,
+          organizationId: id,
+          resourceType: 'brand',
+          resourceId: initialBrand.rows[0].id,
+          action: 'brand.created',
+          metadata: transitionMetadata({
+            status: [null, 'active'],
+            name: [null, parsed.data.name],
+            slug: [null, slug],
+            city: [null, parsed.data.city],
+            industry: [null, parsed.data.industry],
+          }),
+        })
+      await grantTrial(client, id, user.email, device)
+    }
     const business = await loadWorkspace(client, id, user.id)
     await client.query('COMMIT')
     setResponseStatus(event, 201)
