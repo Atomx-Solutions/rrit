@@ -1,8 +1,14 @@
+import { recordAuditEvent, transitionMetadata } from '../../utils/audit'
+
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
   return withBusinessTransaction(user.id, async (client, business) => {
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
+    const connection = await client.query<{ id: string; status: string; page_id: string | null; instagram_id: string | null }>(
+      'SELECT id,status,page_id,instagram_id FROM meta_connections WHERE business_id=$1 FOR UPDATE',
+      [business.id],
+    )
     const running = await client.query(
       "SELECT id FROM publication_jobs WHERE business_id=$1 AND status='processing' LIMIT 1",
       [business.id],
@@ -27,6 +33,18 @@ export default defineEventHandler(async (event) => {
       [business.id],
     )
     await client.query('UPDATE businesses SET revision=revision+1 WHERE id=$1', [business.id])
+    await recordAuditEvent(client, {
+      actorId: user.id,
+      organizationId: business.id,
+      resourceType: 'meta_connection',
+      resourceId: connection.rows[0]?.id || business.id,
+      action: 'meta.disconnected',
+      metadata: transitionMetadata({
+        status: [connection.rows[0]?.status || 'not_connected', 'disconnected'],
+        page_id: [connection.rows[0]?.page_id || null, null],
+        instagram_id: [connection.rows[0]?.instagram_id || null, null],
+      }),
+    })
     return { disconnected: true }
   })
 })

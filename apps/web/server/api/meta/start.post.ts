@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { recordAuditEvent, transitionMetadata } from '../../utils/audit'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
@@ -17,6 +18,17 @@ export default defineEventHandler(async (event) => {
         input.onboarding ? '/onboarding' : `/app/${business.id}/${business.slug}/social-posts`,
       ],
     )
+    await recordAuditEvent(client, {
+      actorId: user.id,
+      organizationId: business.id,
+      resourceType: 'meta_connection',
+      resourceId: business.id,
+      action: 'meta.authorization_started',
+      metadata: {
+        ...transitionMetadata({ authorization_status: ['absent', 'pending'] }),
+        onboarding: input.onboarding === true,
+      },
+    })
     return business
   })
   setCookie(event, 'rrit-meta-state', state, {

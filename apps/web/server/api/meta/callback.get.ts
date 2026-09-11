@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
+import { recordAuditEvent, transitionMetadata } from '../../utils/audit'
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const state = typeof query.state === 'string' ? query.state : ''
@@ -21,15 +22,39 @@ export default defineEventHandler(async (event) => {
       message: 'Kjo lidhje autorizimi nuk mund të përdoret përsëri.',
     })
   const { business_id: businessId, return_path: returnPath } = stored.rows[0]
-  if (query.error || typeof query.code !== 'string')
+  async function recordAuthorizationResult(
+    result: 'succeeded' | 'failed' | 'denied' | 'cancelled',
+    reason?: string,
+  ) {
+    await withUserTransaction(user.id, async (client) => {
+      await setTenantContext(client, { userId: user.id, organizationId: businessId })
+      await recordAuditEvent(client, {
+        actorId: user.id,
+        organizationId: businessId,
+        resourceType: 'meta_connection',
+        resourceId: businessId,
+        action: 'meta.authorization_received',
+        result,
+        metadata: {
+          ...transitionMetadata({ authorization_status: ['pending', result] }),
+          ...(reason ? { reason } : {}),
+        },
+      })
+    })
+  }
+  if (query.error || typeof query.code !== 'string') {
+    await recordAuthorizationResult('cancelled', 'provider_cancelled')
     return sendRedirect(event, `${returnPath}?meta=cancelled`)
+  }
   try {
     const token = await exchangeMetaCode(query.code)
     if (
       !token.scopes.includes('pages_show_list') ||
       !token.scopes.includes('pages_read_engagement')
-    )
+    ) {
+      await recordAuthorizationResult('denied', 'required_scopes_missing')
       return sendRedirect(event, `${returnPath}?meta=permissions`)
+    }
     await withUserTransaction(user.id, async (client) => {
       await setTenantContext(client, { userId: user.id, organizationId: businessId })
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [businessId])
@@ -59,9 +84,24 @@ export default defineEventHandler(async (event) => {
           JSON.stringify(token.scopes),
         ],
       )
+      await recordAuditEvent(client, {
+        actorId: user.id,
+        organizationId: businessId,
+        resourceType: 'meta_connection',
+        resourceId: businessId,
+        action: 'meta.authorization_received',
+        metadata: {
+          ...transitionMetadata({
+            authorization_status: ['pending', 'received'],
+            connection_status: ['absent', 'pending'],
+          }),
+          scopeCount: token.scopes.length,
+        },
+      })
     })
     return sendRedirect(event, `${returnPath}?meta=select`)
   } catch {
+    await recordAuthorizationResult('failed', 'exchange_or_connection_failed')
     return sendRedirect(event, `${returnPath}?meta=failed`)
   }
 })

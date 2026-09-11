@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { workspaceSchema, validateTransition, type Post } from '../../../shared/schemas/workspace'
+import { recordAuditEvent, transitionMetadata, workspaceAuditMetadata } from '../../utils/audit'
 import {
   postContentSnapshot,
   postContentVersion,
@@ -85,6 +86,7 @@ export default defineEventHandler(async (event) => {
         message: 'Ka ndryshime nga një pajisje tjetër. Ngarko versionin e fundit.',
       })
     const { workspace: current } = await loadWorkspace(client, id.data, user.id)
+    const auditMetadata = workspaceAuditMetadata(current, input)
     if (uploads.length)
       await requireQuota(
         id.data,
@@ -199,6 +201,8 @@ export default defineEventHandler(async (event) => {
       const candidate = { ...incoming, image: images.get(incoming.image) || incoming.image }
       let contentChanged = !previous
       let approvalDecision: 'approved' | 'reopened' | null = null
+      let removedFromCalendar = false
+      let scheduledOnCalendar = false
       if (!candidate.caption.trim() || !allowedImages.has(candidate.image))
         fail('Plotëso tekstin dhe zgjidh një fotografi me të drejta të konfirmuara.')
       let post: Post
@@ -234,6 +238,8 @@ export default defineEventHandler(async (event) => {
           if (candidate.status === 'approved' && previous.status !== 'scheduled')
             await requireFreshValidation(previous, id.data, client)
           if (candidate.status === 'approved') approvalDecision = 'approved'
+          removedFromCalendar = previous.status === 'scheduled' && candidate.status === 'approved'
+          scheduledOnCalendar = previous.status !== 'scheduled' && candidate.status === 'scheduled'
           if (
             candidate.status === 'draft' &&
             ['approved', 'failed'].includes(previous.status)
@@ -350,6 +356,45 @@ export default defineEventHandler(async (event) => {
             approvalDecision,
           ],
         )
+        await recordAuditEvent(client, {
+          actorId: user.id,
+          organizationId: id.data,
+          resourceType: 'post',
+          resourceId: post.id,
+          action: `approval.${approvalDecision}`,
+          metadata: {
+            ...transitionMetadata({ status: [previous!.status, post.status] }),
+            contentVersion: postContentVersion(post),
+          },
+        })
+      }
+      if (removedFromCalendar) {
+        await recordAuditEvent(client, {
+          actorId: user.id,
+          organizationId: id.data,
+          resourceType: 'post',
+          resourceId: post.id,
+          action: 'post.unscheduled',
+          revision: input.revision,
+          metadata: transitionMetadata({
+            status: [previous!.status, post.status],
+            scheduled_at: [previous!.scheduledAt, post.scheduledAt],
+          }),
+        })
+      }
+      if (scheduledOnCalendar) {
+        await recordAuditEvent(client, {
+          actorId: user.id,
+          organizationId: id.data,
+          resourceType: 'post',
+          resourceId: post.id,
+          action: 'post.scheduled',
+          revision: input.revision,
+          metadata: transitionMetadata({
+            status: [previous!.status, post.status],
+            scheduled_at: [previous!.scheduledAt, post.scheduledAt],
+          }),
+        })
       }
       if (
         post.status === 'scheduled' &&
@@ -384,10 +429,16 @@ export default defineEventHandler(async (event) => {
       'UPDATE businesses SET state = $1, revision = $2, updated_at = now() WHERE id = $3 AND owner_id = $4',
       [JSON.stringify(state), input.revision, id.data, user.id],
     )
-    await client.query(
-      "INSERT INTO audit_events (business_id, actor_id, action, revision) VALUES ($1,$2,'workspace.updated',$3)",
-      [id.data, user.id, input.revision],
-    )
+    if (Object.keys(auditMetadata).length)
+      await recordAuditEvent(client, {
+        actorId: user.id,
+        organizationId: id.data,
+        resourceType: 'workspace',
+        resourceId: id.data,
+        action: 'workspace.updated',
+        revision: input.revision,
+        metadata: auditMetadata,
+      })
     const result = await loadWorkspace(client, id.data, user.id)
     await client.query('COMMIT')
     for (const storagePath of removedStoragePaths) {

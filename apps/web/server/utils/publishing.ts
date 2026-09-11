@@ -1,6 +1,8 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
 import { postSchema, type Post } from '../../shared/schemas/workspace'
+import { recordAuditEvent, transitionMetadata } from './audit'
+import { setTenantContext } from './database'
 import {
   localPostChecks,
   postContentVersion,
@@ -353,7 +355,11 @@ async function finishJob(
   const client = (ownsTransaction ? await db.connect() : db) as PoolClient
   try {
     if (ownsTransaction) await client.query('BEGIN')
-    await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [job.business_id])
+    const business = await client.query<{ owner_id: string }>(
+      'SELECT owner_id FROM businesses WHERE id=$1 FOR UPDATE',
+      [job.business_id],
+    )
+    if (!business.rows[0]) throw new Error('Publication business was not found.')
     const updated = await client.query(
       "UPDATE publication_jobs SET status=$1,failure_code=$2,provider_post_id=COALESCE($3,provider_post_id),locked_at=null,last_attempt_at=now(),updated_at=now() WHERE id=$4 AND status IN ('processing','uncertain') RETURNING id",
       [state, code, providerId || null, job.id],
@@ -369,6 +375,7 @@ async function finishJob(
     )
     if (row.rows[0]?.payload.version === job.post_version) {
       const post = postSchema.parse(row.rows[0].payload)
+      const previousStatus = post.status
       post.status = state === 'published' ? 'published' : 'failed'
       post.policyReason =
         state === 'published'
@@ -384,11 +391,27 @@ async function finishJob(
         JSON.stringify(post),
         post.id,
       ])
-      await client.query('UPDATE businesses SET revision=revision+1 WHERE id=$1', [job.business_id])
-      await client.query(
-        'INSERT INTO audit_events (business_id,actor_id,action,revision) SELECT id,owner_id,$2,revision FROM businesses WHERE id=$1',
-        [job.business_id, `publication.${state}`],
+      const revision = await client.query<{ revision: number }>(
+        'UPDATE businesses SET revision=revision+1 WHERE id=$1 RETURNING revision',
+        [job.business_id],
       )
+      await setTenantContext(client, {
+        userId: business.rows[0].owner_id,
+        organizationId: job.business_id,
+      })
+      await recordAuditEvent(client, {
+        actorId: business.rows[0].owner_id,
+        organizationId: job.business_id,
+        resourceType: 'post',
+        resourceId: job.post_id,
+        action: `publication.${state}`,
+        result: state === 'published' ? 'succeeded' : 'failed',
+        metadata: {
+          ...transitionMetadata({ status: [previousStatus, post.status] }),
+          jobId: job.id,
+        },
+        revision: revision.rows[0]?.revision || 0,
+      })
     }
     if (ownsTransaction) await client.query('COMMIT')
   } catch (error) {

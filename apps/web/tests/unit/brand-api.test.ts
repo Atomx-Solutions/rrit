@@ -4,6 +4,24 @@ import { randomUUID } from 'node:crypto'
 const userId = randomUUID()
 const organizationId = randomUUID()
 const brandId = randomUUID()
+const brand = {
+  id: brandId,
+  organizationId,
+  slug: 'brand-a',
+  name: 'Brand A',
+  profile: {
+    description: '', voice: '', audience: '', industry: 'cafe', city: 'Prishtinë', color: '#137d59',
+    facebookUrl: '', instagramUrl: '', facts: [],
+  },
+  settings: { emailApprovals: true, emailPublished: true, emailTips: false },
+  timezone: 'Europe/Tirane',
+  locale: 'sq-XK',
+  category: 'cafe',
+  status: 'active',
+  archivedAt: null,
+  createdAt: '2026-09-10T00:00:00.000Z',
+  updatedAt: '2026-09-10T00:00:00.000Z',
+}
 const client = { query: vi.fn() }
 const withOrganizationTransaction = vi.fn(async (_userId: string, _organizationId: string, work: (client: typeof client) => Promise<unknown>) =>
   work(client),
@@ -15,6 +33,9 @@ const updateBrand = vi.fn()
 const archiveBrand = vi.fn()
 const deleteArchivedBrand = vi.fn()
 const requireOrganizationManager = vi.fn()
+const recordAuditEvent = vi.fn()
+const transitionMetadata = vi.fn(() => ({}))
+const brandAuditMetadata = vi.fn(() => ({}))
 
 vi.mock('../../server/utils/brands', () => ({
   withOrganizationTransaction,
@@ -25,6 +46,12 @@ vi.mock('../../server/utils/brands', () => ({
   archiveBrand,
   deleteArchivedBrand,
   requireOrganizationManager,
+}))
+
+vi.mock('../../server/utils/audit', () => ({
+  recordAuditEvent,
+  transitionMetadata,
+  brandAuditMetadata,
 }))
 
 function setupGlobals() {
@@ -68,7 +95,7 @@ describe('Brand HTTP API handlers', () => {
   })
 
   it('passes the authenticated user and organization scope to create and returns 201', async () => {
-    const created = { id: brandId, organizationId, slug: 'brand-a' }
+    const created = brand
     createBrand.mockResolvedValue(created)
     const setResponseStatus = globalThis.setResponseStatus as ReturnType<typeof vi.fn>
     const { default: handler } = await import('../../server/api/organizations/[organizationId]/brands/index.post')
@@ -88,12 +115,19 @@ describe('Brand HTTP API handlers', () => {
     expect(createBrand).toHaveBeenCalledWith(client, organizationId, expect.objectContaining({
       timezone: 'Europe/Tirane',
     }))
+    expect(recordAuditEvent).toHaveBeenCalledWith(client, expect.objectContaining({
+      actorId: userId,
+      organizationId,
+      resourceType: 'brand',
+      resourceId: brandId,
+      action: 'brand.created',
+    }))
     expect(setResponseStatus).toHaveBeenCalledWith(expect.anything(), 201)
   })
 
   it('keeps reads and writes scoped by both organizationId and brandId', async () => {
-    getBrand.mockResolvedValue({ id: brandId, organizationId })
-    updateBrand.mockResolvedValue({ id: brandId, organizationId, name: 'Updated' })
+    getBrand.mockResolvedValue(brand)
+    updateBrand.mockResolvedValue({ ...brand, name: 'Updated' })
     const { default: getHandler } = await import('../../server/api/organizations/[organizationId]/brands/[brandId].get')
     const { default: updateHandler } = await import('../../server/api/organizations/[organizationId]/brands/[brandId].put')
 
@@ -112,7 +146,8 @@ describe('Brand HTTP API handlers', () => {
   })
 
   it('requires manager authorization for archive and physical delete', async () => {
-    archiveBrand.mockResolvedValue({ id: brandId, status: 'archived' })
+    archiveBrand.mockResolvedValue({ ...brand, status: 'archived' })
+    getBrand.mockResolvedValue({ ...brand, status: 'archived' })
     deleteArchivedBrand.mockResolvedValue({ deleted: true, id: brandId })
     const { default: archiveHandler } = await import('../../server/api/organizations/[organizationId]/brands/[brandId]/archive.post')
     const { default: deleteHandler } = await import('../../server/api/organizations/[organizationId]/brands/[brandId].delete')

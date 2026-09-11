@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { MetaPage } from '../../utils/meta'
+import { recordAuditEvent, transitionMetadata } from '../../utils/audit'
 import { reconnectionMatchesTargets } from '../../utils/publishing'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -14,7 +15,7 @@ export default defineEventHandler(async (event) => {
     if (currentBusiness.id !== business.id)
       throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Rifillo zgjedhjen e faqes.' })
     return client.query(
-    "SELECT token_ciphertext,page_id,instagram_id FROM meta_connections WHERE business_id=$1 AND status IN ('pending','connected') AND expires_at>now()",
+    "SELECT token_ciphertext,status,page_id,instagram_id FROM meta_connections WHERE business_id=$1 AND status IN ('pending','connected') AND expires_at>now()",
     [business.id],
     )
   })
@@ -99,6 +100,23 @@ export default defineEventHandler(async (event) => {
         business.id,
       ],
     )
+    await recordAuditEvent(client, {
+      actorId: user.id,
+      organizationId: business.id,
+      resourceType: 'meta_connection',
+      resourceId: locked.rows[0].id as string,
+      action: 'meta.connected',
+      metadata: {
+        ...transitionMetadata({
+          status: [stored.rows[0].status as string, 'connected'],
+          page_id: [(stored.rows[0].page_id as string | null) || null, page.id],
+          instagram_id: [
+            (stored.rows[0].instagram_id as string | null) || null,
+            page.instagram_business_account?.id || null,
+          ],
+        }),
+      },
+    })
     await client.query(
       "DELETE FROM social_posts WHERE business_id=$1 AND NOT ((channel='Facebook' AND source_account_id=$2) OR (channel='Instagram' AND source_account_id=$3))",
       [business.id, page.id, page.instagram_business_account?.id || ''],
