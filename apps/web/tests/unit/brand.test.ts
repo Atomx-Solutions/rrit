@@ -28,6 +28,7 @@ describe('brand domain contract', () => {
       ...validBrand,
       id: '00000000-0000-4000-8000-000000000001',
       organizationId: '00000000-0000-4000-8000-000000000002',
+      revision: 1,
       status: 'archived',
       archivedAt: '2026-09-10T10:00:00.000Z',
       createdAt: '2026-09-10T09:00:00.000Z',

@@ -9,6 +9,7 @@ const { form, clear, recovered, localError } = useDraft(
 )
 const baseline = ref(JSON.stringify(form))
 const saved = ref(false)
+const formError = ref('')
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
 const schema = z.object({
   name: z.string().min(2, 'Vendos emrin e biznesit.'),
@@ -16,8 +17,23 @@ const schema = z.object({
   description: z.string().min(10, 'Trego shkurt çfarë ofron biznesi.'),
   voice: z.string(),
   audience: z.string(),
+  industry: z.string().max(200),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i, 'Zgjidh një ngjyrë valide.'),
+  facebookUrl: z.string().refine((value) => !value || URL.canParse(value), 'Vendos një URL valide.'),
+  instagramUrl: z.string().refine((value) => !value || URL.canParse(value), 'Vendos një URL valide.'),
+  goals: z.array(z.string().trim().min(2, 'Qëllimi duhet të ketë të paktën 2 karaktere.').max(120)).max(10),
+  facts: z.array(
+    z.object({
+      id: z.string().min(1),
+      text: z.string().max(1000),
+      source: z.string().max(500),
+      verified: z.boolean(),
+    }),
+  ).max(100),
+  status: z.enum(['active', 'archived']),
 })
 async function save() {
+  formError.value = ''
   const snapshot = structuredClone(toRaw(form))
   if (
     await commit((d) => {
@@ -28,7 +44,15 @@ async function save() {
     baseline.value = JSON.stringify(snapshot)
     saved.value = true
     notify('Identiteti i biznesit u ruajt')
+  } else {
+    formError.value = 'Ndryshimet nuk u ruajtën. Kontrollo gabimin ose ngarko versionin e fundit.'
   }
+}
+function addGoal() {
+  if (form.goals.length < 10) form.goals.push('')
+}
+function removeGoal(index: number) {
+  form.goals.splice(index, 1)
 }
 function addFact() {
   form.facts.push({
@@ -38,6 +62,17 @@ function addFact() {
     verified: false,
   })
 }
+onBeforeRouteLeave(() => {
+  if (!dirty.value || syncing.value) return true
+  return window.confirm('Ke ndryshime të paruajtura. A dëshiron të largohesh?')
+})
+function beforeUnload(event: BeforeUnloadEvent) {
+  if (!dirty.value || syncing.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+onMounted(() => window.addEventListener('beforeunload', beforeUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 </script>
 <template>
   <DashboardPage
@@ -45,6 +80,7 @@ function addFact() {
     description="Sa më mirë ta njohim biznesin, aq më natyrshëm mund të flasin postimet për të."
   >
     <UAlert v-if="localError" color="warning" variant="outline" :title="localError" />
+    <UAlert v-else-if="formError" color="error" variant="outline" :title="formError" />
     <UAlert
       v-else-if="recovered"
       color="neutral"
@@ -97,7 +133,48 @@ function addFact() {
               maxlength="1000"
               class="w-full"
               placeholder="P.sh. Njerëzit e lagjes dhe ata që punojnë afër nesh." /></UFormField
-          ><UAccordion
+          ><div class="grid sm:grid-cols-2 gap-5">
+            <UFormField label="Ngjyra e brandit" name="color"
+              ><UInput v-model="form.color" type="color" class="w-full h-10" /></UFormField
+            ><UFormField label="Statusi" name="status"
+              ><USelect
+                v-model="form.status"
+                :items="[
+                  { label: 'Aktiv', value: 'active' },
+                  { label: 'I arkivuar', value: 'archived' },
+                ]"
+              /></UFormField>
+          </div>
+          <UFormField label="Lidhjet sociale" description="Opsionale; mund t'i shtosh edhe më vonë.">
+            <div class="grid sm:grid-cols-2 gap-5">
+              <UFormField name="facebookUrl">
+                <UInput v-model="form.facebookUrl" aria-label="Facebook URL" placeholder="https://facebook.com/..." />
+              </UFormField>
+              <UFormField name="instagramUrl">
+                <UInput v-model="form.instagramUrl" aria-label="Instagram URL" placeholder="https://instagram.com/..." />
+              </UFormField>
+            </div>
+          </UFormField>
+          <div class="space-y-3">
+            <div>
+              <h3 class="text-sm font-semibold">Qëllimet e biznesit</h3>
+              <p class="text-sm text-muted">Përdori për ta orientuar përmbajtjen dhe sugjerimet.</p>
+            </div>
+            <div v-for="(_, i) in form.goals" :key="i" class="flex gap-2">
+              <UInput v-model="form.goals[i]" class="w-full" placeholder="P.sh. Gjej klientë të rinj" />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-trash-2"
+                :aria-label="`Hiq qëllimin ${i + 1}`"
+                @click="removeGoal(i)"
+              />
+            </div>
+            <UButton v-if="form.goals.length < 10" color="neutral" variant="outline" icon="i-lucide-plus" @click="addGoal">
+              Shto qëllim
+            </UButton>
+          </div>
+          <UAccordion
             :items="[{ label: 'Detaje që postimet duhet t’i kenë të sakta', slot: 'facts' }]"
             ><template #facts
               ><div class="space-y-4 pb-4">

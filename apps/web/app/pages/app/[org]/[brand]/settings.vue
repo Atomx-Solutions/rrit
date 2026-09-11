@@ -36,9 +36,11 @@ const schema = z.object({
       return false
     }
   }, 'Zgjidh një zonë kohore të vlefshme.'),
+  locale: z.enum(['sq-XK', 'en-US']),
   currency: z.literal('EUR'),
 })
 async function save() {
+  formError.value = ''
   const snapshot = { ...form }
   if (await commit((d) => (d.preferences = snapshot))) {
     notify()
@@ -46,8 +48,21 @@ async function save() {
     saved.value = true
     formError.value = ''
     clear()
+  } else {
+    formError.value = 'Ndryshimet nuk u ruajtën. Kontrollo gabimin ose ngarko versionin e fundit.'
   }
 }
+onBeforeRouteLeave(() => {
+  if (!dirty.value || syncing.value) return true
+  return window.confirm('Ke ndryshime të paruajtura. A dëshiron të largohesh?')
+})
+function beforeUnload(event: BeforeUnloadEvent) {
+  if (!dirty.value || syncing.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+onMounted(() => window.addEventListener('beforeunload', beforeUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 </script>
 <template>
   <DashboardPage title="Cilësimet" description="Profili, preferencat dhe siguria në një vend.">
@@ -118,8 +133,14 @@ async function save() {
           ></template
         ><template v-if="tab === 'preferences'"
           ><h2>Gjuha dhe rajoni</h2>
-          <UFormField label="Gjuha" class="field"
-            ><UInput model-value="Shqip · Kosovë" disabled class="w-full" /></UFormField
+           <UFormField label="Gjuha" name="locale" class="field"
+            ><USelect
+              v-model="form.locale"
+              :items="[
+                { label: 'Shqip · Kosovë', value: 'sq-XK' },
+                { label: 'English · United States', value: 'en-US' },
+              ]"
+            /></UFormField
           ><UFormField label="Zona kohore" name="timezone" class="field"
             ><USelect
               v-model="form.timezone"
