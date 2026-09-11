@@ -77,13 +77,18 @@ export const brandCreateSchema = z.object({
   category: z.string().trim().min(2).max(100),
 })
 
-export const brandUpdateSchema = brandCreateSchema.partial().extend({
-  status: z.literal('active').optional(),
+const brandUpdateFieldsSchema = brandCreateSchema.partial().extend({
+  status: z.enum(['active', 'archived']).optional(),
+})
+
+export const brandUpdateSchema = brandUpdateFieldsSchema.extend({
+  revision: z.number().int().min(1),
 })
 
 export const brandResponseSchema = brandCreateSchema.extend({
   id: z.uuid(),
   organizationId: z.uuid(),
+  revision: z.number().int().min(1),
   status: z.enum(['active', 'archived']),
   archivedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
@@ -92,4 +97,4 @@ export const brandResponseSchema = brandCreateSchema.extend({
 
 export type Brand = z.infer<typeof brandResponseSchema>
 export type BrandCreate = z.infer<typeof brandCreateSchema>
-export type BrandUpdate = z.infer<typeof brandUpdateSchema>
+export type BrandUpdate = z.infer<typeof brandUpdateFieldsSchema> & { revision?: number }

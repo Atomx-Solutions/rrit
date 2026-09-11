@@ -10,6 +10,7 @@ import { withTenantTransaction } from './database'
 type BrandRow = {
   id: string
   organization_id: string
+  revision: number
   slug: string
   name: string
   profile: Record<string, unknown>
@@ -27,6 +28,7 @@ function toBrand(row: BrandRow): Brand {
   return brandResponseSchema.parse({
     id: row.id,
     organizationId: row.organization_id,
+    revision: row.revision,
     slug: row.slug,
     name: row.name,
     profile: row.profile,
@@ -42,7 +44,7 @@ function toBrand(row: BrandRow): Brand {
 }
 
 const brandColumns =
-  'id, organization_id, slug, name, profile, settings, timezone, locale, category, status, archived_at, created_at, updated_at'
+  'id, organization_id, revision, slug, name, profile, settings, timezone, locale, category, status, archived_at, created_at, updated_at'
 
 export async function requireOrganizationMember(
   client: PoolClient,
@@ -96,6 +98,14 @@ export async function getBrand(client: PoolClient, organizationId: string, brand
   return toBrand(result.rows[0]!)
 }
 
+export async function getBrandBySlug(client: PoolClient, organizationId: string, slug: string) {
+  const result = await client.query<BrandRow>(
+    `SELECT ${brandColumns} FROM brands WHERE organization_id=$1 AND slug=$2`,
+    [organizationId, slug],
+  )
+  return result.rows[0] ? toBrand(result.rows[0]) : null
+}
+
 export async function createBrand(client: PoolClient, organizationId: string, input: BrandCreate) {
   const result = await client.query<BrandRow>(
     `INSERT INTO brands (organization_id, slug, name, profile, settings, timezone, locale, category)
@@ -121,7 +131,8 @@ export async function updateBrand(
   input: BrandUpdate,
 ) {
   const current = await getBrand(client, organizationId, brandId)
-  if (current.status === 'archived')
+  const expectedRevision = input.revision ?? current.revision
+  if (current.status === 'archived' && input.status !== 'active')
     throw createError({ statusCode: 409, message: 'Brandi i arkivuar nuk mund të ndryshohet.' })
   const next = {
     slug: input.slug ?? current.slug,
@@ -131,11 +142,14 @@ export async function updateBrand(
     timezone: input.timezone ?? current.timezone,
     locale: input.locale ?? current.locale,
     category: input.category ?? current.category,
+    status: input.status ?? current.status,
   }
   const result = await client.query<BrandRow>(
     `UPDATE brands
-     SET slug=$1, name=$2, profile=$3, settings=$4, timezone=$5, locale=$6, category=$7, updated_at=now()
-     WHERE id=$8 AND organization_id=$9 AND status='active'
+     SET slug=$1, name=$2, profile=$3, settings=$4, timezone=$5, locale=$6, category=$7,
+         status=$8, archived_at=CASE WHEN $8='archived' THEN COALESCE(archived_at, now()) ELSE NULL END,
+         revision=revision+1, updated_at=now()
+     WHERE id=$9 AND organization_id=$10 AND revision=$11
      RETURNING ${brandColumns}`,
     [
       next.slug,
@@ -145,17 +159,20 @@ export async function updateBrand(
       next.timezone,
       next.locale,
       next.category,
+      next.status,
       brandId,
       organizationId,
+      expectedRevision,
     ],
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
+  if (!result.rows[0])
+    throw createError({ statusCode: 409, message: 'Brandi ndryshoi ne nje pajisje tjeter. Ngarko versionin e fundit.' })
   return toBrand(result.rows[0]!)
 }
 
 export async function archiveBrand(client: PoolClient, organizationId: string, brandId: string) {
   const result = await client.query<BrandRow>(
-    `UPDATE brands SET status='archived', archived_at=now(), updated_at=now()
+    `UPDATE brands SET status='archived', archived_at=now(), revision=revision+1, updated_at=now()
      WHERE id=$1 AND organization_id=$2 AND status='active'
      RETURNING ${brandColumns}`,
     [brandId, organizationId],

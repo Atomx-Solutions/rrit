@@ -5,11 +5,13 @@ import {
   type Post,
 } from '~~/shared/schemas/workspace'
 import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
+import type { Brand } from '~~/shared/schemas/brand'
 
 export function useWorkspace() {
   const data = useState<Workspace>('workspace', () => emptyWorkspace())
   const ready = useState('workspace-ready', () => false)
   const context = useState<{ id: string; slug: string } | null>('workspace-context', () => null)
+  const canonicalBrand = useState<Brand | null>('canonical-brand', () => null)
   const storageError = useState('storage-error', () => '')
   const conflict = useState('workspace-conflict', () => false)
   const syncing = useState('workspace-syncing', () => false)
@@ -17,9 +19,10 @@ export function useWorkspace() {
   const base = computed(() =>
     context.value ? `/app/${context.value.id}/${context.value.slug}` : '/app',
   )
-  function applyBusiness(business: { id: string; slug: string; workspace: Workspace }) {
+  function applyBusiness(business: { id: string; slug: string; workspace: Workspace; brand?: Brand | null }) {
     data.value = workspaceSchema.parse(business.workspace)
     context.value = { id: business.id, slug: business.slug }
+    canonicalBrand.value = business.brand || null
     ready.value = true
     storageError.value = ''
     conflict.value = false
@@ -27,12 +30,13 @@ export function useWorkspace() {
   async function initLive() {
     const result = await $fetch<{
       user: { name: string; email: string }
-      business: { id: string; slug: string; workspace: Workspace } | null
+      business: { id: string; slug: string; workspace: Workspace; brand?: Brand | null } | null
     }>('/api/business')
     if (result.business) applyBusiness(result.business)
     else {
       data.value = emptyWorkspace(result.user.name, result.user.email)
       context.value = null
+      canonicalBrand.value = null
       ready.value = true
     }
     return result.business
@@ -150,6 +154,7 @@ export function useWorkspace() {
     data,
     ready,
     context,
+    canonicalBrand,
     syncing,
     storageError,
     conflict,

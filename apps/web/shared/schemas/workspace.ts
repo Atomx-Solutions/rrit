@@ -49,6 +49,7 @@ export const strategySchema = z.object({
 })
 export const workspaceSchema = z.object({
   revision: z.number(),
+  brandRevision: z.number().int().min(0).default(0),
   brand: z.object({
     name: z.string().min(2),
     industry: z.string(),
@@ -60,6 +61,7 @@ export const workspaceSchema = z.object({
     facebookUrl: z.string().default(''),
     instagramUrl: z.string().default(''),
     goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
+    status: z.enum(['active', 'archived']).default('active'),
     facts: z.array(
       z.object({ id: z.string(), text: z.string(), source: z.string(), verified: z.boolean() }),
     ),

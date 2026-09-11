@@ -7,6 +7,7 @@ const brandId = randomUUID()
 const brand = {
   id: brandId,
   organizationId,
+  revision: 1,
   slug: 'brand-a',
   name: 'Brand A',
   profile: {
@@ -133,7 +134,7 @@ describe('Brand HTTP API handlers', () => {
 
     await (getHandler as (event: unknown) => Promise<unknown>)(event())
     await (updateHandler as (event: unknown) => Promise<unknown>)(
-      event({ name: 'Updated' }),
+      event({ name: 'Updated', revision: 1 }),
     )
 
     expect(getBrand).toHaveBeenCalledWith(client, organizationId, brandId)
@@ -141,8 +142,17 @@ describe('Brand HTTP API handlers', () => {
       client,
       organizationId,
       brandId,
-      expect.objectContaining({ name: 'Updated' }),
+      expect.objectContaining({ name: 'Updated', revision: 1 }),
     )
+  })
+
+  it('requires a revision for canonical brand updates', async () => {
+    const { default: updateHandler } = await import('../../server/api/organizations/[organizationId]/brands/[brandId].put')
+
+    await expect(
+      (updateHandler as (event: unknown) => Promise<unknown>)(event({ name: 'Without revision' })),
+    ).rejects.toMatchObject({ statusCode: 422 })
+    expect(withOrganizationTransaction).not.toHaveBeenCalled()
   })
 
   it('requires manager authorization for archive and physical delete', async () => {

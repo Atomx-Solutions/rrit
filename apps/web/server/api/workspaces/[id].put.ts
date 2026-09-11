@@ -86,6 +86,18 @@ export default defineEventHandler(async (event) => {
         message: 'Ka ndryshime nga një pajisje tjetër. Ngarko versionin e fundit.',
       })
     const { workspace: current } = await loadWorkspace(client, id.data, user.id)
+    const canonicalBrand = await client.query<{ id: string; revision: number }>(
+      'SELECT id, revision FROM brands WHERE organization_id = $1 AND slug = $2 FOR UPDATE',
+      [id.data, owner.slug],
+    )
+    if (
+      canonicalBrand.rows[0] &&
+      input.brandRevision !== canonicalBrand.rows[0].revision
+    )
+      throw createError({
+        statusCode: 409,
+        message: 'Brandi ndryshoi nÃ« njÃ« pajisje tjetÃ«r. Ngarko versionin e fundit.',
+      })
     if (uploads.length)
       await requireQuota(
         id.data,
@@ -421,7 +433,7 @@ export default defineEventHandler(async (event) => {
         id.data,
       ])
     }
-    const { posts: _posts, assets: _assets, ...state } = input
+    const { posts: _posts, assets: _assets, brandRevision: _brandRevision, ...state } = input
     const onboardingComplete =
       current.onboarding >= 4 || input.posts.some((post) => post.status === 'scheduled')
     state.onboarding = onboardingComplete ? 4 : Math.min(input.onboarding, 3)
@@ -435,6 +447,41 @@ export default defineEventHandler(async (event) => {
       'UPDATE businesses SET state = $1, revision = $2, updated_at = now() WHERE id = $3 AND owner_id = $4',
       [JSON.stringify(state), input.revision, id.data, user.id],
     )
+    let savedBrandRevision = input.brandRevision
+    if (canonicalBrand.rows[0]) {
+      const { name: _name, status: _status, ...brandProfile } = input.brand
+      const savedBrand = await client.query<{ revision: number }>(
+        `UPDATE brands
+         SET name=$1, profile=$2, settings=$3, timezone=$4, locale=$5, category=$6,
+             status=$7,
+             archived_at=CASE WHEN $7='archived' THEN COALESCE(archived_at, now()) ELSE NULL END,
+             revision=revision+1, updated_at=now()
+         WHERE id=$8 AND organization_id=$9 AND revision=$10
+         RETURNING revision`,
+        [
+          input.brand.name,
+          JSON.stringify(brandProfile),
+          JSON.stringify({
+            emailApprovals: input.preferences.emailApprovals,
+            emailPublished: input.preferences.emailPublished,
+            emailTips: input.preferences.emailTips,
+          }),
+          input.preferences.timezone,
+          input.preferences.locale,
+          input.brand.industry.trim() || 'general',
+          input.brand.status,
+          canonicalBrand.rows[0].id,
+          id.data,
+          input.brandRevision,
+        ],
+      )
+      if (!savedBrand.rows[0])
+        throw createError({
+          statusCode: 409,
+          message: 'Brandi ndryshoi nÃ« njÃ« pajisje tjetÃ«r. Ngarko versionin e fundit.',
+        })
+      savedBrandRevision = savedBrand.rows[0].revision
+    }
     if (Object.keys(auditMetadata).length)
       await recordAuditEvent(client, {
         actorId: user.id,
@@ -446,6 +493,7 @@ export default defineEventHandler(async (event) => {
         metadata: auditMetadata,
       })
     const result = await loadWorkspace(client, id.data, user.id)
+    result.workspace.brandRevision = savedBrandRevision
     await client.query('COMMIT')
     for (const storagePath of removedStoragePaths) {
       try {
