@@ -292,9 +292,14 @@ describe('brand domain lifecycle', () => {
       expect(created.organizationId).toBe(item.id)
       expect((await listBrands(client, item.id)).map((brand) => brand.id)).toContain(created.id)
       expect((await getBrand(client, item.id, created.id)).name).toBe('Test Brand')
-      expect((await updateBrand(client, item.id, created.id, { name: 'Updated Brand' })).name).toBe(
+      const updated = await updateBrand(client, item.id, created.id, { name: 'Updated Brand' })
+      expect(updated.name).toBe(
         'Updated Brand',
       )
+      expect(updated.revision).toBe(created.revision + 1)
+      await expect(
+        updateBrand(client, item.id, created.id, { name: 'Stale Update', revision: created.revision }),
+      ).rejects.toMatchObject({ statusCode: 409 })
       const archived = await archiveBrand(client, item.id, created.id)
       expect(archived.status).toBe('archived')
       await expect(updateBrand(client, item.id, created.id, { name: 'Rejected Update' })).rejects.toMatchObject({

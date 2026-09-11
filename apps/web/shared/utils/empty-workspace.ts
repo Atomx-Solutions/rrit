@@ -2,6 +2,7 @@ import type { Workspace } from '../schemas/workspace'
 export function emptyWorkspace(name = '', email = ''): Workspace {
   return {
     revision: 0,
+    brandRevision: 0,
     brand: {
       name: '',
       industry: '',
@@ -13,6 +14,7 @@ export function emptyWorkspace(name = '', email = ''): Workspace {
       facebookUrl: '',
       instagramUrl: '',
       goals: [],
+      status: 'active',
       facts: [],
     },
     preferences: {

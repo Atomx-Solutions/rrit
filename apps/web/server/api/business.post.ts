@@ -3,6 +3,7 @@ import { emptyWorkspace } from '../../shared/utils/empty-workspace'
 import { ianaTimezoneSchema } from '../../shared/schemas/brand'
 import { recordAuditEvent, transitionMetadata } from '../utils/audit'
 import { setTenantContext, setUserContext } from '../utils/database'
+import { getBrandBySlug } from '../utils/brands'
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
   city: z.string().trim().min(2).max(120),
@@ -153,6 +154,11 @@ export default defineEventHandler(async (event) => {
       await grantTrial(client, id, user.email, device)
     }
     const business = await loadWorkspace(client, id, user.id)
+    const brand = await getBrandBySlug(client, id, business.slug)
+    if (brand) {
+      business.workspace.brandRevision = brand.revision
+      business.workspace.brand.status = brand.status
+    }
     await client.query('COMMIT')
     setResponseStatus(event, 201)
     return business
