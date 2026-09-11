@@ -169,6 +169,16 @@ async function business() {
   ])
   return { id, email, user }
 }
+async function organization(item: { id: string; user: string }) {
+  await pool.query(
+    'INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)',
+    [item.id, `publisher-org-${item.id.slice(0, 8)}`, 'Publisher test organization', item.user],
+  )
+  await pool.query(
+    "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
+    [item.id, item.user],
+  )
+}
 async function grant(id: string, email: string, device: string) {
   const client = await pool.connect()
   try {
@@ -847,6 +857,7 @@ describe('optional Meta calendar', () => {
   })
   it('publishes once with two workers and reconciles a timeout-after-write without resending', async () => {
     const item = await business()
+    await organization(item)
     await grant(item.id, item.email, randomUUID())
     const assetId = randomUUID()
     const photo = await decodePhoto(
@@ -1028,6 +1039,7 @@ describe('optional Meta calendar', () => {
 
   it('retries an explicit rate-limit response with backoff and stops at the stored attempt limit', async () => {
     const item = await business()
+    await organization(item)
     await grant(item.id, item.email, randomUUID())
     const assetId = randomUUID()
     const photo = await decodePhoto(
