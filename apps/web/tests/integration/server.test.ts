@@ -66,6 +66,7 @@ import {
   updateBrand,
 } from '../../server/utils/brands'
 import { brandCreateSchema } from '../../shared/schemas/brand'
+import { assertDeniedInSavepoint } from '../security/rls/assertions'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
@@ -226,15 +227,13 @@ describe('tenant row-level security', () => {
       expect((await client.query('SELECT id FROM posts ORDER BY id')).rows).toEqual([
         { id: firstPost },
       ])
-      await client.query('SAVEPOINT denied_insert')
-      await expect(
+      await assertDeniedInSavepoint(client, () =>
         client.query('INSERT INTO posts(id,business_id,payload) VALUES($1,$2,$3)', [
           randomUUID(),
           second.id,
           payload('Forged tenant'),
         ]),
-      ).rejects.toMatchObject({ code: '42501' })
-      await client.query('ROLLBACK TO SAVEPOINT denied_insert')
+      )
       expect(
         (
           await client.query('UPDATE posts SET payload=$1 WHERE id=$2', [
@@ -244,9 +243,7 @@ describe('tenant row-level security', () => {
         ).rowCount,
       ).toBe(0)
       expect((await client.query('DELETE FROM posts WHERE id=$1', [secondPost])).rowCount).toBe(0)
-      await expect(client.query('CREATE TABLE rls_forbidden (id integer)')).rejects.toMatchObject({
-        code: '42501',
-      })
+      await assertDeniedInSavepoint(client, () => client.query('CREATE TABLE rls_forbidden (id integer)'))
       await client.query('ROLLBACK')
     } finally {
       client.release()

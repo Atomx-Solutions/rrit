@@ -33,27 +33,37 @@ async function createTenant(
 ): Promise<TenantFixture> {
   const userId = randomUUID()
   const organizationId = randomUUID()
-  await pool.query(
-    'INSERT INTO auth.users (id,email,raw_user_meta_data) VALUES ($1,$2,$3)',
-    [userId, `rls-${label.toLowerCase()}-${userId}@example.test`, JSON.stringify({ name: `RLS ${label}` })],
-  )
-  trackUserId(userId)
-  await pool.query('INSERT INTO businesses (id,owner_id,slug,state) VALUES ($1,$2,$3,$4)', [
-    organizationId,
-    userId,
-    `rls-${label.toLowerCase()}-${organizationId.slice(0, 8)}`,
-    JSON.stringify({}),
-  ])
-  await pool.query('INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)', [
-    organizationId,
-    `org-${label.toLowerCase()}-${organizationId.slice(0, 8)}`,
-    `Organization ${label}`,
-    userId,
-  ])
-  await pool.query(
-    "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
-    [organizationId, userId],
-  )
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(
+      'INSERT INTO auth.users (id,email,raw_user_meta_data) VALUES ($1,$2,$3)',
+      [userId, `rls-${label.toLowerCase()}-${userId}@example.test`, JSON.stringify({ name: `RLS ${label}` })],
+    )
+    await client.query('INSERT INTO businesses (id,owner_id,slug,state) VALUES ($1,$2,$3,$4)', [
+      organizationId,
+      userId,
+      `rls-${label.toLowerCase()}-${organizationId.slice(0, 8)}`,
+      JSON.stringify({}),
+    ])
+    await client.query('INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)', [
+      organizationId,
+      `org-${label.toLowerCase()}-${organizationId.slice(0, 8)}`,
+      `Organization ${label}`,
+      userId,
+    ])
+    await client.query(
+      "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
+      [organizationId, userId],
+    )
+    await client.query('COMMIT')
+    trackUserId(userId)
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
   return { organizationId, userId }
 }
 
@@ -86,7 +96,9 @@ export async function seedTenantPair(
     postPayload('Organization B'),
   ])
   await pool.query(
-    "INSERT INTO assets (id,business_id,name,tags,rights,mime,bytes,size_bytes) VALUES ($1,$2,'Asset A','[]',true,'image/jpeg',$3,octet_length($3)),($4,$5,'Asset B','[]',true,'image/jpeg',$6,octet_length($6))",
+    `INSERT INTO assets (id,business_id,name,tags,rights,mime,bytes,size_bytes)
+     VALUES ($1,$2,'Asset A','[]',true,'image/jpeg',$3,octet_length($3::bytea)),
+            ($4,$5,'Asset B','[]',true,'image/jpeg',$6,octet_length($6::bytea))`,
     [
       assetAId,
       organizationA.organizationId,
