@@ -262,5 +262,6 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         >
       </aside>
     </div>
+    <BusinessBrainEditor />
   </DashboardPage>
 </template>
