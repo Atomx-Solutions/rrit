@@ -117,3 +117,30 @@ test('brand settings show a conflict instead of overwriting a newer revision', a
   await expect(page.getByLabel('Emri i biznesit', { exact: true })).toHaveValue('External Brand Update')
   await expectNoHorizontalOverflow(page)
 })
+
+test('Business Brain supports fact lifecycle and offer activation', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 844 })
+  const { business } = await createBusiness(page)
+  const base = `/app/${business.id}/${business.slug}`
+
+  await page.goto(base + '/brand')
+  await expect(page.getByRole('heading', { name: 'Business Brain' })).toBeVisible()
+  await page.getByRole('button', { name: 'Shto fakt', exact: true }).click()
+  await page.getByLabel('Burimi i faktit', { exact: true }).fill('Dokument i biznesit')
+  await page.getByLabel('Teksti i faktit', { exact: true }).fill('Servisi punon edhe te shtunave.')
+  await page.getByRole('button', { name: 'Ruaj faktin', exact: true }).click()
+  await expect(page.getByText('PROPOSED', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Verifiko', exact: true }).click()
+  await expect(page.getByText('Fakti u verifikua.', { exact: true })).toBeVisible()
+  await expect(page.getByText('VERIFIED', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Shto ofertë', exact: true }).click()
+  await page.getByLabel('Emri i ofertës', { exact: true }).fill('Kontroll falas')
+  await page.getByLabel('Burimi i ofertës', { exact: true }).fill('Lista e çmimeve')
+  await page.getByLabel('E vlefshme nga', { exact: true }).fill('2026-01-01')
+  await page.getByRole('button', { name: 'Ruaj si draft', exact: true }).click()
+  await expect(page.getByText('draft', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Aktivizo', exact: true }).click()
+  await expect(page.getByText('Oferta u aktivizua.', { exact: true })).toBeVisible()
+  await expect(page.getByText('active', { exact: true })).toBeVisible()
+})

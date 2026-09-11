@@ -5,6 +5,8 @@ import {
   aiCostConfigured,
   calculateAiCost,
 } from '../../utils/ai-costs'
+import { getBusinessBrain } from '../../utils/business-brain'
+import { getBrandBySlug } from '../../utils/brands'
 const outputSchema = z.object({
   variants: z
     .array(z.object({ caption: z.string().trim().min(1).max(2200), note: z.string().max(1000) }))
@@ -110,11 +112,14 @@ export default defineEventHandler(async (event) => {
     client.release()
   }
   try {
-    const { workspace, history } = await withBusinessTransaction(user.id, async (client, currentBusiness) => {
+    const { workspace, brain, history } = await withBusinessTransaction(user.id, async (client, currentBusiness) => {
       if (currentBusiness.id !== business.id)
         throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sÃ«rish.' })
+      const brand = await getBrandBySlug(client, business.id, business.slug)
+      if (!brand) throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
       return {
         workspace: (await loadWorkspace(client, business.id, user.id)).workspace,
+        brain: await getBusinessBrain(client, business.id, brand.id),
         history: await client.query(
           "SELECT sp.caption,sp.channel FROM social_posts sp WHERE sp.business_id=$1 AND EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) ORDER BY sp.published_at DESC LIMIT 8",
           [business.id],
@@ -129,9 +134,10 @@ export default defineEventHandler(async (event) => {
         voice: workspace.brand.voice,
         audience: workspace.brand.audience,
       },
-      confirmedFacts: workspace.brand.facts
-        .filter((f) => f.verified)
-        .map((f) => ({ text: f.text, source: f.source })),
+      confirmedFacts: brain.facts
+        .filter((f) => f.status === 'verified')
+        .map((f) => ({ text: f.text, source: f.source, confidence: f.confidence })),
+      guardrails: brain.guardrails.filter((item) => item.status === 'active').map((item) => item.text),
       pastPostsForStyleOnly: history.rows.map((row) => ({
         caption: row.caption.slice(0, 1200),
         channel: row.channel,
