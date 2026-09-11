@@ -138,6 +138,7 @@ watch(
         }"
       >
         <template #header="{ state, close }">
+          <OrganizationSwitcher class="mb-2" />
           <UDropdownMenu
             :items="businessMenu"
             :content="{ align: 'start', collisionPadding: 12 }"
