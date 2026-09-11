@@ -1,7 +1,14 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'workspace' })
-const { base, context } = useWorkspace()
-await navigateTo(context.value ? `${base.value}/overview` : '/onboarding', { replace: true })
+const { base, context, data } = useWorkspace()
+const destination = !context.value
+  ? '/onboarding'
+  : data.value.onboarding < 3
+    ? '/onboarding'
+    : data.value.onboarding === 3
+      ? `${base.value}/content/new`
+      : `${base.value}/overview`
+await navigateTo(destination, { replace: true })
 </script>
 <template>
   <div class="page"><USkeleton class="h-40 w-full" /></div>

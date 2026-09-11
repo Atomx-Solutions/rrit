@@ -3,6 +3,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   try {
     const business = await workspace.initLive()
     if (!business && to.path !== '/onboarding') return navigateTo('/onboarding', { replace: true })
+    if (business && to.path === '/onboarding' && business.workspace.onboarding >= 4)
+      return navigateTo(`/app/${business.id}/${business.slug}/overview`, { replace: true })
     if (
       business &&
       to.params.org &&

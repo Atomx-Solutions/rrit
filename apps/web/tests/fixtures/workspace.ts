@@ -19,6 +19,7 @@ export function createDemo(): Workspace {
       color: '#17694d',
       facebookUrl: '',
       instagramUrl: '',
+      goals: ['Rrit njohjen e biznesit'],
       facts: [
         {
           id: 'f1',
@@ -170,6 +171,7 @@ export function createDemo(): Workspace {
       name: 'Arbër Demo',
       email: 'arber@example.com',
       timezone: 'Europe/Belgrade',
+      locale: 'sq-XK',
       currency: 'EUR',
       emailApprovals: true,
       emailPublished: true,

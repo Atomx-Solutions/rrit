@@ -103,9 +103,9 @@ test('approve and plan both channels without Meta; publication remains explicit'
       })
       .check()
     await page.getByRole('button', { name: 'Mirato postimin', exact: true }).click()
-    await expect(
-      page.getByRole('button', { name: 'Planifiko postimin', exact: true }),
-    ).toBeVisible({ timeout: 30000 })
+    await expect(page.getByRole('button', { name: 'Planifiko postimin', exact: true })).toBeVisible(
+      { timeout: 30000 },
+    )
     const approved = (await business(page.request)).workspace
     expect(approved.posts.find((post) => post.id === id)?.status).toBe('approved')
 
@@ -147,6 +147,10 @@ test('approve and plan both channels without Meta; publication remains explicit'
       job: null,
     })
   }
+
+  expect((await business(page.request)).workspace.onboarding).toBe(4)
+  await page.goto('/onboarding')
+  await expect(page).toHaveURL(new RegExp(`${base}/overview$`))
 
   // Disconnecting must retain manual schedules and local validation records.
   expect((await page.request.post('/api/meta/disconnect', { headers, data: {} })).status()).toBe(

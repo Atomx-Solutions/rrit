@@ -86,7 +86,6 @@ export default defineEventHandler(async (event) => {
         message: 'Ka ndryshime nga një pajisje tjetër. Ngarko versionin e fundit.',
       })
     const { workspace: current } = await loadWorkspace(client, id.data, user.id)
-    const auditMetadata = workspaceAuditMetadata(current, input)
     if (uploads.length)
       await requireQuota(
         id.data,
@@ -172,10 +171,7 @@ export default defineEventHandler(async (event) => {
           bytes[bytes.length - 1] !== 217
         )
           fail('Fotografia nuk është një JPG i vlefshëm deri në 2 MB.')
-        const storagePath = assetStoragePath(
-          assetStorageFolder(owner.slug, id.data),
-          asset.name,
-        )
+        const storagePath = assetStoragePath(assetStorageFolder(owner.slug, id.data), asset.name)
         await uploadAsset(storagePath, bytes)
         uploadedStoragePaths.push(storagePath)
         await client.query(
@@ -203,7 +199,13 @@ export default defineEventHandler(async (event) => {
       let approvalDecision: 'approved' | 'reopened' | null = null
       let removedFromCalendar = false
       let scheduledOnCalendar = false
-      if (!candidate.caption.trim() || !allowedImages.has(candidate.image))
+      const postChanged =
+        !previous ||
+        editableKeys.some((key) => candidate[key] !== previous[key]) ||
+        candidate.status !== previous.status ||
+        candidate.scheduledAt !== previous.scheduledAt ||
+        (candidate.publicationMode || 'manual') !== (previous.publicationMode || 'manual')
+      if (postChanged && (!candidate.caption.trim() || !allowedImages.has(candidate.image)))
         fail('Plotëso tekstin dhe zgjidh një fotografi me të drejta të konfirmuara.')
       let post: Post
       if (!previous) {
@@ -240,10 +242,7 @@ export default defineEventHandler(async (event) => {
           if (candidate.status === 'approved') approvalDecision = 'approved'
           removedFromCalendar = previous.status === 'scheduled' && candidate.status === 'approved'
           scheduledOnCalendar = previous.status !== 'scheduled' && candidate.status === 'scheduled'
-          if (
-            candidate.status === 'draft' &&
-            ['approved', 'failed'].includes(previous.status)
-          )
+          if (candidate.status === 'draft' && ['approved', 'failed'].includes(previous.status))
             approvalDecision = 'reopened'
           if (candidate.status === 'scheduled') {
             await requireCurrentApproval(previous, id.data, client)
@@ -423,6 +422,13 @@ export default defineEventHandler(async (event) => {
       ])
     }
     const { posts: _posts, assets: _assets, ...state } = input
+    const onboardingComplete =
+      current.onboarding >= 4 || input.posts.some((post) => post.status === 'scheduled')
+    state.onboarding = onboardingComplete ? 4 : Math.min(input.onboarding, 3)
+    const auditMetadata = workspaceAuditMetadata(current, {
+      ...input,
+      onboarding: state.onboarding,
+    })
     state.campaigns = []
     state.strategies = []
     await client.query(
