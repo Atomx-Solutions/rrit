@@ -30,6 +30,15 @@ export default defineConfig({
         viewport: { width: 390, height: 844 },
       },
     },
+    {
+      name: 'mobile-360',
+      testMatch: /onboarding-resume\.spec\.ts/,
+      use: {
+        ...devices['iPhone 13'],
+        defaultBrowserType: 'chromium',
+        viewport: { width: 360, height: 844 },
+      },
+    },
   ],
   webServer: process.env.TEST_BASE_URL
     ? undefined

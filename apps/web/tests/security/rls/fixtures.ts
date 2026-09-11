@@ -86,7 +86,7 @@ export async function seedTenantPair(
     postPayload('Organization B'),
   ])
   await pool.query(
-    "INSERT INTO assets (id,business_id,name,tags,rights,mime,bytes) VALUES ($1,$2,'Asset A','[]',true,'image/jpeg',$3),($4,$5,'Asset B','[]',true,'image/jpeg',$6)",
+    "INSERT INTO assets (id,business_id,name,tags,rights,mime,bytes,size_bytes) VALUES ($1,$2,'Asset A','[]',true,'image/jpeg',$3,octet_length($3)),($4,$5,'Asset B','[]',true,'image/jpeg',$6,octet_length($6))",
     [
       assetAId,
       organizationA.organizationId,

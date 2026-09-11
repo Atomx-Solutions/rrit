@@ -28,14 +28,18 @@ export const brandProfileSchema = z.object({
   color: z.string().max(30).default('#137d59'),
   facebookUrl: z.string().max(500).default(''),
   instagramUrl: z.string().max(500).default(''),
-  facts: z.array(
-    z.object({
-      id: z.string().min(1).max(100),
-      text: z.string().max(1000),
-      source: z.string().max(500),
-      verified: z.boolean(),
-    }),
-  ).max(100).default([]),
+  goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
+  facts: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(100),
+        text: z.string().max(1000),
+        source: z.string().max(500),
+        verified: z.boolean(),
+      }),
+    )
+    .max(100)
+    .default([]),
 })
 
 export const brandSettingsSchema = z.object({
@@ -46,7 +50,11 @@ export const brandSettingsSchema = z.object({
 
 export const brandCreateSchema = z.object({
   name: z.string().trim().min(2).max(120),
-  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,79}$/),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9][a-z0-9-]{1,79}$/),
   profile: brandProfileSchema.default({
     description: '',
     voice: '',
@@ -56,6 +64,7 @@ export const brandCreateSchema = z.object({
     color: '#137d59',
     facebookUrl: '',
     instagramUrl: '',
+    goals: [],
     facts: [],
   }),
   settings: brandSettingsSchema.default({

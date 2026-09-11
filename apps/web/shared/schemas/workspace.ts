@@ -59,6 +59,7 @@ export const workspaceSchema = z.object({
     color: z.string(),
     facebookUrl: z.string().default(''),
     instagramUrl: z.string().default(''),
+    goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
     facts: z.array(
       z.object({ id: z.string(), text: z.string(), source: z.string(), verified: z.boolean() }),
     ),
@@ -71,6 +72,7 @@ export const workspaceSchema = z.object({
     name: z.string(),
     email: z.string(),
     timezone: z.string(),
+    locale: z.enum(['sq-XK', 'en-US']).default('sq-XK'),
     currency: z.enum(['ALL', 'EUR']).transform(() => 'EUR' as const),
     emailApprovals: z.boolean(),
     emailPublished: z.boolean(),

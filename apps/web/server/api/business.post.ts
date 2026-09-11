@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { emptyWorkspace } from '../../shared/utils/empty-workspace'
+import { ianaTimezoneSchema } from '../../shared/schemas/brand'
 import { recordAuditEvent, transitionMetadata } from '../utils/audit'
 import { setTenantContext, setUserContext } from '../utils/database'
 const schema = z.object({
@@ -8,6 +9,24 @@ const schema = z.object({
   industry: z.string().max(200),
   description: z.string().trim().min(10).max(2000),
   voice: z.string().max(1000),
+  audience: z.string().max(1000).default(''),
+  goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
+  facts: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(100),
+        text: z.string().max(1000),
+        source: z.string().max(500),
+        verified: z.boolean(),
+      }),
+    )
+    .max(100)
+    .default([]),
+  timezone: ianaTimezoneSchema.default('Europe/Belgrade'),
+  locale: z.enum(['sq-XK', 'en-US']).default('sq-XK'),
+  emailApprovals: z.boolean().default(true),
+  emailPublished: z.boolean().default(true),
+  emailTips: z.boolean().default(false),
 })
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -19,7 +38,23 @@ export default defineEventHandler(async (event) => {
       message: 'Plotëso emrin, qytetin dhe përshkrimin e biznesit.',
     })
   const state = emptyWorkspace(user.name, user.email)
-  Object.assign(state.brand, parsed.data)
+  Object.assign(state.brand, {
+    name: parsed.data.name,
+    city: parsed.data.city,
+    industry: parsed.data.industry,
+    description: parsed.data.description,
+    voice: parsed.data.voice,
+    audience: parsed.data.audience,
+    goals: parsed.data.goals,
+    facts: parsed.data.facts,
+  })
+  Object.assign(state.preferences, {
+    timezone: parsed.data.timezone,
+    locale: parsed.data.locale,
+    emailApprovals: parsed.data.emailApprovals,
+    emailPublished: parsed.data.emailPublished,
+    emailTips: parsed.data.emailTips,
+  })
   state.onboarding = 1
   const { posts: _posts, assets: _assets, ...profile } = state
   const slug = parsed.data.name
@@ -57,7 +92,7 @@ export default defineEventHandler(async (event) => {
     )
     const initialBrand = await client.query<{ id: string }>(
       `INSERT INTO brands (organization_id, slug, name, profile, settings, timezone, locale, category)
-       VALUES ($1, $2, $3, $4, $5, 'Europe/Belgrade', 'sq-XK', $6)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (organization_id, slug) DO NOTHING
        RETURNING id`,
       [
@@ -70,6 +105,8 @@ export default defineEventHandler(async (event) => {
           emailPublished: state.preferences.emailPublished,
           emailTips: state.preferences.emailTips,
         }),
+        parsed.data.timezone,
+        parsed.data.locale,
         parsed.data.industry.trim() || 'general',
       ],
     )
