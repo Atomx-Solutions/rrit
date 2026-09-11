@@ -62,6 +62,7 @@ export async function withUserTransaction<T>(
   const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await client.query('SET LOCAL ROLE app_runtime')
     await setUserContext(client, userId)
     const result = await work(client)
     await client.query('COMMIT')

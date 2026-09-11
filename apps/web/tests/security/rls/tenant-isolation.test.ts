@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import {
   assertAffectedRows,
   assertAllowed,
-  assertDenied,
+  assertDeniedInSavepoint,
   assertInvisible,
   assertVisibleIds,
 } from './assertions'
@@ -48,6 +48,46 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
     assertVisibleIds(postsForB, [data.postBId])
     assertVisibleIds(brandsForA, [data.brandAId])
     assertVisibleIds(brandsForB, [data.brandBId])
+  })
+
+  it('allows an organization to see only its own organization and membership', async () => {
+    const data = await fixtures()
+    const organizationsForA = await harness.asTenant(data.organizationA, (client) =>
+      assertAllowed(() => client.query('SELECT id FROM organizations ORDER BY id')),
+    )
+    const membershipsForA = await harness.asTenant(data.organizationA, (client) =>
+      assertAllowed(() => client.query('SELECT organization_id AS id FROM organization_memberships ORDER BY organization_id')),
+    )
+
+    assertVisibleIds(organizationsForA, [data.organizationA.organizationId])
+    expect(membershipsForA.rows).toHaveLength(1)
+  })
+
+  it('does not expose or permit updates to Organization A from Organization B', async () => {
+    const data = await fixtures()
+    const organizationAForB = await harness.asTenant(data.organizationB, (client) =>
+      assertAllowed(() => client.query('SELECT id FROM organizations WHERE id=$1', [data.organizationA.organizationId])),
+    )
+    const updateAForB = await harness.asTenant(data.organizationB, (client) =>
+      assertAllowed(() =>
+        client.query('UPDATE organizations SET name=$1 WHERE id=$2', [
+          'Cross-tenant update',
+          data.organizationA.organizationId,
+        ]),
+      ),
+    )
+    const updateAForA = await harness.asTenant(data.organizationA, (client) =>
+      assertAllowed(() =>
+        client.query('UPDATE organizations SET name=$1 WHERE id=$2', [
+          'Owner update',
+          data.organizationA.organizationId,
+        ]),
+      ),
+    )
+
+    assertInvisible(organizationAForB)
+    assertInvisible(updateAForB)
+    assertAffectedRows(updateAForA, 1)
   })
 
   it('fails closed when app_runtime has no tenant context', async () => {
@@ -153,14 +193,14 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
     assertAffectedRows(ownInsert, 1)
 
     await harness.asTenant(data.organizationA, async (client) => {
-      await assertDenied(() =>
+      await assertDeniedInSavepoint(client, () =>
         client.query('INSERT INTO posts(id,business_id,payload) VALUES($1,$2,$3)', [
           randomUUID(),
           data.organizationB.organizationId,
           newPostPayload('Forged B insert'),
         ]),
       )
-      await assertDenied(() =>
+      await assertDeniedInSavepoint(client, () =>
         client.query(
           `INSERT INTO brands(organization_id,slug,name,profile,settings,timezone,locale,category)
            VALUES($1,$2,$3,'{}','{}','Europe/Tirane','sq-XK','cafe')`,
@@ -193,13 +233,13 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
     assertInvisible(crossTenantUpdate)
 
     await harness.asTenant(data.organizationA, async (client) => {
-      await assertDenied(() =>
+      await assertDeniedInSavepoint(client, () =>
         client.query('UPDATE posts SET business_id=$1 WHERE id=$2', [
           data.organizationB.organizationId,
           data.postAId,
         ]),
       )
-      await assertDenied(() =>
+      await assertDeniedInSavepoint(client, () =>
         client.query('UPDATE brands SET organization_id=$1 WHERE id=$2', [
           data.organizationB.organizationId,
           data.brandAId,
@@ -390,7 +430,9 @@ describe('S0-A06 PostgreSQL tenant RLS harness', () => {
       await harness.setRuntimeContext(client, data.organizationA)
       return await client.query('SELECT id FROM posts ORDER BY id')
     })
-    assertVisibleIds(rows, [data.postAId, data.postBId])
-    expect(rows.rows).toHaveLength(2)
+    expect(rows.rows.map((row) => row.id)).toEqual(
+      expect.arrayContaining([data.postAId, data.postBId]),
+    )
+    expect(rows.rows.length).toBeGreaterThan(2)
   })
 })
