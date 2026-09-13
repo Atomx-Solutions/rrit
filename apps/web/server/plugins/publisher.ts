@@ -1,13 +1,21 @@
+import { acquireOperationsWorkerDatabase } from '../utils/database'
+import { runPublishingBatch } from '../utils/publishing'
+
 export default defineNitroPlugin((nitro) => {
   const role = process.env.PROCESS_ROLE || 'all'
   if (process.env.PUBLISHING_ENABLED !== 'true' || !['publisher', 'all'].includes(role)) return
+  if (!process.env.WORKER_DATABASE_URL) {
+    console.error('Publisher requires WORKER_DATABASE_URL and will not start.')
+    return
+  }
+  const worker = acquireOperationsWorkerDatabase()
   let running = false
   let closing = false
   let current: Promise<void> | undefined
   function tick() {
     if (running || closing) return current
     running = true
-    current = runPublishingBatch()
+    current = runPublishingBatch(worker.db)
       .then(() => undefined)
       .catch(() => {
         console.error('Publisher tick failed; inspect database connectivity and worker health.')
@@ -30,5 +38,6 @@ export default defineNitroPlugin((nitro) => {
     closing = true
     clearInterval(timer)
     await current
+    await worker.release()
   })
 })

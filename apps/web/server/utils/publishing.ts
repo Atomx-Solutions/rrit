@@ -3,19 +3,9 @@ import type { Pool, PoolClient } from 'pg'
 import { postSchema, type Post } from '../../shared/schemas/workspace'
 import { recordAuditEvent, transitionMetadata } from './audit'
 import { setTenantContext } from './database'
-import {
-  localPostChecks,
-  postContentVersion,
-  providerPostChecks,
-} from './post-validation'
+import { localPostChecks, postContentVersion, providerPostChecks } from './post-validation'
 import { requireEntitlement, trialStatus } from './trials'
-import {
-  connectedMeta,
-  decryptMetaToken,
-  graphRequest,
-  MetaFailure,
-  metaConfigured,
-} from './meta'
+import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
 
 export async function requirePublishingWorker(db: Pool | PoolClient = database()) {
   if (!metaConfigured() || process.env.PUBLISHING_ENABLED !== 'true')
@@ -141,11 +131,7 @@ export function reconnectionMatchesTargets(
       (!job.target_instagram_id || job.target_instagram_id === instagramId),
   )
 }
-export function uniquePublicationMatch(
-  candidates: ProviderPublication[],
-  post: Post,
-  runAt: Date,
-) {
+export function uniquePublicationMatch(candidates: ProviderPublication[], post: Post, runAt: Date) {
   const earliest = runAt.getTime() - 5 * 60 * 1000
   const matches = candidates.filter((candidate) => {
     const text = candidate.message ?? candidate.caption ?? ''
@@ -198,12 +184,7 @@ export function publicationFailureCode(error: unknown) {
 }
 
 type PublicationAttemptEvent =
-  | 'started'
-  | 'retry_scheduled'
-  | 'deferred'
-  | 'published'
-  | 'failed'
-  | 'uncertain'
+  'started' | 'retry_scheduled' | 'deferred' | 'published' | 'failed' | 'uncertain'
 
 export function publicationRequestHash(
   job: Pick<
@@ -297,13 +278,9 @@ export function publicationRemediation(code: string | null) {
   return 'Kontrollo gjendjen e lidhjes dhe postimin përpara një tentimi të ri.'
 }
 
-async function schedulePublicationRetry(job: Job, error: MetaFailure) {
-  const delay = publicationRetryDelaySeconds(
-    job.id,
-    job.retry_count,
-    error.retryAfterSeconds,
-  )
-  const client = await database().connect()
+async function schedulePublicationRetry(job: Job, error: MetaFailure, db: Pool) {
+  const delay = publicationRetryDelaySeconds(job.id, job.retry_count, error.retryAfterSeconds)
+  const client = await db.connect()
   try {
     await client.query('BEGIN')
     const code = publicationFailureCode(error)
@@ -327,8 +304,8 @@ async function schedulePublicationRetry(job: Job, error: MetaFailure) {
   }
 }
 
-async function deferPublicationJob(job: Job) {
-  const client = await database().connect()
+async function deferPublicationJob(job: Job, db: Pool) {
+  const client = await db.connect()
   try {
     await client.query('BEGIN')
     const result = await client.query(
@@ -432,8 +409,7 @@ export async function reconcileUncertainPublication(
     [postId, businessId],
   )
   const job = result.rows[0] as (Job & { payload: unknown }) | undefined
-  if (!job)
-    throw createError({ statusCode: 409, message: 'Nuk ka publikim që pret verifikim.' })
+  if (!job) throw createError({ statusCode: 409, message: 'Nuk ka publikim që pret verifikim.' })
   const post = postSchema.parse(job.payload)
   const connection = await connectedMeta(businessId, db)
   if (
@@ -454,8 +430,7 @@ export async function reconcileUncertainPublication(
       post.channel === 'Instagram'
         ? `${connection.instagram_id}/media`
         : `${connection.page_id}/published_posts`
-    const fields =
-      post.channel === 'Instagram' ? 'id,caption,timestamp' : 'id,message,created_time'
+    const fields = post.channel === 'Instagram' ? 'id,caption,timestamp' : 'id,message,created_time'
     const candidates = await graphRequest<{ data: ProviderPublication[] }>(path, token, {
       fields,
       limit: '50',
@@ -474,17 +449,18 @@ export async function reconcileUncertainPublication(
   return { resolved: true as const, providerPostId: providerId }
 }
 // Claims use SKIP LOCKED; network calls never hold a database transaction open.
-async function runOnePublishingJob() {
+async function runOnePublishingJob(db: Pool) {
   if (process.env.PUBLISHING_ENABLED !== 'true' || !metaConfigured()) return { processed: 0 }
-  await database().query(
+  await db.query(
     "INSERT INTO worker_heartbeats (name) VALUES ('publisher') ON CONFLICT(name) DO UPDATE SET last_seen_at=now()",
   )
   // A crashed process may have sent a POST. It must never be retried blindly.
-  const stale = await database().query(
+  const stale = await db.query(
     "SELECT * FROM publication_jobs WHERE status='processing' AND locked_at<now()-interval '10 minutes' LIMIT 10",
   )
-  for (const job of stale.rows) await finishJob(job, 'uncertain', 'worker_interrupted')
-  const claimClient = await database().connect()
+  for (const job of stale.rows)
+    await finishJob(job, 'uncertain', 'worker_interrupted', undefined, db)
+  const claimClient = await db.connect()
   let job: Job | undefined
   try {
     await claimClient.query('BEGIN')
@@ -510,8 +486,8 @@ async function runOnePublishingJob() {
   let publicWriteStarted = false
   let publicWriteAccepted = false
   try {
-    await requireEntitlement(job.business_id, 'publishing')
-    const row = await database().query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [
+    await requireEntitlement(job.business_id, 'publishing', db)
+    const row = await db.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [
       job.post_id,
       job.business_id,
     ])
@@ -525,11 +501,11 @@ async function runOnePublishingJob() {
     )
       throw new Error('version_changed')
     const checks = [
-      ...(await localPostChecks(post, job.business_id)),
-      ...(await providerPostChecks(post, job.business_id, { throwProviderFailure: true })),
+      ...(await localPostChecks(post, job.business_id, db)),
+      ...(await providerPostChecks(post, job.business_id, { throwProviderFailure: true, db })),
     ]
     if (checks.some((check) => !check.passed)) throw new Error('preflight_failed')
-    const connection = await connectedMeta(job.business_id)
+    const connection = await connectedMeta(job.business_id, db)
     if (
       connection.page_id !== job.target_page_id ||
       (post.channel === 'Instagram' && connection.instagram_id !== job.target_instagram_id)
@@ -558,7 +534,7 @@ async function runOnePublishingJob() {
         )
         if (!response.id) throw new Error('missing_container')
         container = response.id
-        const stored = await database().query(
+        const stored = await db.query(
           'UPDATE publication_jobs SET provider_container_id=$1,container_started_at=COALESCE(container_started_at,now()),updated_at=now() WHERE id=$2 RETURNING container_started_at',
           [container, job.id],
         )
@@ -571,7 +547,7 @@ async function runOnePublishingJob() {
         const startedAt = job.container_started_at
         if (!startedAt) throw new Error('container_start_missing')
         if (instagramContainerTimedOut(startedAt)) throw new Error('container_timeout')
-        await deferPublicationJob(job)
+        await deferPublicationJob(job, db)
         return { processed: 1 }
       }
       if (status.status_code !== 'FINISHED') throw new Error('container_rejected')
@@ -587,17 +563,17 @@ async function runOnePublishingJob() {
     if (!providerId) throw new Error('missing_provider_confirmation')
     publicWriteAccepted = true
     // Persist the receipt before reading it back; operators can reconcile an interrupted read.
-    await database().query('UPDATE publication_jobs SET provider_post_id=$1 WHERE id=$2', [
+    await db.query('UPDATE publication_jobs SET provider_post_id=$1 WHERE id=$2', [
       providerId,
       job.id,
     ])
     const verified = await graphRequest<{ id: string }>(providerId, token, { fields: 'id' })
     if (verified.id !== providerId) throw new Error('provider_confirmation_mismatch')
-    await finishJob(job, 'published', null, providerId)
+    await finishJob(job, 'published', null, providerId, db)
   } catch (error) {
     if (error instanceof MetaFailure && error.safeToRetry) {
-      if (await schedulePublicationRetry(job, error)) return { processed: 1 }
-      await finishJob(job, 'failed', `retry_exhausted_${error.category}`)
+      if (await schedulePublicationRetry(job, error, db)) return { processed: 1 }
+      await finishJob(job, 'failed', `retry_exhausted_${error.category}`, undefined, db)
       return { processed: 1 }
     }
     const definiteRejection =
@@ -606,6 +582,8 @@ async function runOnePublishingJob() {
       job,
       publicWriteStarted && !definiteRejection ? 'uncertain' : 'failed',
       publicationFailureCode(error),
+      undefined,
+      db,
     )
   }
   return { processed: 1 }
@@ -616,10 +594,10 @@ export function publishingBatchSize(value = process.env.PUBLISHING_BATCH_SIZE) {
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 25 ? parsed : 5
 }
 
-export async function runPublishingBatch() {
+export async function runPublishingBatch(db: Pool = database()) {
   let processed = 0
   for (let index = 0; index < publishingBatchSize(); index++) {
-    const result = await runOnePublishingJob()
+    const result = await runOnePublishingJob(db)
     processed += result.processed
     if (!result.processed) break
   }
