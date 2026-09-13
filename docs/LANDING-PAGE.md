@@ -24,6 +24,8 @@ The closing section pairs a compact 32–44 px headline and short description wi
 
 All prices, quotas, annual discounts and features come from `/api/plans`. The starting price is the cheapest current offer, without a hardcoded fallback. Per-post cost is the effective monthly price divided by the plan's post allowance, assuming full use. Annual billing shows the total annual charge.
 
+All commercial offers include the same AI research, creative preparation, validation, calendar and publishing workflow. The offer tiers differ by the number of AI-prepared monthly posts: 12, 30 or 60.
+
 The editorial recommendation selects the cheapest adequate plan for a 30-post monthly rhythm. The lowest cost-per-post badge is calculated independently across the actual catalog. If prices change, the recommendation, badge and savings update. Savings compare against the entry plan and disappear if not positive.
 
 Migration `0018_volume_plan_value.sql` changes only the original, non-purchasable €79/60-post version-1 offer to €69 and version 2. Customized/live offers and existing entitlement snapshots remain untouched. Current local monthly offers:

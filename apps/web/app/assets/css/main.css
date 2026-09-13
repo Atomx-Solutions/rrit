@@ -671,7 +671,8 @@ td {
 }
 
 .studio-shell .page {
-  padding: 24px;
+  max-width: 1440px;
+  padding: 14px 16px 22px;
 }
 
 .studio-shell .dashboard-page-body {
@@ -681,6 +682,6 @@ td {
 
 @media (max-width: 640px) {
   .studio-shell .page {
-    padding: 20px 16px 32px;
+    padding: 16px 13px 24px;
   }
 }

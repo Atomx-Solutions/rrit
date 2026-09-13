@@ -51,17 +51,42 @@ function item(n: (typeof navigation)[number]): NavigationMenuItem {
         : undefined,
   }
 }
-const menu = computed<NavigationMenuItem[][]>(() => [
-  [
-    ...navigation
-      .filter((n) => ['overview', 'content', 'calendar', 'gallery'].includes(n.path))
-      .map(item),
-  ],
-  [...navigation.filter((n) => ['social-posts', 'brand'].includes(n.path)).map(item)],
+function items(paths: string[]) {
+  return paths
+    .map((path) => navigation.find((entry) => entry.path === path))
+    .filter((entry): entry is (typeof navigation)[number] => !!entry)
+    .map(item)
+}
+function section(
+  label: string,
+  icon: string,
+  paths: string[],
+  defaultOpen = false,
+): NavigationMenuItem {
+  return {
+    label,
+    icon,
+    type: 'trigger',
+    value: `section-${paths[0]}`,
+    active: paths.some((path) => route.path.includes(`/${path}`)),
+    defaultOpen,
+    popover: true,
+    children: items(paths),
+  }
+}
+const menu = computed<NavigationMenuItem[]>(() => [
+  item(navigation.find((entry) => entry.path === 'overview')!),
+  section(
+    'Përmbajtja',
+    'i-lucide-panels-top-left',
+    ['monthly-planner', 'content', 'calendar', 'templates', 'gallery'],
+    true,
+  ),
+  section('Marka dhe kanalet', 'i-lucide-store', ['brand', 'social-posts'], true),
 ])
-const footerMenu = computed<NavigationMenuItem[]>(() =>
-  navigation.filter((n) => ['billing', 'settings'].includes(n.path)).map(item),
-)
+const footerMenu = computed<NavigationMenuItem[]>(() => [
+  section('Administrimi', 'i-lucide-settings', ['billing', 'settings'], true),
+])
 const businessMenu = computed(() => [
   [{ label: data.value.brand.name, icon: 'i-lucide-check', to: `${base.value}/overview` }],
   [
@@ -129,12 +154,12 @@ watch(
         rail
         :menu="{ title: 'Navigimi', description: 'Postimet dhe cilësimet e biznesit tënd.' }"
         :ui="{
-          root: '[--sidebar-width:15rem] [--sidebar-width-icon:4rem]',
+          root: '[--sidebar-width:12.5rem] [--sidebar-width-icon:3.25rem]',
           container: 'h-full',
           inner: 'bg-elevated/25 divide-transparent',
-          header: 'h-16 min-h-16 px-3 gap-2',
-          body: 'p-3 gap-5',
-          footer: 'p-3',
+          header: 'h-[52px] min-h-[52px] px-1.5 gap-1',
+          body: 'p-2 gap-3',
+          footer: 'p-2',
         }"
       >
         <template #header="{ state, close }">
@@ -185,10 +210,11 @@ watch(
             orientation="vertical"
             :collapsed="state === 'collapsed'"
             tooltip
+            popover
             aria-label="Navigimi kryesor"
             :ui="{
-              link: 'min-h-9 pointer-coarse:min-h-11 px-2.5 rounded-md',
-              linkLeadingIcon: 'size-[18px]',
+              link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs',
+              linkLeadingIcon: 'size-3.5',
             }"
           />
           <UNavigationMenu
@@ -199,11 +225,12 @@ watch(
             orientation="vertical"
             :collapsed="state === 'collapsed'"
             tooltip
+            popover
             aria-label="Cilësime dhe ndihmë"
             class="mt-auto"
             :ui="{
-              link: 'min-h-9 pointer-coarse:min-h-11 px-2.5 rounded-md',
-              linkLeadingIcon: 'size-[18px]',
+              link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs',
+              linkLeadingIcon: 'size-3.5',
             }"
           />
         </template>

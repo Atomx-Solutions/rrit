@@ -14,6 +14,7 @@ const view = ref<CalendarView>('list')
 const period = computed(() => calendarPeriod(anchor.value, view.value))
 const posts = computed(() =>
   data.value.posts
+    .map((p) => ({ ...p, scheduledAt: p.scheduledAt || p.proposedAt || null }))
     .filter((p) => p.scheduledAt)
     .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!)),
 )
@@ -35,9 +36,14 @@ function move(direction: number) {
 <template>
   <DashboardPage title="Kalendari" description="Shiko postimet e planifikuara dhe orarin e tyre.">
     <template #actions
-      ><UButton :to="`${base}/content/new`" variant="outline" icon="i-lucide-plus"
-        >Krijo postim</UButton
-      ></template
+      ><div class="flex flex-wrap gap-2">
+        <UButton :to="`${base}/monthly-planner`" variant="outline" icon="i-lucide-sparkles">
+          Planifiko me AI
+        </UButton>
+        <UButton :to="`${base}/content/new`" color="neutral" variant="outline" icon="i-lucide-plus">
+          Krijo postim
+        </UButton>
+      </div></template
     >
     <template #toolbar>
       <div class="flex w-full flex-wrap items-center justify-between gap-3">
@@ -73,13 +79,13 @@ function move(direction: number) {
         />
       </div>
     </template>
-    <p class="text-sm text-muted">
+    <p class="text-xs leading-5 text-muted">
       Planifiko pa lidhur Meta. Vetëm postimet ku ke zgjedhur publikimin automatik dërgohen në
       rrjete sociale.
     </p>
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <div
-        class="flex flex-wrap justify-between gap-2 px-4 py-3 border-b border-default text-xs text-muted"
+        class="flex flex-wrap justify-between gap-2 px-3 py-2 border-b border-default text-[11px] text-muted"
       >
         <span>{{ visible.length }} postime në këtë {{ view === 'week' ? 'javë' : 'muaj' }}</span
         ><span>Orari lokal i biznesit · {{ data.preferences.timezone }}</span>
@@ -89,7 +95,7 @@ function move(direction: number) {
           <div
             v-for="day in ['Hënë', 'Martë', 'Mërkurë', 'Enjte', 'Premte', 'Shtunë', 'Diel']"
             :key="day"
-            class="text-xs text-muted text-center py-3"
+            class="text-[11px] text-muted text-center py-2"
           >
             {{ day }}
           </div>
@@ -98,9 +104,9 @@ function move(direction: number) {
           <div
             v-for="day in period.days"
             :key="day.key"
-            class="border-t border-r border-default p-2.5 min-w-0"
+            class="border-t border-r border-default p-1.5 min-w-0"
             :class="[
-              view === 'week' ? 'min-h-64' : 'min-h-28',
+              view === 'week' ? 'min-h-52' : 'min-h-20',
               day.outside && view === 'month' ? 'bg-elevated/25 text-muted' : '',
             ]"
           >
@@ -114,7 +120,7 @@ function move(direction: number) {
               v-for="post in posts.filter((p) => localDay(p.scheduledAt!) === day.key)"
               :key="post.id"
               :to="`${base}/content/${post.id}`"
-              class="block border border-default rounded-md p-2 mt-2 hover:border-primary text-xs text-default"
+              class="block border border-default rounded-md p-1.5 mt-1.5 hover:border-primary text-[11px] text-default"
               :aria-label="`Hap postimin: ${post.title}`"
               ><span class="flex items-center gap-1.5 text-muted mb-1"
                 ><UIcon
@@ -129,7 +135,11 @@ function move(direction: number) {
                 }}</span></span
               ><span class="line-clamp-2 leading-relaxed">{{ post.title }}</span
               ><span class="block text-muted mt-1">{{
-                post.publicationMode === 'automatic' ? 'Publikim automatik' : 'Vetëm në kalendar'
+                ['draft', 'review'].includes(post.status)
+                  ? 'Propozim · pret miratim'
+                  : post.publicationMode === 'automatic'
+                    ? 'Publikim automatik'
+                    : 'Vetëm në kalendar'
               }}</span></ULink
             >
           </div>

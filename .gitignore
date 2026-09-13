@@ -3,6 +3,14 @@ node_modules.stale/
 node_modules.stale*/
 .nuxt/
 .output/
+apps/web/.nuxt-*/
+apps/web/.output-*/
+.nuxt-creative-verify/
+.nuxt-ai-config-verify/
+.nuxt-ai-final-verify/
+.output-creative-verify/
+.output-ai-final-verify/
+.nuxt-e2e/
 .env
 .env.*
 !.env.example
@@ -22,3 +30,6 @@ docs/backups/
 /landing-*.png
 /editor-*.png
 /audit.json
+# Local Supabase CLI mirror/cache. Canonical migrations live in
+# apps/web/database/migrations and are committed from there.
+/supabase/

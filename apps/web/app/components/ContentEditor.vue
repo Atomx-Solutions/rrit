@@ -32,6 +32,10 @@ const baseline = ref(
   JSON.stringify(chosenTemplate && !props.id ? { ...form, title: '', caption: '' } : form),
 )
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
+function creativeSaved(image: string) {
+  form.image = image
+  baseline.value = JSON.stringify(form)
+}
 const saving = ref(false)
 const savedAt = ref('')
 const error = ref('')
@@ -312,6 +316,7 @@ onBeforeUnmount(() => {
     :title="props.id ? 'Redakto postimin' : 'Krijo postim'"
     description="Zgjidh fotografinë dhe shkruaj mesazhin. Ne ta ruajmë punën gjatë shkrimit."
   >
+    <PostProvenance v-if="post?.aiProvenance" :post="post" :disabled="dirty || syncing" />
     <template #actions
       ><span role="status" class="small muted">{{
         saving
@@ -416,6 +421,12 @@ onBeforeUnmount(() => {
           <USeparator class="divider" style="margin: 0" />
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h3>Fotografia e postimit</h3>
+            <CreativeEditor
+              v-if="post?.aiProvenance"
+              :post="post"
+              :disabled="!editable || dirty || syncing"
+              @saved="creativeSaved"
+            />
             <PhotoUpload v-if="editable" @uploaded="form.image = $event" />
           </div>
           <div class="asset-picker">
@@ -539,26 +550,26 @@ onBeforeUnmount(() => {
               ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
                 >Kthe në draft</UButton
               ></template
-        ><template v-if="post?.status === 'approved'"
+            ><template v-if="post?.status === 'approved'"
               ><UButton variant="outline" icon="i-lucide-send" @click="publishOpen = true"
                 >Publiko tani</UButton
               ><UButton variant="outline" icon="i-lucide-calendar-plus" @click="scheduleOpen = true"
                 >Planifiko postimin</UButton
-          ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
-            >Rihap për redaktim</UButton
-          ></template
-        ><template v-if="post?.status === 'failed'"
-          ><UButton
-            variant="outline"
-            :disabled="!confirmed || checking || syncing"
-            :loading="checking"
-            icon="i-lucide-rotate-ccw"
-            @click="setStatus('approved')"
-            >Kontrollo dhe mirato sërish</UButton
-          ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
-            >Kthe në draft për korrigjim</UButton
-          ></template
-        ><UButton
+              ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
+                >Rihap për redaktim</UButton
+              ></template
+            ><template v-if="post?.status === 'failed'"
+              ><UButton
+                variant="outline"
+                :disabled="!confirmed || checking || syncing"
+                :loading="checking"
+                icon="i-lucide-rotate-ccw"
+                @click="setStatus('approved')"
+                >Kontrollo dhe mirato sërish</UButton
+              ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
+                >Kthe në draft për korrigjim</UButton
+              ></template
+            ><UButton
               v-if="post?.status === 'scheduled'"
               color="neutral"
               variant="outline"

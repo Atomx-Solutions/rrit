@@ -11,7 +11,19 @@ export const navigation = [
     icon: 'i-lucide-panels-top-left',
     group: 'workspace',
   },
+  {
+    label: 'Planifikimi me AI',
+    path: 'monthly-planner',
+    icon: 'i-lucide-sparkles',
+    group: 'workspace',
+  },
   { label: 'Kalendari', path: 'calendar', icon: 'i-lucide-calendar-days', group: 'workspace' },
+  {
+    label: 'Shabllonet',
+    path: 'templates',
+    icon: 'i-lucide-layout-template',
+    group: 'workspace',
+  },
   { label: 'Galeria', path: 'gallery', icon: 'i-lucide-images', group: 'workspace' },
   {
     label: 'Postimet nga rrjetet',

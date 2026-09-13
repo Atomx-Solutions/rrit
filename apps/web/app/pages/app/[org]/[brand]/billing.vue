@@ -5,7 +5,11 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 useSeoMeta({ title: 'Plani dhe faturimi · Rrit' })
 const annual = ref(false)
 const { data: trial } = await useFetch('/api/trial', { key: 'trial' })
-const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', {
+const {
+  data: usage,
+  error: usageError,
+  refresh: refreshUsage,
+} = await useFetch('/api/usage', {
   key: 'usage',
 })
 const { plans, error: catalogError, refresh } = usePlanCatalog()
@@ -19,10 +23,22 @@ const monthlyPrice = computed(
 )
 const usageLabels: Record<string, string> = {
   posts_per_month: 'Postime këtë muaj',
-  ai_requests_per_day: 'Përgatitje me AI sot',
+  ai_requests_per_day: 'Kërkesa AI sot',
   media_storage_bytes: 'Hapësira e fotografive',
   social_accounts: 'Llogari sociale',
   members: 'Anëtarë',
+}
+const usageDescriptions: Record<string, string> = {
+  posts_per_month: 'Numëron vetëm draftet dhe postimet që janë krijuar realisht.',
+  ai_requests_per_day: 'Hulumtimi, teksti, imazhi dhe kontrolli i cilësisë numërohen veçmas.',
+  members: 'Numri i personave që mund të kenë qasje në këtë biznes.',
+}
+const exhaustedMessages: Record<string, string> = {
+  posts_per_month: 'Limiti i postimeve është arritur; AI nuk krijon postime të tjera.',
+  ai_requests_per_day: 'Limiti ditor i kërkesave AI është arritur.',
+  members: 'Të gjitha vendet e ekipit janë përdorur.',
+  social_accounts: 'Të gjitha llogaritë sociale të paketës janë lidhur.',
+  media_storage_bytes: 'Hapësira e fotografive është mbushur.',
 }
 function usageValue(key: string, value: number) {
   if (key === 'media_storage_bytes') {
@@ -73,34 +89,77 @@ function usageValue(key: string, value: number) {
       title="Përdorimi nuk u ngarkua"
       :actions="[{ label: 'Provo sërish', variant: 'outline', onClick: () => refreshUsage() }]"
     />
-    <UCard v-else-if="usage" as="section" :ui="{ body: 'p-5 sm:p-6' }">
-      <div class="mb-5">
-        <h2 class="text-sm font-semibold">Përdorimi aktual</h2>
-        <p class="text-sm text-muted mt-1">Kufijtë vijnë nga shërbimi aktiv në server.</p>
-      </div>
-      <div class="grid gap-5 sm:grid-cols-2">
-        <div v-for="item in usage.usage" :key="item.key" class="space-y-2">
-          <div class="flex items-center justify-between gap-3 text-sm">
-            <span>{{ usageLabels[item.key] || item.key }}</span>
-            <span class="tabular-nums text-muted"
-              >{{ usageValue(item.key, item.current) }} / {{ usageValue(item.key, item.limit) }}</span
-            >
+    <template v-else-if="usage">
+      <UCard :ui="{ body: 'p-4' }">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <UIcon name="i-lucide-coins" class="size-4 text-primary" />
+            </div>
+            <div class="min-w-0">
+              <h2 class="text-sm font-semibold">Kreditet AI</h2>
+              <p class="text-xs text-muted">Për hulumtim, tekst, dizajn dhe kontroll.</p>
+            </div>
           </div>
-          <UProgress
-            :model-value="item.percentage"
-            :color="item.state === 'exhausted' ? 'error' : item.state === 'warning' ? 'warning' : 'primary'"
-            :aria-label="`${usageLabels[item.key] || item.key}: ${item.percentage}%`"
-          />
-          <p v-if="item.state !== 'available'" class="text-xs text-muted">
-            {{
-              item.state === 'exhausted'
-                ? 'Kufiri është arritur.'
-                : 'Po i afrohesh kufirit të planit.'
-            }}
+          <p class="shrink-0 text-sm font-semibold tabular-nums">
+            {{ usage.credits.available }}
+            <span class="text-xs font-normal text-muted">kredi</span>
           </p>
         </div>
-      </div>
-    </UCard>
+        <UProgress
+          class="mt-3"
+          size="xs"
+          :model-value="usage.credits.available"
+          :max="usage.credits.limit"
+          :color="
+            usage.credits.state === 'exhausted'
+              ? 'error'
+              : usage.credits.state === 'low'
+                ? 'warning'
+                : 'primary'
+          "
+          aria-label="Kreditet AI të mbetura"
+        />
+      </UCard>
+      <UCard as="section" :ui="{ body: 'p-4' }">
+        <div class="mb-5">
+          <h2 class="text-sm font-semibold">Përdorimi aktual</h2>
+          <p class="text-sm text-muted mt-1">Kufijtë vijnë nga shërbimi aktiv në server.</p>
+        </div>
+        <div class="grid gap-5 sm:grid-cols-2">
+          <div v-for="item in usage.usage" :key="item.key" class="space-y-2">
+            <div class="flex items-center justify-between gap-3 text-sm">
+              <span>{{ usageLabels[item.key] || item.key }}</span>
+              <span class="tabular-nums text-muted"
+                >{{ usageValue(item.key, item.current) }} /
+                {{ usageValue(item.key, item.limit) }}</span
+              >
+            </div>
+            <p v-if="usageDescriptions[item.key]" class="text-xs leading-5 text-muted">
+              {{ usageDescriptions[item.key] }}
+            </p>
+            <UProgress
+              :model-value="item.percentage"
+              :color="
+                item.state === 'exhausted'
+                  ? 'error'
+                  : item.state === 'warning'
+                    ? 'warning'
+                    : 'primary'
+              "
+              :aria-label="`${usageLabels[item.key] || item.key}: ${item.percentage}%`"
+            />
+            <p v-if="item.state !== 'available'" class="text-xs text-muted">
+              {{
+                item.state === 'exhausted'
+                  ? exhaustedMessages[item.key] || 'Kufiri është arritur.'
+                  : 'Po i afrohesh kufirit të planit.'
+              }}
+            </p>
+          </div>
+        </div>
+      </UCard>
+    </template>
     <UAlert
       v-if="catalogError"
       color="warning"

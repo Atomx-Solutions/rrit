@@ -7,7 +7,7 @@ const {
   form,
   localError,
   clear: clearRecovery,
-} = useDraft(`onboarding:${data.value.preferences.email}`, {
+} = useDraft(`onboarding:${context.value?.id || data.value.preferences.email}`, {
   name: data.value.brand.name,
   city: data.value.brand.city,
   industry: data.value.brand.industry,
