@@ -1,0 +1,135 @@
+import { randomUUID } from 'node:crypto'
+import { z } from 'zod'
+import { postSchema } from '../../../../shared/schemas/workspace'
+import { normalizeGeneratedCreative } from '../../../utils/image-processing'
+import { monthlyImageCall, postImageEditPrompt } from '../../../utils/monthly-ai'
+import { evidenceHash, PlannerFailure, plannerMessages } from '../../../utils/monthly-planner-domain'
+import { postContentVersion, postContentSnapshot, postFingerprint } from '../../../utils/post-validation'
+
+export default defineEventHandler(async (event) => {
+  requireSameOrigin(event)
+  const user = await requireUser(event)
+  const id = z.uuid().safeParse(getRouterParam(event, 'id'))
+  const input = z.object({
+    action: z.literal('ai-edit'),
+    contentVersion: z.number().int().positive(),
+    instruction: z.string().trim().min(5).max(1200),
+  }).safeParse(await boundedBody(event, 4096))
+  if (!id.success || !input.success)
+    throw createError({ statusCode: 422, message: 'Kontrollo përshkrimin e dizajnit.' })
+
+  try {
+    const snapshot = await withBusinessTransaction(user.id, async (client, business) => {
+      await requireEntitlement(business.id, 'posts', client)
+      await requireEntitlement(business.id, 'media', client)
+      await requireEntitlement(business.id, 'ai', client)
+      const row = await client.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [id.data, business.id])
+      if (!row.rows[0]) throw createError({ statusCode: 404, message: 'Postimi nuk u gjet.' })
+      const post = postSchema.parse(row.rows[0].payload)
+      if (!post.aiProvenance || !['draft', 'review'].includes(post.status))
+        throw createError({ statusCode: 422, message: 'Rihap postimin si draft për ta rigjeneruar fotografinë.' })
+      if (postContentVersion(post) !== input.data.contentVersion)
+        throw createError({ statusCode: 409, message: 'Postimi ndryshoi. Ngarko versionin e fundit.' })
+      const sourceAssetId = z.uuid().safeParse(post.image.replace('/api/media/', ''))
+      if (!sourceAssetId.success)
+        throw createError({ statusCode: 422, message: 'Fotografia aktuale duhet të ruhet në galeri përpara rigjenerimit.' })
+      const source = await client.query(
+        'SELECT bytes,mime FROM assets WHERE business_id=$1 AND id=$2 AND rights=true',
+        [business.id, sourceAssetId.data],
+      )
+      if (!source.rowCount)
+        throw createError({ statusCode: 422, message: 'Fotografia aktuale nuk ka më të drejta të konfirmuara.' })
+      const { workspace } = await loadWorkspace(client, business.id, user.id)
+      return {
+        businessId: business.id,
+        post,
+        workspace,
+        sourceAssetId: sourceAssetId.data,
+        sourceBytes: source.rows[0].bytes as Buffer,
+        sourceMime: source.rows[0].mime as string,
+      }
+    })
+    const prompt = postImageEditPrompt({
+      brand: snapshot.workspace.brand,
+      post: {
+        channel: snapshot.post.channel,
+        title: snapshot.post.title,
+        caption: snapshot.post.caption,
+        pillar: snapshot.post.pillar,
+        creative: snapshot.post.aiProvenance!.creative,
+        rationale: snapshot.post.aiProvenance!.rationale,
+      },
+      instruction: input.data.instruction,
+    })
+    const generated = await monthlyImageCall(database(), {
+      planId: snapshot.post.aiProvenance!.planId,
+      businessId: snapshot.businessId,
+      stageKey: `user-image-edit:${snapshot.post.id}:${input.data.contentVersion}:${evidenceHash({ sourceAssetId: snapshot.sourceAssetId, instruction: input.data.instruction })}`,
+      prompt,
+      reference: snapshot.sourceBytes,
+      referenceMime: ['image/jpeg', 'image/png', 'image/webp'].includes(snapshot.sourceMime)
+        ? (snapshot.sourceMime as 'image/jpeg' | 'image/png' | 'image/webp')
+        : 'image/jpeg',
+      allowPaused: true,
+      tenant: { userId: user.id, organizationId: snapshot.businessId },
+    })
+    const bytes = await normalizeGeneratedCreative(generated.bytes)
+    return await withBusinessTransaction(user.id, async (client, business) => {
+      if (business.id !== snapshot.businessId)
+        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sërish.' })
+      await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
+      const row = await client.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2 FOR UPDATE', [id.data, business.id])
+      const previous = row.rows[0] ? postSchema.parse(row.rows[0].payload) : null
+      if (!previous?.aiProvenance || postContentVersion(previous) !== input.data.contentVersion || previous.image !== snapshot.post.image)
+        throw createError({ statusCode: 409, message: 'Postimi ndryshoi gjatë gjenerimit. Varianti ekzistues mbeti i paprekur.' })
+      await requireQuota(business.id, 'media_storage_bytes', bytes.length, client)
+      const assetId = randomUUID()
+      const createdAt = new Date().toISOString()
+      const post = postSchema.parse({
+        ...previous,
+        image: `/api/media/${assetId}`,
+        status: 'draft',
+        policy: 'warn',
+        policyReason: 'Fotografia u redizajnua plotësisht me AI sipas kërkesës tënde. Rishikoje përpara miratimit.',
+        scheduledAt: null,
+        publicationMode: 'manual',
+        version: previous.version + 1,
+        contentVersion: postContentVersion(previous) + 1,
+        history: [...previous.history, { version: previous.version, caption: previous.caption, at: createdAt }],
+        aiProvenance: {
+          ...previous.aiProvenance,
+          reasoning: previous.aiProvenance.reasoning ? {
+            ...previous.aiProvenance.reasoning,
+            design: `${previous.aiProvenance.reasoning.design}\nRidizajnim origjinal me AI: ${input.data.instruction}`,
+          } : undefined,
+          imageGeneration: { model: generated.model, quality: generated.quality, promptHash: generated.promptHash },
+          revision: { instruction: input.data.instruction, sourceAssetId: snapshot.sourceAssetId, createdAt },
+        },
+      })
+      await client.query(
+        `INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,creative_provenance)
+         VALUES($1,$2,$3,'["monthly-creative","ai-edited"]',true,'image/jpeg',$4,1080,1350,$5)`,
+        [assetId, business.id, post.title, bytes, JSON.stringify({ ...post.aiProvenance, editedBy: user.id, editSourceAssetId: snapshot.sourceAssetId })],
+      )
+      await client.query('UPDATE posts SET payload=$1,content_version=$2,updated_at=now() WHERE id=$3 AND business_id=$4', [JSON.stringify(post), postContentVersion(post), post.id, business.id])
+      await client.query(
+        "INSERT INTO post_content_versions(post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES($1,$2,$3,$4,$5,'editor',$6)",
+        [post.id, business.id, postContentVersion(post), postFingerprint(post), JSON.stringify(postContentSnapshot(post)), user.id],
+      )
+      await client.query('UPDATE businesses SET revision=revision+1,updated_at=now() WHERE id=$1', [business.id])
+      await client.query(
+        "INSERT INTO audit_events(business_id,organization_id,actor_id,action,resource_type,resource_id,result,revision) SELECT id,id,$2,'creative.ai_edited','post',$3,'succeeded',revision FROM businesses WHERE id=$1",
+        [business.id, user.id, id.data],
+      )
+      return { business: await loadWorkspace(client, business.id, user.id), image: post.image }
+    })
+  } catch (error) {
+    if (error instanceof PlannerFailure)
+      throw createError({
+        statusCode: ['QUOTA_EXCEEDED', 'BUDGET_EXCEEDED'].includes(error.code) ? 429 : 502,
+        message: plannerMessages[error.code] || 'Fotografia nuk u rigjenerua. Versioni aktual mbeti i paprekur.',
+        data: { code: error.code },
+      })
+    throw error
+  }
+})

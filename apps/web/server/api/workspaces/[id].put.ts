@@ -13,6 +13,7 @@ import {
   uploadAsset,
 } from '../../utils/asset-storage'
 import { setTenantContext, setUserContext } from '../../utils/database'
+import { BrainFailure, syncBusinessBrain } from '../../utils/business-brain'
 
 const schema = workspaceSchema.extend({
   revision: z.number().int().min(1),
@@ -90,14 +91,17 @@ export default defineEventHandler(async (event) => {
       'SELECT id, revision FROM brands WHERE organization_id = $1 AND slug = $2 FOR UPDATE',
       [id.data, owner.slug],
     )
-    if (
-      canonicalBrand.rows[0] &&
-      input.brandRevision !== canonicalBrand.rows[0].revision
-    )
+    if (canonicalBrand.rows[0] && input.brandRevision !== canonicalBrand.rows[0].revision)
       throw createError({
         statusCode: 409,
         message: 'Brandi ndryshoi nÃ« njÃ« pajisje tjetÃ«r. Ngarko versionin e fundit.',
       })
+    input.brand = await syncBusinessBrain(client, id.data, user.id, input.brand, current.brand)
+    // Validations in this transaction must see the newly submitted facts too.
+    await client.query(
+      "UPDATE businesses SET state=jsonb_set(state,'{brand}',$2::jsonb) WHERE id=$1",
+      [id.data, JSON.stringify(input.brand)],
+    )
     if (uploads.length)
       await requireQuota(
         id.data,
@@ -231,6 +235,8 @@ export default defineEventHandler(async (event) => {
           providerPostId: undefined,
           publishedAt: undefined,
           scheduledAt: null,
+          proposedAt: undefined,
+          aiProvenance: undefined,
           publicationMode: 'manual',
           policy: 'warn',
           policyReason: 'Kontrollo faktet dhe fotografinë përpara miratimit.',
@@ -258,7 +264,11 @@ export default defineEventHandler(async (event) => {
             approvalDecision = 'reopened'
           if (candidate.status === 'scheduled') {
             await requireCurrentApproval(previous, id.data, client)
-            const checks = await localPostChecks(previous, id.data, client)
+            const checks = await localPostChecks(
+              { ...previous, scheduledAt: candidate.scheduledAt },
+              id.data,
+              client,
+            )
             if (checks.some((check) => !check.passed))
               fail(
                 checks
@@ -515,6 +525,7 @@ export default defineEventHandler(async (event) => {
         })
       }
     }
+    if (error instanceof BrainFailure) fail(error.message)
     throw error
   } finally {
     client.release()

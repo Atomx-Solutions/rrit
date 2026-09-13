@@ -67,13 +67,7 @@ export default defineEventHandler(async (event) => {
         ])
         await client.query(
           "INSERT INTO post_approval_records(post_id,business_id,content_version,fingerprint,actor_id,decision,source) VALUES($1,$2,$3,$4,$5,'reopened','editor')",
-          [
-            post.id,
-            business.id,
-            postContentVersion(post),
-            postFingerprint(post),
-            user.id,
-          ],
+          [post.id, business.id, postContentVersion(post), postFingerprint(post), user.id],
         )
         await recordAuditEvent(client, {
           actorId: user.id,

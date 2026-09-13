@@ -3,14 +3,11 @@ import sharp from 'sharp'
 import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
 import type { Post } from '../../shared/schemas/workspace'
+import { factIsUsable, sameFactContent, type BrandFact } from '../../shared/schemas/business-brain'
+import { dayInZone } from '../../shared/utils/calendar'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
-import {
-  connectedMeta,
-  decryptMetaToken,
-  graphRequest,
-  MetaFailure,
-  metaConfigured,
-} from './meta'
+import { qualityBrandHash, qualityReviewKey, reviewedQuality } from './post-quality-domain'
+import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
 
 const limitsSchema = z.object({
   caption_characters: z.number().int().positive().max(2200),
@@ -97,7 +94,87 @@ export async function localPostChecks(
       ).rows[0]
     : null
   const ratio = asset?.width && asset?.height ? asset.width / asset.height : 0
+  const aiChecks: PostCheck[] = []
+  if (post.aiProvenance) {
+    const provenance = post.aiProvenance
+    const source = await db.query(
+      `SELECT p.evidence,b.state,
+      (SELECT snapshot FROM post_content_versions v WHERE v.business_id=p.business_id AND v.post_id=$4 AND v.content_version=1) AS initial_content,
+      EXISTS(SELECT 1 FROM assets a WHERE a.business_id=p.business_id AND a.id=$3 AND a.rights=true) AS original_rights
+      FROM monthly_plans p JOIN businesses b ON b.id=p.business_id WHERE p.id=$1 AND p.business_id=$2`,
+      [provenance.planId, businessId, provenance.assetId, post.id],
+    )
+    const row = source.rows[0]
+    const originalFacts = (row?.evidence?.brand?.facts || []) as BrandFact[]
+    const currentFacts = (row?.state?.brand?.facts || []) as BrandFact[]
+    const intendedDay = dayInZone(
+      post.scheduledAt || post.proposedAt || new Date(),
+      row?.state?.preferences?.timezone || 'Europe/Belgrade',
+    )
+    const today = dayInZone(new Date(), row?.state?.preferences?.timezone || 'Europe/Belgrade')
+    // Delayed publication cannot keep an expired offer valid by its old schedule.
+    const useDay = intendedDay > today ? intendedDay : today
+    aiChecks.push({
+      key: 'ai_evidence',
+      passed:
+        !!row?.original_rights &&
+        provenance.factIds.every((id) => {
+          const original = originalFacts.find((fact) => fact.id === id)
+          return (
+            !!original &&
+            currentFacts.some(
+              (fact) =>
+                fact.id === id && factIsUsable(fact, useDay) && sameFactContent(fact, original),
+            )
+          )
+        }),
+      message: 'Faktet ose të drejtat e materialit burimor kanë ndryshuar. Rishiko përmbajtjen AI.',
+    })
+    let quality = null
+    if (row?.state?.brand) {
+      const review = await db.query(
+        "SELECT result FROM monthly_ai_runs WHERE business_id=$1 AND plan_id=$2 AND stage_key=$3 AND status='completed' AND actual_cost_micro_eur<=reserved_cost_micro_eur",
+        [
+          businessId,
+          provenance.planId,
+          qualityReviewKey(post, postFingerprint(post), row.state.brand, useDay),
+        ],
+      )
+      if (review.rows[0]) {
+        try {
+          quality = reviewedQuality(review.rows[0].result)
+        } catch {
+          /* Malformed reviews fail closed. */
+        }
+      } else if (
+        postContentVersion(post) === 1 &&
+        row.initial_content &&
+        postFingerprint({ ...post, ...row.initial_content }) === postFingerprint(post) &&
+        qualityBrandHash({
+          ...row.state.brand,
+          facts: currentFacts.filter((fact) =>
+            originalFacts.some((original) => original.id === fact.id),
+          ),
+        }) === qualityBrandHash(row.evidence.brand)
+      ) {
+        quality = provenance.quality
+      }
+    }
+    aiChecks.push({
+      key: 'ai_quality',
+      passed:
+        !!quality &&
+        quality.decision !== 'BLOCK' &&
+        quality.factuality &&
+        quality.brandFit &&
+        quality.visualQuality,
+      message:
+        quality?.reasons.join(' ') ||
+        'Versioni aktual kërkon rishikim të tekstit dhe dizajnit me AI.',
+    })
+  }
   return [
+    ...aiChecks,
     {
       key: 'caption',
       passed: !!post.caption.trim() && [...post.caption].length <= limits.caption_characters,
@@ -249,7 +326,7 @@ export async function requireCurrentApproval(
   db: Pool | PoolClient,
 ) {
   const approval = await db.query(
-    "SELECT decision FROM post_approval_records WHERE post_id=$1 AND business_id=$2 AND content_version=$3 ORDER BY created_at DESC,id DESC LIMIT 1",
+    'SELECT decision FROM post_approval_records WHERE post_id=$1 AND business_id=$2 AND content_version=$3 ORDER BY created_at DESC,id DESC LIMIT 1',
     [post.id, businessId, postContentVersion(post)],
   )
   if (approval.rows[0]?.decision !== 'approved')

@@ -120,6 +120,57 @@ export interface TrialStatus {
   limits: PlanLimits
   plan: { name: string; version: number } | null
 }
+export type PlanningAccess = Pick<
+  TrialStatus,
+  'paid' | 'features' | 'limits' | 'plan' | 'expiresAt'
+>
+
+type PaidEntitlementRow = {
+  features: unknown
+  limits: unknown
+  plan_name?: string | null
+  plan_version?: number | null
+  valid_until?: Date | string | null
+}
+
+function paidEntitlementAccess(row: PaidEntitlementRow | undefined): PlanningAccess | null {
+  if (!row) return null
+  const features = entitlementFeatureSchema.array().safeParse(row.features)
+  const limits = planLimitsSchema.safeParse(row.limits)
+  if (!features.success || !limits.success)
+    throw createError({ statusCode: 503, message: 'Plani aktiv nuk është konfiguruar saktë.' })
+  return {
+    paid: true,
+    features: features.data,
+    limits: limits.data,
+    plan:
+      row.plan_name && row.plan_version ? { name: row.plan_name, version: row.plan_version } : null,
+    expiresAt: row.valid_until ? new Date(row.valid_until).toISOString() : null,
+  }
+}
+
+// Future calendars use the entitlement that covers that complete billing
+// month, rather than today's trial/package. This prevents drafts beyond an
+// expiry date and snapshots the limits that actually govern the target month.
+export async function paidAccessForPlanningMonth(
+  businessId: string,
+  month: string,
+  db: Pool | PoolClient = database(),
+): Promise<PlanningAccess | null> {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return null
+  const start = new Date(`${month}-01T00:00:00.000Z`)
+  const end = new Date(start)
+  end.setUTCMonth(end.getUTCMonth() + 1)
+  const paid = await db.query<PaidEntitlementRow>(
+    `SELECT features,limits,plan_name,plan_version,valid_until
+       FROM entitlements
+      WHERE business_id=$1 AND valid_from<=$2::date AND valid_until>=$3::date
+      ORDER BY valid_until DESC LIMIT 1`,
+    [businessId, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)],
+  )
+  return paidEntitlementAccess(paid.rows[0])
+}
+
 export type QuotaKey = keyof PlanLimits
 export type UsageSnapshot = Record<QuotaKey, { current: number; limit: number }>
 export async function trialStatus(
@@ -143,24 +194,17 @@ export async function trialStatus(
         : 'expired'
       : row.status
     : 'unavailable'
-  const paidAccess = paid.rows[0]
-  const paidFeatures = entitlementFeatureSchema.array().safeParse(paidAccess?.features)
-  const paidLimits = planLimitsSchema.safeParse(paidAccess?.limits)
-  if (paidAccess && (!paidFeatures.success || !paidLimits.success))
-    throw createError({ statusCode: 503, message: 'Plani aktiv nuk është konfiguruar saktë.' })
+  const paidAccess = paidEntitlementAccess(paid.rows[0])
   return {
     state,
     startsAt: row?.starts_at?.toISOString() || null,
     expiresAt: row?.expires_at?.toISOString() || null,
     secondsRemaining: row?.seconds_remaining || 0,
     durationHours: policy.duration_hours,
-    paid: !!paid.rows.length,
-    features: paidFeatures.success ? paidFeatures.data : state === 'active' ? policy.features : [],
-    limits: paidLimits.success ? paidLimits.data : policy.limits,
-    plan:
-      paidAccess?.plan_name && paidAccess?.plan_version
-        ? { name: paidAccess.plan_name as string, version: paidAccess.plan_version as number }
-        : null,
+    paid: !!paidAccess,
+    features: paidAccess?.features || (state === 'active' ? policy.features : []),
+    limits: paidAccess?.limits || policy.limits,
+    plan: paidAccess?.plan || null,
   }
 }
 export async function requireEntitlement(
@@ -184,15 +228,17 @@ export async function usageSnapshot(
   businessId: string,
   db: Pool | PoolClient = database(),
 ): Promise<UsageSnapshot> {
-  const access = await trialStatus(businessId, db)
-  const counters = await db.query(
-    `SELECT
-      (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND created_at>=date_trunc('month',now())) AS posts_per_month,
-      (SELECT COALESCE(sum(COALESCE(size_bytes, octet_length(bytes))),0)::bigint FROM assets WHERE business_id=$1) AS media_storage_bytes,
-      (SELECT COALESCE(requests,0)::integer FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date) AS ai_requests_per_day,
-      (SELECT CASE WHEN instagram_id IS NOT NULL THEN 2 ELSE 1 END FROM meta_connections WHERE business_id=$1 AND status='connected') AS social_accounts`,
-    [businessId],
-  )
+  const [access, counters] = await Promise.all([
+    trialStatus(businessId, db),
+    db.query(
+      `SELECT
+        (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS posts_per_month,
+        (SELECT COALESCE(sum(COALESCE(size_bytes, octet_length(bytes))),0)::bigint FROM assets WHERE business_id=$1) AS media_storage_bytes,
+        (SELECT COALESCE(requests,0)::integer FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date) AS ai_requests_per_day,
+        (SELECT CASE WHEN instagram_id IS NOT NULL THEN 2 ELSE 1 END FROM meta_connections WHERE business_id=$1 AND status='connected') AS social_accounts`,
+      [businessId],
+    ),
+  ])
   const row = counters.rows[0]
   const current: Record<QuotaKey, number> = {
     posts_per_month: Number(row.posts_per_month || 0),
@@ -216,6 +262,17 @@ export async function requireQuota(
   db: Pool | PoolClient = database(),
 ) {
   const quota = (await usageSnapshot(businessId, db))[key]
+  if (key === 'posts_per_month') {
+    const reservations = await db.query(
+      `SELECT COALESCE(sum(target_count-completed_count),0)::integer AS count
+         FROM monthly_plans
+        WHERE business_id=$1
+          AND month=date_trunc('month',now() AT TIME ZONE 'UTC')::date
+          AND status IN ('queued','running')`,
+      [businessId],
+    )
+    quota.current += Number(reservations.rows[0]?.count || 0)
+  }
   if (increment < 0 || quota.current + increment > quota.limit)
     throw createError({
       statusCode: 402,

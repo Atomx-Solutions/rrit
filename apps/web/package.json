@@ -9,9 +9,13 @@
   "scripts": {
     "dev": "nuxt dev --host 127.0.0.1 --dotenv ../../.env",
     "db:migrate": "node --env-file-if-exists=../../.env scripts/migrate.mjs",
+    "db:configure-roles": "node --env-file-if-exists=../../.env scripts/configure-database-roles.mjs",
     "db:verify-runtime": "node --env-file-if-exists=../../.env scripts/verify-runtime-role.mjs",
+    "db:verify-worker": "node --env-file-if-exists=../../.env scripts/verify-worker-role.mjs",
     "build": "nuxt build",
     "preview": "nuxt preview",
+    "ai:evaluate": "node --experimental-strip-types scripts/evaluate-monthly-ai.ts",
+    "ai:smoke": "node --env-file-if-exists=../../.env --experimental-strip-types scripts/smoke-monthly-ai.ts",
     "postinstall": "nuxt prepare",
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",

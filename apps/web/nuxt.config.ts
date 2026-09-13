@@ -1,12 +1,23 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-05',
+  // These overrides make it possible to verify a production bundle without
+  // touching a developer's active Nuxt dev server or its build artifacts.
+  buildDir: process.env.NUXT_BUILD_DIR || '.nuxt',
   modules: ['@nuxt/ui', '@nuxt/eslint'],
   css: ['@fontsource-variable/inter', '~/assets/css/main.css'],
   devtools: { enabled: false },
   ui: { fonts: false },
   colorMode: { preference: 'light', fallback: 'light' },
-  icon: { serverBundle: { collections: ['lucide'] }, clientBundle: { scan: true } },
+  icon: {
+    serverBundle: { collections: ['lucide'] },
+    clientBundle: { scan: { globInclude: ['app/**/*.{vue,ts}'] } },
+  },
   typescript: { strict: true },
+  nitro: {
+    output: {
+      dir: process.env.NITRO_OUTPUT_DIR || '.output',
+    },
+  },
   app: {
     head: {
       htmlAttrs: { lang: 'sq' },

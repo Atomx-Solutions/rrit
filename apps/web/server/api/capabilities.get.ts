@@ -1,5 +1,6 @@
 import { authCapabilities, authConfiguration } from '../utils/auth-configuration'
 import { aiCostConfigured } from '../utils/ai-costs'
+import { aiProviderConfigured, aiProviderModelConfigured } from '../utils/ai-provider'
 export default defineEventHandler(async () => {
   let emailVerificationRequired = true
   try {
@@ -23,7 +24,8 @@ export default defineEventHandler(async () => {
     trialHours: durationHours,
     socialImport: metaConfigured(),
     publishing: metaConfigured() && process.env.PUBLISHING_ENABLED === 'true',
-    ai: !!(process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL && aiCostConfigured()),
+    ai:
+      aiProviderConfigured() && aiProviderModelConfigured('OPENAI_MODEL') && aiCostConfigured(),
     billing: false,
   }
 })

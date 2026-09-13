@@ -15,7 +15,9 @@
     "check": "npm run toolchain:check && npm run lint && npm run typecheck && npm run test:unit",
     "verify": "npm run check && npm run test:integration && npm run test:security && npm run build",
     "db:migrate": "npm run db:migrate --workspace apps/web",
+    "db:configure-roles": "npm run db:configure-roles --workspace apps/web",
     "db:verify-runtime": "npm run db:verify-runtime --workspace apps/web",
+    "db:verify-worker": "npm run db:verify-worker --workspace apps/web",
     "dev": "npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/web",
     "typecheck": "npm run typecheck --workspace apps/web",
@@ -24,6 +26,7 @@
     "test:unit": "npm run test:unit --workspace apps/web",
     "test:integration": "npm run test:integration --workspace apps/web",
     "test:security": "npm run test:security --workspace apps/web",
-    "test:e2e": "npm run test:e2e --workspace apps/web"
+    "test:e2e": "npm run test:e2e --workspace apps/web",
+    "ai:smoke": "npm run ai:smoke --workspace apps/web"
   }
 }

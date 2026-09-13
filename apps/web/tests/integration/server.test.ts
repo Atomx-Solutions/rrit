@@ -2,6 +2,7 @@ import { beforeAll, afterAll, afterEach, describe, it, expect, vi } from 'vitest
 import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
 import { createError } from 'h3'
@@ -67,6 +68,15 @@ import {
 } from '../../server/utils/brands'
 import { brandCreateSchema } from '../../shared/schemas/brand'
 import { assertDeniedInSavepoint } from '../security/rls/assertions'
+import {
+  ensureMonthlyPlan,
+  restartMonthlyPlan,
+  runMonthlyPlannerTick,
+} from '../../server/utils/monthly-planner'
+import { monthlyProviderCall } from '../../server/utils/monthly-ai'
+import { createDemo } from '../fixtures/workspace'
+import { syncBusinessBrain } from '../../server/utils/business-brain'
+import { currentPostQuality, reviewPostQuality } from '../../server/utils/post-quality'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
@@ -81,6 +91,7 @@ const pool = new Pool({ connectionString: databaseUrl, options: `-c search_path=
 let createdAuthSchema = false
 let createdAuthUsersTable = false
 let createdPublicAssetsTable = false
+let createdWorkerRole = false
 beforeAll(async () => {
   vi.stubGlobal('createError', createError)
   vi.stubGlobal('database', () => pool)
@@ -97,6 +108,13 @@ beforeAll(async () => {
   vi.stubEnv('AI_INPUT_MICRO_EUR_PER_MILLION_TOKENS', '1000000')
   vi.stubEnv('AI_OUTPUT_MICRO_EUR_PER_MILLION_TOKENS', '2000000')
   vi.stubEnv('AI_DAILY_BUDGET_MICRO_EUR', '100000000')
+  const workerRole = await admin.query("SELECT 1 FROM pg_roles WHERE rolname = 'rrit_worker'")
+  if (!workerRole.rowCount) {
+    await admin.query(
+      'CREATE ROLE rrit_worker NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS',
+    )
+    createdWorkerRole = true
+  }
   const authSchema = await admin.query("SELECT 1 FROM pg_namespace WHERE nspname = 'auth'")
   if (!authSchema.rowCount) {
     await admin.query('CREATE SCHEMA auth')
@@ -133,8 +151,37 @@ beforeAll(async () => {
   }
   await admin.query(`CREATE SCHEMA "${schema}"`)
   const directory = new URL('../../database/migrations/', import.meta.url)
-  for (const file of (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort())
-    await pool.query(await readFile(new URL(file, directory), 'utf8'))
+  for (const file of (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort()) {
+    let sql = await readFile(new URL(file, directory), 'utf8')
+    // The production SECURITY DEFINER reader pins public explicitly. Bind only
+    // that table/search path to this isolated test schema; never create public assets.
+    if (file === '0020_signed_media_reader.sql')
+      sql = sql
+        .replaceAll('public.assets', `"${schema}".assets`)
+        .replace('SET search_path = public, pg_temp', `SET search_path = "${schema}", pg_temp`)
+    await pool.query(sql)
+  }
+  // Optional local-only Supabase audit of this exact migrated test schema.
+  // Supabase's linter expects anon/authenticated roles in the local cluster.
+  if (process.env.TEST_SUPABASE_CLI) {
+    const report = JSON.parse(
+      execFileSync(
+        process.env.TEST_SUPABASE_CLI,
+        ['db', 'advisors', '--db-url', databaseUrl!, '--type', 'all', '--level', 'info'],
+        { encoding: 'utf8', timeout: 30000 },
+      ),
+    ) as {
+      results: { level: string; name: string; detail: string; metadata: { schema?: string } }[]
+    }
+    const findings = report.results.filter(
+      (item) =>
+        [schema, 'app'].includes(item.metadata.schema || '') &&
+        ['WARN', 'ERROR'].includes(item.level),
+    )
+    expect(findings, 'Supabase security/performance warnings in the migrated test schema').toEqual(
+      [],
+    )
+  }
 })
 afterEach(() => {
   vi.stubEnv('PUBLISHING_ENABLED', 'false')
@@ -150,6 +197,7 @@ afterAll(async () => {
   if (createdPublicAssetsTable) await admin.query('DROP TABLE public.assets CASCADE')
   if (createdAuthUsersTable) await admin.query('DROP TABLE auth.users CASCADE')
   if (createdAuthSchema) await admin.query('DROP SCHEMA auth CASCADE')
+  if (createdWorkerRole) await admin.query('DROP ROLE rrit_worker')
   await admin.end()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
@@ -171,10 +219,12 @@ async function business() {
   return { id, email, user }
 }
 async function organization(item: { id: string; user: string }) {
-  await pool.query(
-    'INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)',
-    [item.id, `publisher-org-${item.id.slice(0, 8)}`, 'Publisher test organization', item.user],
-  )
+  await pool.query('INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)', [
+    item.id,
+    `publisher-org-${item.id.slice(0, 8)}`,
+    'Publisher test organization',
+    item.user,
+  ])
   await pool.query(
     "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
     [item.id, item.user],
@@ -243,9 +293,12 @@ describe('tenant row-level security', () => {
         ).rowCount,
       ).toBe(0)
       expect((await client.query('DELETE FROM posts WHERE id=$1', [secondPost])).rowCount).toBe(0)
-      await assertDeniedInSavepoint(client, () => client.query('CREATE TABLE rls_forbidden (id integer)'))
+      await assertDeniedInSavepoint(client, () =>
+        client.query('CREATE TABLE rls_forbidden (id integer)'),
+      )
       await client.query('ROLLBACK')
     } finally {
+      await client.query('ROLLBACK')
       client.release()
     }
 
@@ -290,16 +343,19 @@ describe('brand domain lifecycle', () => {
       expect((await listBrands(client, item.id)).map((brand) => brand.id)).toContain(created.id)
       expect((await getBrand(client, item.id, created.id)).name).toBe('Test Brand')
       const updated = await updateBrand(client, item.id, created.id, { name: 'Updated Brand' })
-      expect(updated.name).toBe(
-        'Updated Brand',
-      )
+      expect(updated.name).toBe('Updated Brand')
       expect(updated.revision).toBe(created.revision + 1)
       await expect(
-        updateBrand(client, item.id, created.id, { name: 'Stale Update', revision: created.revision }),
+        updateBrand(client, item.id, created.id, {
+          name: 'Stale Update',
+          revision: created.revision,
+        }),
       ).rejects.toMatchObject({ statusCode: 409 })
       const archived = await archiveBrand(client, item.id, created.id)
       expect(archived.status).toBe('archived')
-      await expect(updateBrand(client, item.id, created.id, { name: 'Rejected Update' })).rejects.toMatchObject({
+      await expect(
+        updateBrand(client, item.id, created.id, { name: 'Rejected Update' }),
+      ).rejects.toMatchObject({
         statusCode: 409,
       })
       await expect(deleteArchivedBrand(client, item.id, created.id)).resolves.toEqual({
@@ -311,6 +367,111 @@ describe('brand domain lifecycle', () => {
       await client.query('ROLLBACK')
       throw error
     } finally {
+      client.release()
+    }
+  })
+})
+
+describe('Business Brain persistence', () => {
+  it('records immutable revisions, demotes changed claims and archives removed facts', async () => {
+    const item = await business()
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('SET LOCAL ROLE app_runtime')
+      await setTenantContext(client, { userId: item.user, organizationId: item.id })
+      await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [item.id])
+      const original = emptyWorkspace().brand
+      const submitted = {
+        ...original,
+        facts: [{ id: 'price', text: 'Coffee costs 2 EUR.', source: 'Price list', verified: true }],
+      }
+      const first = await syncBusinessBrain(client, item.id, item.user, submitted, original)
+      expect(first.brainVersion).toBe(2)
+      const unchanged = await syncBusinessBrain(client, item.id, item.user, first, first)
+      expect(unchanged.brainVersion).toBe(2)
+      const second = await syncBusinessBrain(
+        client,
+        item.id,
+        item.user,
+        { ...first, facts: [{ ...first.facts[0]!, text: 'Coffee costs 3 EUR.' }] },
+        first,
+      )
+      expect(second.facts[0]).toMatchObject({ verified: false, revision: 2 })
+      expect(
+        (
+          await client.query('SELECT status,revision FROM business_facts WHERE business_id=$1', [
+            item.id,
+          ])
+        ).rows,
+      ).toEqual([{ status: 'proposed', revision: 2 }])
+      expect(
+        (
+          await client.query(
+            'SELECT snapshot FROM business_brain_versions WHERE business_id=$1 AND version=2',
+            [item.id],
+          )
+        ).rows[0].snapshot.facts[0].text,
+      ).toBe('Coffee costs 2 EUR.')
+      await client.query('SAVEPOINT immutable')
+      await expect(
+        client.query("UPDATE business_brain_versions SET snapshot='{}' WHERE business_id=$1", [
+          item.id,
+        ]),
+      ).rejects.toMatchObject({ code: '42501' })
+      await client.query('ROLLBACK TO SAVEPOINT immutable')
+      const removed = await syncBusinessBrain(
+        client,
+        item.id,
+        item.user,
+        { ...second, facts: [] },
+        second,
+      )
+      expect(
+        (await client.query('SELECT status FROM business_facts WHERE business_id=$1', [item.id]))
+          .rows[0].status,
+      ).toBe('archived')
+      await expect(
+        syncBusinessBrain(client, item.id, item.user, submitted, removed),
+      ).rejects.toThrow('arkivuar')
+      await client.query('ROLLBACK')
+    } finally {
+      await client.query('ROLLBACK')
+      client.release()
+    }
+  })
+  it('isolates fact/history rows and forbids tenant reassignment', async () => {
+    const first = await business(),
+      second = await business()
+    await pool.query(
+      "INSERT INTO business_brain_versions(business_id,version,snapshot) VALUES($1,1,'{}'),($2,1,'{}')",
+      [first.id, second.id],
+    )
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('SET LOCAL ROLE app_runtime')
+      await setTenantContext(client, { userId: first.user, organizationId: first.id })
+      expect((await client.query('SELECT business_id FROM business_brain_versions')).rows).toEqual([
+        { business_id: first.id },
+      ])
+      await client.query(
+        "INSERT INTO business_facts(business_id,id,text,source,kind,status,origin,revision) VALUES($1,'test','Test','Owner','fact','verified','user',1)",
+        [first.id],
+      )
+      await client.query('SAVEPOINT reassignment')
+      await expect(
+        client.query('UPDATE business_facts SET business_id=$1 WHERE business_id=$2', [
+          second.id,
+          first.id,
+        ]),
+      ).rejects.toMatchObject({ code: '42501' })
+      await client.query('ROLLBACK TO SAVEPOINT reassignment')
+      await setTenantContext(client, { userId: second.user, organizationId: second.id })
+      expect((await client.query('SELECT id FROM business_facts')).rows).toEqual([])
+      await client.query('ROLLBACK')
+    } finally {
+      await client.query('ROLLBACK')
       client.release()
     }
   })
@@ -1393,4 +1554,597 @@ describe('Meta transport and token security', () => {
     const far = String(Math.floor(Date.now() / 1000) + 3600)
     expect(validMediaSignature(id, far, mediaSignature(id, far))).toBe(false)
   })
+})
+
+describe('monthly planning persistence and cost boundaries', () => {
+  function configurePlanner() {
+    vi.stubEnv('AI_MONTHLY_PLANNER_ENABLED', 'true')
+    vi.stubEnv('OPENAI_API_KEY', 'fixture-only-no-network')
+    vi.stubEnv('AI_PLANNER_MODEL', 'fixture-model')
+    vi.stubEnv('AI_IMAGE_MODEL', 'fixture-image-model')
+    vi.stubEnv('AI_IMAGE_QUALITY', 'high')
+    vi.stubEnv('AI_IMAGE_RESERVE_MICRO_EUR', '1000000')
+    vi.stubEnv('AI_USD_MICRO_EUR', '1000000')
+    vi.stubEnv('AI_PLANNER_INPUT_MICRO_EUR_PER_MILLION_TOKENS', '1000000')
+    vi.stubEnv('AI_PLANNER_OUTPUT_MICRO_EUR_PER_MILLION_TOKENS', '2000000')
+    vi.stubEnv('AI_WEB_SEARCH_MICRO_EUR_PER_CALL', '10000')
+    vi.stubEnv('AI_PLANNER_MONTHLY_BUDGET_MICRO_EUR', '100000000')
+    vi.stubEnv('AI_DAILY_BUDGET_MICRO_EUR', '100000000')
+  }
+  async function monthlyBusiness(count = 2) {
+    configurePlanner()
+    const item = await business()
+    const workspace = createDemo()
+    workspace.posts = []
+    workspace.assets = []
+    workspace.revision = 0
+    await pool.query('UPDATE businesses SET state=$1 WHERE id=$2', [
+      JSON.stringify(workspace),
+      item.id,
+    ])
+    await pool.query(
+      "INSERT INTO entitlements(business_id,valid_from,valid_until,features,source,plan_name,plan_version,limits) VALUES($1,now()-interval '1 day',now()+interval '3 months','[\"posts\",\"media\",\"ai\",\"validation\"]','test','Fixture',1,$2)",
+      [
+        item.id,
+        JSON.stringify({
+          posts_per_month: count,
+          ai_requests_per_day: 100,
+          media_storage_bytes: 10000000,
+          social_accounts: 2,
+          members: 1,
+        }),
+      ],
+    )
+    const assetId = randomUUID()
+    const bytes = await sharp({
+      create: { width: 800, height: 800, channels: 3, background: '#215040' },
+    })
+      .jpeg()
+      .toBuffer()
+    await pool.query(
+      "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height) VALUES($1,$2,'Owned test photo','[]',true,'image/jpeg',$3,800,800)",
+      [assetId, item.id, bytes],
+    )
+    const next = new Date()
+    next.setUTCDate(1)
+    next.setUTCMonth(next.getUTCMonth() + 1)
+    return { ...item, assetId, month: next.toISOString().slice(0, 7) }
+  }
+  async function enqueue(item: Awaited<ReturnType<typeof monthlyBusiness>>) {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await ensureMonthlyPlan(client, item.id, item.user, item.month)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+  async function restart(item: Awaited<ReturnType<typeof monthlyBusiness>>) {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await restartMonthlyPlan(client, item.id, item.user, item.month)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+  it('queues one monthly job under concurrent requests and scopes reads with RLS', async () => {
+    const item = await monthlyBusiness()
+    const [first, second] = await Promise.all([enqueue(item), enqueue(item)])
+    expect(second.id).toBe(first.id)
+    const other = await business()
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('SET LOCAL ROLE app_runtime')
+      await setTenantContext(client, { userId: other.user, organizationId: other.id })
+      expect(
+        (await client.query('SELECT id FROM monthly_plans WHERE id=$1', [first.id])).rows,
+      ).toEqual([])
+      expect(
+        (await client.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [first.id]))
+          .rowCount,
+      ).toBe(0)
+      await client.query('ROLLBACK')
+    } finally {
+      client.release()
+    }
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [first.id])
+  })
+  it('uses the paid package that covers the complete future planning month', async () => {
+    const item = await monthlyBusiness(7)
+    const start = new Date(`${item.month}-01T00:00:00.000Z`)
+    const end = new Date(start)
+    end.setUTCMonth(end.getUTCMonth() + 1)
+    await pool.query(
+      `UPDATE entitlements
+          SET valid_from=now()-interval '1 day',valid_until=$2,
+              limits=jsonb_set(limits,'{posts_per_month}','7'::jsonb)
+        WHERE business_id=$1`,
+      [item.id, end],
+    )
+    const plan = await enqueue(item)
+    const stored = (
+      await pool.query('SELECT target_count,entitlement_snapshot FROM monthly_plans WHERE id=$1', [
+        plan.id,
+      ])
+    ).rows[0]
+    expect(stored.target_count).toBe(7)
+    expect(stored.entitlement_snapshot).toMatchObject({
+      paid: true,
+      limits: { posts_per_month: 7 },
+    })
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('does not prepare future drafts beyond the entitlement expiry', async () => {
+    const item = await monthlyBusiness()
+    await pool.query(
+      `UPDATE entitlements
+          SET valid_from=$2::date,valid_until=$2::date+interval '15 days'
+        WHERE business_id=$1`,
+      [item.id, `${item.month}-01`],
+    )
+    await expect(enqueue(item)).rejects.toThrow('ENTITLEMENT_REQUIRED')
+  })
+  it('restarts a zero-draft blocked plan from new evidence without reusing paid stages', async () => {
+    const item = await monthlyBusiness()
+    const plan = await enqueue(item)
+    const before = (
+      await pool.query('SELECT evidence_hash FROM monthly_plans WHERE id=$1', [plan.id])
+    ).rows[0].evidence_hash as string
+    await pool.query(
+      "INSERT INTO monthly_ai_runs(plan_id,business_id,stage_key,model,prompt_version,prompt_hash,status,reserved_cost_micro_eur,actual_cost_micro_eur,result,completed_at) VALUES($1,$2,$3,'fixture','fixture','fixture','completed',1,1,'{}',now())",
+      [plan.id, item.id, `research:${before}`],
+    )
+    await pool.query(
+      "UPDATE businesses SET state=jsonb_set(state,'{brand,voice}','\"Updated brand voice\"'::jsonb) WHERE id=$1",
+      [item.id],
+    )
+    await pool.query(
+      "UPDATE monthly_plans SET status='blocked',error_code='EVIDENCE_CHANGED' WHERE id=$1",
+      [plan.id],
+    )
+    await expect(restart(item)).resolves.toMatchObject({ id: plan.id, status: 'queued' })
+    const rebuilt = (
+      await pool.query(
+        'SELECT status,stage,completed_count,evidence_hash,research,editorial_plan,error_code FROM monthly_plans WHERE id=$1',
+        [plan.id],
+      )
+    ).rows[0]
+    expect(rebuilt).toMatchObject({
+      status: 'queued',
+      stage: 'research',
+      completed_count: 0,
+      research: null,
+      editorial_plan: null,
+      error_code: null,
+    })
+    expect(rebuilt.evidence_hash).not.toBe(before)
+    expect(
+      (
+        await pool.query('SELECT id FROM monthly_ai_runs WHERE plan_id=$1 AND stage_key=$2', [
+          plan.id,
+          `research:${before}`,
+        ])
+      ).rowCount,
+    ).toBe(1)
+    await pool.query("UPDATE monthly_plans SET status='blocked',completed_count=1 WHERE id=$1", [
+      plan.id,
+    ])
+    await expect(restart(item)).rejects.toThrow('PLAN_HAS_DRAFTS')
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('recovers one ambiguous paid call and then stops duplicate spend', async () => {
+    const item = await monthlyBusiness()
+    const plan = await enqueue(item)
+    const fetcher = vi.fn().mockRejectedValue(new Error('connection lost after send'))
+    vi.stubGlobal('fetch', fetcher)
+    const args = {
+      planId: plan.id,
+      businessId: item.id,
+      stageKey: 'research',
+      capability: 'research' as const,
+      input: {},
+      maxOutput: 100,
+    }
+    await expect(monthlyProviderCall(pool, args)).rejects.toThrow('PROVIDER_UNCERTAIN')
+    await expect(monthlyProviderCall(pool, args)).rejects.toThrow('PROVIDER_UNCERTAIN')
+    await expect(monthlyProviderCall(pool, args)).rejects.toThrow('PROVIDER_RETRY_EXHAUSTED')
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    const ledger = await pool.query(
+      'SELECT status,reserved_cost_micro_eur,stage_key FROM monthly_ai_runs WHERE plan_id=$1 ORDER BY created_at',
+      [plan.id],
+    )
+    expect(ledger.rowCount).toBe(2)
+    expect(ledger.rows.every((row) => row.status === 'uncertain')).toBe(true)
+    expect(ledger.rows[0].stage_key).toContain(':uncertain:')
+    expect(ledger.rows[1].stage_key).toBe('research')
+    expect(ledger.rows.every((row) => Number(row.reserved_cost_micro_eur) > 0)).toBe(true)
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('allows the dedicated worker to advance a plan but cannot delete planner records', async () => {
+    const item = await monthlyBusiness(1)
+    const plan = await enqueue(item)
+    const url = 'https://example.test/worker-source'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 'worker-research-fixture',
+            status: 'completed',
+            usage: { input_tokens: 100, output_tokens: 100 },
+            output: [
+              {
+                type: 'web_search_call',
+                status: 'completed',
+                action: { sources: [{ url, title: 'Worker source' }] },
+              },
+              {
+                type: 'message',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Market context [1]',
+                    annotations: [
+                      {
+                        type: 'url_citation',
+                        url,
+                        title: 'Worker source',
+                        start_index: 15,
+                        end_index: 18,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    )
+    const worker = new Pool({
+      connectionString: databaseUrl,
+      options: `-c search_path=${schema},public -c role=rrit_worker`,
+    })
+    try {
+      expect((await worker.query('SELECT current_user')).rows[0].current_user).toBe('rrit_worker')
+      await runMonthlyPlannerTick(worker, { discover: false })
+      expect(
+        (await pool.query('SELECT status,stage,research FROM monthly_plans WHERE id=$1', [plan.id]))
+          .rows[0],
+      ).toMatchObject({ status: 'running', stage: 'planning' })
+      expect(
+        (await pool.query('SELECT research FROM monthly_plans WHERE id=$1', [plan.id])).rows[0]
+          .research.sources,
+      ).toEqual([{ url, title: 'Worker source' }])
+      await expect(
+        worker.query('DELETE FROM monthly_plans WHERE id=$1', [plan.id]),
+      ).rejects.toMatchObject({
+        code: '42501',
+      })
+    } finally {
+      await worker.end()
+    }
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('rejects a cost reservation before any provider request', async () => {
+    const item = await monthlyBusiness()
+    const plan = await enqueue(item)
+    vi.stubEnv('AI_DAILY_BUDGET_MICRO_EUR', '1')
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
+    await expect(
+      monthlyProviderCall(pool, {
+        planId: plan.id,
+        businessId: item.id,
+        stageKey: 'research',
+        capability: 'research',
+        input: {},
+        maxOutput: 100,
+      }),
+    ).rejects.toThrow('BUDGET_EXCEEDED')
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(
+      (await pool.query('SELECT id FROM monthly_ai_runs WHERE plan_id=$1', [plan.id])).rowCount,
+    ).toBe(0)
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('runs research, strategy, two creatives and QA into editable drafts without publishing', async () => {
+    const item = await monthlyBusiness()
+    await pool.query(
+      "UPDATE businesses SET state=jsonb_set(state,'{brand,facts,1}',(state#>'{brand,facts,1}') || $2::jsonb) WHERE id=$1",
+      [
+        item.id,
+        JSON.stringify({
+          kind: 'offer',
+          validFrom: `${item.month}-01`,
+          validUntil: `${item.month}-20`,
+        }),
+      ],
+    )
+    const plan = await enqueue(item)
+    const url = 'https://example.test/primary-local-source'
+    const generatedBase = await sharp({
+      create: { width: 768, height: 1024, channels: 3, background: '#284f42' },
+    })
+      .jpeg()
+      .toBuffer()
+    const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
+      if (_url.includes('/images/'))
+        return new Response(
+          JSON.stringify({
+            created: 1,
+            data: [{ b64_json: generatedBase.toString('base64'), media_type: 'image/jpeg' }],
+          }),
+          { status: 200 },
+        )
+      const body = JSON.parse(init.body as string)
+      const input = JSON.parse(body.input[0].content[0].text)
+      let value: unknown
+      if (body.tools)
+        return new Response(
+          JSON.stringify({
+            id: 'research-fixture',
+            status: 'completed',
+            usage: { input_tokens: 100, output_tokens: 100 },
+            output: [
+              {
+                type: 'web_search_call',
+                status: 'completed',
+                action: { sources: [{ url, title: 'Fixture primary source' }] },
+              },
+              {
+                type: 'message',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Context [1]',
+                    annotations: [
+                      {
+                        type: 'url_citation',
+                        url,
+                        title: 'Fixture primary source',
+                        start_index: 8,
+                        end_index: 11,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200 },
+        )
+      if (body.text.format.name === 'planning')
+        value = {
+          objective: 'Present the real business offering',
+          audience: 'People in the local neighborhood',
+          rationale: 'Combine useful product stories and local context.',
+          slots: [10, 20].map((day, index) => ({
+            day,
+            time: '10:00',
+            channel: 'Instagram',
+            topic: index ? 'A neighborhood coffee question' : 'A useful coffee story',
+            pillar: index ? 'Community' : 'Product',
+            intent: index ? 'conversation' : 'educate',
+            hook: index
+              ? 'Which coffee moment belongs to you?'
+              : 'What is behind the daily ritual?',
+            purpose: index
+              ? 'Invite a meaningful preference-based conversation.'
+              : 'Introduce a verified offering in context.',
+            assetDirection:
+              'Use an owned photograph whose subject supports this exact story angle.',
+            visualLayout: index ? 'immersive' : 'magazine',
+            algorithmGoal: index ? 'meaningful_comments' : 'saves',
+            platformRationale: index
+              ? 'Instagram supports a visual question designed for meaningful comments.'
+              : 'Instagram supports a useful visual story that people can save.',
+            timingRationale: 'This time is a hypothesis to test against account-level Insights.',
+            factIds: ['f2'],
+            sourceUrls: [url],
+            requiredAssetId: null,
+          })),
+        }
+      else if (body.text.format.name === 'content')
+        value = {
+          title: `Kafe në lagje ${input.slot.day}`,
+          caption: `Kafe dhe ëmbëlsira në lagje. Na vizito! Dita ${input.slot.day}.`,
+          hashtags: ['#Kafe', '#LagjjaJonë'],
+          assetId: item.assetId,
+          assetReason: 'The owned photo has space for a clean editorial composition.',
+          factIds: ['f2'],
+          creative: {
+            headline: 'Koha për një kafe',
+            eyebrow: 'Në lagjen tënde',
+            cta: 'Na vizito',
+            layout: input.slot.visualLayout,
+          },
+          reasoning: {
+            concept: 'The concept connects a verified product with a familiar local ritual.',
+            copy: 'The concise copy opens with the product and closes with one clear invitation.',
+            design:
+              'The selected hierarchy preserves the photograph while keeping the message readable.',
+            hashtags: 'The two focused hashtags describe the product and its local context.',
+          },
+        }
+      else
+        value = {
+          decision: 'PASS',
+          reasons: ['Fixture reviewer passed the supplied content.'],
+          factuality: true,
+          brandFit: true,
+          visualQuality: true,
+        }
+      return new Response(
+        JSON.stringify({
+          id: randomUUID(),
+          status: 'completed',
+          usage: { input_tokens: 100, output_tokens: 100 },
+          output: [
+            { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(value) }] },
+          ],
+        }),
+        { status: 200 },
+      )
+    })
+    vi.stubGlobal('fetch', fetcher)
+    for (let stage = 0; stage < 5; stage++) await runMonthlyPlannerTick(pool, { discover: false })
+    const finished = (
+      await pool.query(
+        'SELECT status,stage,completed_count,error_code FROM monthly_plans WHERE id=$1',
+        [plan.id],
+      )
+    ).rows[0]
+    expect(finished).toMatchObject({
+      status: 'review',
+      stage: 'complete',
+      completed_count: 2,
+      error_code: null,
+    })
+    const posts = await pool.query(
+      'SELECT payload FROM posts WHERE monthly_plan_id=$1 ORDER BY monthly_slot',
+      [plan.id],
+    )
+    expect(posts.rowCount).toBe(2)
+    for (const { payload } of posts.rows) {
+      expect(payload).toMatchObject({
+        status: 'draft',
+        scheduledAt: null,
+        publicationMode: 'manual',
+        contentVersion: 1,
+      })
+      expect(payload.proposedAt).toContain(item.month)
+      expect(payload.aiProvenance.sourceUrls).toEqual([url])
+      expect(payload.aiProvenance.reasoning).toMatchObject({
+        concept: expect.any(String),
+        design: expect.any(String),
+        hashtags: expect.any(String),
+      })
+      expect(payload.caption).toContain('#Kafe #LagjjaJonë')
+      expect((await localPostChecks(payload, item.id, pool)).every((check) => check.passed)).toBe(
+        true,
+      )
+    }
+    expect(fetcher).toHaveBeenCalledTimes(8)
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(fetcher).toHaveBeenCalledTimes(8)
+    expect(
+      (await pool.query('SELECT id FROM publication_jobs WHERE business_id=$1', [item.id]))
+        .rowCount,
+    ).toBe(0)
+    expect(
+      (
+        await pool.query('SELECT post_id FROM post_content_versions WHERE business_id=$1', [
+          item.id,
+        ])
+      ).rowCount,
+    ).toBe(2)
+    const edited = {
+      ...posts.rows[0].payload,
+      title: 'Version i redaktuar',
+      caption: 'Kafe dhe ëmbëlsira për klientët e lagjes.',
+      image: `/api/media/${item.assetId}`,
+      contentVersion: 2,
+      version: 2,
+    }
+    await pool.query('UPDATE posts SET payload=$1,content_version=2 WHERE id=$2', [
+      JSON.stringify(edited),
+      edited.id,
+    ])
+    expect(
+      (await localPostChecks(edited, item.id, pool)).find((check) => check.key === 'ai_quality')
+        ?.passed,
+    ).toBe(false)
+    const runtime = new Pool({
+      connectionString: databaseUrl,
+      options: `-c search_path=${schema},public -c role=app_runtime`,
+    })
+    try {
+      const tenant = { userId: item.user, organizationId: item.id }
+      await expect(
+        reviewPostQuality(runtime, { ...tenant, userId: randomUUID() }, edited.id, 2),
+      ).rejects.toThrow('POST_NOT_FOUND')
+      const reviewed = await reviewPostQuality(runtime, tenant, edited.id, 2)
+      expect(reviewed.quality.decision).toBe('PASS')
+      expect(fetcher).toHaveBeenCalledTimes(7)
+      await reviewPostQuality(runtime, tenant, edited.id, 2)
+      expect(fetcher).toHaveBeenCalledTimes(7)
+      await expect(
+        currentPostQuality(runtime, { ...tenant, userId: randomUUID() }, edited.id),
+      ).rejects.toThrow('POST_NOT_FOUND')
+      const storedReview = await currentPostQuality(runtime, tenant, edited.id)
+      expect(storedReview).toMatchObject({ contentVersion: 2, quality: { decision: 'PASS' } })
+      expect(storedReview.reviewedAt).toMatch(/^20\d\d-/)
+      expect(
+        (await localPostChecks(edited, item.id, pool)).find((check) => check.key === 'ai_quality')
+          ?.passed,
+      ).toBe(true)
+      const changed = {
+        ...edited,
+        caption: 'Një tekst tjetër pas kontrollit.',
+        contentVersion: 3,
+        version: 3,
+      }
+      await pool.query('UPDATE posts SET payload=$1,content_version=3 WHERE id=$2', [
+        JSON.stringify(changed),
+        edited.id,
+      ])
+      expect((await currentPostQuality(runtime, tenant, edited.id)).quality).toBeNull()
+      expect(
+        (await localPostChecks(changed, item.id, pool)).find((check) => check.key === 'ai_quality')
+          ?.passed,
+      ).toBe(false)
+      const realFixture = fetcher.getMockImplementation()!
+      fetcher.mockImplementationOnce(async (url, init) => {
+        // A concurrent editor wins while the provider is in flight.
+        await pool.query('UPDATE posts SET payload=$1,content_version=4 WHERE id=$2', [
+          JSON.stringify({ ...changed, title: 'Ndryshim paralel', contentVersion: 4 }),
+          edited.id,
+        ])
+        return realFixture(url, init)
+      })
+      await expect(reviewPostQuality(runtime, tenant, edited.id, 3)).rejects.toThrow('POST_CHANGED')
+      const afterRace = (await pool.query('SELECT payload FROM posts WHERE id=$1', [edited.id]))
+        .rows[0].payload
+      expect(afterRace.title).toBe('Ndryshim paralel')
+      expect(
+        (await localPostChecks(afterRace, item.id, pool)).find(
+          (check) => check.key === 'ai_quality',
+        )?.passed,
+      ).toBe(false)
+    } finally {
+      await runtime.end()
+    }
+    // A delayed publisher must use today's validity, not just the old planned day.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date(`${item.month}-21T12:00:00Z`))
+      const delayed = { ...posts.rows[0].payload, scheduledAt: posts.rows[0].payload.proposedAt }
+      expect(
+        (await localPostChecks(delayed, item.id, pool)).find((check) => check.key === 'ai_evidence')
+          ?.passed,
+      ).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+    await pool.query('UPDATE assets SET rights=false WHERE id=$1', [item.assetId])
+    expect(
+      (await localPostChecks(posts.rows[0].payload, item.id, pool)).find(
+        (check) => check.key === 'ai_evidence',
+      )?.passed,
+    ).toBe(false)
+  }, 30000)
 })

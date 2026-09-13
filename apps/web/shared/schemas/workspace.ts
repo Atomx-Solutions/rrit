@@ -1,4 +1,14 @@
 import { z } from 'zod'
+import { monthlyPostProvenanceSchema } from './monthly-plan'
+import { brandFactSchema } from './business-brain'
+
+const researchSourceSchema = z
+  .url()
+  .max(500)
+  .refine((value) => {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password
+  })
 
 export const postSchema = z.object({
   id: z.string(),
@@ -10,6 +20,8 @@ export const postSchema = z.object({
   image: z.string(),
   pillar: z.string(),
   scheduledAt: z.string().nullable(),
+  proposedAt: z.iso.datetime().optional(),
+  aiProvenance: monthlyPostProvenanceSchema.optional(),
   publicationMode: z.enum(['manual', 'automatic']).optional(),
   version: z.number().int().positive(),
   contentVersion: z.number().int().positive().optional(),
@@ -36,6 +48,7 @@ export const assetSchema = z.object({
   tags: z.array(z.string()),
   rights: z.boolean(),
   kind: z.enum(['photo', 'brand']),
+  generated: z.boolean().optional(),
   size: z.number(),
 })
 export const strategySchema = z.object({
@@ -62,9 +75,10 @@ export const workspaceSchema = z.object({
     instagramUrl: z.string().default(''),
     goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
     status: z.enum(['active', 'archived']).default('active'),
-    facts: z.array(
-      z.object({ id: z.string(), text: z.string(), source: z.string(), verified: z.boolean() }),
-    ),
+    researchSources: z.array(researchSourceSchema).max(10).default([]),
+    facts: z.array(brandFactSchema),
+    guardrails: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
+    brainVersion: z.number().int().nonnegative().optional(),
   }),
   posts: z.array(postSchema),
   assets: z.array(assetSchema),

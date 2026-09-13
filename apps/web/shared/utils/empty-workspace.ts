@@ -15,6 +15,7 @@ export function emptyWorkspace(name = '', email = ''): Workspace {
       instagramUrl: '',
       goals: [],
       status: 'active',
+      researchSources: [],
       facts: [],
     },
     preferences: {
