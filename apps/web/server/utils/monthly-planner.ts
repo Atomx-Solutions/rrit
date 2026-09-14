@@ -15,6 +15,7 @@ import { setTenantContext } from './database'
 import { postContentSnapshot, postFingerprint } from './post-validation'
 import { normalizeQualityReview } from './post-quality-domain'
 import { assetContactSheet, normalizeGeneratedCreative } from './image-processing'
+import { downloadAsset, MAX_ASSET_BYTES } from './asset-storage'
 import {
   monthlyAiConfigured,
   monthlyAutomaticStageKey,
@@ -347,6 +348,72 @@ interface PlanRow {
   research: unknown
   editorial_plan: unknown
 }
+interface PlannerAssetRow {
+  id: string
+  bytes: Buffer | null
+  storage_path: string | null
+  size_bytes: number | string | null
+}
+
+export interface PlannerAsset {
+  id: string
+  bytes: Buffer
+}
+
+function releasePlannerAssets(assets: PlannerAsset[]) {
+  for (const asset of assets) asset.bytes.fill(0)
+}
+
+// Source photos can live either in legacy inline bytea or in private Supabase
+// Storage. Keep the worker's downstream image contract identical by hydrating
+// both forms into short-lived buffers before building model input.
+export async function loadPlannerAssets(
+  db: Pool | PoolClient,
+  businessId: string,
+  assetIds: string[],
+  download = downloadAsset,
+) {
+  const result = await db.query<PlannerAssetRow>(
+    `SELECT id,bytes,storage_path,size_bytes
+       FROM assets
+      WHERE business_id=$1
+        AND id=ANY($2::uuid[])
+        AND rights=true
+        AND (bytes IS NOT NULL OR storage_path IS NOT NULL)
+      ORDER BY id`,
+    [businessId, assetIds],
+  )
+  const assets: PlannerAsset[] = []
+  const downloaded: Buffer[] = []
+  try {
+    for (const row of result.rows) {
+      if (row.bytes) {
+        if (row.bytes.length > MAX_ASSET_BYTES) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
+        assets.push({ id: row.id, bytes: row.bytes })
+        continue
+      }
+      if (!row.storage_path) continue
+      const size = Number(row.size_bytes)
+      if (!Number.isFinite(size) || size < 1 || size > MAX_ASSET_BYTES)
+        throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
+      const bytes = await download(row.storage_path, MAX_ASSET_BYTES)
+      if (bytes.length < 1 || bytes.length > MAX_ASSET_BYTES) {
+        bytes.fill(0)
+        throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
+      }
+      downloaded.push(bytes)
+      assets.push({ id: row.id, bytes })
+    }
+    return assets
+  } catch (error) {
+    // Do not retain successfully downloaded source images when a later asset
+    // fails. The successful path is intentionally in-memory only; no temp file
+    // is created and every temporary buffer is released at this boundary.
+    for (const bytes of downloaded) bytes.fill(0)
+    throw error
+  }
+}
+
 async function transaction<T>(db: Pool, work: (client: PoolClient) => Promise<T>) {
   const client = await db.connect()
   try {
@@ -391,7 +458,8 @@ async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
   const selectedAssetIds = plan.evidence.photoSelection?.selectedAssetIds || []
   if (
     selectedAssetIds.some(
-      (id) => !workspace.assets.some((asset) => asset.id === id && asset.rights && !asset.generated),
+      (id) =>
+        !workspace.assets.some((asset) => asset.id === id && asset.rights && !asset.generated),
     )
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
@@ -464,15 +532,20 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       plan.evidence.timezone,
       plan.evidence.capturedAt,
     )
-    const planningAssets = await db.query<{ id: string; bytes: Buffer }>(
-      'SELECT id,bytes FROM assets WHERE business_id=$1 AND id=ANY($2::uuid[]) AND rights=true AND bytes IS NOT NULL ORDER BY id',
-      [plan.business_id, plan.evidence.assets.map((asset) => asset.id)],
+    const planningAssets = await plannerStep('planning.assets', () =>
+      loadPlannerAssets(
+        db,
+        plan.business_id,
+        plan.evidence.assets.map((asset) => asset.id),
+      ),
     )
-    if (!planningAssets.rows.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
-    const planningContactSheet = await assetContactSheet(planningAssets.rows)
-    // Plan the complete month once. A stable key makes every later worker tick
-    // reuse the same audited response instead of paying for another attempt.
-    const response = await monthlyProviderCall(db, {
+    if (!planningAssets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
+    let planningContactSheet: Buffer | undefined
+    try {
+      planningContactSheet = await assetContactSheet(planningAssets)
+      // Plan the complete month once. A stable key makes every later worker tick
+      // reuse the same audited response instead of paying for another attempt.
+      const response = await monthlyProviderCall(db, {
         ...common,
         stageKey: monthlyAutomaticStageKey('planning', plan.evidence_hash, plan.target_count),
         capability: 'planning',
@@ -484,30 +557,36 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           month: plan.month_key,
           count: plan.target_count,
           earliestPublishableDate,
-          contactSheet: planningAssets.rows.map((asset, index) => ({
+          contactSheet: planningAssets.map((asset, index) => ({
             photo: index + 1,
             ...plan.evidence.assets.find((item) => item.id === asset.id),
-            selectedByUser: (plan.evidence.photoSelection?.selectedAssetIds || []).includes(asset.id),
+            selectedByUser: (plan.evidence.photoSelection?.selectedAssetIds || []).includes(
+              asset.id,
+            ),
           })),
         },
         images: [`data:image/jpeg;base64,${planningContactSheet.toString('base64')}`],
-    })
-    const editorial = validateEditorialPlan(
-          normalizeEditorialPlanResponse(
-            JSON.parse(responseText(response)),
-            plan.evidence,
-            research,
-            plan.target_count,
-          ),
+      })
+      const editorial = validateEditorialPlan(
+        normalizeEditorialPlanResponse(
+          JSON.parse(responseText(response)),
           plan.evidence,
           research,
-          plan.month_key,
           plan.target_count,
-    )
-    await db.query(
-      "UPDATE monthly_plans SET editorial_plan=$1,stage='content',updated_at=now() WHERE id=$2",
-      [JSON.stringify(editorial), plan.id],
-    )
+        ),
+        plan.evidence,
+        research,
+        plan.month_key,
+        plan.target_count,
+      )
+      await db.query(
+        "UPDATE monthly_plans SET editorial_plan=$1,stage='content',updated_at=now() WHERE id=$2",
+        [JSON.stringify(editorial), plan.id],
+      )
+    } finally {
+      planningContactSheet?.fill(0)
+      releasePlannerAssets(planningAssets)
+    }
     return
   }
   const editorial = parsePersistedEditorialPlan(plan.editorial_plan)
@@ -521,318 +600,327 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     })
   )
     throw new PlannerFailure('EVIDENCE_CHANGED')
-  const assets = await db.query<{ id: string; bytes: Buffer }>(
-    'SELECT id,bytes FROM assets WHERE business_id=$1 AND id=ANY($2::uuid[]) AND rights=true AND bytes IS NOT NULL ORDER BY id',
-    [plan.business_id, plan.evidence.assets.map((asset) => asset.id)],
+  const assets = await plannerStep('content.assets', () =>
+    loadPlannerAssets(
+      db,
+      plan.business_id,
+      plan.evidence.assets.map((asset) => asset.id),
+    ),
   )
-  if (!assets.rows.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
-  const contactSheet = await assetContactSheet(assets.rows)
-  const earlier = await db.query<{
-    caption: string
-    title: string
-    headline: string | null
-    layout: string | null
-    asset_id: string | null
-  }>(
-    `SELECT payload->>'caption' AS caption,payload->>'title' AS title,
+  if (!assets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
+  let contactSheet: Buffer | undefined
+  try {
+    contactSheet = await assetContactSheet(assets)
+    const earlier = await db.query<{
+      caption: string
+      title: string
+      headline: string | null
+      layout: string | null
+      asset_id: string | null
+    }>(
+      `SELECT payload->>'caption' AS caption,payload->>'title' AS title,
       payload#>>'{aiProvenance,creative,headline}' AS headline,
       payload#>>'{aiProvenance,creative,layout}' AS layout,
       payload#>>'{aiProvenance,assetId}' AS asset_id
     FROM posts WHERE monthly_plan_id=$1 ORDER BY monthly_slot`,
-    [plan.id],
-  )
-  const assetUsage = new Map<string, number>()
-  for (const post of earlier.rows) {
-    if (post.asset_id) assetUsage.set(post.asset_id, (assetUsage.get(post.asset_id) || 0) + 1)
-  }
-  const futureRequiredAssetIds = new Set(
-    editorial.slots
-      .slice(plan.completed_count + 1)
-      .map((item) => item.requiredAssetId)
-      .filter((id): id is string => !!id),
-  )
-  let content: ReturnType<typeof generatedPostSchema.parse> | undefined
-  let original: { id: string; bytes: Buffer } | undefined
-  let creative: Buffer | undefined
-  let imageGeneration: Awaited<ReturnType<typeof monthlyImageCall>> | undefined
-  let quality: ReturnType<typeof qualitySchema.parse> | undefined
-  const revisionFeedback: string[] = []
-  // One content, one image and one independent review per calendar slot. The
-  // first result is persisted as a draft even when QA recommends refinement.
-  for (let attempt = 0; attempt < 1; attempt++) {
-    const response = await monthlyProviderCall(db, {
-      ...common,
-      stageKey: monthlyAutomaticStageKey('content', plan.evidence_hash, plan.completed_count),
-      capability: 'content',
-      maxOutput: 3000,
-      schema: generatedPostSchema,
-      input: {
-        evidence: plan.evidence,
-        slot,
-        strategy: editorial.objective,
-        research: { sources: research.sources },
-        previousPosts: earlier.rows,
-        contactSheet: assets.rows.map((asset, index) => ({
-          photo: index + 1,
-          ...plan.evidence.assets.find((item) => item.id === asset.id),
-          usageCount: assetUsage.get(asset.id) || 0,
-          usedMostRecently: earlier.rows.at(-1)?.asset_id === asset.id,
-          requiredForThisPost: slot.requiredAssetId === asset.id,
-          reservedForLater: futureRequiredAssetIds.has(asset.id),
-        })),
-      },
-      images: [`data:image/jpeg;base64,${contactSheet.toString('base64')}`],
-    })
-    let rawContent: unknown
-    try {
-      rawContent = JSON.parse(responseText(response))
-    } catch {
-      throw new PlannerFailure('UNGROUNDED_CONTENT', [
-        'Ofruesi nuk ktheu objektin e strukturuar të kërkuar.',
-      ])
+      [plan.id],
+    )
+    const assetUsage = new Map<string, number>()
+    for (const post of earlier.rows) {
+      if (post.asset_id) assetUsage.set(post.asset_id, (assetUsage.get(post.asset_id) || 0) + 1)
     }
-    const parsedContent = generatedPostSchema.safeParse(rawContent)
-    if (!parsedContent.success) {
-      throw new PlannerFailure('UNGROUNDED_CONTENT', [
-        `Përgjigjja nuk përmbushi kontratën: ${parsedContent.error.issues
-          .slice(0, 5)
-          .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
-          .join('; ')}.`,
-      ])
-    }
-    const requestedAsset = assets.rows.find((asset) => asset.id === parsedContent.data.assetId)
-    const preferredAssets = assets.rows
-      .filter((asset) => !futureRequiredAssetIds.has(asset.id))
-      .sort((left, right) =>
-        (assetUsage.get(left.id) || 0) - (assetUsage.get(right.id) || 0),
-      )
-    const selectedAssetId =
-      slot.requiredAssetId ||
-      (requestedAsset && !futureRequiredAssetIds.has(requestedAsset.id)
-        ? requestedAsset.id
-        : preferredAssets[0]?.id) ||
-      assets.rows[0]!.id
-    // Repair only machine-verifiable references locally. This is free and keeps
-    // the provider's concept/copy while guaranteeing owned media, verified facts
-    // and the layout already approved by the monthly strategy.
-    content = {
-      ...parsedContent.data,
-      assetId: selectedAssetId,
-      factIds: slot.factIds,
-      creative: { ...parsedContent.data.creative, layout: slot.visualLayout },
-    }
-    original = assets.rows.find((asset) => asset.id === selectedAssetId)!
-    const imagePrompt = monthlyImagePrompt({
-      brand: plan.evidence.brand,
-      slot,
-      creative: content.creative,
-      revisionFeedback,
-    })
-    imageGeneration = await monthlyImageCall(db, {
-      ...common,
-      stageKey: monthlyAutomaticStageKey('image', plan.evidence_hash, plan.completed_count),
-      prompt: imagePrompt,
-      reference: original.bytes,
-    })
-    // The provider result is the complete design. Local processing is limited to
-    // format, dimensions and compression; it adds no template or visual element.
-    creative = await normalizeGeneratedCreative(imageGeneration.bytes)
-    const qualityResponse = await monthlyProviderCall(db, {
-      ...common,
-      stageKey: monthlyAutomaticStageKey('quality', plan.evidence_hash, plan.completed_count),
-      capability: 'quality',
-      maxOutput: 2000,
-      schema: qualitySchema,
-      input: {
+    const futureRequiredAssetIds = new Set(
+      editorial.slots
+        .slice(plan.completed_count + 1)
+        .map((item) => item.requiredAssetId)
+        .filter((id): id is string => !!id),
+    )
+    let content: ReturnType<typeof generatedPostSchema.parse> | undefined
+    let original: { id: string; bytes: Buffer } | undefined
+    let creative: Buffer | undefined
+    let imageGeneration: Awaited<ReturnType<typeof monthlyImageCall>> | undefined
+    let quality: ReturnType<typeof qualitySchema.parse> | undefined
+    const revisionFeedback: string[] = []
+    // One content, one image and one independent review per calendar slot. The
+    // first result is persisted as a draft even when QA recommends refinement.
+    for (let attempt = 0; attempt < 1; attempt++) {
+      const response = await monthlyProviderCall(db, {
+        ...common,
+        stageKey: monthlyAutomaticStageKey('content', plan.evidence_hash, plan.completed_count),
+        capability: 'content',
+        maxOutput: 3000,
+        schema: generatedPostSchema,
+        input: {
+          evidence: plan.evidence,
+          slot,
+          strategy: editorial.objective,
+          research: { sources: research.sources },
+          previousPosts: earlier.rows,
+          contactSheet: assets.map((asset, index) => ({
+            photo: index + 1,
+            ...plan.evidence.assets.find((item) => item.id === asset.id),
+            usageCount: assetUsage.get(asset.id) || 0,
+            usedMostRecently: earlier.rows.at(-1)?.asset_id === asset.id,
+            requiredForThisPost: slot.requiredAssetId === asset.id,
+            reservedForLater: futureRequiredAssetIds.has(asset.id),
+          })),
+        },
+        images: [`data:image/jpeg;base64,${contactSheet.toString('base64')}`],
+      })
+      let rawContent: unknown
+      try {
+        rawContent = JSON.parse(responseText(response))
+      } catch {
+        throw new PlannerFailure('UNGROUNDED_CONTENT', [
+          'Ofruesi nuk ktheu objektin e strukturuar të kërkuar.',
+        ])
+      }
+      const parsedContent = generatedPostSchema.safeParse(rawContent)
+      if (!parsedContent.success) {
+        throw new PlannerFailure('UNGROUNDED_CONTENT', [
+          `Përgjigjja nuk përmbushi kontratën: ${parsedContent.error.issues
+            .slice(0, 5)
+            .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+            .join('; ')}.`,
+        ])
+      }
+      const requestedAsset = assets.find((asset) => asset.id === parsedContent.data.assetId)
+      const preferredAssets = assets
+        .filter((asset) => !futureRequiredAssetIds.has(asset.id))
+        .sort((left, right) => (assetUsage.get(left.id) || 0) - (assetUsage.get(right.id) || 0))
+      const selectedAssetId =
+        slot.requiredAssetId ||
+        (requestedAsset && !futureRequiredAssetIds.has(requestedAsset.id)
+          ? requestedAsset.id
+          : preferredAssets[0]?.id) ||
+        assets[0]!.id
+      // Repair only machine-verifiable references locally. This is free and keeps
+      // the provider's concept/copy while guaranteeing owned media, verified facts
+      // and the layout already approved by the monthly strategy.
+      content = {
+        ...parsedContent.data,
+        assetId: selectedAssetId,
+        factIds: slot.factIds,
+        creative: { ...parsedContent.data.creative, layout: slot.visualLayout },
+      }
+      original = assets.find((asset) => asset.id === selectedAssetId)!
+      const imagePrompt = monthlyImagePrompt({
         brand: plan.evidence.brand,
         slot,
-        content,
-        revisionAttempt: attempt,
-        imageOrder: ['Finished AI creative', 'Original owned photograph'],
-      },
-      images: [
-        `data:image/jpeg;base64,${creative.toString('base64')}`,
-        `data:image/jpeg;base64,${original.bytes.toString('base64')}`,
-      ],
-    })
-    quality = normalizeQualityReview(qualitySchema.parse(JSON.parse(responseText(qualityResponse))))
-    break
-  }
-  if (!content || !original || !creative || !imageGeneration || !quality)
-    throw new PlannerFailure('GENERATION_FAILED')
-  await plannerStep('content.persist', () =>
-    transaction(db, async (client) => {
-      await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [plan.business_id])
-      const locked = await client.query(
-        'SELECT completed_count,status FROM monthly_plans WHERE id=$1 FOR UPDATE',
-        [plan.id],
-      )
-      if (
-        locked.rows[0]?.completed_count !== plan.completed_count ||
-        locked.rows[0]?.status !== 'running'
-      )
-        return
-      const settings = await client.query(
-        'SELECT enabled FROM monthly_planner_settings WHERE business_id=$1',
-        [plan.business_id],
-      )
-      if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
-      // Recheck evidence, ownership and entitlements immediately before writing.
-      await plannerStep('content.persist.evidence', () => assertCurrentEvidence(client, plan))
-      const { workspace } = await loadWorkspace(client, plan.business_id, plan.owner_id)
-      if (
-        plan.evidence.brand.facts.some(
-          (fact) =>
-            !workspace.brand.facts.some(
-              (current) =>
-                current.verified && current.id === fact.id && sameFactContent(current, fact),
-            ),
-        )
-      )
-        throw new PlannerFailure('EVIDENCE_CHANGED')
-      const currentAccess = await plannerAccess(
-        plan.business_id,
-        plan.month_key,
-        plan.evidence.timezone,
-        client,
-      )
-      if (!currentAccess?.features.includes('ai') || !currentAccess.features.includes('posts'))
-        throw new PlannerFailure('ENTITLEMENT_REQUIRED')
-      await plannerStep('content.persist.rights', async () => {
-        // Asset-rights mutations also lock this business row first. The lock held
-        // above therefore serializes this recheck without requiring the planner
-        // worker to have UPDATE privileges on customer-owned source assets.
-        const rights = await client.query(
-          'SELECT id FROM assets WHERE business_id=$1 AND id=$2 AND rights=true',
-          [plan.business_id, content.assetId],
-        )
-        if (!rights.rowCount) throw new PlannerFailure('EVIDENCE_CHANGED')
-      })
-      const usage = await plannerStep('content.persist.usage', () =>
-        client.query(
-          'SELECT (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND quota_month=$2::date) AS posts,(SELECT COALESCE(sum(size_bytes),0)::bigint FROM assets WHERE business_id=$1) AS bytes',
-          [plan.business_id, `${plan.month_key}-01`],
-        ),
-      )
-      if (
-        usage.rows[0].posts >= currentAccess.limits.posts_per_month ||
-        Number(usage.rows[0].bytes) + creative.length > currentAccess.limits.media_storage_bytes
-      )
-        throw new PlannerFailure('QUOTA_EXCEEDED')
-      const assetId = randomUUID(),
-        postId = randomUUID()
-      const provenance = {
-        planId: plan.id,
-        slot: plan.completed_count,
-        evidenceHash: plan.evidence_hash,
-        factIds: content.factIds,
-        sourceUrls: slot.sourceUrls,
-        rationale: `${content.reasoning.concept}\n${content.reasoning.copy}\n${content.reasoning.design}\n${content.reasoning.hashtags}\n${slot.platformRationale}\n${slot.timingRationale}\n${content.assetReason}`,
-        hashtags: content.hashtags,
-        reasoning: {
-          ...content.reasoning,
-          photo: content.assetReason,
-          platform: slot.platformRationale,
-          timing: slot.timingRationale,
-        },
-        assetId: content.assetId,
         creative: content.creative,
-        imageGeneration: {
-          model: imageGeneration.model,
-          quality: imageGeneration.quality,
-          promptHash: imageGeneration.promptHash,
+        revisionFeedback,
+      })
+      imageGeneration = await monthlyImageCall(db, {
+        ...common,
+        stageKey: monthlyAutomaticStageKey('image', plan.evidence_hash, plan.completed_count),
+        prompt: imagePrompt,
+        reference: original.bytes,
+      })
+      // The provider result is the complete design. Local processing is limited to
+      // format, dimensions and compression; it adds no template or visual element.
+      creative = await normalizeGeneratedCreative(imageGeneration.bytes)
+      const qualityResponse = await monthlyProviderCall(db, {
+        ...common,
+        stageKey: monthlyAutomaticStageKey('quality', plan.evidence_hash, plan.completed_count),
+        capability: 'quality',
+        maxOutput: 2000,
+        schema: qualitySchema,
+        input: {
+          brand: plan.evidence.brand,
+          slot,
+          content,
+          revisionAttempt: attempt,
+          imageOrder: ['Finished AI creative', 'Original owned photograph'],
         },
-        quality,
-        promptVersion: monthlyPromptVersion,
-      }
-      const post = await plannerStep('content.persist.post_schema', async () =>
-        postSchema.parse({
-          id: postId,
-          title: content.title,
-          caption: `${content.caption}\n\n${content.hashtags.join(' ')}`,
-          channel: slot.channel,
-          format: 'static',
-          image: `/api/media/${assetId}`,
-          pillar: slot.pillar,
-          status: 'draft',
-          version: 1,
-          contentVersion: 1,
-          history: [],
-          scheduledAt: null,
-          proposedAt: zonedToIso(
-            `${plan.month_key}-${String(slot.day).padStart(2, '0')}T${slot.time}`,
-            plan.evidence.timezone,
-          ),
-          publicationMode: 'manual',
-          // Subjective QA findings remain user-reviewable; only a concrete
-          // factual-safety failure prevents approval without correction.
-          policy: quality.factuality ? 'warn' : 'block',
-          policyReason:
-            quality.reasons.join(' ') || 'Kontrollo faktet dhe dizajnin përpara miratimit.',
-          aiProvenance: provenance,
-        }),
+        images: [
+          `data:image/jpeg;base64,${creative.toString('base64')}`,
+          `data:image/jpeg;base64,${original.bytes.toString('base64')}`,
+        ],
+      })
+      quality = normalizeQualityReview(
+        qualitySchema.parse(JSON.parse(responseText(qualityResponse))),
       )
-      await plannerStep('content.persist.asset_insert', () =>
-        client.query(
-          "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',$5,1080,1350,$6)",
-          [
-            assetId,
-            plan.business_id,
-            content.title,
-            JSON.stringify(['monthly-creative', slot.pillar]),
-            creative,
-            JSON.stringify({
-              ...provenance,
-              checksum: evidenceHash(creative.toString('base64')),
-            }),
-          ],
-        ),
-      )
-      await plannerStep('content.persist.post_insert', () =>
-        client.query(
-          'INSERT INTO posts(id,business_id,payload,content_version,monthly_plan_id,monthly_slot,quota_month) VALUES($1,$2,$3,1,$4,$5,$6)',
-          [
-            postId,
-            plan.business_id,
-            JSON.stringify(post),
-            plan.id,
-            plan.completed_count,
-            `${plan.month_key}-01`,
-          ],
-        ),
-      )
-      await plannerStep('content.persist.version_insert', () =>
-        client.query(
-          "INSERT INTO post_content_versions(post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES($1,$2,1,$3,$4,'monthly_planner',$5)",
-          [
-            postId,
-            plan.business_id,
-            postFingerprint(post),
-            JSON.stringify(postContentSnapshot(post)),
-            plan.owner_id,
-          ],
-        ),
-      )
-      const complete = plan.completed_count + 1 === plan.target_count
-      await plannerStep('content.persist.plan_update', () =>
-        client.query(
-          'UPDATE monthly_plans SET completed_count=completed_count+1,status=$1,stage=$2,error_code=NULL,updated_at=now() WHERE id=$3',
-          [complete ? 'review' : 'running', complete ? 'complete' : 'content', plan.id],
-        ),
-      )
-      await plannerStep('content.persist.business_update', () =>
-        client.query('UPDATE businesses SET revision=revision+1,updated_at=now() WHERE id=$1', [
+      break
+    }
+    if (!content || !original || !creative || !imageGeneration || !quality)
+      throw new PlannerFailure('GENERATION_FAILED')
+    await plannerStep('content.persist', () =>
+      transaction(db, async (client) => {
+        await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [plan.business_id])
+        const locked = await client.query(
+          'SELECT completed_count,status FROM monthly_plans WHERE id=$1 FOR UPDATE',
+          [plan.id],
+        )
+        if (
+          locked.rows[0]?.completed_count !== plan.completed_count ||
+          locked.rows[0]?.status !== 'running'
+        )
+          return
+        const settings = await client.query(
+          'SELECT enabled FROM monthly_planner_settings WHERE business_id=$1',
+          [plan.business_id],
+        )
+        if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
+        // Recheck evidence, ownership and entitlements immediately before writing.
+        await plannerStep('content.persist.evidence', () => assertCurrentEvidence(client, plan))
+        const { workspace } = await loadWorkspace(client, plan.business_id, plan.owner_id)
+        if (
+          plan.evidence.brand.facts.some(
+            (fact) =>
+              !workspace.brand.facts.some(
+                (current) =>
+                  current.verified && current.id === fact.id && sameFactContent(current, fact),
+              ),
+          )
+        )
+          throw new PlannerFailure('EVIDENCE_CHANGED')
+        const currentAccess = await plannerAccess(
           plan.business_id,
-        ]),
-      )
-      await plannerStep('content.persist.audit_insert', () =>
-        client.query(
-          "INSERT INTO audit_events(business_id,organization_id,actor_id,action,resource_type,resource_id,result,revision) SELECT id,id,owner_id,'monthly_plan.draft_created','post',$2,'succeeded',revision FROM businesses WHERE id=$1",
-          [plan.business_id, postId],
-        ),
-      )
-    }),
-  )
+          plan.month_key,
+          plan.evidence.timezone,
+          client,
+        )
+        if (!currentAccess?.features.includes('ai') || !currentAccess.features.includes('posts'))
+          throw new PlannerFailure('ENTITLEMENT_REQUIRED')
+        await plannerStep('content.persist.rights', async () => {
+          // Asset-rights mutations also lock this business row first. The lock held
+          // above therefore serializes this recheck without requiring the planner
+          // worker to have UPDATE privileges on customer-owned source assets.
+          const rights = await client.query(
+            'SELECT id FROM assets WHERE business_id=$1 AND id=$2 AND rights=true',
+            [plan.business_id, content.assetId],
+          )
+          if (!rights.rowCount) throw new PlannerFailure('EVIDENCE_CHANGED')
+        })
+        const usage = await plannerStep('content.persist.usage', () =>
+          client.query(
+            'SELECT (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND quota_month=$2::date) AS posts,(SELECT COALESCE(sum(size_bytes),0)::bigint FROM assets WHERE business_id=$1) AS bytes',
+            [plan.business_id, `${plan.month_key}-01`],
+          ),
+        )
+        if (
+          usage.rows[0].posts >= currentAccess.limits.posts_per_month ||
+          Number(usage.rows[0].bytes) + creative.length > currentAccess.limits.media_storage_bytes
+        )
+          throw new PlannerFailure('QUOTA_EXCEEDED')
+        const assetId = randomUUID(),
+          postId = randomUUID()
+        const provenance = {
+          planId: plan.id,
+          slot: plan.completed_count,
+          evidenceHash: plan.evidence_hash,
+          factIds: content.factIds,
+          sourceUrls: slot.sourceUrls,
+          rationale: `${content.reasoning.concept}\n${content.reasoning.copy}\n${content.reasoning.design}\n${content.reasoning.hashtags}\n${slot.platformRationale}\n${slot.timingRationale}\n${content.assetReason}`,
+          hashtags: content.hashtags,
+          reasoning: {
+            ...content.reasoning,
+            photo: content.assetReason,
+            platform: slot.platformRationale,
+            timing: slot.timingRationale,
+          },
+          assetId: content.assetId,
+          creative: content.creative,
+          imageGeneration: {
+            model: imageGeneration.model,
+            quality: imageGeneration.quality,
+            promptHash: imageGeneration.promptHash,
+          },
+          quality,
+          promptVersion: monthlyPromptVersion,
+        }
+        const post = await plannerStep('content.persist.post_schema', async () =>
+          postSchema.parse({
+            id: postId,
+            title: content.title,
+            caption: `${content.caption}\n\n${content.hashtags.join(' ')}`,
+            channel: slot.channel,
+            format: 'static',
+            image: `/api/media/${assetId}`,
+            pillar: slot.pillar,
+            status: 'draft',
+            version: 1,
+            contentVersion: 1,
+            history: [],
+            scheduledAt: null,
+            proposedAt: zonedToIso(
+              `${plan.month_key}-${String(slot.day).padStart(2, '0')}T${slot.time}`,
+              plan.evidence.timezone,
+            ),
+            publicationMode: 'manual',
+            // Subjective QA findings remain user-reviewable; only a concrete
+            // factual-safety failure prevents approval without correction.
+            policy: quality.factuality ? 'warn' : 'block',
+            policyReason:
+              quality.reasons.join(' ') || 'Kontrollo faktet dhe dizajnin përpara miratimit.',
+            aiProvenance: provenance,
+          }),
+        )
+        await plannerStep('content.persist.asset_insert', () =>
+          client.query(
+            "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',$5,1080,1350,$6)",
+            [
+              assetId,
+              plan.business_id,
+              content.title,
+              JSON.stringify(['monthly-creative', slot.pillar]),
+              creative,
+              JSON.stringify({
+                ...provenance,
+                checksum: evidenceHash(creative.toString('base64')),
+              }),
+            ],
+          ),
+        )
+        await plannerStep('content.persist.post_insert', () =>
+          client.query(
+            'INSERT INTO posts(id,business_id,payload,content_version,monthly_plan_id,monthly_slot,quota_month) VALUES($1,$2,$3,1,$4,$5,$6)',
+            [
+              postId,
+              plan.business_id,
+              JSON.stringify(post),
+              plan.id,
+              plan.completed_count,
+              `${plan.month_key}-01`,
+            ],
+          ),
+        )
+        await plannerStep('content.persist.version_insert', () =>
+          client.query(
+            "INSERT INTO post_content_versions(post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES($1,$2,1,$3,$4,'monthly_planner',$5)",
+            [
+              postId,
+              plan.business_id,
+              postFingerprint(post),
+              JSON.stringify(postContentSnapshot(post)),
+              plan.owner_id,
+            ],
+          ),
+        )
+        const complete = plan.completed_count + 1 === plan.target_count
+        await plannerStep('content.persist.plan_update', () =>
+          client.query(
+            'UPDATE monthly_plans SET completed_count=completed_count+1,status=$1,stage=$2,error_code=NULL,updated_at=now() WHERE id=$3',
+            [complete ? 'review' : 'running', complete ? 'complete' : 'content', plan.id],
+          ),
+        )
+        await plannerStep('content.persist.business_update', () =>
+          client.query('UPDATE businesses SET revision=revision+1,updated_at=now() WHERE id=$1', [
+            plan.business_id,
+          ]),
+        )
+        await plannerStep('content.persist.audit_insert', () =>
+          client.query(
+            "INSERT INTO audit_events(business_id,organization_id,actor_id,action,resource_type,resource_id,result,revision) SELECT id,id,owner_id,'monthly_plan.draft_created','post',$2,'succeeded',revision FROM businesses WHERE id=$1",
+            [plan.business_id, postId],
+          ),
+        )
+      }),
+    )
+  } finally {
+    contactSheet?.fill(0)
+    releasePlannerAssets(assets)
+  }
 }
 
 // A renewable database lease spans the provider call without holding an SQL

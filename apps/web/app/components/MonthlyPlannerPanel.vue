@@ -316,6 +316,19 @@ onBeforeUnmount(() => clearInterval(timer))
           <div>
             <h3 class="text-sm font-semibold text-highlighted">Duhet edhe një hap</h3>
             <p class="mt-1 text-sm text-muted">{{ planner.prerequisite }}</p>
+            <div v-if="planner.prerequisites?.length" class="mt-3 space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-warning">
+                Plotëso këto para gjenerimit
+              </p>
+              <div
+                v-for="item in planner.prerequisites"
+                :key="item.id"
+                class="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2"
+              >
+                <p class="text-sm font-medium text-highlighted">{{ item.label }}</p>
+                <p class="mt-0.5 text-xs leading-5 text-muted">{{ item.description }}</p>
+              </div>
+            </div>
           </div>
         </div>
         <UButton :to="`${base}/brand`" variant="outline" color="neutral" size="sm">

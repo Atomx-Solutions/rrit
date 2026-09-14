@@ -3,6 +3,7 @@ import { monthlyAiConfigured } from '../../utils/monthly-ai'
 import { plannerAccess } from '../../utils/monthly-planner'
 import {
   plannerEvidence,
+  plannerPrerequisites,
   planningMonth,
   PlannerFailure,
   plannerMessages,
@@ -29,6 +30,7 @@ export default defineEventHandler(async (event) => {
       [business.id],
     )
     let prerequisite: string | null = null
+    const prerequisites = plannerPrerequisites(workspace, new Date(), month.data)
     try {
       plannerEvidence(workspace, new Date(), month.data)
     } catch (error) {
@@ -60,6 +62,7 @@ export default defineEventHandler(async (event) => {
       prerequisite: prerequisite
         ? plannerMessages[prerequisite] || 'Plotëso profilin e biznesit.'
         : null,
+      prerequisites,
       plan: row
         ? {
             id: row.id as string,
