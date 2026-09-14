@@ -184,8 +184,7 @@ watch(scheduleOpen, (open) => {
 })
 const versionOpen = ref(false)
 const leaving = ref(false)
-const leaveTarget = ref('')
-const allowLeave = ref(false)
+let resolveLeave: ((allow: boolean) => void) | undefined
 const editable = computed(() => !post.value || ['draft', 'review'].includes(post.value.status))
 const workflowStep = computed(() =>
   post.value?.status === 'scheduled'
@@ -288,27 +287,34 @@ async function schedulePost() {
     scheduleBusy.value = false
   }
 }
-onBeforeRouteLeave((to) => {
-  if (dirty.value && !allowLeave.value) {
-    leaveTarget.value = to.fullPath
-    leaving.value = true
-    return false
-  }
+onBeforeRouteLeave(() => {
+  if (!dirty.value) return true
+  leaving.value = true
+  return new Promise<boolean>((resolve) => {
+    resolveLeave = resolve
+  })
 })
+function finishLeave(allow: boolean) {
+  const resolve = resolveLeave
+  resolveLeave = undefined
+  leaving.value = false
+  resolve?.(allow)
+}
+function handleLeaveOpen(open: boolean) {
+  if (!open && resolveLeave) finishLeave(false)
+  else leaving.value = open
+}
+async function saveAndLeave() {
+  await save()
+  if (!dirty.value) finishLeave(true)
+}
 function discardAndLeave() {
   clearTimeout(timer)
   clearRecovery()
-  allowLeave.value = true
-  leaving.value = false
-  navigateTo(leaveTarget.value)
+  finishLeave(true)
 }
-function beforeUnload(e: BeforeUnloadEvent) {
-  if (dirty.value) e.preventDefault()
-}
-onMounted(() => window.addEventListener('beforeunload', beforeUnload))
 onBeforeUnmount(() => {
   clearTimeout(timer)
-  window.removeEventListener('beforeunload', beforeUnload)
 })
 </script>
 <template>
@@ -711,27 +717,19 @@ onBeforeUnmount(() => {
       ></USlideover
     >
     <UModal
-      v-model:open="leaving"
+      :open="leaving"
       title="Ke ndryshime të paruajtura"
       description="Ruaji para se të largohesh ose vazhdo duke i hequr ndryshimet e fundit."
+      @update:open="handleLeaveOpen"
       ><template #body
         ><div class="actions">
           <UButton
             variant="outline"
-            @click="
-              async () => {
-                await save()
-                if (!dirty) {
-                  leaving = false
-                  allowLeave = true
-                  navigateTo(leaveTarget)
-                }
-              }
-            "
+            @click="saveAndLeave"
             >Ruaj dhe vazhdo</UButton
           ><UButton color="error" variant="outline" @click="discardAndLeave()"
             >Largohu pa ruajtur</UButton
-          ><UButton color="neutral" variant="ghost" @click="leaving = false">Qëndro këtu</UButton>
+          ><UButton color="neutral" variant="ghost" @click="finishLeave(false)">Qëndro këtu</UButton>
         </div></template
       ></UModal
     >

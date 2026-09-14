@@ -12,6 +12,8 @@ const baseline = ref(JSON.stringify(form))
 const saved = ref(false)
 const formError = ref('')
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
+const leaveOpen = ref(false)
+let resolveLeave: ((allow: boolean) => void) | undefined
 const schema = z.object({
   name: z.string().min(2, 'Vendos emrin e biznesit.'),
   city: z.string().min(2, 'Vendos qytetin.'),
@@ -95,15 +97,28 @@ function addFact() {
 }
 onBeforeRouteLeave(() => {
   if (!dirty.value || syncing.value) return true
-  return window.confirm('Ke ndryshime të paruajtura. A dëshiron të largohesh?')
+  leaveOpen.value = true
+  return new Promise<boolean>((resolve) => {
+    resolveLeave = resolve
+  })
 })
-function beforeUnload(event: BeforeUnloadEvent) {
-  if (!dirty.value || syncing.value) return
-  event.preventDefault()
-  event.returnValue = ''
+function finishLeave(allow: boolean) {
+  const resolve = resolveLeave
+  resolveLeave = undefined
+  leaveOpen.value = false
+  resolve?.(allow)
 }
-onMounted(() => window.addEventListener('beforeunload', beforeUnload))
-onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+function handleLeaveOpen(open: boolean) {
+  if (!open && resolveLeave) finishLeave(false)
+  else leaveOpen.value = open
+}
+function discardAndLeave() {
+  finishLeave(true)
+}
+async function saveAndLeave() {
+  await save()
+  if (!dirty.value) finishLeave(true)
+}
 function addResearchSource() {
   if ((form.researchSources || []).length < 10) (form.researchSources ||= []).push('')
 }
@@ -469,5 +484,12 @@ function setPrice(fact: BrandFact, value: string | number) {
       </aside>
     </div>
     <BusinessBrainEditor />
+    <UnsavedChangesModal
+      :open="leaveOpen"
+      :saving="syncing"
+      @update:open="handleLeaveOpen"
+      @save="saveAndLeave"
+      @discard="discardAndLeave"
+    />
   </DashboardPage>
 </template>

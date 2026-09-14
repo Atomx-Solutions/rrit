@@ -25,6 +25,8 @@ const baseline = ref(JSON.stringify(form))
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
 const saved = ref(false)
 const formError = ref('')
+const leaveOpen = ref(false)
+let resolveLeave: ((allow: boolean) => void) | undefined
 const schema = z.object({
   name: z.string().trim().min(2, 'Vendos emrin tënd.').max(100),
   email: z.email('Vendos një adresë emaili të vlefshme.'),
@@ -54,15 +56,28 @@ async function save() {
 }
 onBeforeRouteLeave(() => {
   if (!dirty.value || syncing.value) return true
-  return window.confirm('Ke ndryshime të paruajtura. A dëshiron të largohesh?')
+  leaveOpen.value = true
+  return new Promise<boolean>((resolve) => {
+    resolveLeave = resolve
+  })
 })
-function beforeUnload(event: BeforeUnloadEvent) {
-  if (!dirty.value || syncing.value) return
-  event.preventDefault()
-  event.returnValue = ''
+function finishLeave(allow: boolean) {
+  const resolve = resolveLeave
+  resolveLeave = undefined
+  leaveOpen.value = false
+  resolve?.(allow)
 }
-onMounted(() => window.addEventListener('beforeunload', beforeUnload))
-onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+function handleLeaveOpen(open: boolean) {
+  if (!open && resolveLeave) finishLeave(false)
+  else leaveOpen.value = open
+}
+function discardAndLeave() {
+  finishLeave(true)
+}
+async function saveAndLeave() {
+  await save()
+  if (!dirty.value) finishLeave(true)
+}
 </script>
 <template>
   <DashboardPage title="Cilësimet" description="Profili, preferencat dhe siguria në një vend.">
@@ -229,5 +244,12 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         </div>
       </UForm></UCard
     >
+    <UnsavedChangesModal
+      :open="leaveOpen"
+      :saving="syncing"
+      @update:open="handleLeaveOpen"
+      @save="saveAndLeave"
+      @discard="discardAndLeave"
+    />
   </DashboardPage>
 </template>
