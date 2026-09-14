@@ -124,13 +124,18 @@ export function plannerEvidence(
     (!selectedAssetIds.length || selectedAssetIds.some((id) => !eligibleAssetIds.has(id)))
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
-  const orderedAssets = [...assets].sort(
-    (a, b) => Number(selectedAssetIds.includes(b.id)) - Number(selectedAssetIds.includes(a.id)),
-  )
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]))
+  const generationAssets =
+    photoSelection.mode === 'selected'
+      ? selectedAssetIds.map((id) => assetsById.get(id)!)
+      : assets
   const evidence = {
     brand: { ...workspace.brand, facts },
     timezone: workspace.preferences.timezone,
-    assets: orderedAssets.slice(0, 40).map(({ id, name, tags }) => ({ id, name, tags })),
+    // In selected mode this is an allow-list, not merely a preference. Keeping
+    // unselected gallery assets out of evidence prevents downstream stages from
+    // silently choosing them.
+    assets: generationAssets.slice(0, 40).map(({ id, name, tags }) => ({ id, name, tags })),
     photoSelection: {
       mode: photoSelection.mode,
       selectedAssetIds: photoSelection.mode === 'selected' ? selectedAssetIds : [],

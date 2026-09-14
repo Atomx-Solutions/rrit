@@ -490,6 +490,11 @@ async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
     throw new PlannerFailure('EVIDENCE_CHANGED')
   return workspace
 }
+function generationAssetIds(evidence: PlannerEvidence) {
+  if (evidence.photoSelection?.mode === 'selected')
+    return evidence.photoSelection.selectedAssetIds
+  return evidence.assets.map((asset) => asset.id)
+}
 async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   await plannerStep('advance.evidence', () => assertCurrentEvidence(db, plan))
   const access = await plannerAccess(plan.business_id, plan.month_key, plan.evidence.timezone, db)
@@ -536,7 +541,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       loadPlannerAssets(
         db,
         plan.business_id,
-        plan.evidence.assets.map((asset) => asset.id),
+        generationAssetIds(plan.evidence),
       ),
     )
     if (!planningAssets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
@@ -604,7 +609,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     loadPlannerAssets(
       db,
       plan.business_id,
-      plan.evidence.assets.map((asset) => asset.id),
+      generationAssetIds(plan.evidence),
     ),
   )
   if (!assets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')

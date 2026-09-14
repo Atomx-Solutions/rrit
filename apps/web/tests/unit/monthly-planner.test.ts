@@ -165,6 +165,7 @@ describe('monthly evidence and provider boundaries', () => {
       mode: 'selected',
       selectedAssetIds: [selectedId],
     })
+    expect(evidence.assets.map((asset) => asset.id)).toEqual([selectedId])
     const research = researchFromResponse(researchFixture(), now)
     const plan: z.infer<typeof editorialPlanSchema> = editorialFixture()
     plan.slots[0]!.requiredAssetId = selectedId

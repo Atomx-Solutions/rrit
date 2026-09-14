@@ -636,7 +636,8 @@ onBeforeUnmount(() => clearInterval(timer))
               <UIcon name="i-lucide-image-check" class="size-4 text-primary" /> Dua të zgjedh foto
             </span>
             <span class="mt-1.5 block text-xs leading-5 text-muted">
-              Secila foto e zgjedhur vendoset vetëm një herë në postimin ku ka më shumë kuptim.
+              Gjenerimi përdor vetëm fotografitë që zgjedh këtu. Ato mund të ripërdoren kur ka më
+              shumë postime se fotografi.
             </span>
           </UButton>
         </div>
@@ -683,7 +684,9 @@ onBeforeUnmount(() => clearInterval(timer))
             description="Ngarko fotografi në Galeri ose zgjidh opsionin që AI të vendosë pasi t'i ngarkosh."
           />
           <p v-if="selectedPhotoIds.length" class="mt-2 text-xs text-muted">
-            {{ selectedPhotoIds.length }} fotografi do të përfshihen në strategji.
+            Vetëm {{ selectedPhotoIds.length }}
+            {{ selectedPhotoIds.length === 1 ? 'fotografi do të përdoret' : 'fotografi do të përdoren' }}
+            në gjenerim.
           </p>
         </div>
       </div>

@@ -22,7 +22,7 @@ const {
     caption: existing.value?.caption || chosenTemplate?.caption || '',
     channel: existing.value?.channel || chosenTemplate?.channel || ('Instagram' as Post['channel']),
     format: existing.value?.format || ('static' as Post['format']),
-    image: existing.value?.image || chosenTemplate?.image || data.value.assets[0]?.url || '',
+    image: existing.value?.image || chosenTemplate?.image || '',
     pillar: existing.value?.pillar || chosenTemplate?.topic || 'Produkti',
   },
 )
@@ -435,20 +435,15 @@ onBeforeUnmount(() => {
             />
             <PhotoUpload v-if="editable" @uploaded="form.image = $event" />
           </div>
-          <div class="asset-picker">
-            <UButton
-              v-for="asset in data.assets.filter((a) => a.rights)"
-              :key="asset.id"
-              variant="ghost"
-              color="neutral"
-              :disabled="!editable"
-              :aria-label="`Zgjidh ${asset.name}`"
-              :aria-pressed="form.image === asset.url"
-              :class="{ selected: form.image === asset.url }"
-              @click="form.image = asset.url"
-            >
-              <MediaImage :src="asset.url" :alt="asset.name" class="w-full aspect-square rounded" />
-            </UButton>
+          <div
+            v-if="form.image"
+            class="size-16 shrink-0 overflow-hidden rounded-lg border-2 border-primary"
+          >
+            <MediaImage
+              :src="form.image"
+              alt="Fotografia aktuale e postimit"
+              class="size-full object-cover"
+            />
           </div>
           <ULink :to="`${base}/gallery`" class="text-primary small"
             >Menaxho fotografitë dhe të drejtat →</ULink
