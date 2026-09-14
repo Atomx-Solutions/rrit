@@ -65,6 +65,10 @@ function event(user: TestEvent['context']['user'], body?: unknown, id?: string) 
 }
 
 beforeAll(async () => {
+  // The runtime helper creates its own pg.Pool, so configure its connections
+  // through the environment instead of relying on the test pool stub.
+  vi.stubEnv('DATABASE_URL', databaseUrl)
+  vi.stubEnv('PGOPTIONS', `-c search_path="${schema}",public`)
   vi.stubGlobal('createError', createError)
   vi.stubGlobal('defineEventHandler', (handler: (event: never) => Promise<unknown>) => handler)
   vi.stubGlobal('requireUser', async (current: TestEvent) => current.context.user)
@@ -126,6 +130,7 @@ afterAll(async () => {
   if (createdAuthSchema) await admin.query('DROP SCHEMA auth CASCADE')
   await admin.end()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 describe('organization HTTP handlers', () => {

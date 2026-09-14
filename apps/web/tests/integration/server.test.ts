@@ -201,17 +201,34 @@ async function business() {
   ])
   return { id, email, user }
 }
+async function insertOrganizationWithOwner(
+  item: { id: string; user: string },
+  slugPrefix: string,
+  name: string,
+) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query('INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)', [
+      item.id,
+      `${slugPrefix}-${item.id.slice(0, 8)}`,
+      name,
+      item.user,
+    ])
+    await client.query(
+      "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
+      [item.id, item.user],
+    )
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
 async function organization(item: { id: string; user: string }) {
-  await pool.query('INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)', [
-    item.id,
-    `publisher-org-${item.id.slice(0, 8)}`,
-    'Publisher test organization',
-    item.user,
-  ])
-  await pool.query(
-    "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
-    [item.id, item.user],
-  )
+  await insertOrganizationWithOwner(item, 'publisher-org', 'Publisher test organization')
 }
 async function grant(id: string, email: string, device: string) {
   const client = await pool.connect()
@@ -301,16 +318,7 @@ describe('tenant row-level security', () => {
 describe('brand domain lifecycle', () => {
   it('supports create, read, update, archive and guarded delete', async () => {
     const item = await business()
-    await pool.query('INSERT INTO organizations (id,slug,name,created_by) VALUES ($1,$2,$3,$4)', [
-      item.id,
-      `brand-org-${item.id.slice(0, 8)}`,
-      'Brand test organization',
-      item.user,
-    ])
-    await pool.query(
-      "INSERT INTO organization_memberships (organization_id,user_id,role,brand_scope) VALUES ($1,$2,'owner','ALL_BRANDS')",
-      [item.id, item.user],
-    )
+    await insertOrganizationWithOwner(item, 'brand-org', 'Brand test organization')
     const input = brandCreateSchema.parse({
       name: 'Test Brand',
       slug: 'test-brand',
@@ -587,7 +595,7 @@ describe('trial transactions with PostgreSQL', () => {
     expect(before.features).toEqual(
       expect.arrayContaining(['posts', 'media', 'validation', 'social_import', 'publishing', 'ai']),
     )
-    expect(before.limits).toMatchObject({ posts_per_month: 60, social_accounts: 2, members: 1 })
+    expect(before.limits).toMatchObject({ posts_per_month: 12, social_accounts: 2, members: 1 })
     expect(Date.parse(before.expiresAt!) - Date.parse(before.startsAt!)).toBe(72 * 3600000)
     await grant(item.id, item.email, randomUUID())
     expect((await trialStatus(item.id, pool)).expiresAt).toBe(before.expiresAt)
@@ -687,9 +695,9 @@ describe('trial transactions with PostgreSQL', () => {
     expect(plans).toHaveLength(3)
     expect(plans.every((plan) => plan.currency === 'EUR')).toBe(true)
     expect(plans.map(({ name, version }) => ({ name, version }))).toEqual([
-      { name: 'Fillimi', version: 1 },
-      { name: 'Përditë', version: 1 },
-      { name: 'Më shumë', version: 2 },
+      { name: 'Fillimi', version: 2 },
+      { name: 'Përditë', version: 2 },
+      { name: 'Më shumë', version: 3 },
     ])
     expect(plans.find((plan) => plan.name === 'Fillimi')?.limits.posts_per_month).toBe(12)
     expect(plans.find((plan) => plan.name === 'Përditë')?.entitlements).toContain('ai')
@@ -1587,6 +1595,18 @@ describe('monthly planning persistence and cost boundaries', () => {
     await pool.query(
       "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height) VALUES($1,$2,'Owned test photo','[]',true,'image/jpeg',$3,800,800)",
       [assetId, item.id, bytes],
+    )
+    await pool.query(
+      `INSERT INTO monthly_planner_settings(
+         business_id,enabled,photo_mode,preferred_asset_ids,configured_at
+       ) VALUES($1,true,'selected',$2,now())
+       ON CONFLICT(business_id) DO UPDATE SET
+         enabled=EXCLUDED.enabled,
+         photo_mode=EXCLUDED.photo_mode,
+         preferred_asset_ids=EXCLUDED.preferred_asset_ids,
+         configured_at=EXCLUDED.configured_at,
+         updated_at=now()`,
+      [item.id, [assetId]],
     )
     const next = new Date()
     next.setUTCDate(1)
