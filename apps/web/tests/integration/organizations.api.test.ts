@@ -11,6 +11,7 @@ if (existsSync(env)) process.loadEnvFile(env)
 const databaseUrl = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
 if (!databaseUrl || !['127.0.0.1', 'localhost'].includes(new URL(databaseUrl).hostname))
   throw new Error('Organization API tests require a local PostgreSQL database.')
+const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ''))
 
 const pool = new Pool({ connectionString: databaseUrl })
 const createdUserIds: string[] = []
@@ -134,7 +135,7 @@ describe('organization HTTP handlers', () => {
         return result.rows[0]!
       }),
     ).resolves.toEqual({
-      database_name: 'rrit_s1_a01_test',
+      database_name: databaseName,
       schema_name: 'public',
       role_name: 'app_runtime',
       user_id: owner.id,
