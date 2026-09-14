@@ -54,10 +54,10 @@ jobs:
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now()
           );"
+      - run: npm run db:migrate
       - run: npm run test:integration
       - run: npm run test:security
       - run: npm audit --audit-level=moderate
-      - run: npm run db:migrate
       - run: npm run build
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
