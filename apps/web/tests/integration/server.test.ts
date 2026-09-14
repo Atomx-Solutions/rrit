@@ -77,6 +77,7 @@ import { monthlyProviderCall } from '../../server/utils/monthly-ai'
 import { createDemo } from '../fixtures/workspace'
 import { syncBusinessBrain } from '../../server/utils/business-brain'
 import { currentPostQuality, reviewPostQuality } from '../../server/utils/post-quality'
+import { isolateMigrationSql } from '../migration-test-utils'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
@@ -90,7 +91,6 @@ const admin = new Pool({ connectionString: databaseUrl })
 const pool = new Pool({ connectionString: databaseUrl, options: `-c search_path=${schema},public` })
 let createdAuthSchema = false
 let createdAuthUsersTable = false
-let createdPublicAssetsTable = false
 let createdWorkerRole = false
 beforeAll(async () => {
   vi.stubGlobal('createError', createError)
@@ -135,31 +135,12 @@ beforeAll(async () => {
     `)
     createdAuthUsersTable = true
   }
-  const publicAssets = await admin.query("SELECT to_regclass('public.assets') AS relation")
-  if (!publicAssets.rows[0]?.relation) {
-    await admin.query(`
-      CREATE TABLE public.assets (
-        id uuid PRIMARY KEY,
-        rights boolean NOT NULL DEFAULT false,
-        mime text NOT NULL,
-        bytes bytea,
-        storage_path text,
-        size_bytes bigint
-      )
-    `)
-    createdPublicAssetsTable = true
-  }
   await admin.query(`CREATE SCHEMA "${schema}"`)
   const directory = new URL('../../database/migrations/', import.meta.url)
   for (const file of (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort()) {
-    let sql = await readFile(new URL(file, directory), 'utf8')
-    // The production SECURITY DEFINER reader pins public explicitly. Bind only
-    // that table/search path to this isolated test schema; never create public assets.
-    if (file === '0020_signed_media_reader.sql')
-      sql = sql
-        .replaceAll('public.assets', `"${schema}".assets`)
-        .replace('SET search_path = public, pg_temp', `SET search_path = "${schema}", pg_temp`)
-    await pool.query(sql)
+    await pool.query(
+      isolateMigrationSql(await readFile(new URL(file, directory), 'utf8'), schema),
+    )
   }
   // Optional local-only Supabase audit of this exact migrated test schema.
   // Supabase's linter expects anon/authenticated roles in the local cluster.
@@ -194,10 +175,12 @@ afterAll(async () => {
   await pool.end()
   if (!/^rrit_test_[a-f0-9]{32}$/.test(schema)) throw new Error('Unsafe test schema')
   await admin.query(`DROP SCHEMA "${schema}" CASCADE`)
-  if (createdPublicAssetsTable) await admin.query('DROP TABLE public.assets CASCADE')
   if (createdAuthUsersTable) await admin.query('DROP TABLE auth.users CASCADE')
   if (createdAuthSchema) await admin.query('DROP SCHEMA auth CASCADE')
-  if (createdWorkerRole) await admin.query('DROP ROLE rrit_worker')
+  if (createdWorkerRole) {
+    await admin.query('DROP OWNED BY rrit_worker')
+    await admin.query('DROP ROLE rrit_worker')
+  }
   await admin.end()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()

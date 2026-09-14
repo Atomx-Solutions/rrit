@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { readFile, readdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
 import { createError } from 'h3'
 import { setTenantContext } from '../../server/utils/database'
+import { isolateMigrationSql } from '../migration-test-utils'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
@@ -13,10 +15,14 @@ if (!databaseUrl || !['127.0.0.1', 'localhost'].includes(new URL(databaseUrl).ho
   throw new Error('Organization API tests require a local PostgreSQL database.')
 const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ''))
 
-const pool = new Pool({ connectionString: databaseUrl })
+const schema = `rrit_organizations_${randomUUID().replaceAll('-', '')}`
+const admin = new Pool({ connectionString: databaseUrl })
+const pool = new Pool({ connectionString: databaseUrl, options: `-c search_path=${schema},public` })
 const createdUserIds: string[] = []
 const createdOrganizationIds: string[] = []
 const createdBusinessIds: string[] = []
+let createdAuthSchema = false
+let createdAuthUsersTable = false
 type OrganizationResponse = {
   id: string
   name: string
@@ -77,6 +83,32 @@ beforeAll(async () => {
     slug: 'legacy-workspace',
     workspace: {},
   }))
+  const authSchema = await admin.query("SELECT 1 FROM pg_namespace WHERE nspname = 'auth'")
+  if (!authSchema.rowCount) {
+    await admin.query('CREATE SCHEMA auth')
+    createdAuthSchema = true
+  }
+  const authUsers = await admin.query(
+    "SELECT 1 FROM pg_class WHERE relnamespace = 'auth'::regnamespace AND relname = 'users'",
+  )
+  if (!authUsers.rowCount) {
+    await admin.query(`
+      CREATE TABLE auth.users (
+        id uuid PRIMARY KEY,
+        email text,
+        raw_user_meta_data jsonb,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `)
+    createdAuthUsersTable = true
+  }
+  await admin.query(`CREATE SCHEMA "${schema}"`)
+  const migrations = new URL('../../database/migrations/', import.meta.url)
+  for (const file of (await readdir(migrations)).filter((file) => file.endsWith('.sql')).sort())
+    await pool.query(
+      isolateMigrationSql(await readFile(new URL(file, migrations), 'utf8'), schema),
+    )
   createOrganization = (await import('../../server/api/v1/organizations/index.post')).default
   listOrganizations = (await import('../../server/api/v1/organizations/index.get')).default
   getOrganization = (await import('../../server/api/v1/organizations/[id].get')).default
@@ -86,13 +118,13 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  if (createdBusinessIds.length)
-    await pool.query('DELETE FROM businesses WHERE id = ANY($1::uuid[])', [createdBusinessIds])
-  if (createdOrganizationIds.length)
-    await pool.query('DELETE FROM organizations WHERE id = ANY($1::uuid[])', [createdOrganizationIds])
-  if (createdUserIds.length)
-    await pool.query('DELETE FROM auth.users WHERE id = ANY($1::uuid[])', [createdUserIds])
   await pool.end()
+  await admin.query(`DROP SCHEMA "${schema}" CASCADE`)
+  if (createdUserIds.length)
+    await admin.query('DELETE FROM auth.users WHERE id = ANY($1::uuid[])', [createdUserIds])
+  if (createdAuthUsersTable) await admin.query('DROP TABLE auth.users CASCADE')
+  if (createdAuthSchema) await admin.query('DROP SCHEMA auth CASCADE')
+  await admin.end()
   vi.unstubAllGlobals()
 })
 
@@ -136,7 +168,7 @@ describe('organization HTTP handlers', () => {
       }),
     ).resolves.toEqual({
       database_name: databaseName,
-      schema_name: 'public',
+      schema_name: schema,
       role_name: 'app_runtime',
       user_id: owner.id,
       runtime_member: true,

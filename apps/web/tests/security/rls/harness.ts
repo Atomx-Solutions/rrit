@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { Pool, type PoolClient } from 'pg'
 import { setTenantContext } from '../../../server/utils/database'
 import type { TenantFixture } from './fixtures'
+import { isolateMigrationSql } from '../../migration-test-utils'
 
 export type RlsHarness = {
   admin: Pool
@@ -48,7 +49,6 @@ export async function createRlsHarness(): Promise<RlsHarness> {
   const createdUserIds: string[] = []
   let createdAuthSchema = false
   let createdAuthUsersTable = false
-  let createdPublicAssetsTable = false
 
   const authSchema = await admin.query("SELECT 1 FROM pg_namespace WHERE nspname = 'auth'")
   if (!authSchema.rowCount) {
@@ -70,27 +70,12 @@ export async function createRlsHarness(): Promise<RlsHarness> {
     `)
     createdAuthUsersTable = true
   }
-  // Migrations 0020/0023 contain legacy signed-reader definitions that
-  // reference public.assets while the rest of this harness runs in isolation.
-  // Keep that compatibility relation local to the disposable CI database.
-  const publicAssets = await admin.query("SELECT to_regclass('public.assets') AS relation")
-  if (!publicAssets.rows[0]?.relation) {
-    await admin.query(`
-      CREATE TABLE public.assets (
-        id uuid PRIMARY KEY,
-        rights boolean NOT NULL DEFAULT false,
-        mime text NOT NULL,
-        bytes bytea,
-        storage_path text,
-        size_bytes bigint
-      )
-    `)
-    createdPublicAssetsTable = true
-  }
   await admin.query(`CREATE SCHEMA ${quotedSchema}`)
   const migrations = new URL('../../../database/migrations/', import.meta.url)
   for (const file of (await readdir(migrations)).filter((name) => name.endsWith('.sql')).sort())
-    await unrestricted.query(await readFile(new URL(file, migrations), 'utf8'))
+    await unrestricted.query(
+      isolateMigrationSql(await readFile(new URL(file, migrations), 'utf8'), schema),
+    )
 
   async function withAdminTransaction<T>(work: (client: PoolClient) => Promise<T>) {
     const client = await admin.connect()
@@ -131,7 +116,6 @@ export async function createRlsHarness(): Promise<RlsHarness> {
   async function cleanup() {
     await unrestricted.end()
     await admin.query(`DROP SCHEMA IF EXISTS ${quotedSchema} CASCADE`)
-    if (createdPublicAssetsTable) await admin.query('DROP TABLE public.assets CASCADE')
     if (createdUserIds.length)
       await admin.query('DELETE FROM auth.users WHERE id = ANY($1::uuid[])', [createdUserIds])
     if (createdAuthUsersTable) await admin.query('DROP TABLE auth.users CASCADE')

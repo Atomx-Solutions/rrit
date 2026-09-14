@@ -12,6 +12,7 @@ import {
   listOrganizationsForUser,
   updateOrganizationForUser,
 } from '../../server/utils/organizations'
+import { isolateMigrationSql } from '../migration-test-utils'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
@@ -62,7 +63,9 @@ beforeAll(async () => {
   await admin.query(`CREATE SCHEMA "${schema}"`)
   const migrations = new URL('../../database/migrations/', import.meta.url)
   for (const file of (await readdir(migrations)).filter((file) => file.endsWith('.sql')).sort())
-    await pool.query(await readFile(new URL(file, migrations), 'utf8'))
+    await pool.query(
+      isolateMigrationSql(await readFile(new URL(file, migrations), 'utf8'), schema),
+    )
 })
 
 afterAll(async () => {
