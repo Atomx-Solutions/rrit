@@ -6,6 +6,7 @@ const chrome = inject(dashboardKey)
 if (!chrome) throw new Error('DashboardPage requires the dashboard layout')
 const { sidebarOpen, notificationsOpen } = chrome
 const { base, storageError, exportData, syncing } = useWorkspace()
+const { t, locale } = useI18n()
 const { data: headerUsage, refresh: refreshHeaderUsage } = await useFetch('/api/usage', {
   key: 'header-credit-balance',
 })
@@ -37,7 +38,7 @@ onBeforeUnmount(() => clearInterval(creditTimer))
             icon="i-lucide-panel-left"
             color="neutral"
             variant="ghost"
-            aria-label="Zvogëlo ose zgjero menunë"
+            :aria-label="t('nav.toggle')"
             :aria-expanded="sidebarOpen"
             aria-controls="navigation"
             class="hidden lg:inline-flex"
@@ -47,7 +48,7 @@ onBeforeUnmount(() => clearInterval(creditTimer))
             icon="i-lucide-menu"
             color="neutral"
             variant="ghost"
-            aria-label="Hap navigimin"
+            :aria-label="t('nav.open')"
             :aria-expanded="sidebarOpen"
             aria-controls="navigation"
             class="lg:hidden"
@@ -63,26 +64,26 @@ onBeforeUnmount(() => clearInterval(creditTimer))
           />
           <UDashboardSearchButton
             :collapsed="true"
-            aria-label="Kërko në hapësirë"
+            :aria-label="t('nav.searchWorkspace')"
             color="neutral"
             variant="ghost"
             class="lg:hidden"
           />
-          <UTooltip text="Bilanci për shërbimet AI">
+          <UTooltip :text="t('dashboard.aiBalance')">
             <UButton
               :to="`${base}/billing`"
               color="neutral"
               variant="soft"
               size="sm"
               icon="i-lucide-coins"
-              :label="credits === undefined ? '— kredi' : `${credits} kredi`"
+              :label="credits === undefined ? `— ${t('dashboard.credits')}` : `${credits} ${t('dashboard.credits')}`"
               class="tabular-nums"
             />
           </UTooltip>
-          <UColorModeButton aria-label="Ndrysho pamjen" color="neutral" variant="ghost" />
+          <UColorModeButton :aria-label="t('dashboard.changeAppearance')" color="neutral" variant="ghost" />
           <UButton
             icon="i-lucide-bell"
-            aria-label="Njoftimet"
+            :aria-label="t('nav.notifications')"
             color="neutral"
             variant="ghost"
             @click="notificationsOpen = true"
@@ -113,9 +114,9 @@ onBeforeUnmount(() => clearInterval(creditTimer))
           color="error"
           :title="storageError"
           class="mb-5"
-          :actions="[{ label: 'Eksporto kopjen', onClick: exportData }]"
+          :actions="[{ label: t('workspace.exportCopy'), onClick: exportData }]"
         />
-        <TrialBanner />
+        <TrialBanner :key="locale" />
         <slot />
       </div>
     </template>
@@ -124,9 +125,7 @@ onBeforeUnmount(() => clearInterval(creditTimer))
         class="flex items-center gap-2 border-t border-default px-3 sm:px-4 py-1.5 text-[11px] text-muted bg-elevated/25"
       >
         <UIcon name="i-lucide-info" class="size-3.5 shrink-0" />
-        <span role="status">{{
-          syncing ? 'Duke ruajtur ndryshimet…' : 'Hapësira private e biznesit'
-        }}</span>
+        <span role="status">{{ syncing ? t('dashboard.savingStatus') : t('dashboard.savedStatus') }}</span>
       </div>
     </template>
   </UDashboardPanel>

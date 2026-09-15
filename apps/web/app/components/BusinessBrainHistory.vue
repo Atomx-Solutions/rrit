@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const open = ref(false)
 const { data, status, error, refresh } = await useFetch('/api/business/brain-history', {
   immediate: false,
@@ -12,31 +13,31 @@ async function show() {
 
 <template>
   <UButton color="neutral" variant="ghost" icon="i-lucide-history" @click="show"
-    >Historiku i profilit</UButton
+    >{{ t('brain.historyButton') }}</UButton
   >
   <USlideover
     v-model:open="open"
-    title="Historiku i biznesit"
-    description="20 versionet e fundit të ruajtura. Konfirmimi i fakteve bëhet nga biznesi, jo nga AI."
+    :title="t('brain.historyTitle')"
+    :description="t('brain.historyDescription')"
   >
     <template #body>
       <p v-if="status === 'pending'" role="status" class="text-sm text-muted">
-        Po ngarkohet historiku…
+        {{ t('brain.historyLoading') }}
       </p>
       <UAlert
         v-else-if="error"
         color="warning"
         variant="outline"
-        title="Historiku nuk u ngarkua."
+        :title="t('brain.historyLoadError')"
       />
       <p v-else-if="!data?.versions.length" class="text-sm text-muted">
-        Historiku shfaqet pas ruajtjes së profilit.
+        {{ t('brain.historyEmpty') }}
       </p>
       <UAccordion
         v-else
         :items="
           data.versions.map((entry) => ({
-            label: `Versioni ${entry.version}`,
+            label: t('brain.version', { version: entry.version }),
             value: String(entry.version),
             entry,
           }))
@@ -45,7 +46,7 @@ async function show() {
         <template #body="{ item }">
           <div class="space-y-3 pb-4 text-sm">
             <p class="text-xs text-muted">
-              {{ new Date(item.entry.createdAt).toLocaleString('sq-AL') }}
+              {{ new Date(item.entry.createdAt).toLocaleString() }}
             </p>
             <p class="font-medium">{{ item.entry.brand.name }}</p>
             <p class="text-muted">{{ item.entry.brand.voice }}</p>
@@ -55,9 +56,9 @@ async function show() {
               class="rounded-lg border border-default p-3 space-y-1"
             >
               <p>{{ fact.text }}</p>
-              <p class="text-xs text-muted">Burimi: {{ fact.source }}</p>
+              <p class="text-xs text-muted">{{ t('brain.sourceValue', { source: fact.source }) }}</p>
               <p class="text-xs text-muted">
-                {{ fact.verified ? 'Konfirmuar nga biznesi' : 'Pa konfirmim'
+                {{ fact.verified ? t('brain.verifiedByBusiness') : t('brain.notVerified')
                 }}<span v-if="fact.validFrom || fact.validUntil">
                   · {{ fact.validFrom || '—' }} → {{ fact.validUntil || '—' }}</span
                 >

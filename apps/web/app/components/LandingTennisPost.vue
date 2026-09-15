@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 defineProps<{ preview?: boolean }>()
 const photo = '/images/tennis-ball-court.jpg'
 </script>
@@ -9,18 +10,18 @@ const photo = '/images/tennis-ball-court.jpg'
       class="landing-tennis-photo"
       :class="{ 'landing-depth-item': !preview }"
       :src="photo"
-      :alt="preview ? '' : 'Fotografi reale e një topi tenisi, me hijen e tij mbi vijat e fushës'"
+      :alt="preview ? '' : t('landing.tennisPhotoAlt')"
       width="1000"
       height="1500"
       loading="eager"
       decoding="async"
     />
     <div class="landing-tennis-copy" :class="{ 'landing-depth-item': !preview }">
-      <span>TENIS / PAS PUNE</span>
-      <p>NË FUSHË.<br /><em>PAS PUNE.</em></p>
+      <span>{{ t('legacy.tennisAfterWork') }}</span>
+      <p>{{ t('legacy.onCourtUpper') }}<br /><em>{{ t('legacy.afterWorkUpper') }}</em></p>
     </div>
     <div class="landing-tennis-signature" :class="{ 'landing-depth-item': !preview }">
-      <span>Më shumë lojë.<br />Më pak rutinë.</span>
+      <span>{{ t('legacy.morePlay') }}<br />{{ t('legacy.lessRoutine') }}</span>
     </div>
   </div>
 </template>

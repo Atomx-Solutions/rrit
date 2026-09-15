@@ -5,24 +5,25 @@ const props = defineProps<{
   strategy: { objective: string; audience: string; rationale: string; slots: SlotBrief[] }
   assets: Array<{ id: string; name: string; url: string }>
 }>()
+const { t } = useI18n()
 
 const intentLabels: Record<string, string> = {
-  educate: 'Edukim',
-  inspire: 'Frymëzim',
-  trust: 'Besim',
-  conversation: 'Bisedë',
-  product: 'Produkt',
-  behind_the_scenes: 'Prapaskena',
-  local_relevance: 'Relevancë lokale',
-  conversion: 'Konvertim',
+  educate: t('strategy.intent.educate'),
+  inspire: t('strategy.intent.inspire'),
+  trust: t('strategy.intent.trust'),
+  conversation: t('strategy.intent.conversation'),
+  product: t('strategy.intent.product'),
+  behind_the_scenes: t('strategy.intent.behind_the_scenes'),
+  local_relevance: t('strategy.intent.local_relevance'),
+  conversion: t('strategy.intent.conversion'),
 }
 const goalLabels: Record<string, string> = {
-  watch_time: 'Vëmendje',
-  saves: 'Ruajtje',
-  shares: 'Shpërndarje',
-  meaningful_comments: 'Komente me vlerë',
-  profile_actions: 'Veprime në profil',
-  clicks: 'Klikime',
+  watch_time: t('strategy.goal.watch_time'),
+  saves: t('strategy.goal.saves'),
+  shares: t('strategy.goal.shares'),
+  meaningful_comments: t('strategy.goal.meaningful_comments'),
+  profile_actions: t('strategy.goal.profile_actions'),
+  clicks: t('strategy.goal.clicks'),
 }
 const assetMap = computed(() => new Map(props.assets.map((asset) => [asset.id, asset])))
 const channels = computed(() => ({
@@ -39,7 +40,7 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
         <div
           class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary"
         >
-          <UIcon name="i-lucide-compass" class="size-4" /> Strategjia e muajit
+          <UIcon name="i-lucide-compass" class="size-4" /> {{ t('legacy.strategyMonth') }}
         </div>
         <h3 class="mt-2 max-w-4xl text-lg font-semibold text-highlighted">
           {{ strategy.objective }}
@@ -48,7 +49,7 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
       </div>
       <div class="grid gap-px bg-default sm:grid-cols-4">
         <div class="bg-default p-4">
-          <span class="text-xs text-muted">Audienca</span>
+          <span class="text-xs text-muted">{{ t('strategy.audience') }}</span>
           <strong class="mt-1 block text-sm text-highlighted">{{ strategy.audience }}</strong>
         </div>
         <div class="bg-default p-4">
@@ -60,7 +61,7 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
           <strong class="mt-1 block text-lg text-highlighted">{{ channels.Facebook }}</strong>
         </div>
         <div class="bg-default p-4">
-          <span class="text-xs text-muted">Intente të ndryshme</span>
+          <span class="text-xs text-muted">{{ t('strategy.differentIntents') }}</span>
           <strong class="mt-1 block text-lg text-highlighted">{{ intents }}</strong>
         </div>
       </div>
@@ -69,10 +70,10 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
     <section>
       <div class="flex items-end justify-between gap-3">
         <div>
-          <p class="text-xs font-medium uppercase tracking-wide text-muted">Plani editorial</p>
-          <h3 class="mt-1 text-lg font-semibold text-highlighted">Çdo postim ka një detyrë</h3>
+          <p class="text-xs font-medium uppercase tracking-wide text-muted">{{ t('strategy.editorialPlan') }}</p>
+          <h3 class="mt-1 text-lg font-semibold text-highlighted">{{ t('strategy.everyPostTask') }}</h3>
         </div>
-        <UBadge color="neutral" variant="subtle">{{ strategy.slots.length }} postime</UBadge>
+        <UBadge color="neutral" variant="subtle">{{ strategy.slots.length }} {{ t('content.post') }}</UBadge>
       </div>
       <div class="mt-4 grid gap-4 lg:grid-cols-2">
         <article
@@ -100,7 +101,7 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
                 <h4 class="mt-2 font-semibold text-highlighted">{{ slot.topic }}</h4>
               </div>
             </div>
-            <span class="shrink-0 text-xs text-muted">Dita {{ slot.day }} · {{ slot.time }}</span>
+            <span class="shrink-0 text-xs text-muted">{{ t('strategy.day') }} {{ slot.day }} · {{ slot.time }}</span>
           </div>
 
           <blockquote
@@ -112,13 +113,13 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
 
           <div class="mt-4 grid gap-2 text-xs sm:grid-cols-2">
             <div class="rounded-lg bg-elevated/50 p-3">
-              <span class="text-muted">Objektivi</span>
+              <span class="text-muted">{{ t('strategy.objective') }}</span>
               <strong class="mt-1 block text-highlighted">{{
                 goalLabels[slot.algorithmGoal]
               }}</strong>
             </div>
             <div class="rounded-lg bg-elevated/50 p-3">
-              <span class="text-muted">Drejtimi vizual</span>
+              <span class="text-muted">{{ t('strategy.visualDirection') }}</span>
               <strong class="mt-1 block capitalize text-highlighted">{{
                 slot.visualLayout
               }}</strong>
@@ -137,7 +138,7 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
               height="48"
             />
             <div class="min-w-0">
-              <span class="text-xs text-muted">Fotografi e zgjedhur nga ti</span>
+              <span class="text-xs text-muted">{{ t('strategy.selectedPhoto') }}</span>
               <strong class="block truncate text-sm text-highlighted">{{
                 assetMap.get(slot.requiredAssetId)!.name
               }}</strong>
@@ -146,12 +147,12 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
 
           <details class="mt-4 rounded-xl border border-default px-3.5 py-3">
             <summary class="cursor-pointer text-sm font-medium text-highlighted">
-              Pse ky kanal dhe ky orar?
+              {{ t('legacy.whyChannelTime') }}
             </summary>
             <div class="mt-3 space-y-2 text-xs leading-5 text-muted">
               <p>{{ slot.platformRationale }}</p>
               <p>{{ slot.timingRationale }}</p>
-              <p><strong class="text-toned">Fotografia:</strong> {{ slot.assetDirection }}</p>
+              <p><strong class="text-toned">{{ t('strategy.photo') }}</strong> {{ slot.assetDirection }}</p>
             </div>
           </details>
         </article>

@@ -1,10 +1,11 @@
 <script setup lang="ts">
+const { t } = useI18n()
 defineProps<{ channel: 'Instagram' | 'Facebook'; name: string; image: string; caption: string }>()
 </script>
 <template>
   <UCard
     as="article"
-    :aria-label="`Parapamja në ${channel}`"
+    :aria-label="`${t('preview.preview')}: ${channel}`"
     :ui="{ body: 'p-0 sm:p-0' }"
     class="w-full max-w-sm mx-auto overflow-hidden"
   >
@@ -13,7 +14,7 @@ defineProps<{ channel: 'Instagram' | 'Facebook'; name: string; image: string; ca
       <div class="min-w-0 flex-1">
         <p class="text-sm font-semibold truncate">{{ name }}</p>
         <p class="text-xs text-muted flex items-center gap-1 mt-0.5">
-          Parapamje <UIcon v-if="channel === 'Facebook'" name="i-lucide-globe" class="size-3" />
+          {{ t('preview.preview') }} <UIcon v-if="channel === 'Facebook'" name="i-lucide-globe" class="size-3" />
         </p>
       </div>
       <UIcon
@@ -25,19 +26,19 @@ defineProps<{ channel: 'Instagram' | 'Facebook'; name: string; image: string; ca
       v-if="channel === 'Facebook'"
       class="px-4 pb-4 text-sm whitespace-pre-wrap break-words leading-relaxed"
     >
-      {{ caption || 'Teksti yt do të shfaqet këtu.' }}
+      {{ caption || t('preview.captionPlaceholder') }}
     </p>
     <MediaImage
       v-if="image"
       :src="image"
-      alt="Fotografia e zgjedhur për postim"
+      :alt="t('preview.selectedPhoto')"
       fit="natural"
       class="w-full"
     />
     <DashboardEmpty
       v-else
-      title="Zgjidh një fotografi"
-      description="Shto një fotografi për ta parë postimin e plotë."
+      :title="t('preview.choosePhoto')"
+      :description="t('preview.addPhotoDescription')"
       icon="i-lucide-image"
       class="border-x-0 rounded-none"
     />
@@ -52,7 +53,7 @@ defineProps<{ channel: 'Instagram' | 'Facebook'; name: string; image: string; ca
         />
       </div>
       <p class="p-4 text-sm leading-relaxed whitespace-pre-wrap break-words">
-        <strong>{{ name }}</strong> {{ caption || 'Teksti yt do të shfaqet këtu.' }}
+        <strong>{{ name }}</strong> {{ caption || t('preview.captionPlaceholder') }}
       </p>
     </template>
     <div
@@ -61,11 +62,11 @@ defineProps<{ channel: 'Instagram' | 'Facebook'; name: string; image: string; ca
       aria-hidden="true"
     >
       <span class="flex items-center gap-1.5"
-        ><UIcon name="i-lucide-thumbs-up" class="size-4" />Pëlqe</span
+        ><UIcon name="i-lucide-thumbs-up" class="size-4" />{{ t('preview.like') }}</span
       ><span class="flex items-center gap-1.5"
-        ><UIcon name="i-lucide-message-circle" class="size-4" />Komento</span
+        ><UIcon name="i-lucide-message-circle" class="size-4" />{{ t('preview.comment') }}</span
       ><span class="flex items-center gap-1.5"
-        ><UIcon name="i-lucide-share-2" class="size-4" />Shpërndaj</span
+        ><UIcon name="i-lucide-share-2" class="size-4" />{{ t('preview.share') }}</span
       >
     </div>
   </UCard>

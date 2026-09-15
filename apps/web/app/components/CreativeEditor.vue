@@ -4,6 +4,7 @@ import type { Post } from '~~/shared/schemas/workspace'
 const props = defineProps<{ post: Post; disabled?: boolean }>()
 const emit = defineEmits<{ saved: [image: string] }>()
 const { applyBusiness } = useWorkspace()
+const { t } = useI18n()
 const open = ref(false)
 const busy = ref(false)
 const error = ref('')
@@ -36,8 +37,7 @@ async function generateWithAi() {
     open.value = false
   } catch (problem) {
     error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      'Fotografia nuk u rigjenerua. Versioni aktual mbeti i paprekur.'
+      (problem as { data?: { message?: string } }).data?.message || t('creative.error')
   } finally {
     busy.value = false
   }
@@ -52,12 +52,12 @@ async function generateWithAi() {
     icon="i-lucide-sparkles"
     :disabled="disabled"
     @click="open = true"
-    >Përmirëso me AI</UButton
+    >{{ t('creative.improveWithAi') }}</UButton
   >
   <UModal
     v-model:open="open"
-    title="Përmirëso dizajnin me AI"
-    description="AI e redizajnon vetë fotografinë aktuale sipas udhëzimit tënd. Nuk përdoret asnjë layout ose template i koduar."
+    :title="t('creative.title')"
+    :description="t('creative.description')"
   >
     <template #body>
       <div class="space-y-6">
@@ -69,21 +69,20 @@ async function generateWithAi() {
               <UIcon name="i-lucide-sparkles" class="size-4" />
             </div>
             <div>
-              <h3 class="text-sm font-semibold">Ridizajnim origjinal me AI</h3>
+              <h3 class="text-sm font-semibold">{{ t('creative.originalTitle') }}</h3>
               <p class="mt-1 text-xs leading-5 text-muted">
-                AI pastron fotografinë, përmirëson cilësinë dhe krijon vetë kompozimin final duke
-                ruajtur kontekstin e strategjisë, platformës dhe biznesit.
+                {{ t('creative.originalDescription') }}
               </p>
             </div>
           </div>
-          <UFormField label="Çfarë dëshiron të ndryshosh?" required class="mt-4">
+          <UFormField :label="t('creative.instructionLabel')" required class="mt-4">
             <UTextarea
               v-model="aiInstruction"
               :maxlength="1200"
               :rows="4"
               :disabled="busy"
               class="w-full"
-              placeholder="P.sh. pastro fotografinë, ruaje lokalin real dhe krijo një kompozim elegant e origjinal për darkë, pa template, header ose footer standard."
+              :placeholder="t('creative.instructionPlaceholder')"
             />
           </UFormField>
           <UButton
@@ -92,10 +91,10 @@ async function generateWithAi() {
             :loading="busy"
             :disabled="disabled || aiInstruction.trim().length < 5"
             @click="generateWithAi"
-            >Krijo variantin me AI</UButton
+            >{{ t('creative.createVariant') }}</UButton
           >
           <p class="mt-3 text-xs leading-5 text-muted">
-            Përdor një kërkesë AI nga paketa. Postimi nuk miratohet ose publikohet automatikisht.
+            {{ t('creative.note') }}
           </p>
         </section>
 

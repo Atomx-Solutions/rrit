@@ -10,6 +10,7 @@ const props = withDefaults(
   }>(),
   { loading: 'lazy', src: '', width: undefined, height: undefined, fit: 'cover' },
 )
+const { t } = useI18n()
 const failed = ref(false)
 watch(
   () => props.src,
@@ -43,12 +44,12 @@ watch(
       v-else
       role="img"
       :aria-label="
-        alt ? `Fotografia nuk është e disponueshme: ${alt}` : 'Fotografia nuk është e disponueshme'
+        alt ? `${t('content.photoUnavailable')}: ${alt}` : t('content.photoUnavailable')
       "
       class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted p-2"
     >
       <UIcon name="i-lucide-image-off" class="size-5 shrink-0" />
-      <span class="sr-only">Fotografia nuk është e disponueshme</span>
+      <span class="sr-only">{{ t('content.photoUnavailable') }}</span>
     </div>
   </div>
 </template>

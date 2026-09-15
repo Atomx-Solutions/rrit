@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Asset } from '~~/shared/schemas/workspace'
 const { data, commit, notify } = useWorkspace()
+const { t } = useI18n()
 const emit = defineEmits<{ uploaded: [url: string] }>()
 const open = ref(false)
 const rights = ref(false)
@@ -16,11 +17,11 @@ async function upload(value: File | null | undefined) {
       !['image/jpeg', 'image/png', 'image/webp'].includes(value.type) ||
       value.size > 5 * 1024 * 1024
     )
-      throw new Error('Zgjidh JPG, PNG ose WebP deri në 5 MB.')
+      throw new Error(t('photo.invalidType'))
     const bitmap = await createImageBitmap(value)
     if (bitmap.width < 100 || bitmap.height < 100) {
       bitmap.close()
-      throw new Error('Fotografia duhet të jetë të paktën 100 × 100 pikselë.')
+      throw new Error(t('photo.tooSmall'))
     }
     const scale = Math.min(1, 1200 / Math.max(bitmap.width, bitmap.height))
     const canvas = document.createElement('canvas')
@@ -42,14 +43,14 @@ async function upload(value: File | null | undefined) {
         d.assets.unshift(asset)
       }))
     ) {
-      error.value = 'Fotografia nuk u ruajt. Provo sërish.'
+      error.value = t('photo.saveError')
       return
     }
     emit('uploaded', data.value.assets.find((a) => a.id === asset.id)!.url)
-    notify('Fotografia u shtua')
+    notify(t('photo.added'))
     open.value = false
   } catch (problem) {
-    error.value = problem instanceof Error ? problem.message : 'Ngarkimi dështoi.'
+    error.value = problem instanceof Error ? problem.message : t('photo.uploadError')
   } finally {
     busy.value = false
   }
@@ -63,31 +64,31 @@ function start() {
 </script>
 <template>
   <UButton color="neutral" variant="outline" icon="i-lucide-upload" @click="start"
-    >Shto fotografi</UButton
+    >{{ t('photo.addPhoto') }}</UButton
   >
   <UModal
     v-model:open="open"
     :dismissible="!busy"
     :close="!busy"
-    title="Fotografia e postimit"
-    description="Shto një fotografi pa u larguar nga postimi."
+    :title="t('photo.title')"
+    :description="t('photo.description')"
   >
     <template #body
       ><div class="space-y-5">
         <UCheckbox
           v-model="rights"
           :disabled="busy"
-          label="Kam të drejtën ta përdor këtë fotografi dhe pëlqimin e personave të identifikueshëm."
+          :label="t('photo.rightsLabel')"
         /><UFileUpload
           v-model="file"
           :disabled="!rights || busy"
           accept="image/jpeg,image/png,image/webp"
-          label="Zgjidh fotografinë"
-          description="JPG, PNG ose WebP deri në 5 MB."
+          :label="t('photo.choosePhoto')"
+          :description="t('photo.formats')"
           class="min-h-40"
           :interactive="true"
           @update:model-value="upload"
-        /><UProgress v-if="busy" aria-label="Po ruhet fotografia" /><UAlert
+        /><UProgress v-if="busy" :aria-label="t('photo.saving')" /><UAlert
           v-if="error"
           color="error"
           variant="outline"
@@ -98,7 +99,7 @@ function start() {
           :loading="busy"
           :disabled="!rights"
           @click="upload(file)"
-          >Provo sërish</UButton
+          >{{ t('common.tryAgain') }}</UButton
         >
       </div></template
     >

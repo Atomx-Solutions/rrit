@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t, language } = useI18n()
 const { base } = useWorkspace()
 const { data: trial, refresh, error } = await useFetch('/api/trial', { key: 'trial' })
 let timer: ReturnType<typeof setInterval> | undefined
@@ -8,7 +9,9 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(timer))
 const remaining = computed(() => {
   const hours = Math.ceil((trial.value?.secondsRemaining || 0) / 3600)
-  return hours >= 24 ? `${Math.ceil(hours / 24)} ditë` : `${hours} orë`
+  return hours >= 24
+    ? `${Math.ceil(hours / 24)} ${t('trial.days')}`
+    : `${hours} ${t('trial.hours')}`
 })
 </script>
 <template>
@@ -16,8 +19,8 @@ const remaining = computed(() => {
     v-if="error"
     color="warning"
     variant="outline"
-    title="Gjendja e trial-it nuk u ngarkua"
-    :actions="[{ label: 'Provo sërish', variant: 'outline', onClick: () => refresh() }]"
+    :title="t('trial.loadError')"
+    :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
   />
   <div
     v-else-if="trial && !trial.paid"
@@ -32,23 +35,23 @@ const remaining = computed(() => {
         <p class="text-sm font-medium">
           {{
             trial.state === 'active'
-              ? 'Trial falas · ' + remaining + ' të mbetura'
+              ? t('trial.free', { remaining })
               : trial.state === 'blocked' || trial.state === 'revoked'
-                ? 'Trial-i është përdorur më parë'
-                : 'Trial-i nuk është aktiv'
+                ? t('trial.used')
+                : t('trial.inactive')
           }}
         </p>
         <p class="text-xs text-muted mt-1">
           {{
             trial.state === 'active'
-              ? 'Të gjitha shërbimet e aktivizuara përfshihen. Pa rinovim automatik.'
-              : 'Postimet dhe të dhënat e tua mbeten të lexueshme dhe mund t’i eksportosh.'
+              ? t('trial.activeDescription')
+              : t('trial.endedDescription')
           }}
         </p>
         <p v-if="trial.expiresAt && trial.state === 'active'" class="text-xs text-muted mt-1">
-          Përfundon më
+          {{ t('trial.endsAt') }}
           {{
-            new Intl.DateTimeFormat('sq', {
+            new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'sq-XK', {
               dateStyle: 'medium',
               timeStyle: 'short',
               hourCycle: 'h23',
@@ -58,6 +61,6 @@ const remaining = computed(() => {
         </p>
       </div>
     </div>
-    <UButton :to="base + '/billing'" variant="link" color="neutral" size="sm">Shiko planin</UButton>
+    <UButton :to="base + '/billing'" variant="link" color="neutral" size="sm">{{ t('trial.viewPlan') }}</UButton>
   </div>
 </template>

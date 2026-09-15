@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { statusLabels } from '~~/shared/utils/format'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-useSeoMeta({ title: 'Studio e përmbajtjes · Rrit' })
 const { data, base } = useWorkspace()
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('content.yourPosts')} · Rrit` })
 const route = useRoute()
 const search = ref('')
 const filter = computed({
@@ -29,10 +30,10 @@ function resetFilters() {
   filter.value = 'all'
   channel.value = 'all'
 }
-const tabs = [
-  { value: 'all', label: 'Të gjitha' },
-  ...Object.entries(statusLabels).map(([value, label]) => ({ value, label })),
-]
+const tabs = computed(() => [
+  { value: 'all', label: t('overview.all') },
+  ...Object.keys(statusLabels).map((value) => ({ value, label: t(`status.${value}`) })),
+])
 const posts = computed(() =>
   data.value.posts.filter(
     (p) =>
@@ -50,8 +51,8 @@ watch([search, filter, channel], () => {
 </script>
 <template>
   <DashboardPage
-    title="Postimet e tua"
-    description="Krijo një postim, kontrolloje dhe zgjidh kur do të publikohet."
+    :title="t('content.yourPosts')"
+    :description="t('content.yourPostsDescription')"
   >
     <template #actions
       ><UButton
@@ -59,9 +60,9 @@ watch([search, filter, channel], () => {
         color="neutral"
         variant="outline"
         icon="i-lucide-layout-template"
-        >Modelet</UButton
+        >{{ t('nav.templates') }}</UButton
       ><UButton variant="outline" :to="`${base}/content/new`" icon="i-lucide-plus"
-        >Krijo postim</UButton
+        >{{ t('content.createPost') }}</UButton
       ></template
     >
     <template #toolbar>
@@ -69,15 +70,15 @@ watch([search, filter, channel], () => {
         <UInput
           v-model="search"
           icon="i-lucide-search"
-          placeholder="Kërko një postim..."
-          aria-label="Kërko postime"
+          :placeholder="t('content.searchPlaceholder')"
+          :aria-label="t('content.searchPosts')"
           class="w-full sm:w-72"
         />
         <div class="actions">
           <USelect
             v-model="channel"
-            :items="[{ label: 'Të gjitha kanalet', value: 'all' }, 'Instagram', 'Facebook']"
-            aria-label="Filtro sipas kanalit"
+            :items="[{ label: t('content.allChannels'), value: 'all' }, 'Instagram', 'Facebook']"
+            :aria-label="t('content.filterChannel')"
           />
         </div>
       </div>
@@ -93,7 +94,7 @@ watch([search, filter, channel], () => {
     />
     <div class="flex items-center justify-between gap-3">
       <p role="status" class="text-sm text-muted">
-        {{ posts.length }} nga {{ data.posts.length }} postime
+        {{ t('content.postCount', { visible: posts.length, total: data.posts.length }) }}
       </p>
       <UButton
         v-if="hasFilters"
@@ -102,7 +103,7 @@ watch([search, filter, channel], () => {
         size="sm"
         icon="i-lucide-x"
         @click="resetFilters"
-        >Pastro filtrat</UButton
+        >{{ t('content.clearFilters') }}</UButton
       >
     </div>
     <UCard v-if="posts.length" as="div" :ui="{ body: 'p-0 sm:p-0' }" class="table-wrap">
@@ -111,10 +112,10 @@ watch([search, filter, channel], () => {
     </UCard>
     <DashboardEmpty
       v-else
-      title="Nuk u gjet asnjë postim"
-      description="Provo një kërkim tjetër ose krijo postimin tënd të parë."
+      :title="t('content.noPosts')"
+      :description="t('content.noPostsDescription')"
       icon="i-lucide-search-x"
-      :actions="[{ label: 'Krijo postim', to: `${base}/content/new`, color: 'primary' }]"
+      :actions="[{ label: t('content.createPost'), to: `${base}/content/new`, color: 'primary' }]"
     />
   </DashboardPage>
 </template>

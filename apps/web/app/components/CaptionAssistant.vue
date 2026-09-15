@@ -4,6 +4,7 @@ const props = defineProps<{
   channel: 'Facebook' | 'Instagram'
   disabled?: boolean
 }>()
+const { t } = useI18n()
 const emit = defineEmits<{ apply: [caption: string] }>()
 const { data: capabilities } = await useFetch('/api/capabilities')
 const open = ref(false),
@@ -30,7 +31,7 @@ async function generate() {
     })
   } catch (problem) {
     error.value =
-      (problem as { data?: { message?: string } }).data?.message || 'Përgatitja nuk u përfundua.'
+      (problem as { data?: { message?: string } }).data?.message || t('caption.generationError')
   } finally {
     busy.value = false
   }
@@ -42,12 +43,12 @@ function apply(caption: string) {
 </script>
 <template>
   <UButton variant="outline" icon="i-lucide-sparkles" :disabled="disabled" @click="open = true"
-    >Përgatit tekst me AI</UButton
+    >{{ t('caption.prepareWithAi') }}</UButton
   >
   <UModal
     v-model:open="open"
-    title="Një ndihmë për tekstin"
-    description="Profili, faktet e konfirmuara, teksti yt dhe disa postime të importuara dërgohen te OpenAI për këtë përgatitje."
+    :title="t('caption.title')"
+    :description="t('caption.description')"
   >
     <template #body
       ><div class="space-y-5">
@@ -55,23 +56,23 @@ function apply(caption: string) {
           v-if="!capabilities?.ai"
           color="neutral"
           variant="outline"
-          title="Asistenti është në përgatitje"
-          description="Platforma ende nuk e ka aktivizuar shërbimin AI. Mund të vazhdosh ta shkruash tekstin vetë."
+          :title="t('caption.unavailableTitle')"
+          :description="t('caption.unavailableDescription')"
         />
         <UForm v-else :state="{ idea }" class="space-y-4" @submit="generate"
-          ><UFormField label="Çfarë dëshiron të thuash?" required
+          ><UFormField :label="t('caption.ideaLabel')" required
             ><UTextarea
               v-model="idea"
               :disabled="busy"
               :maxlength="1000"
-              placeholder="Përshkruaj idenë me fjalët e tua…"
+              :placeholder="t('caption.ideaPlaceholder')"
               class="w-full" /></UFormField
           ><UButton
             type="submit"
             variant="outline"
             :loading="busy"
             :disabled="idea.trim().length < 5"
-            >Përgatit variante</UButton
+            >{{ t('caption.prepareVariants') }}</UButton
           ></UForm
         >
         <UAlert v-if="error" color="error" variant="outline" :title="error" />
@@ -85,14 +86,14 @@ function apply(caption: string) {
               class="mt-4"
               :disabled="disabled"
               @click="apply(variant.caption)"
-              >Përdor këtë tekst</UButton
+              >{{ t('caption.useText') }}</UButton
             ></UCard
           >
           <ul v-if="result.questions.length" class="list-disc ps-5 space-y-2 text-sm text-muted">
             <li v-for="question in result.questions" :key="question">{{ question }}</li>
           </ul>
           <p class="text-xs text-muted">
-            Kontrolloje tekstin para miratimit. Zgjedhja e një varianti e ruan si draft.
+            {{ t('caption.reviewNote') }}
           </p></template
         >
       </div></template

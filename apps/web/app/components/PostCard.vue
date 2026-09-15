@@ -3,6 +3,7 @@ import type { Post } from '~~/shared/schemas/workspace'
 import { formatDate } from '~~/shared/utils/format'
 defineProps<{ post: Post; compact?: boolean }>()
 const { base, data } = useWorkspace()
+const { t } = useI18n()
 </script>
 <template>
   <UCard
@@ -17,7 +18,7 @@ const { base, data } = useWorkspace()
     <template #header
       ><ULink
         :to="`${base}/content/${post.id}`"
-        :aria-label="`Hap postimin: ${post.title}`"
+        :aria-label="t('content.openPost', { title: post.title })"
         class="block relative"
         ><MediaImage
           :src="post.image"
@@ -50,7 +51,7 @@ const { base, data } = useWorkspace()
     <template #footer
       ><div class="flex flex-wrap items-center justify-between gap-3">
         <span class="text-xs text-muted">{{
-          post.scheduledAt ? formatDate(post.scheduledAt, data.preferences.timezone) : 'Pa orar'
+          post.scheduledAt ? formatDate(post.scheduledAt, data.preferences.timezone) : t('content.noSchedule')
         }}</span
         ><UButton
           :to="`${base}/content/${post.id}`"
@@ -58,7 +59,7 @@ const { base, data } = useWorkspace()
           :color="post.status === 'review' ? 'primary' : 'neutral'"
           size="sm"
           trailing-icon="i-lucide-arrow-right"
-          >{{ post.status === 'review' ? 'Rishiko postimin' : 'Hap postimin' }}</UButton
+          >{{ post.status === 'review' ? t('content.reviewPost') : t('content.openPostLabel') }}</UButton
         >
       </div></template
     >

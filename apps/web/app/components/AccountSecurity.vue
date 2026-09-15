@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { z } from 'zod'
 import { authClient } from '~/utils/auth-client'
+const { t } = useI18n()
 const toast = useToast()
 const busy = ref(false)
 const error = ref('')
 const form = reactive({ currentPassword: '', newPassword: '', confirm: '' })
 const schema = z
   .object({
-    currentPassword: z.string().min(1, 'Vendos fjalëkalimin aktual.'),
-    newPassword: z.string().min(12, 'Përdor të paktën 12 karaktere.').max(128),
+    currentPassword: z.string().min(1, t('security.currentPasswordRequired')),
+    newPassword: z.string().min(12, t('security.passwordTooShort')).max(128),
     confirm: z.string(),
   })
   .refine((value) => value.newPassword === value.confirm, {
-    message: 'Fjalëkalimet nuk përputhen.',
+    message: t('security.passwordMismatch'),
     path: ['confirm'],
   })
 const {
@@ -21,7 +22,7 @@ const {
   status,
 } = await useAsyncData('account-sessions', async () => {
   const result = await authClient.listSessions()
-  if (result.error) throw new Error('Sesioni nuk mund të lexohet.')
+  if (result.error) throw new Error(t('security.sessionReadError'))
   return result.data || []
 })
 const items = computed(() => sessions.value || [])
@@ -37,14 +38,14 @@ async function changePassword() {
       revokeOtherSessions: true,
     })
     if (result.error)
-      error.value = 'Fjalëkalimi nuk u ndryshua. Kontrollo fjalëkalimin aktual dhe provo sërish.'
+      error.value = t('security.passwordChangeError')
     else {
       Object.assign(form, { currentPassword: '', newPassword: '', confirm: '' })
-      toast.add({ title: 'Fjalëkalimi u ndryshua. Sesionet e tjera u mbyllën.', color: 'success' })
+      toast.add({ title: t('security.passwordChanged'), color: 'success' })
       await refresh()
     }
   } catch {
-    error.value = 'Lidhja dështoi. Provo sërish.'
+    error.value = t('auth.networkError')
   } finally {
     busy.value = false
   }
@@ -53,13 +54,13 @@ async function revokeOthers() {
   busy.value = true
   try {
     const result = await authClient.revokeOtherSessions()
-    if (result.error) error.value = 'Sesionet nuk u mbyllën. Provo sërish.'
+    if (result.error) error.value = t('security.sessionsRevokeError')
     else {
       await refresh()
-      toast.add({ title: 'U mbyllën sesionet në pajisjet e tjera', color: 'success' })
+      toast.add({ title: t('security.sessionsRevoked'), color: 'success' })
     }
   } catch {
-    error.value = 'Lidhja dështoi. Provo sërish.'
+    error.value = t('auth.networkError')
   } finally {
     busy.value = false
   }
@@ -68,14 +69,14 @@ async function revokeOthers() {
 <template>
   <div class="space-y-6">
     <div>
-      <h2 class="text-base font-semibold">Siguria e llogarisë</h2>
+      <h2 class="text-base font-semibold">{{ t('legacy.accountSecurity') }}</h2>
       <p class="text-sm text-muted mt-2">
-        Përditëso fjalëkalimin dhe kontrollo pajisjet ku ke hyrë.
+        {{ t('legacy.passwordDescription') }}
       </p>
     </div>
     <UAlert v-if="error" color="error" variant="outline" :title="error" />
     <UForm :state="form" :schema="schema" class="space-y-5" @submit="changePassword">
-      <UFormField name="currentPassword" label="Fjalëkalimi aktual" required
+      <UFormField name="currentPassword" :label="t('security.currentPassword')" required
         ><UInput
           v-model="form.currentPassword"
           type="password"
@@ -83,7 +84,7 @@ async function revokeOthers() {
           class="w-full"
           :disabled="busy"
       /></UFormField>
-      <UFormField name="newPassword" label="Fjalëkalimi i ri" required
+      <UFormField name="newPassword" :label="t('security.newPassword')" required
         ><UInput
           v-model="form.newPassword"
           type="password"
@@ -92,7 +93,7 @@ async function revokeOthers() {
           :disabled="busy"
           maxlength="128"
       /></UFormField>
-      <UFormField name="confirm" label="Përsërit fjalëkalimin e ri" required
+      <UFormField name="confirm" :label="t('security.confirmPassword')" required
         ><UInput
           v-model="form.confirm"
           type="password"
@@ -101,14 +102,14 @@ async function revokeOthers() {
           :disabled="busy"
       /></UFormField>
       <UButton type="submit" variant="outline" :loading="busy" icon="i-lucide-key-round"
-        >Ndrysho fjalëkalimin</UButton
+        >{{ t('legacy.changePassword') }}</UButton
       >
     </UForm>
     <USeparator />
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <h2 class="text-sm font-semibold">Pajisjet ku ke hyrë</h2>
+      <h2 class="text-sm font-semibold">{{ t('security.signedInDevices') }}</h2>
       <UButton variant="outline" color="neutral" :loading="busy" @click="revokeOthers"
-        >Mbyll sesionet e tjera</UButton
+        >{{ t('legacy.signOutOtherSessions') }}</UButton
       >
     </div>
     <USkeleton v-if="status === 'pending'" class="h-20 w-full" />
@@ -116,8 +117,8 @@ async function revokeOthers() {
       v-else-if="status === 'error'"
       color="warning"
       variant="outline"
-      title="Sesionet nuk mund të ngarkohen"
-      :actions="[{ label: 'Provo sërish', onClick: () => refresh() }]"
+      :title="t('security.sessionsLoadError')"
+      :actions="[{ label: t('common.retry'), onClick: () => refresh() }]"
     />
     <UCard v-else :ui="{ body: 'p-0 sm:p-0' }"
       ><ul class="divide-y divide-default">
@@ -125,10 +126,10 @@ async function revokeOthers() {
           <UIcon name="i-lucide-monitor-smartphone" class="size-5 shrink-0 text-muted mt-0.5" />
           <div class="min-w-0">
             <p class="text-sm break-words line-clamp-2">
-              {{ session.userAgent || 'Pajisje e panjohur' }}
+              {{ session.userAgent || t('workspace.currentDevice') }}
             </p>
             <p class="text-xs text-muted mt-2">
-              Hyrja:
+              {{ t('security.signedInAt') }}:
               {{
                 new Intl.DateTimeFormat('sq-AL', {
                   dateStyle: 'medium',

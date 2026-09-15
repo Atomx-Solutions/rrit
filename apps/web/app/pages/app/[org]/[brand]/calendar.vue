@@ -6,8 +6,9 @@ import {
   type CalendarView,
 } from '~~/shared/utils/calendar'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-useSeoMeta({ title: 'Kalendari · Rrit' })
 const { data, base } = useWorkspace()
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('nav.calendar')} · Rrit` })
 const today = computed(() => dayInZone(new Date(), data.value.preferences.timezone))
 const anchor = ref(today.value)
 const view = ref<CalendarView>('list')
@@ -34,14 +35,14 @@ function move(direction: number) {
 }
 </script>
 <template>
-  <DashboardPage title="Kalendari" description="Shiko postimet e planifikuara dhe orarin e tyre.">
+  <DashboardPage :title="t('nav.calendar')" :description="t('calendar.description')">
     <template #actions
       ><div class="flex flex-wrap gap-2">
         <UButton :to="`${base}/monthly-planner`" variant="outline" icon="i-lucide-sparkles">
-          Planifiko me AI
+          {{ t('monthly.action') }}
         </UButton>
         <UButton :to="`${base}/content/new`" color="neutral" variant="outline" icon="i-lucide-plus">
-          Krijo postim
+          {{ t('content.create') }}
         </UButton>
       </div></template
     >
@@ -50,7 +51,7 @@ function move(direction: number) {
         <div class="flex flex-wrap items-center gap-2">
           <UButton
             icon="i-lucide-chevron-left"
-            :aria-label="view === 'week' ? 'Java e mëparshme' : 'Muaji i mëparshëm'"
+            :aria-label="view === 'week' ? t('calendar.previousWeek') : t('calendar.previousMonth')"
             color="neutral"
             variant="ghost"
             @click="move(-1)"
@@ -58,42 +59,41 @@ function move(direction: number) {
           <h2 class="text-sm font-medium capitalize" aria-live="polite">{{ period.title }}</h2>
           <UButton
             icon="i-lucide-chevron-right"
-            :aria-label="view === 'week' ? 'Java e ardhshme' : 'Muaji i ardhshëm'"
+            :aria-label="view === 'week' ? t('calendar.nextWeek') : t('calendar.nextMonth')"
             color="neutral"
             variant="ghost"
             @click="move(1)"
           />
-          <UButton color="neutral" variant="outline" size="sm" @click="anchor = today">Sot</UButton>
+          <UButton color="neutral" variant="outline" size="sm" @click="anchor = today">{{ t('calendar.today') }}</UButton>
         </div>
         <UTabs
           v-model="view"
           :items="[
-            { label: 'Muaj', value: 'month', icon: 'i-lucide-calendar-days' },
-            { label: 'Javë', value: 'week', icon: 'i-lucide-calendar-range' },
-            { label: 'Listë', value: 'list', icon: 'i-lucide-list' },
+            { label: t('calendar.month'), value: 'month', icon: 'i-lucide-calendar-days' },
+            { label: t('calendar.week'), value: 'week', icon: 'i-lucide-calendar-range' },
+            { label: t('calendar.list'), value: 'list', icon: 'i-lucide-list' },
           ]"
           :content="false"
           variant="link"
           size="sm"
-          aria-label="Pamja e kalendarit"
+          :aria-label="t('calendar.view')"
         />
       </div>
     </template>
     <p class="text-xs leading-5 text-muted">
-      Planifiko pa lidhur Meta. Vetëm postimet ku ke zgjedhur publikimin automatik dërgohen në
-      rrjete sociale.
+      {{ t('calendar.metaDescription') }}
     </p>
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <div
         class="flex flex-wrap justify-between gap-2 px-3 py-2 border-b border-default text-[11px] text-muted"
       >
-        <span>{{ visible.length }} postime në këtë {{ view === 'week' ? 'javë' : 'muaj' }}</span
-        ><span>Orari lokal i biznesit · {{ data.preferences.timezone }}</span>
+        <span>{{ visible.length }} {{ t('calendar.postsIn') }} {{ view === 'week' ? t('calendar.weekLower') : t('calendar.monthLower') }}</span
+        ><span>{{ t('calendar.localTime') }} · {{ data.preferences.timezone }}</span>
       </div>
       <div v-if="view !== 'list'" class="hidden md:block">
         <div class="grid grid-cols-7">
           <div
-            v-for="day in ['Hënë', 'Martë', 'Mërkurë', 'Enjte', 'Premte', 'Shtunë', 'Diel']"
+            v-for="day in [t('calendar.monday'), t('calendar.tuesday'), t('calendar.wednesday'), t('calendar.thursday'), t('calendar.friday'), t('calendar.saturday'), t('calendar.sunday')]"
             :key="day"
             class="text-[11px] text-muted text-center py-2"
           >
@@ -121,7 +121,7 @@ function move(direction: number) {
               :key="post.id"
               :to="`${base}/content/${post.id}`"
               class="block border border-default rounded-md p-1.5 mt-1.5 hover:border-primary text-[11px] text-default"
-              :aria-label="`Hap postimin: ${post.title}`"
+              :aria-label="`${t('calendar.openPost')}: ${post.title}`"
               ><span class="flex items-center gap-1.5 text-muted mb-1"
                 ><UIcon
                   :name="post.channel === 'Instagram' ? 'i-lucide-instagram' : 'i-lucide-facebook'"
@@ -136,10 +136,10 @@ function move(direction: number) {
               ><span class="line-clamp-2 leading-relaxed">{{ post.title }}</span
               ><span class="block text-muted mt-1">{{
                 ['draft', 'review'].includes(post.status)
-                  ? 'Propozim · pret miratim'
+                  ? t('calendar.proposalAwaitingApproval')
                   : post.publicationMode === 'automatic'
-                    ? 'Publikim automatik'
-                    : 'Vetëm në kalendar'
+                    ? t('calendar.automaticPublication')
+                    : t('calendar.calendarOnly')
               }}</span></ULink
             >
           </div>
@@ -155,9 +155,9 @@ function move(direction: number) {
         <DashboardEmpty
           v-else
           icon="i-lucide-calendar-days"
-          title="Nuk ka postime në këtë periudhë"
-          description="Pasi ta miratosh një postim, zgjidh ditën dhe orën për ta shtuar këtu."
-          :actions="[{ label: 'Shiko postimet', to: `${base}/content` }]"
+          :title="t('calendar.emptyTitle')"
+          :description="t('calendar.emptyDescription')"
+          :actions="[{ label: t('nav.viewPosts'), to: `${base}/content` }]"
         />
       </div>
     </UCard>

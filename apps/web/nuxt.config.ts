@@ -9,7 +9,7 @@ export default defineNuxtConfig({
   ui: { fonts: false },
   colorMode: { preference: 'light', fallback: 'light' },
   icon: {
-    serverBundle: { collections: ['lucide'] },
+    serverBundle: { collections: ['lucide', 'flag'] },
     clientBundle: { scan: { globInclude: ['app/**/*.{vue,ts}'] } },
   },
   typescript: { strict: true },

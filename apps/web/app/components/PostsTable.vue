@@ -4,13 +4,14 @@ import type { Post } from '~~/shared/schemas/workspace'
 import { formatDate } from '~~/shared/utils/format'
 defineProps<{ posts: Post[] }>()
 const { base, data } = useWorkspace()
-const columns: TableColumn<Post>[] = [
-  { accessorKey: 'title', header: 'Postimi' },
-  { accessorKey: 'channel', header: 'Rrjeti' },
-  { accessorKey: 'status', header: 'Gjendja' },
-  { accessorKey: 'scheduledAt', header: 'Orari' },
+const { t } = useI18n()
+const columns = computed<TableColumn<Post>[]>(() => [
+  { accessorKey: 'title', header: t('content.post') },
+  { accessorKey: 'channel', header: t('content.network') },
+  { accessorKey: 'status', header: t('content.status') },
+  { accessorKey: 'scheduledAt', header: t('content.schedule') },
   { id: 'actions', header: '' },
-]
+])
 </script>
 <template>
   <div class="md:hidden divide-y divide-default">
@@ -38,7 +39,7 @@ const columns: TableColumn<Post>[] = [
         <p v-if="post.scheduledAt" class="text-xs text-muted mt-2">
           {{ formatDate(post.scheduledAt, data.preferences.timezone) }}
           <span v-if="post.status === 'scheduled'" class="block mt-1">{{
-            post.publicationMode === 'automatic' ? 'Publikim automatik' : 'Vetëm në kalendar'
+            post.publicationMode === 'automatic' ? t('content.automaticPublication') : t('content.calendarOnly')
           }}</span>
         </p>
       </div>
@@ -49,7 +50,7 @@ const columns: TableColumn<Post>[] = [
     class="hidden md:block"
     :data="posts"
     :columns="columns"
-    empty="Nuk ka postime për këtë përzgjedhje."
+    :empty="t('content.noPostsSelection')"
     :ui="{
       root: 'w-full',
       base: 'w-full table-fixed border-separate border-spacing-0',
@@ -94,10 +95,10 @@ const columns: TableColumn<Post>[] = [
       ><span class="text-xs text-muted">{{
         row.original.scheduledAt
           ? formatDate(row.original.scheduledAt, data.preferences.timezone)
-          : 'Pa orar'
+          : t('content.noSchedule')
       }}</span
       ><span v-if="row.original.status === 'scheduled'" class="block text-xs text-muted mt-1">{{
-        row.original.publicationMode === 'automatic' ? 'Publikim automatik' : 'Vetëm në kalendar'
+        row.original.publicationMode === 'automatic' ? t('content.automaticPublication') : t('content.calendarOnly')
       }}</span></template
     >
     <template #actions-cell="{ row }"
@@ -106,7 +107,7 @@ const columns: TableColumn<Post>[] = [
         color="neutral"
         variant="ghost"
         icon="i-lucide-arrow-up-right"
-        :aria-label="`Hap postimin: ${row.original.title}`"
+        :aria-label="t('content.openPost', { title: row.original.title })"
     /></template>
   </UTable>
 </template>

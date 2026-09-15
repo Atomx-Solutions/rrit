@@ -2,6 +2,7 @@
 import type { Research } from '~~/shared/schemas/monthly-plan'
 
 const props = defineProps<{ research: Research }>()
+const { t } = useI18n()
 type Part = { text: string; url?: string; title?: string }
 type Line = { kind: 'heading' | 'bullet' | 'paragraph'; parts: Part[] }
 
@@ -64,8 +65,8 @@ const lines = computed<Line[]>(() => {
           <UIcon name="i-lucide-search-check" class="size-4.5 text-primary" />
         </div>
         <div>
-          <p class="text-xs font-medium uppercase tracking-wide text-primary">Përfundimet</p>
-          <h3 class="mt-1 text-lg font-semibold text-highlighted">Çfarë zbuloi hulumtimi</h3>
+          <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('research.conclusions') }}</p>
+          <h3 class="mt-1 text-lg font-semibold text-highlighted">{{ t('research.whatFound') }}</h3>
         </div>
       </div>
       <div class="mt-4 space-y-2.5">
@@ -106,8 +107,8 @@ const lines = computed<Line[]>(() => {
     <section>
       <div class="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <p class="text-xs font-medium uppercase tracking-wide text-muted">Transparenca</p>
-          <h3 class="mt-1 text-lg font-semibold text-highlighted">Burimet e konsultuara</h3>
+        <p class="text-xs font-medium uppercase tracking-wide text-muted">{{ t('research.transparency') }}</p>
+        <h3 class="mt-1 text-lg font-semibold text-highlighted">{{ t('research.sources') }}</h3>
         </div>
         <p class="text-xs text-muted">
           {{ new Date(research.researchedAt).toLocaleDateString('sq-AL') }}

@@ -113,8 +113,8 @@ export function validateTransition(post: Post, next: Post['status']): string | n
     published: [],
     failed: ['approved', 'draft'],
   }
-  if (!allowed[post.status].includes(next)) return 'Ky ndryshim nuk lejohet nga gjendja aktuale.'
+  if (!allowed[post.status].includes(next)) return 'transition.invalid'
   if (['approved', 'scheduled'].includes(next) && post.policy === 'block')
-    return post.policyReason || 'Përmbajtja ka një çështje që duhet zgjidhur.'
+    return post.policyReason || 'transition.policyBlocked'
   return null
 }

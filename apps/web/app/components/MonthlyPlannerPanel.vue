@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{ month: string }>()
+const { t } = useI18n()
 const { data: workspace, base, initLive, syncing } = useWorkspace()
 const {
   data: planner,
@@ -29,9 +30,9 @@ function togglePhoto(id: string) {
 }
 
 const phases = [
-  { key: 'research', label: 'Hulumtimi', description: 'Tregu, audienca dhe platformat' },
-  { key: 'planning', label: 'Strategjia', description: 'Temat, kanalet dhe oraret' },
-  { key: 'content', label: 'Krijimi', description: 'Teksti, dizajni dhe kontrolli' },
+  { key: 'research', label: t('monthly.phaseResearch'), description: t('monthly.phaseResearchDescription') },
+  { key: 'planning', label: t('monthly.phaseStrategy'), description: t('monthly.phaseStrategyDescription') },
+  { key: 'content', label: t('monthly.phaseContent'), description: t('monthly.phaseContentDescription') },
 ] as const
 
 const plan = computed(() => planner.value?.plan)
@@ -67,72 +68,60 @@ const phaseIndex = computed(() => {
 const activeCopy = computed(() => {
   if (recovering.value)
     return {
-      title: 'Po përgatitim versionin e radhës',
-      description:
-        'Asgjë nuk humbi. Sistemi vazhdon nga faza e ruajtur dhe nuk përsërit asnjë thirrje AI të përfunduar.',
+      title: t('monthly.recoveringTitle'),
+      description: t('monthly.recoveringDescription'),
     }
   if (plan.value?.stage === 'research')
     return {
-      title: 'Po hulumtojmë tregun',
-      description:
-        'Një thirrje AI po mbledh burime reale për tregun, audiencën dhe mënyrën si funksionojnë Instagrami e Facebooku.',
+      title: t('monthly.researchingTitle'),
+      description: t('monthly.researchingDescription'),
     }
   if (plan.value?.stage === 'planning')
     return {
-      title: 'Po ndërtojmë strategjinë e muajit',
-      description:
-        'Një thirrje AI krijon tërë kalendarin: temat, kanalet dhe oraret për numrin e postimeve të paketës.',
+      title: t('monthly.planningTitle'),
+      description: t('monthly.planningDescription'),
     }
   return {
-    title: 'Po krijojmë postimet',
-    description:
-      'Çdo postim po kalon në tekst, dizajn me fotografinë tënde dhe kontroll të cilësisë para se të ruhet.',
+    title: t('monthly.creatingTitle'),
+    description: t('monthly.creatingDescription'),
   }
 })
 
 const failureCopy = computed(() => {
   const failures: Record<string, { title: string; description: string }> = {
     PROVIDER_CREDIT_REQUIRED: {
-      title: 'Krediti i shërbimit AI nuk mjaftoi',
-      description:
-        'Përgatitja u ndal pa humbur asgjë. Pasi të shtosh kredit, vazhdo procesin nga ky buton.',
+      title: t('monthly.failureProviderCreditTitle'),
+      description: t('monthly.failureProviderCreditDescription'),
     },
     PROVIDER_RATE_LIMITED: {
-      title: 'Shërbimi AI është përkohësisht i zënë',
-      description: 'Asgjë nuk është humbur ose publikuar. Prit pak dhe vazhdo përgatitjen.',
+      title: t('monthly.failureRateLimitTitle'),
+      description: t('monthly.failureRateLimitDescription'),
     },
     PROVIDER_UNCERTAIN: {
-      title: 'Kërkohet kontroll teknik',
-      description:
-        'Riprovimi automatik nuk ishte i sigurt. Fotografitë, hulumtimi, strategjia dhe çdo draft i ruajtur mbeten të paprekura.',
+      title: t('monthly.failureUncertainTitle'),
+      description: t('monthly.failureUncertainDescription'),
     },
     PROVIDER_RETRY_EXHAUSTED: {
-      title: 'Thirrja AI nuk përfundoi',
-      description:
-        'Procesi u ndal pa riprovim automatik që të mos krijojë kosto të dytë. Rezultatet e ruajtura janë të sigurta.',
+      title: t('monthly.failureRetryTitle'),
+      description: t('monthly.failureRetryDescription'),
     },
     BUDGET_ESTIMATE_EXCEEDED: {
-      title: 'Procesi u ndal te kufiri i sigurisë',
-      description:
-        'Platforma duhet ta kontrollojë koston e kësaj kërkese përpara se përgatitja të vazhdojë.',
+      title: t('monthly.failureBudgetTitle'),
+      description: t('monthly.failureBudgetDescription'),
     },
     QUALITY_BLOCKED: {
-      title: 'Dizajni kërkon rishikim',
-      description:
-        'Vazhdo një herë për ta ruajtur si draft. Pastaj ti vendos në Content Studio nëse dëshiron ta përmirësosh.',
+      title: t('monthly.failureQualityTitle'),
+      description: t('monthly.failureQualityDescription'),
     },
     INVALID_SLOT_DATE: {
-      title: 'Një orar i propozuar kishte kaluar',
-      description:
-        'Plani u ndal që të mos ruante një postim në të kaluarën. Vazhdo përgatitjen për një kalendar të korrigjuar.',
+      title: t('monthly.failureDateTitle'),
+      description: t('monthly.failureDateDescription'),
     },
   }
   return (
     failures[plan.value?.errorCode || ''] || {
-      title: 'Përgatitja u ndal',
-      description:
-        plan.value?.error ||
-        'Asgjë nuk është publikuar. Mund ta provosh përsëri pa humbur fotografitë.',
+      title: t('monthly.failureDefaultTitle'),
+      description: plan.value?.error || t('monthly.failureDefaultDescription'),
     }
   )
 })
@@ -152,7 +141,7 @@ async function act(action: 'prepare' | 'restart' | 'reset' | 'pause' | 'enable')
   busy.value = true
   error.value = ''
   if (action === 'prepare' && photoMode.value === 'selected' && !selectedPhotoIds.value.length) {
-    error.value = 'Zgjidh të paktën një fotografi ose lëre AI të vendosë.'
+    error.value = t('monthly.selectPhotoRequired')
     busy.value = false
     return
   }
@@ -181,7 +170,7 @@ async function act(action: 'prepare' | 'restart' | 'reset' | 'pause' | 'enable')
   } catch (problem) {
     error.value =
       (problem as { data?: { message?: string } }).data?.message ||
-      'Ndryshimi nuk u ruajt. Provo sërish.'
+      t('monthly.changeNotSaved')
   } finally {
     busy.value = false
   }
@@ -218,15 +207,14 @@ onBeforeUnmount(() => clearInterval(timer))
             <UIcon name="i-lucide-sparkles" class="size-4" />
           </div>
           <div class="min-w-0">
-            <UBadge color="neutral" variant="subtle" size="sm">AI Monthly Studio</UBadge>
+            <UBadge color="neutral" variant="subtle" size="sm">{{ t('monthly.title') }}</UBadge>
             <h2 class="mt-2 text-base font-semibold text-highlighted">
-              Kalendari yt, i menduar përpara
+              {{ t('monthly.heading') }}
             </h2>
             <p v-if="planner" class="mt-1 max-w-2xl text-xs leading-5 text-muted">
-              AI hulumton, planifikon dhe përgatit deri në {{ planner.limit }} postime. Asgjë nuk
-              publikohet pa miratimin tënd.
+              {{ t('monthly.description', { limit: planner.limit }) }}
             </p>
-            <p v-else class="mt-1 text-sm text-muted">Po kontrollojmë paketën dhe shërbimin AI.</p>
+            <p v-else class="mt-1 text-sm text-muted">{{ t('monthly.checkingService') }}</p>
           </div>
         </div>
         <div v-if="plan && plan.status !== 'cancelled'" class="flex flex-wrap gap-1">
@@ -239,7 +227,7 @@ onBeforeUnmount(() => clearInterval(timer))
             :loading="busy"
             @click="act('pause')"
           >
-            Pauzo
+            {{ t('legacy.pause') }}
           </UButton>
           <UButton
             color="neutral"
@@ -249,7 +237,7 @@ onBeforeUnmount(() => clearInterval(timer))
             :disabled="busy"
             @click="resetOpen = true"
           >
-            Fillo nga e para
+            {{ t('legacy.startOver') }}
           </UButton>
         </div>
       </div>
@@ -260,15 +248,15 @@ onBeforeUnmount(() => clearInterval(timer))
         color="warning"
         variant="subtle"
         icon="i-lucide-wifi-off"
-        title="Nuk mund të lidhemi me serverin"
-        description="Rifresko faqen pasi aplikacioni të jetë nisur. Paketa dhe të dhënat e tua nuk kanë ndryshuar."
+        :title="t('monthly.serverUnavailableTitle')"
+        :description="t('monthly.serverUnavailableDescription')"
       />
     </div>
 
     <div v-else-if="!planner" class="border-t border-default p-4">
       <div class="flex items-center gap-3 text-sm text-muted" role="status">
         <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
-        Po kontrollojmë përgatitjen mujore…
+        {{ t('legacy.monthlyChecking') }}
       </div>
     </div>
 
@@ -277,8 +265,8 @@ onBeforeUnmount(() => clearInterval(timer))
         color="warning"
         variant="subtle"
         icon="i-lucide-settings"
-        title="Shërbimi AI nuk është konfiguruar"
-        description="Platforma duhet ta aktivizojë shërbimin përpara se të përgatitet ky muaj."
+        :title="t('monthly.aiNotConfiguredTitle')"
+        :description="t('monthly.aiNotConfiguredDescription')"
       />
     </div>
 
@@ -287,8 +275,8 @@ onBeforeUnmount(() => clearInterval(timer))
         color="warning"
         variant="subtle"
         icon="i-lucide-package"
-        title="Nuk ka paketë aktive"
-        description="Të gjitha paketat përfshijnë AI Monthly Studio. Aktivizo Fillimi për 12, Përditë për 30 ose Më shumë për 60 postime në muaj."
+        :title="t('monthly.noActivePlanTitle')"
+        :description="t('monthly.noActivePlanDescription')"
       />
     </div>
 
@@ -297,14 +285,14 @@ onBeforeUnmount(() => clearInterval(timer))
         <div class="flex items-start gap-3">
           <UIcon name="i-lucide-pause-circle" class="mt-0.5 size-5 text-muted" />
           <div>
-            <h3 class="text-sm font-semibold text-highlighted">Përgatitja është në pauzë</h3>
+            <h3 class="text-sm font-semibold text-highlighted">{{ t('monthly.paused') }}</h3>
             <p class="mt-1 text-sm text-muted">
-              Draftet dhe fotografitë e ruajtura nuk ndryshojnë.
+              {{ t('legacy.monthlySavedDescription') }}
             </p>
           </div>
         </div>
         <UButton size="sm" icon="i-lucide-play" :loading="busy" @click="act('enable')">
-          Aktivizo
+          {{ t('brain.activate') }}
         </UButton>
       </div>
     </div>
@@ -314,7 +302,7 @@ onBeforeUnmount(() => clearInterval(timer))
         <div class="flex items-start gap-3">
           <UIcon name="i-lucide-circle-alert" class="mt-0.5 size-5 text-warning" />
           <div>
-            <h3 class="text-sm font-semibold text-highlighted">Duhet edhe një hap</h3>
+            <h3 class="text-sm font-semibold text-highlighted">{{ t('monthly.needStep') }}</h3>
             <p class="mt-1 text-sm text-muted">{{ planner.prerequisite }}</p>
             <div v-if="planner.prerequisites?.length" class="mt-3 space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-warning">
@@ -332,7 +320,7 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
         </div>
         <UButton :to="`${base}/brand`" variant="outline" color="neutral" size="sm">
-          Plotëso biznesin
+          {{ t('legacy.completeBusiness') }}
         </UButton>
       </div>
     </div>
@@ -347,8 +335,8 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <UBadge color="warning" variant="subtle">Kërkohet një hap</UBadge>
-              <span v-if="updatedAt" class="text-xs text-muted">Përditësuar {{ updatedAt }}</span>
+              <UBadge color="warning" variant="subtle">{{ t('monthly.requiredStep') }}</UBadge>
+              <span v-if="updatedAt" class="text-xs text-muted">{{ t('monthly.updatedAt', { time: updatedAt }) }}</span>
             </div>
             <h3 class="mt-2 text-base font-semibold text-highlighted">{{ failureCopy.title }}</h3>
             <p class="mt-1 max-w-2xl text-sm leading-6 text-muted">{{ failureCopy.description }}</p>
@@ -357,20 +345,20 @@ onBeforeUnmount(() => clearInterval(timer))
 
         <div class="mt-5 grid gap-3 sm:grid-cols-3">
           <div class="rounded-lg bg-default/70 px-3.5 py-3">
-            <span class="block text-xs text-muted">Drafte të përfunduara</span>
+            <span class="block text-xs text-muted">{{ t('monthly.completedDrafts') }}</span>
             <strong class="mt-1 block text-sm font-semibold"
-              >{{ plan.completed }} nga {{ plan.total }}</strong
+              >{{ plan.completed }} {{ t('common.of') }} {{ plan.total }}</strong
             >
           </div>
           <div class="rounded-lg bg-default/70 px-3.5 py-3">
-            <span class="block text-xs text-muted">Fotografitë origjinale</span>
+            <span class="block text-xs text-muted">{{ t('monthly.originalPhotos') }}</span>
             <strong class="mt-1 flex items-center gap-1.5 text-sm font-semibold">
-              <UIcon name="i-lucide-shield-check" class="size-4 text-success" /> Të sigurta
+              <UIcon name="i-lucide-shield-check" class="size-4 text-success" /> {{ t('legacy.safe') }}
             </strong>
           </div>
           <div class="rounded-lg bg-default/70 px-3.5 py-3">
-            <span class="block text-xs text-muted">Publikime automatike</span>
-            <strong class="mt-1 block text-sm font-semibold">Asnjë</strong>
+            <span class="block text-xs text-muted">{{ t('monthly.automaticPublications') }}</span>
+            <strong class="mt-1 block text-sm font-semibold">{{ t('monthly.none') }}</strong>
           </div>
         </div>
 
@@ -381,7 +369,7 @@ onBeforeUnmount(() => clearInterval(timer))
             :loading="busy"
             @click="act('restart')"
           >
-            Vazhdo përgatitjen
+            {{ t('legacy.continuePreparation') }}
           </UButton>
           <UButton
             v-if="plan.research"
@@ -390,7 +378,7 @@ onBeforeUnmount(() => clearInterval(timer))
             icon="i-lucide-book-open"
             @click="researchOpen = true"
           >
-            Shiko strategjinë dhe hulumtimin
+            {{ t('legacy.viewStrategyResearch') }}
           </UButton>
         </div>
       </div>
@@ -407,15 +395,15 @@ onBeforeUnmount(() => clearInterval(timer))
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <UBadge :color="recovering ? 'warning' : 'primary'" variant="subtle">
-                {{ recovering ? 'Po rikuperohet' : 'Duke punuar' }}
+                {{ recovering ? t('monthly.recoveringShort') : t('monthly.workingShort') }}
               </UBadge>
-              <span class="text-xs text-muted">Mund të largohesh nga kjo faqe</span>
+              <span class="text-xs text-muted">{{ t('monthly.leavePage') }}</span>
             </div>
             <h3 class="mt-2 text-base font-semibold text-highlighted">{{ activeCopy.title }}</h3>
             <p class="mt-1 max-w-2xl text-sm leading-6 text-muted">{{ activeCopy.description }}</p>
           </div>
         </div>
-        <span class="text-sm font-medium">{{ plan.completed }} / {{ plan.total }} drafte</span>
+        <span class="text-sm font-medium">{{ plan.completed }} / {{ plan.total }} {{ t('monthly.drafts') }}</span>
       </div>
 
       <UProgress class="mt-5" :model-value="plan.completed" :max="plan.total" size="sm" />
@@ -425,24 +413,22 @@ onBeforeUnmount(() => clearInterval(timer))
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <strong class="text-sm text-highlighted">
-            Postimi {{ Math.min(plan.completed + 1, plan.total) }} nga {{ plan.total }}
+            {{ t('monthly.postProgress', { current: Math.min(plan.completed + 1, plan.total), total: plan.total }) }}
           </strong>
-          <span class="text-xs text-muted">Pa rigjenerim automatik</span>
+          <span class="text-xs text-muted">{{ t('monthly.noAutoRegeneration') }}</span>
         </div>
         <div class="mt-3 flex flex-wrap gap-2">
-          <UBadge color="neutral" variant="subtle">1 thirrje · Copy</UBadge>
-          <UBadge color="neutral" variant="subtle">1 thirrje · Imazhi AI 4:5</UBadge>
-          <UBadge color="neutral" variant="subtle">1 thirrje · Kontrolli</UBadge>
-          <UBadge color="success" variant="subtle">Drafti i parë ruhet</UBadge>
+          <UBadge color="neutral" variant="subtle">{{ t('legacy.oneCopy') }}</UBadge>
+          <UBadge color="neutral" variant="subtle">{{ t('legacy.aiImage') }}</UBadge>
+          <UBadge color="neutral" variant="subtle">{{ t('legacy.check') }}</UBadge>
+          <UBadge color="success" variant="subtle">{{ t('monthly.firstDraftSaved') }}</UBadge>
         </div>
       </div>
       <p
         v-if="plan.completed === 0 && plan.stage !== 'content'"
         class="mt-2 text-xs leading-5 text-muted"
       >
-        Drafti i parë shfaqet pasi të përfundojnë hulumtimi dhe strategjia. Prandaj 0 /
-        {{ plan.total }}
-        është normale në këtë fazë.
+        {{ t('monthly.firstDraftAppears', { completed: plan.completed, total: plan.total }) }}
       </p>
 
       <div class="mt-5 grid gap-3 sm:grid-cols-3">
@@ -490,20 +476,17 @@ onBeforeUnmount(() => clearInterval(timer))
             <UIcon name="i-lucide-search" class="size-4 text-primary" />
           </div>
           <div class="min-w-0">
-            <h4 class="text-sm font-semibold text-highlighted">Çfarë po kërkon sistemi</h4>
-            <p class="mt-1 text-xs leading-5 text-muted">
-              Burimet dhe përfundimet shfaqen sapo përgjigjja të ruhet—pa paraqitur rezultate të
-              sajuara gjatë pritjes.
-            </p>
+            <h4 class="text-sm font-semibold text-highlighted">{{ t('monthly.systemLookingFor') }}</h4>
+            <p class="mt-1 text-xs leading-5 text-muted">{{ t('legacy.researchDescription') }}</p>
           </div>
         </div>
         <div class="mt-4 grid gap-2 sm:grid-cols-2">
           <div
             v-for="item in [
-              'Tregu lokal, audienca dhe sezonaliteti',
-              'Pozicionimi dhe mundësitë e përmbajtjes',
-              'Udhëzimet aktuale për Instagram e Facebook',
-              'Hipotezat e orarit dhe boshllëqet në të dhëna',
+              t('monthly.researchTopicMarket'),
+              t('monthly.researchTopicPositioning'),
+              t('monthly.researchTopicGuidance'),
+              t('monthly.researchTopicTiming'),
             ]"
             :key="item"
             class="flex items-center gap-2 rounded-lg bg-default px-3 py-2.5 text-xs text-toned"
@@ -526,11 +509,8 @@ onBeforeUnmount(() => clearInterval(timer))
             <UIcon name="i-lucide-book-check" class="size-4 text-success" />
           </div>
           <div>
-            <h4 class="text-sm font-semibold text-highlighted">Hulumtimi është ruajtur</h4>
-            <p class="mt-0.5 text-xs leading-5 text-muted">
-              {{ plan.research.sources.length }} burime reale po përdoren nga strategjia dhe
-              postimet. Kjo fazë nuk përsëritet.
-            </p>
+            <h4 class="text-sm font-semibold text-highlighted">{{ t('monthly.researchSaved') }}</h4>
+            <p class="mt-0.5 text-xs leading-5 text-muted">{{ t('monthly.researchSourcesUsed', { count: plan.research.sources.length }) }}</p>
           </div>
         </div>
         <UButton
@@ -540,7 +520,7 @@ onBeforeUnmount(() => clearInterval(timer))
           icon="i-lucide-expand"
           @click="researchOpen = true"
         >
-          Hap strategjinë dhe hulumtimin
+          {{ t('legacy.openStrategyResearch') }}
         </UButton>
       </div>
 
@@ -550,8 +530,8 @@ onBeforeUnmount(() => clearInterval(timer))
         color="warning"
         variant="subtle"
         icon="i-lucide-clock"
-        title="Procesi po pret worker-in"
-        description="Përgatitja do të vazhdojë automatikisht sapo shërbimi në sfond të lidhet."
+        :title="t('monthly.workerWaitingTitle')"
+        :description="t('monthly.workerWaitingDescription')"
       />
     </div>
 
@@ -564,12 +544,12 @@ onBeforeUnmount(() => clearInterval(timer))
             <UIcon name="i-lucide-circle-check" class="size-5" />
           </div>
           <div>
-            <UBadge color="success" variant="subtle">Muaji është gati</UBadge>
+            <UBadge color="success" variant="subtle">{{ t('monthly.monthReady') }}</UBadge>
             <h3 class="mt-2 text-base font-semibold text-highlighted">
-              {{ plan.completed }} postime presin miratimin tënd
+              {{ t('monthly.postsAwaitingApproval', { count: plan.completed }) }}
             </h3>
             <p class="mt-1 text-sm text-muted">
-              Hapi tjetër është t’i kontrollosh në Content Studio.
+              {{ t('legacy.nextContentStudio') }}
             </p>
           </div>
         </div>
@@ -581,10 +561,10 @@ onBeforeUnmount(() => clearInterval(timer))
             icon="i-lucide-book-open"
             @click="researchOpen = true"
           >
-            Shiko strategjinë dhe hulumtimin
+            {{ t('legacy.viewStrategyResearch') }}
           </UButton>
           <UButton :to="`${base}/content`" trailing-icon="i-lucide-arrow-right">
-            Rishiko postimet
+            {{ t('legacy.reviewPosts') }}
           </UButton>
         </div>
       </div>
@@ -592,13 +572,12 @@ onBeforeUnmount(() => clearInterval(timer))
 
     <div v-else class="border-t border-default p-4">
       <div>
-        <p class="text-xs font-medium uppercase tracking-wide text-primary">Fotografitë e muajit</p>
+        <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('monthly.monthPhotos') }}</p>
         <h3 class="mt-1 text-base font-semibold text-highlighted">
-          A dëshiron ta zgjedhësh ti ndonjë fotografi?
+          {{ t('legacy.choosePhotoQuestion') }}
         </h3>
         <p class="mt-1 max-w-2xl text-sm leading-6 text-muted">
-          Origjinalet mbeten në galeri. AI krijon kopje të pastruara, profesionale dhe të dizajnuara
-          në format 4:5.
+          {{ t('legacy.originalsDescription') }}
         </p>
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
           <UButton
@@ -614,10 +593,10 @@ onBeforeUnmount(() => clearInterval(timer))
             @click="photoMode = 'auto'"
           >
             <span class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-              <UIcon name="i-lucide-sparkles" class="size-4 text-primary" /> Le të vendosë AI
+              <UIcon name="i-lucide-sparkles" class="size-4 text-primary" /> {{ t('legacy.letAiChoose') }}
             </span>
             <span class="mt-1.5 block text-xs leading-5 text-muted">
-              AI inspekton galerinë dhe zgjedh fotografinë më të fortë për secilin intent.
+              {{ t('legacy.aiChoosesDescription') }}
             </span>
           </UButton>
           <UButton
@@ -633,11 +612,10 @@ onBeforeUnmount(() => clearInterval(timer))
             @click="photoMode = 'selected'"
           >
             <span class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-              <UIcon name="i-lucide-image-check" class="size-4 text-primary" /> Dua të zgjedh foto
+              <UIcon name="i-lucide-image-check" class="size-4 text-primary" /> {{ t('legacy.choosePhotos') }}
             </span>
             <span class="mt-1.5 block text-xs leading-5 text-muted">
-              Gjenerimi përdor vetëm fotografitë që zgjedh këtu. Ato mund të ripërdoren kur ka më
-              shumë postime se fotografi.
+              {{ t('legacy.selectedPhotoDescription') }}
             </span>
           </UButton>
         </div>
@@ -680,13 +658,11 @@ onBeforeUnmount(() => clearInterval(timer))
             class="mt-3"
             color="warning"
             variant="subtle"
-            title="Nuk ka fotografi origjinale me të drejta aktive"
-            description="Ngarko fotografi në Galeri ose zgjidh opsionin që AI të vendosë pasi t'i ngarkosh."
+            :title="t('monthly.noOriginalPhotosTitle')"
+            :description="t('monthly.noOriginalPhotosDescription')"
           />
           <p v-if="selectedPhotoIds.length" class="mt-2 text-xs text-muted">
-            Vetëm {{ selectedPhotoIds.length }}
-            {{ selectedPhotoIds.length === 1 ? 'fotografi do të përdoret' : 'fotografi do të përdoren' }}
-            në gjenerim.
+            {{ t('monthly.photosIncluded', { count: selectedPhotoIds.length }) }}
           </p>
         </div>
       </div>
@@ -695,14 +671,13 @@ onBeforeUnmount(() => clearInterval(timer))
         class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-default pt-4"
       >
         <div>
-          <h3 class="text-sm font-semibold text-highlighted">Gati për ta përgatitur këtë muaj</h3>
+          <h3 class="text-sm font-semibold text-highlighted">{{ t('monthly.readyToPrepare') }}</h3>
           <p class="mt-1 max-w-xl text-sm leading-6 text-muted">
-            Fillojmë me hulumtim real, ndërtojmë strategjinë dhe pastaj krijojmë draftet një nga
-            një.
+            {{ t('legacy.monthlyProcess') }}
           </p>
         </div>
         <UButton :loading="busy" icon="i-lucide-calendar-plus" @click="act('prepare')">
-          Përgatit këtë muaj
+          {{ t('legacy.prepareMonth') }}
         </UButton>
       </div>
     </div>
@@ -713,25 +688,25 @@ onBeforeUnmount(() => clearInterval(timer))
 
     <UModal
       v-model:open="resetOpen"
-      title="Fillo planin nga e para"
-      description="Hiqen vetëm draftet dhe dizajnet e krijuara nga ky plan. Fotografitë origjinale në galeri nuk preken."
+      :title="t('monthly.resetTitle')"
+      :description="t('monthly.resetDescription')"
     >
       <template #body>
         <UAlert
           color="warning"
           variant="subtle"
           icon="i-lucide-shield-alert"
-          title="Ky veprim nuk prek fotografitë origjinale"
-          description="Hulumtimi, strategjia dhe draftet aktuale të këtij muaji pastrohen që të krijohet një plan i ri me workflow-in e përmirësuar."
+          :title="t('monthly.resetWarningTitle')"
+          :description="t('monthly.resetWarningDescription')"
         />
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton color="neutral" variant="ghost" :disabled="busy" @click="resetOpen = false"
-            >Anulo</UButton
+            >{{ t('common.cancel') }}</UButton
           >
           <UButton color="error" icon="i-lucide-rotate-ccw" :loading="busy" @click="act('reset')"
-            >Pastro dhe fillo rishtas</UButton
+            >{{ t('monthly.clearStartAgain') }}</UButton
           >
         </div>
       </template>
@@ -740,29 +715,29 @@ onBeforeUnmount(() => clearInterval(timer))
     <UModal
       v-model:open="researchOpen"
       fullscreen
-      title="Plani dhe hulumtimi"
-      description="Strategjia, përfundimet dhe burimet reale të konsultuara për këtë muaj."
+      :title="t('monthly.planResearchTitle')"
+      :description="t('monthly.planResearchDescription')"
     >
       <template #body>
         <div class="mx-auto w-full max-w-6xl space-y-8 py-2 sm:py-6">
           <div class="grid gap-4 sm:grid-cols-3">
             <div class="rounded-xl border border-default bg-elevated/40 p-4">
-              <span class="text-xs font-medium text-muted">Statusi</span>
+              <span class="text-xs font-medium text-muted">{{ t('common.status') }}</span>
               <strong class="mt-2 flex items-center gap-2 text-sm font-semibold text-highlighted">
                 <UIcon name="i-lucide-circle-check" class="size-4 text-success" />
-                Hulumtim i përfunduar
+                {{ t('legacy.researchComplete') }}
               </strong>
             </div>
             <div class="rounded-xl border border-default bg-elevated/40 p-4">
-              <span class="text-xs font-medium text-muted">Burime të konsultuara</span>
+              <span class="text-xs font-medium text-muted">{{ t('monthly.sourcesConsulted') }}</span>
               <strong class="mt-1.5 block text-lg font-semibold text-highlighted">
                 {{ plan?.research?.sources.length || 0 }}
               </strong>
             </div>
             <div class="rounded-xl border border-default bg-elevated/40 p-4">
-              <span class="text-xs font-medium text-muted">Përdorimi</span>
+              <span class="text-xs font-medium text-muted">{{ t('monthly.usage') }}</span>
               <strong class="mt-2 block text-sm font-semibold text-highlighted">
-                Strategji, tekste dhe orare
+                {{ t('monthly.usageDetails') }}
               </strong>
             </div>
           </div>

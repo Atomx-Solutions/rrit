@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { formatDate } from '~~/shared/utils/format'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-useSeoMeta({ title: 'Përmbledhja · Rrit' })
 const { data, base } = useWorkspace()
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('overview.title')} · Rrit` })
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const filter = ref('review')
 const postsOpen = ref(false)
@@ -17,25 +18,25 @@ const visible = computed(() =>
 )
 const summaries = computed(() => [
   {
-    label: 'Gjithsej postime',
+    label: t('overview.allPosts'),
     value: data.value.posts.length,
     icon: 'i-lucide-files',
     to: `${base.value}/content`,
   },
   {
-    label: 'Për miratim',
+    label: t('overview.awaitingApproval'),
     value: reviews.value.length,
     icon: 'i-lucide-file-check',
     to: `${base.value}/content?status=review`,
   },
   {
-    label: 'Drafte',
+    label: t('overview.drafts'),
     value: data.value.posts.filter((p) => p.status === 'draft').length,
     icon: 'i-lucide-file-pen-line',
     to: `${base.value}/content?status=draft`,
   },
   {
-    label: 'Të planifikuara',
+    label: t('overview.scheduled'),
     value: upcoming.value.length,
     icon: 'i-lucide-calendar-days',
     to: `${base.value}/calendar`,
@@ -43,10 +44,10 @@ const summaries = computed(() => [
 ])
 </script>
 <template>
-  <DashboardPage title="Përmbledhja" :description="`${data.brand.name} · ${data.brand.city}`">
+  <DashboardPage :title="t('overview.title')" :description="`${data.brand.name} · ${data.brand.city}`">
     <template #actions
       ><UButton :to="`${base}/content/new`" variant="outline" icon="i-lucide-plus"
-        >Krijo postim</UButton
+        >{{ t('content.createPost') }}</UButton
       ></template
     >
     <UPageGrid class="grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-px">
@@ -81,17 +82,17 @@ const summaries = computed(() => [
             ><UIcon name="i-lucide-file-check" class="size-5 text-muted shrink-0"
           /></template>
           <div class="flex-1 min-w-0">
-            <span class="block text-sm font-semibold">Postimet për kontroll</span>
+            <span class="block text-sm font-semibold">{{ t('overview.postsForReview') }}</span>
             <p class="text-sm text-muted font-normal mt-1">
               {{
                 reviews.length
-                  ? `${reviews.length} postime presin miratimin tënd.`
-                  : 'Nuk ke postime në pritje.'
+                  ? t('overview.reviewWaiting', { count: reviews.length })
+                  : t('overview.noReviewPosts')
               }}
             </p>
           </div>
           <span class="text-xs sm:text-sm shrink-0">{{
-            postsOpen ? 'Mbyll postimet' : 'Shiko postimet'
+            postsOpen ? t('overview.closePosts') : t('nav.viewPosts')
           }}</span>
           <template #trailing
             ><UIcon
@@ -103,18 +104,17 @@ const summaries = computed(() => [
           <div class="border-t border-default">
             <div class="flex flex-wrap justify-between items-center gap-3 px-4 sm:px-5 py-3">
               <span class="text-xs text-muted"
-                >{{ visible.length }} nga
-                {{ filter === 'review' ? reviews.length : data.posts.length }} postime</span
+                >{{ t('overview.postCount', { visible: visible.length, total: filter === 'review' ? reviews.length : data.posts.length }) }}</span
               ><UTabs
                 v-model="filter"
                 :items="[
-                  { label: 'Për miratim', value: 'review' },
-                  { label: 'Të gjitha', value: 'all' },
+                  { label: t('overview.awaitingApproval'), value: 'review' },
+                  { label: t('overview.all'), value: 'all' },
                 ]"
                 :content="false"
                 variant="link"
                 size="sm"
-                aria-label="Postimet në përmbledhje"
+                :aria-label="t('overview.postsSummary')"
               />
             </div>
             <PostsTable v-if="visible.length" :posts="visible" />
@@ -122,9 +122,9 @@ const summaries = computed(() => [
               v-else
               variant="naked"
               icon="i-lucide-check-check"
-              title="Nuk ka postime në pritje"
-              description="Kur dërgon një postim për miratim, do ta gjesh këtu."
-              :actions="[{ label: 'Krijo postim', variant: 'outline', to: `${base}/content/new` }]"
+              :title="t('overview.noReviewPostsTitle')"
+              :description="t('overview.noReviewPostsDescription')"
+              :actions="[{ label: t('content.createPost'), variant: 'outline', to: `${base}/content/new` }]"
             />
             <div class="flex justify-end border-t border-default px-4 py-3">
               <UButton
@@ -133,7 +133,7 @@ const summaries = computed(() => [
                 color="neutral"
                 size="sm"
                 trailing-icon="i-lucide-arrow-right"
-                >Shiko të gjitha postimet</UButton
+                >{{ t('overview.viewAllPosts') }}</UButton
               >
             </div>
           </div>
@@ -143,7 +143,7 @@ const summaries = computed(() => [
     <UPageGrid class="grid-cols-1 lg:grid-cols-2 gap-5">
       <UCard :ui="{ body: 'p-5 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-5">
-          <h2 class="text-sm font-semibold">Postimi i radhës në kalendar</h2>
+          <h2 class="text-sm font-semibold">{{ t('overview.nextCalendarPost') }}</h2>
           <UIcon name="i-lucide-calendar-days" class="size-4 text-muted" />
         </div>
         <ULink
@@ -169,7 +169,7 @@ const summaries = computed(() => [
           </div>
           <UIcon name="i-lucide-arrow-up-right" class="size-4 text-muted shrink-0" />
         </ULink>
-        <p v-else class="text-sm text-muted">Pasi ta miratosh një postim, zgjidh ditën dhe orën.</p>
+        <p v-else class="text-sm text-muted">{{ t('overview.noUpcomingPost') }}</p>
         <UButton
           :to="`${base}/calendar`"
           variant="link"
@@ -177,23 +177,24 @@ const summaries = computed(() => [
           size="sm"
           class="mt-4 px-0"
           trailing-icon="i-lucide-arrow-right"
-          >Hap kalendarin</UButton
+          >{{ t('nav.calendar') }}</UButton
         >
       </UCard>
       <UCard :ui="{ body: 'p-5 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-4">
-          <h2 class="text-sm font-semibold">Facebook dhe Instagram</h2>
+          <h2 class="text-sm font-semibold">{{ t('nav.meta') }}</h2>
           <UBadge color="neutral" variant="outline" size="sm">{{
-            meta?.connection?.status === 'connected' ? 'Lidhur' : 'Kërkon lidhje'
+            meta?.connection?.status === 'connected' ? t('overview.connected') : t('overview.connectionRequired')
           }}</UBadge>
         </div>
         <p class="text-sm text-muted leading-relaxed max-w-lg">
           {{
             meta?.connection?.status === 'connected'
-              ? 'Faqja e lidhur: ' +
+              ? t('overview.connectedPage', { page: meta.connection.pageName || '' })
+              /* : 'Faqja e lidhur: ' +
                 meta.connection.pageName +
-                '. Përditëso postimet për të parë historikun e biznesit.'
-              : 'Lidhe faqen e biznesit përmes Meta dhe lexo postimet që ke ndarë tashmë.'
+                '. Përditëso postimet për të parë historikun e biznesit.' */
+              : t('overview.connectDescription')
           }}
         </p>
         <UButton
@@ -203,7 +204,7 @@ const summaries = computed(() => [
           size="sm"
           class="mt-5"
           trailing-icon="i-lucide-arrow-right"
-          >Shiko postimet nga rrjetet</UButton
+          >{{ t('nav.viewPosts') }}</UButton
         >
       </UCard>
     </UPageGrid>

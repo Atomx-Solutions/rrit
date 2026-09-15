@@ -2,9 +2,10 @@
 import { formatMoney } from '~~/shared/utils/format'
 
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-useSeoMeta({ title: 'Plani dhe faturimi · Rrit' })
 const annual = ref(false)
 const { data: trial } = await useFetch('/api/trial', { key: 'trial' })
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('nav.billing')} · Rrit` })
 const {
   data: usage,
   error: usageError,
@@ -16,29 +17,44 @@ const { plans, error: catalogError, refresh } = usePlanCatalog()
 const { page, pageSize, total, paginated } = usePagination(plans)
 const selected = ref('')
 const selectedPlan = computed(() => plans.value.find((plan) => plan.name === selected.value))
+const planTextKeys: Record<string, { name: string; description: string; features: string[] }> = {
+  Fillimi: { name: 'billing.planStart', description: 'billing.planStartDescription', features: ['billing.featureOneBusiness', 'billing.featureMeta', 'billing.feature12Drafts', 'billing.featurePhotos', 'billing.featureCalendar'] },
+  Përditë: { name: 'billing.planWeekly', description: 'billing.planWeeklyDescription', features: ['billing.featureOneBusiness', 'billing.featureMeta', 'billing.feature30Drafts', 'billing.featureAiText', 'billing.featureApprovalPlanning'] },
+  'Më shumë': { name: 'billing.planMore', description: 'billing.planMoreDescription', features: ['billing.featureOneBusiness', 'billing.featureMeta', 'billing.feature60Drafts', 'billing.featureAiText', 'billing.featurePriorityHelp'] },
+}
+function planName(name: string) { return planTextKeys[name] ? t(planTextKeys[name].name) : name }
+function planDescription(name: string, fallback: string) { return planTextKeys[name] ? t(planTextKeys[name].description) : fallback }
+function planFeature(name: string, index: number, fallback: string) {
+  const key = planTextKeys[name]?.features[index]
+  return key ? t(key) : fallback
+}
 const monthlyPrice = computed(
   () =>
     (selectedPlan.value?.price || 0) *
     (annual.value ? 1 - (selectedPlan.value?.annualDiscount || 0) / 100 : 1),
 )
 const usageLabels: Record<string, string> = {
-  posts_per_month: 'Postime këtë muaj',
-  ai_requests_per_day: 'Kërkesa AI sot',
-  media_storage_bytes: 'Hapësira e fotografive',
-  social_accounts: 'Llogari sociale',
-  members: 'Anëtarë',
+  posts_per_month: 'billing.usagePosts',
+  ai_requests_per_day: 'billing.usageAi',
+  media_storage_bytes: 'billing.usageStorage',
+  social_accounts: 'billing.usageSocial',
+  members: 'billing.usageMembers',
 }
 const usageDescriptions: Record<string, string> = {
-  posts_per_month: 'Numëron vetëm draftet dhe postimet që janë krijuar realisht.',
-  ai_requests_per_day: 'Hulumtimi, teksti, imazhi dhe kontrolli i cilësisë numërohen veçmas.',
-  members: 'Numri i personave që mund të kenë qasje në këtë biznes.',
+  posts_per_month: 'billing.usagePostsDescription',
+  ai_requests_per_day: 'billing.usageAiDescription',
+  members: 'billing.usageMembersDescription',
 }
 const exhaustedMessages: Record<string, string> = {
-  posts_per_month: 'Limiti i postimeve është arritur; AI nuk krijon postime të tjera.',
-  ai_requests_per_day: 'Limiti ditor i kërkesave AI është arritur.',
-  members: 'Të gjitha vendet e ekipit janë përdorur.',
-  social_accounts: 'Të gjitha llogaritë sociale të paketës janë lidhur.',
-  media_storage_bytes: 'Hapësira e fotografive është mbushur.',
+  posts_per_month: 'billing.limitPosts',
+  ai_requests_per_day: 'billing.limitAi',
+  members: 'billing.limitMembers',
+  social_accounts: 'billing.limitSocial',
+  media_storage_bytes: 'billing.limitStorage',
+}
+
+function translateOptional(key: string | undefined, fallback: string) {
+  return key ? t(key) : fallback
 }
 function usageValue(key: string, value: number) {
   if (key === 'media_storage_bytes') {
@@ -50,16 +66,16 @@ function usageValue(key: string, value: number) {
 </script>
 <template>
   <DashboardPage
-    title="Plani dhe faturimi"
-    description="Zgjidh hapësirën që i përshtatet biznesit tënd. Të gjitha çmimet janë në euro."
+    :title="t('nav.billing')"
+    :description="t('billing.description')"
   >
     <template #toolbar>
       <div class="flex w-full flex-wrap items-center justify-between gap-3">
-        <span class="text-sm text-muted">Paketat e propozuara</span>
+        <span class="text-sm text-muted">{{ t('billing.proposedPlans') }}</span>
         <div class="flex items-center gap-3">
-          <span class="text-sm">Mujor</span
-          ><USwitch v-model="annual" aria-label="Faturim vjetor" /><span class="text-sm"
-            >Vjetor</span
+          <span class="text-sm">{{ t('billing.monthly') }}</span
+          ><USwitch v-model="annual" :aria-label="t('billing.annualBilling')" /><span class="text-sm"
+            >{{ t('billing.annual') }}</span
           >
         </div>
       </div>
@@ -70,15 +86,14 @@ function usageValue(key: string, value: number) {
         <h2 class="text-sm font-semibold">
           {{
             trial?.paid
-              ? 'Shërbim aktiv'
+              ? t('billing.serviceActive')
               : trial?.state === 'active'
-                ? 'Trial falas aktiv'
-                : 'Pa periudhë aktive'
+                ? t('billing.trialActive')
+                : t('billing.noActivePeriod')
           }}
         </h2>
         <p class="text-sm text-muted leading-relaxed">
-          Gjendja e shërbimit kontrollohet nga serveri. Pagesat me kartë ende nuk janë aktivizuar;
-          nuk kryhet rinovim ose tarifim automatik.
+          {{ t('billing.serviceDescription') }}
         </p>
       </div>
     </UCard>
@@ -86,8 +101,8 @@ function usageValue(key: string, value: number) {
       v-if="usageError"
       color="warning"
       variant="outline"
-      title="Përdorimi nuk u ngarkua"
-      :actions="[{ label: 'Provo sërish', variant: 'outline', onClick: () => refreshUsage() }]"
+      :title="t('billing.usageLoadError')"
+      :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refreshUsage() }]"
     />
     <template v-else-if="usage">
       <UCard :ui="{ body: 'p-4' }">
@@ -97,13 +112,13 @@ function usageValue(key: string, value: number) {
               <UIcon name="i-lucide-coins" class="size-4 text-primary" />
             </div>
             <div class="min-w-0">
-              <h2 class="text-sm font-semibold">Kreditet AI</h2>
-              <p class="text-xs text-muted">Për hulumtim, tekst, dizajn dhe kontroll.</p>
+          <h2 class="text-sm font-semibold">{{ t('billing.aiCredits') }}</h2>
+          <p class="text-xs text-muted">{{ t('billing.aiCreditsDescription') }}</p>
             </div>
           </div>
           <p class="shrink-0 text-sm font-semibold tabular-nums">
             {{ usage.credits.available }}
-            <span class="text-xs font-normal text-muted">kredi</span>
+            <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span>
           </p>
         </div>
         <UProgress
@@ -118,25 +133,25 @@ function usageValue(key: string, value: number) {
                 ? 'warning'
                 : 'primary'
           "
-          aria-label="Kreditet AI të mbetura"
+          :aria-label="t('billing.remainingCredits')"
         />
       </UCard>
       <UCard as="section" :ui="{ body: 'p-4' }">
         <div class="mb-5">
-          <h2 class="text-sm font-semibold">Përdorimi aktual</h2>
-          <p class="text-sm text-muted mt-1">Kufijtë vijnë nga shërbimi aktiv në server.</p>
+          <h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2>
+          <p class="text-sm text-muted mt-1">{{ t('billing.currentUsageDescription') }}</p>
         </div>
         <div class="grid gap-5 sm:grid-cols-2">
           <div v-for="item in usage.usage" :key="item.key" class="space-y-2">
             <div class="flex items-center justify-between gap-3 text-sm">
-              <span>{{ usageLabels[item.key] || item.key }}</span>
+              <span>{{ translateOptional(usageLabels[item.key], item.key) }}</span>
               <span class="tabular-nums text-muted"
                 >{{ usageValue(item.key, item.current) }} /
                 {{ usageValue(item.key, item.limit) }}</span
               >
             </div>
             <p v-if="usageDescriptions[item.key]" class="text-xs leading-5 text-muted">
-              {{ usageDescriptions[item.key] }}
+              {{ translateOptional(usageDescriptions[item.key], '') }}
             </p>
             <UProgress
               :model-value="item.percentage"
@@ -147,13 +162,13 @@ function usageValue(key: string, value: number) {
                     ? 'warning'
                     : 'primary'
               "
-              :aria-label="`${usageLabels[item.key] || item.key}: ${item.percentage}%`"
+              :aria-label="`${translateOptional(usageLabels[item.key], item.key)}: ${item.percentage}%`"
             />
             <p v-if="item.state !== 'available'" class="text-xs text-muted">
               {{
                 item.state === 'exhausted'
-                  ? exhaustedMessages[item.key] || 'Kufiri është arritur.'
-                  : 'Po i afrohesh kufirit të planit.'
+                  ? translateOptional(exhaustedMessages[item.key], t('billing.limitReached'))
+                  : t('billing.limitWarning')
               }}
             </p>
           </div>
@@ -164,8 +179,8 @@ function usageValue(key: string, value: number) {
       v-if="catalogError"
       color="warning"
       variant="outline"
-      title="Paketat nuk mund të ngarkohen"
-      :actions="[{ label: 'Provo sërish', variant: 'outline', onClick: () => refresh() }]"
+      :title="t('billing.catalogError')"
+      :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
     />
     <UCard :ui="{ body: 'p-0 sm:p-0' }"
       ><div class="divide-y divide-default">
@@ -175,29 +190,29 @@ function usageValue(key: string, value: number) {
           class="flex flex-wrap items-center gap-4 p-5"
         >
           <div class="min-w-0 flex-1 basis-48 space-y-1.5">
-            <h2 class="text-base font-semibold">{{ plan.name }}</h2>
-            <p class="text-sm text-muted">{{ plan.description }}</p>
-            <p class="text-xs text-muted">{{ plan.features[0] }} · {{ plan.features[2] }}</p>
+            <h2 class="text-base font-semibold">{{ planName(plan.name) }}</h2>
+            <p class="text-sm text-muted">{{ planDescription(plan.name, plan.description) }}</p>
+            <p class="text-xs text-muted">{{ planFeature(plan.name, 0, plan.features[0] ?? '') }} · {{ planFeature(plan.name, 2, plan.features[2] ?? '') }}</p>
           </div>
           <div class="text-left sm:text-right">
             <p class="text-xl font-semibold tabular-nums">
               {{ formatMoney(plan.price * (annual ? 1 - plan.annualDiscount / 100 : 1))
-              }}<span class="text-xs font-normal text-muted"> / muaj</span>
+              }}<span class="text-xs font-normal text-muted"> / {{ t('billing.month') }}</span>
             </p>
             <p class="text-xs text-muted mt-1">
               {{
                 annual
-                  ? `${formatMoney(plan.price * (1 - plan.annualDiscount / 100) * 12)} në vit`
-                  : 'Faturim mujor'
+                  ? `${formatMoney(plan.price * (1 - plan.annualDiscount / 100) * 12)} ${t('billing.perYear')}`
+                  : t('billing.monthlyBilling')
               }}
             </p>
           </div>
           <UButton
             variant="outline"
             color="neutral"
-            :aria-label="`Shiko planin ${plan.name}`"
+            :aria-label="`${t('trial.viewPlan')} ${planName(plan.name)}`"
             @click="selected = plan.name"
-            >Shiko planin</UButton
+            >{{ t('trial.viewPlan') }}</UButton
           >
         </article>
       </div>
@@ -206,21 +221,21 @@ function usageValue(key: string, value: number) {
     <UCard as="section" :ui="{ body: 'p-0 sm:p-0', header: 'px-5 py-4' }">
       <template #header
         ><div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold">Faturat e tua</h2>
-          <span class="text-xs text-muted">EUR · €</span>
+          <h2 class="text-sm font-semibold">{{ t('billing.yourInvoices') }}</h2>
+          <span class="text-xs text-muted">{{ t('billing.currencyLabel') }}</span>
         </div></template
       >
       <DashboardEmpty
-        title="Nuk ka fatura"
-        description="Faturat do të shfaqen këtu pas pagesës së parë të konfirmuar."
+        :title="t('billing.noInvoices')"
+        :description="t('billing.noInvoicesDescription')"
         icon="i-lucide-receipt-text"
         class="border-0 rounded-none"
       />
     </UCard>
     <UModal
       :open="!!selectedPlan"
-      :title="`Plani ${selected}`"
-      description="Shiko përmbledhjen e paketës."
+      :title="`${t('billing.planTitle')} ${planName(selected)}`"
+       :description="t('billing.planSummaryDescription')"
       @update:open="selected = $event ? selected : ''"
     >
       <template #body>
@@ -228,11 +243,10 @@ function usageValue(key: string, value: number) {
           <div class="space-y-2">
             <p class="text-3xl font-semibold tracking-tight">
               {{ formatMoney(monthlyPrice)
-              }}<span class="text-sm font-normal text-muted"> / muaj</span>
+              }}<span class="text-sm font-normal text-muted"> / {{ t('billing.month') }}</span>
             </p>
             <p class="text-sm text-muted">
-              {{ annual ? `${formatMoney(monthlyPrice * 12)} në vit` : 'Faturim mujor' }} · Çmim
-              ilustrues
+              {{ annual ? `${formatMoney(monthlyPrice * 12)} ${t('billing.perYear')}` : t('billing.monthlyBilling') }} · {{ t('billing.illustrativePrice') }}
             </p>
           </div>
           <USeparator />
@@ -242,21 +256,21 @@ function usageValue(key: string, value: number) {
               :key="feature"
               class="flex items-center gap-3 text-sm"
             >
-              <UIcon name="i-lucide-check" class="size-4 text-primary shrink-0" />{{ feature }}
+              <UIcon name="i-lucide-check" class="size-4 text-primary shrink-0" />{{ planFeature(selectedPlan.name, selectedPlan.features.indexOf(feature), feature) }}
             </li>
           </ul>
           <UAlert
             color="neutral"
             variant="outline"
             icon="i-lucide-info"
-            title="Pagesat ende nuk janë aktive"
-            description="Asnjë pagesë nuk do të kryhet. Kushtet, taksat dhe kufijtë përfundimtarë do të konfirmohen para aktivizimit të abonimeve."
+             :title="t('billing.paymentsInactive')"
+             :description="t('billing.paymentsInactiveDescription')"
           />
         </div>
       </template>
       <template #footer
         ><UButton color="neutral" variant="outline" class="ml-auto" @click="selected = ''"
-          >Mbyll përmbledhjen</UButton
+           >{{ t('billing.closeSummary') }}</UButton
         ></template
       >
     </UModal>

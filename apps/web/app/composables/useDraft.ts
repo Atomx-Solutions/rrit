@@ -34,6 +34,7 @@ export function recoverStoredDraft<T extends object>(raw: string, initial: T): T
 
 // Shared low-risk authoring recovery. Conflict resolution stays in the repository.
 export function useDraft<T extends object>(key: string, initial: T) {
+  const { t } = useI18n()
   const form = reactive(structuredClone(initial)) as T
   const recovered = ref(false)
   const localError = ref('')
@@ -52,7 +53,7 @@ export function useDraft<T extends object>(key: string, initial: T) {
       }
     } catch {
       sessionStorage.removeItem(storageKey)
-      localError.value = 'Rikuperimi lokal nuk është i disponueshëm.'
+      localError.value = t('draft.localRecoveryUnavailable')
     }
   })
   watch(
@@ -69,7 +70,7 @@ export function useDraft<T extends object>(key: string, initial: T) {
         )
         localError.value = ''
       } catch {
-        localError.value = 'Drafti nuk mund të ruhet për rikuperim.'
+        localError.value = t('draft.saveRecoveryError')
       }
     },
     { deep: true },
@@ -80,7 +81,7 @@ export function useDraft<T extends object>(key: string, initial: T) {
       recovered.value = false
       localError.value = ''
     } catch {
-      localError.value = 'Kopja e rikuperimit nuk mund të pastrohet në këtë shfletues.'
+      localError.value = t('draft.clearRecoveryError')
     }
   }
   return { form, recovered, localError, clear }

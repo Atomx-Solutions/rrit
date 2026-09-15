@@ -7,7 +7,7 @@ function supabase() {
   if (client) return client
   const config = useRuntimeConfig()
   if (!config.public.supabaseUrl || !config.public.supabaseKey)
-    throw new Error('Supabase nuk është konfiguruar.')
+    throw new Error('SUPABASE_NOT_CONFIGURED')
   client = createBrowserClient(config.public.supabaseUrl, config.public.supabaseKey, {
     auth: { autoRefreshToken: true, detectSessionInUrl: true, persistSession: true },
   })
@@ -87,7 +87,7 @@ export const authClient = {
     const session: Session | null = result.data.session
     return {
       data: session
-        ? [{ id: 'current', userAgent: 'Kjo pajisje', createdAt: session.user.created_at }]
+        ? [{ id: 'current', userAgent: '', createdAt: session.user.created_at }]
         : [],
       ...errorResult(result.error),
     }

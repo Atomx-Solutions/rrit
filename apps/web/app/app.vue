@@ -1,16 +1,28 @@
 <script setup lang="ts">
-import { sq } from '@nuxt/ui/locale'
-const locale = {
-  ...sq,
-  messages: {
-    ...sq.messages,
-    dashboardSidebarToggle: { open: 'Hap navigimin', close: 'Mbyll navigimin' },
-    sidebar: { close: 'Mbyll navigimin', toggle: 'Ndrysho gjerësinë e menusë' },
+import { en, sq } from '@nuxt/ui/locale'
+const { locale: appLocale, setLocale, t } = useI18n()
+const { data, ready } = useWorkspace()
+const locale = computed(() => {
+  const base = appLocale.value === 'en-US' ? en : sq
+  return {
+    ...base,
+    messages: {
+      ...base.messages,
+      dashboardSidebarToggle: { open: t('nav.open'), close: t('nav.close') },
+      sidebar: { close: t('nav.close'), toggle: t('nav.toggle') },
+    },
+  }
+})
+watch(
+  [ready, () => data.value.preferences.locale],
+  ([isReady, workspaceLocale]) => {
+    if (isReady) setLocale(workspaceLocale)
   },
-}
+  { immediate: true },
+)
 </script>
 <template>
-  <UApp :locale="locale" :toaster="{ label: 'Njoftimet' }"
+  <UApp :locale="locale" :toaster="{ label: t('nav.notifications') }"
     ><NuxtLoadingIndicator color="var(--rrit-color-primary-strong)" /><NuxtLayout><NuxtPage /></NuxtLayout
   ></UApp>
 </template>

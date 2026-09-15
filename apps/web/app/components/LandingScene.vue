@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{ label: string; caption: string }>()
+const { t } = useI18n()
 const scene = ref<HTMLElement>()
 const content = ref<HTMLElement>()
 const reduced = ref(true)
@@ -73,7 +74,7 @@ onBeforeUnmount(() => cleanup?.())
       <UButton
         v-if="!reduced"
         :icon="paused ? 'i-lucide-play' : 'i-lucide-pause'"
-        :aria-label="`${paused ? 'Vazhdo' : 'Pauzo'} ${label}`"
+        :aria-label="`${paused ? t('landing.resume') : t('landing.pause')} ${label}`"
         :aria-pressed="paused"
         size="xs"
         color="neutral"

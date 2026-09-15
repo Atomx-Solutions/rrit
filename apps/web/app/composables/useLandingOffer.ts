@@ -1,4 +1,5 @@
 export function useLandingOffer() {
+  const { t } = useI18n()
   const {
     data: capabilities,
     error,
@@ -9,11 +10,13 @@ export function useLandingOffer() {
   const trialDuration = computed(() => {
     const hours = capabilities.value?.trialHours
     if (!hours || hours <= 0) return null
-    return hours % 24 === 0 ? `${hours / 24} ditë` : `${hours} orë`
+    return hours % 24 === 0
+      ? t('public.trialDurationDays', { count: hours / 24 })
+      : t('public.trialDurationHours', { count: hours })
   })
   const canRegister = computed(() => capabilities.value?.registration === true)
   const trialLabel = computed(() =>
-    trialDuration.value ? `Provoje ${trialDuration.value} falas` : 'Krijo llogarinë tënde',
+    trialDuration.value ? t('public.tryFree', { duration: trialDuration.value }) : t('public.createBusinessAccount'),
   )
   return { capabilities, error, refresh, trialDuration, canRegister, trialLabel }
 }

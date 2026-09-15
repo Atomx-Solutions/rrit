@@ -8,6 +8,7 @@ export interface ApiProblem {
 // Single transport boundary; no provider SDK or secret can enter a page.
 export function useApi() {
   const config = useRuntimeConfig()
+  const { t } = useI18n()
   async function request<T>(
     path: string,
     schema: ZodType<T>,
@@ -20,7 +21,7 @@ export function useApi() {
     } = {},
   ) {
     if (!config.public.apiBase)
-      throw { title: 'Shërbimi nuk është konfiguruar', status: 503 } satisfies ApiProblem
+      throw { title: t('api.serviceNotConfigured'), status: 503 } satisfies ApiProblem
     const response = await $fetch<unknown>(path, {
       baseURL: config.public.apiBase,
       credentials: 'include',

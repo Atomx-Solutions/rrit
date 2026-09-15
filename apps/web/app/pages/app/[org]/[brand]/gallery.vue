@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { Asset } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-useSeoMeta({ title: 'Galeria · Rrit' })
 const { data, commit, notify, initLive } = useWorkspace()
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('nav.gallery')} · Rrit` })
 const query = ref('')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
@@ -66,13 +67,13 @@ async function withdrawRights() {
     detail.value = null
     notify(
       result.inFlight
-        ? 'Të drejtat u tërhoqën; një publikim në proces kërkon verifikim'
-        : 'Të drejtat u tërhoqën dhe përdorimi i ardhshëm u bllokua',
+        ? t('gallery.rightsWithdrawnInFlight')
+        : t('gallery.rightsWithdrawn'),
     )
   } catch (problem) {
     rightsError.value =
       (problem as { data?: { message?: string } }).data?.message ||
-      'Tërheqja e të drejtave nuk u përfundua.'
+      t('gallery.withdrawRightsError')
   } finally {
     rightsBusy.value = false
   }
@@ -81,11 +82,11 @@ async function upload(files: File[] | null | undefined) {
   if (!files?.length || uploading.value) return
   error.value = ''
   if (!rights.value) {
-    error.value = 'Konfirmo të drejtat para se të ngarkosh.'
+    error.value = t('gallery.confirmRightsBeforeUpload')
     return
   }
   if (files.length > 8) {
-    error.value = 'Ngarko deri në 8 fotografi njëherësh.'
+    error.value = t('gallery.maxPhotos')
     return
   }
   uploading.value = true
@@ -97,11 +98,11 @@ async function upload(files: File[] | null | undefined) {
         !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
         file.size > 5 * 1024 * 1024
       )
-        throw new Error('Pranohen JPG, PNG dhe WebP deri në 5 MB. SVG nuk pranohet.')
+        throw new Error(t('gallery.invalidFormat'))
       const bitmap = await createImageBitmap(file)
       if (bitmap.width < 100 || bitmap.height < 100) {
         bitmap.close()
-        throw new Error('Fotografia duhet të jetë të paktën 100 × 100 pikselë.')
+        throw new Error(t('photo.tooSmall'))
       }
       const ratio = Math.min(1, 1200 / Math.max(bitmap.width, bitmap.height))
       const canvas = document.createElement('canvas')
@@ -122,14 +123,14 @@ async function upload(files: File[] | null | undefined) {
       progress.value = Math.round(((i + 1) / files.length) * 100)
     }
     if (await commit((d) => d.assets.unshift(...added))) {
-      notify(`${added.length} fotografi u ruajtën`)
+      notify(t('gallery.photosSaved', { count: added.length }))
       uploadOpen.value = false
       selectedFiles.value = []
     } else {
-      error.value = 'Fotografitë nuk u ruajtën. Kontrollo njoftimin e ruajtjes dhe provo sërish.'
+      error.value = t('gallery.saveError')
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Ngarkimi dështoi. Provo sërish.'
+    error.value = e instanceof Error ? e.message : t('photo.uploadError')
   } finally {
     uploading.value = false
   }
@@ -139,7 +140,7 @@ async function remove() {
   if (await commit((d) => (d.assets = d.assets.filter((a) => !selected.value.includes(a.id))))) {
     selected.value = []
     deleteOpen.value = false
-    notify('Fotografitë u hoqën')
+    notify(t('gallery.photosRemoved'))
   }
 }
 async function saveMetadata() {
@@ -161,39 +162,39 @@ async function saveMetadata() {
 </script>
 <template>
   <DashboardPage
-    title="Galeria"
-    description="Fotografitë e produkteve, ambientit dhe momenteve të biznesit tënd."
+    :title="t('nav.gallery')"
+    :description="t('gallery.description')"
   >
     <template #actions
       ><UButton variant="outline" icon="i-lucide-upload" @click="openUpload"
-        >Ngarko fotografi</UButton
+        >{{ t('gallery.uploadPhotos') }}</UButton
       ></template
     >
     <template #toolbar>
       <div class="flex w-full flex-wrap items-center justify-between gap-3">
         <UInput
           v-model="query"
-          placeholder="Kërko emër ose etiketë..."
-          aria-label="Kërko në galeri"
+          :placeholder="t('gallery.searchPlaceholder')"
+          :aria-label="t('gallery.searchLabel')"
           icon="i-lucide-search"
           class="w-full sm:w-80"
         />
         <div class="actions">
-          <span role="status" class="text-sm text-muted">{{ assets.length }} fotografi</span
+          <span role="status" class="text-sm text-muted">{{ assets.length }} {{ t('gallery.photos') }}</span
           ><UButton
             v-if="selected.length"
             color="neutral"
             variant="ghost"
             size="sm"
             @click="selected = []"
-            >Anulo përzgjedhjen</UButton
+            >{{ t('gallery.clearSelection') }}</UButton
           ><UButton
             v-if="selected.length"
             color="error"
             variant="outline"
             icon="i-lucide-trash-2"
             @click="deleteOpen = true"
-            >Hiq {{ selected.length }}</UButton
+            >{{ t('gallery.removeSelected') }} {{ selected.length }}</UButton
           >
         </div>
       </div>
@@ -207,14 +208,14 @@ async function saveMetadata() {
         >
           <UCheckbox
             :model-value="selected.includes(asset.id)"
-            :aria-label="`Përzgjidh ${asset.name}`"
+      :aria-label="t('gallery.selectPhoto', { name: asset.name })"
             @update:model-value="toggle(asset.id)"
           />
           <UButton
             variant="ghost"
             color="neutral"
             class="p-0 size-14 sm:size-16 shrink-0 overflow-hidden rounded-md"
-            :aria-label="`Detajet e ${asset.name}`"
+            :aria-label="t('gallery.photoDetails', { name: asset.name })"
             @click="openDetail(asset)"
           >
             <MediaImage
@@ -241,14 +242,14 @@ async function saveMetadata() {
               <UIcon
                 :name="asset.rights ? 'i-lucide-shield-check' : 'i-lucide-shield-alert'"
                 class="size-3.5 shrink-0"
-              />{{ asset.rights ? 'Të drejtat të konfirmuara' : 'Kërkohet konfirmim' }}
+              />{{ asset.rights ? t('gallery.rightsConfirmed') : t('gallery.confirmationRequired') }}
             </p>
           </div>
           <UButton
             color="neutral"
             variant="ghost"
             icon="i-lucide-arrow-up-right"
-            :aria-label="`Hap fotografinë: ${asset.name}`"
+            :aria-label="t('gallery.openPhoto', { name: asset.name })"
             @click="openDetail(asset)"
           />
         </article>
@@ -257,43 +258,43 @@ async function saveMetadata() {
     </UCard>
     <DashboardEmpty
       v-if="!assets.length"
-      :title="query.trim() ? 'Nuk u gjet asnjë fotografi' : 'Hapësirë për historinë tënde'"
+      :title="query.trim() ? t('gallery.noResults') : t('gallery.emptyTitle')"
       :description="
         query.trim()
-          ? 'Provo një emër tjetër ose shiko të gjithë galerinë.'
-          : 'Shto fotografitë e tua për t’i përdorur në postime.'
+          ? t('gallery.noResultsDescription')
+          : t('gallery.emptyDescription')
       "
       icon="i-lucide-images"
       :actions="
         query.trim()
-          ? [{ label: 'Pastro kërkimin', onClick: () => (query = '') }]
-          : [{ label: 'Shto fotografi', onClick: openUpload }]
+          ? [{ label: t('gallery.clearSearch'), onClick: () => (query = '') }]
+          : [{ label: t('gallery.addPhoto'), onClick: openUpload }]
       "
     />
     <UModal
       v-model:open="uploadOpen"
       :dismissible="!uploading"
       :close="!uploading"
-      title="Shto fotografi në galeri"
-      :description="'Fotografitë ruhen privatisht në llogarinë e biznesit.'"
+      :title="t('gallery.addToGalleryTitle')"
+      :description="t('gallery.privateDescription')"
       ><template #body
         ><div class="stack">
           <UCheckbox
             v-model="rights"
             :disabled="uploading"
-            label="Kam të drejtën t’i përdor këto fotografi dhe pëlqimin e personave të identifikueshëm."
+            :label="t('gallery.rightsLabel')"
           /><UFileUpload
             v-model="selectedFiles"
             multiple
             accept="image/jpeg,image/png,image/webp"
             :disabled="!rights || uploading"
-            label="Zgjidh fotografitë ose tërhiqi këtu"
-            description="JPG, PNG, WebP deri 5 MB secila. Deri në 8 fotografi."
+            :label="t('gallery.choosePhotos')"
+            :description="t('gallery.formats')"
             icon="i-lucide-cloud-upload"
             :interactive="true"
             class="min-h-48"
             @update:model-value="upload"
-          /><UProgress v-if="uploading" :model-value="progress" aria-label="Progresi i ngarkimit" />
+          /><UProgress v-if="uploading" :model-value="progress" :aria-label="t('gallery.uploadProgress')" />
           <p v-if="error" role="alert" class="field-error">{{ error }}</p>
           <UButton
             v-if="error && selectedFiles.length"
@@ -301,11 +302,10 @@ async function saveMetadata() {
             :disabled="!rights"
             :loading="uploading"
             @click="upload(selectedFiles)"
-            >Provo ngarkimin sërish</UButton
+            >{{ t('gallery.retryUpload') }}</UButton
           >
           <p class="small muted">
-            Ruajmë një kopje të përshtatur për postime, deri në 1 200 pikselë. Mbaji edhe
-            origjinalet e tua.
+            {{ t('gallery.resizeNote') }}
           </p>
         </div></template
       ></UModal
@@ -313,7 +313,7 @@ async function saveMetadata() {
     <USlideover
       :open="!!detail"
       :title="detail?.name"
-      description="Etiketat dhe të drejtat e përdorimit"
+      :description="t('gallery.detailsDescription')"
       @update:open="detail = $event ? detail : null"
       ><template #body
         ><div v-if="detail" class="stack">
@@ -321,30 +321,30 @@ async function saveMetadata() {
             :src="detail.url"
             :alt="detail.name"
             class="w-full aspect-[4/3] rounded-lg"
-          /><UFormField label="Etiketat" name="tags" class="field"
-            ><UInput v-model="tags" class="w-full" /><small>Ndaji me presje.</small></UFormField
+          /><UFormField :label="t('gallery.tags')" name="tags" class="field"
+            ><UInput v-model="tags" class="w-full" /><small>{{ t('gallery.tagsHint') }}</small></UFormField
           >
           <p class="small muted">
             {{
               detail.size
-                ? `${Math.round(detail.size / 1024)} KB · ruajtur privatisht`
-                : 'Fotografi e biznesit · ruajtur privatisht'
+                ? t('gallery.sizeStored', { size: Math.round(detail.size / 1024) })
+                : t('gallery.privatePhoto')
             }}
           </p>
           <UAlert
             :color="detail.rights ? 'neutral' : 'warning'"
             variant="outline"
             :title="
-              detail.rights ? 'Të drejtat janë konfirmuar' : 'Të drejtat ende nuk janë konfirmuar'
+              detail.rights ? t('gallery.rightsConfirmedTitle') : t('gallery.rightsUnconfirmedTitle')
             "
           /><div class="actions">
-            <UButton variant="outline" @click="saveMetadata">Ruaj etiketat</UButton
+            <UButton variant="outline" @click="saveMetadata">{{ t('gallery.saveTags') }}</UButton
             ><UButton
               v-if="detail.rights"
               color="error"
               variant="outline"
               @click="rightsOpen = true"
-              >Tërhiq të drejtat</UButton
+              >{{ t('gallery.withdrawRights') }}</UButton
             >
           </div>
         </div></template
@@ -352,36 +352,36 @@ async function saveMetadata() {
     >
     <UModal
       v-model:open="rightsOpen"
-      title="Tërhiq të drejtat e fotografisë?"
-      description="Fotografia nuk do të mund të përdoret në postime të reja. Postimet e papublikuara që varen prej saj kthehen në draft."
+      :title="t('gallery.withdrawRightsTitle')"
+      :description="t('gallery.withdrawRightsDescription')"
     >
       <template #body>
         <div class="stack">
           <UAlert v-if="rightsError" color="error" variant="outline" :title="rightsError" />
           <p class="text-sm text-muted">
-            Publikimet tashmë të dërguara ose që presin konfirmim nga Meta nuk fshihen automatikisht.
+            {{ t('gallery.pendingPublicationsNotice') }}
           </p>
           <UButton color="error" variant="outline" :loading="rightsBusy" @click="withdrawRights"
-            >Konfirmo tërheqjen</UButton
+            >{{ t('gallery.confirmWithdrawRights') }}</UButton
           >
         </div>
       </template>
     </UModal>
     <UModal
       v-model:open="deleteOpen"
-      title="Hiq fotografitë e përzgjedhura?"
-      description="Fotografitë e zgjedhura hiqen nga llogaria e biznesit. Fotografitë që përdoren në postime ruhen."
+      :title="t('gallery.removePhotosTitle')"
+      :description="t('gallery.removePhotosDescription')"
       ><template #body
         ><div class="stack">
           <UAlert
             v-if="dependencies.length"
             color="warning"
-            title="Fotografitë përdoren në postime"
-            :description="`${dependencies.length} postime përdorin këto fotografi. Ndrysho fotografinë e postimeve përpara heqjes.`"
+            :title="t('gallery.photosUsedTitle')"
+            :description="t('gallery.photosUsedDescription', { count: dependencies.length })"
           />
-          <p v-else>{{ selected.length }} fotografi do të hiqen. Ky veprim nuk zhbëhet.</p>
+          <p v-else>{{ t('gallery.photosWillBeRemoved', { count: selected.length }) }}</p>
           <UButton variant="outline" color="error" :disabled="!!dependencies.length" @click="remove"
-            >Konfirmo heqjen</UButton
+            >{{ t('gallery.confirmRemove') }}</UButton
           >
         </div></template
       ></UModal
