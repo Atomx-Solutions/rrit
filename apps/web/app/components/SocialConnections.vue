@@ -1,6 +1,7 @@
 <script setup lang="ts">
 defineProps<{ compact?: boolean }>()
 const route = useRoute()
+const { t } = useI18n()
 const { initLive } = useWorkspace()
 const {
   data: status,
@@ -32,7 +33,7 @@ async function loadPages(after?: string) {
     cursor.value = result.nextCursor
     selecting.value = true
   } catch {
-    error.value = 'Faqet nuk u ngarkuan. Provo sërish ose rilidh llogarinë.'
+    error.value = t('social.pagesLoadError')
   } finally {
     busy.value = false
   }
@@ -54,8 +55,7 @@ async function connect() {
     await navigateTo(result.url, { external: true })
   } catch (problem) {
     error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      'Autorizimi nuk filloi. Provo sërish.'
+      (problem as { data?: { message?: string } }).data?.message || t('social.connectError')
   } finally {
     busy.value = false
   }
@@ -69,7 +69,7 @@ async function select(pageId: string) {
     await refresh()
     await refreshNuxtData('trial')
   } catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || 'Faqja nuk u lidh.'
+    error.value = (problem as { data?: { message?: string } }).data?.message || t('social.pageSelectError')
   } finally {
     busy.value = false
   }
@@ -85,7 +85,7 @@ async function disconnect() {
     await refreshNuxtData('social-posts')
   } catch (problem) {
     error.value =
-      (problem as { data?: { message?: string } }).data?.message || 'Shkëputja nuk u përfundua.'
+      (problem as { data?: { message?: string } }).data?.message || t('social.disconnectError')
   } finally {
     busy.value = false
   }
@@ -94,9 +94,9 @@ onMounted(async () => {
   if (route.query.meta === 'select' || status.value?.connection?.status === 'pending')
     await loadPages()
   if (route.query.meta === 'failed')
-    error.value = 'Autorizimi nuk u konfirmua. Provo sërish dhe lejo qasjen te faqja e biznesit.'
+    error.value = t('social.authorizationFailed')
   if (route.query.meta === 'cancelled')
-    error.value = 'Lidhja u anulua. Mund ta provosh përsëri kur të jesh gati.'
+    error.value = t('social.connectionCancelled')
 })
 </script>
 <template>
@@ -105,9 +105,9 @@ onMounted(async () => {
       v-if="statusError || error"
       color="error"
       variant="outline"
-      :title="error || 'Gjendja e lidhjes nuk u ngarkua.'"
+      :title="error || t('social.statusLoadError')"
       :actions="
-        statusError ? [{ label: 'Provo sërish', onClick: () => refresh(), variant: 'outline' }] : []
+        statusError ? [{ label: t('common.tryAgain'), onClick: () => refresh(), variant: 'outline' }] : []
       "
     />
     <div :class="compact ? 'space-y-3' : 'grid sm:grid-cols-2 gap-4'">
@@ -129,10 +129,10 @@ onMounted(async () => {
                   ? channel === 'Facebook'
                     ? status?.connection?.pageName
                     : status?.connection?.instagramUsername ||
-                      'Nuk u gjet profil profesional i lidhur'
+                      t('social.noProfessionalProfile')
                   : status?.connection?.status === 'expired'
-                    ? 'Lidhja duhet rinovuar'
-                    : 'Ende e palidhur'
+                    ? t('social.connectionExpired')
+                    : t('social.notConnected')
               }}
             </p>
           </div>
@@ -140,18 +140,16 @@ onMounted(async () => {
             v-if="connected && (channel === 'Facebook' || status?.connection?.instagramId)"
             variant="outline"
             color="success"
-            >Lidhur</UBadge
+            >{{ t('social.connected') }}</UBadge
           >
         </div>
       </UCard>
     </div>
     <p v-if="!status?.configured && !statusError" class="text-sm text-muted">
-      Lidhja me Meta është në përgatitje nga platforma. Mund ta plotësosh profilin dhe t’i
-      përgatitësh postimet tani.
+      {{ t('social.preparing') }}
     </p>
     <p v-else-if="!connected" class="text-sm text-muted">
-      Hyr përmes Meta dhe zgjidh faqen e biznesit. Instagram-i duhet të jetë profil profesional i
-      lidhur me atë faqe.
+      {{ t('social.connectInstruction') }}
     </p>
     <div class="flex flex-wrap gap-2">
       <UButton
@@ -161,7 +159,7 @@ onMounted(async () => {
         variant="outline"
         icon="i-lucide-link"
         @click="connect"
-        >{{ connected ? 'Ndrysho ose rinovo lidhjen' : 'Lidh përmes Meta' }}</UButton
+        >{{ connected ? t('social.changeConnection') : t('social.connectMeta') }}</UButton
       >
       <UButton
         v-if="status?.connection?.status === 'pending'"
@@ -169,24 +167,24 @@ onMounted(async () => {
         variant="outline"
         color="neutral"
         @click="loadPages()"
-        >Zgjidh faqen</UButton
+        >{{ t('social.choosePage') }}</UButton
       >
       <UButton v-if="connected" color="neutral" variant="ghost" @click="disconnecting = true"
-        >Shkëput</UButton
+        >{{ t('social.disconnect') }}</UButton
       >
     </div>
     <UModal
       v-model:open="selecting"
-      title="Zgjidh biznesin tënd"
-      description="Shfaqen vetëm faqet ku Meta konfirmon qasjen tënde."
+      :title="t('social.chooseBusiness')"
+      :description="t('social.chooseBusinessDescription')"
     >
       <template #body
         ><div class="space-y-4">
           <UAlert v-if="error" color="error" variant="outline" :title="error" />
           <DashboardEmpty
             v-if="!pages.length && !busy"
-            title="Nuk u gjet asnjë faqe"
-            description="Kontrollo në Meta që ke qasje në faqen e biznesit dhe që ia ke lejuar Rrit-it."
+            :title="t('social.noPages')"
+            :description="t('social.noPagesDescription')"
           />
           <div
             v-for="page in pages"
@@ -199,11 +197,11 @@ onMounted(async () => {
                 {{
                   page.instagram?.username
                     ? '@' + page.instagram.username
-                    : 'Pa profil Instagram të lidhur'
+                    : t('social.noInstagram')
                 }}
               </p>
               <p v-if="!page.canCreate" class="text-xs text-warning mt-1">
-                Mungon leja për krijimin e postimeve.
+                {{ t('social.missingCreatePermission') }}
               </p>
             </div>
             <UButton
@@ -212,7 +210,7 @@ onMounted(async () => {
               :loading="busy"
               :disabled="!page.canCreate"
               @click="select(page.id)"
-              >Zgjidh</UButton
+              >{{ t('social.choose') }}</UButton
             >
           </div>
           <div class="flex justify-between">
@@ -221,13 +219,13 @@ onMounted(async () => {
               color="neutral"
               :disabled="busy || cursorIndex === 0"
               @click="changePage(-1)"
-              >Mbrapa</UButton
+              >{{ t('common.back') }}</UButton
             ><UButton
               variant="outline"
               color="neutral"
               :disabled="busy || !cursor"
               @click="changePage(1)"
-              >Tjetër</UButton
+              >{{ t('common.next') }}</UButton
             >
           </div>
         </div></template
@@ -235,14 +233,14 @@ onMounted(async () => {
     </UModal>
     <UModal
       v-model:open="disconnecting"
-      title="Shkëpute lidhjen me Meta?"
-      description="Autorizimi i ruajtur dhe postimet e importuara hiqen nga Rrit. Publikimet automatike në pritje anulohen; oraret mbeten në kalendar. Publikimet që presin verifikim vazhdojnë të shënohen si të tilla."
+      :title="t('social.disconnectTitle')"
+      :description="t('social.disconnectDescription')"
     >
       <template #body
         ><div class="flex gap-3">
           <UButton variant="outline" color="error" :loading="busy" @click="disconnect"
-            >Shkëput lidhjen</UButton
-          ><UButton variant="outline" color="neutral" @click="disconnecting = false">Anulo</UButton>
+            >{{ t('social.disconnectConfirm') }}</UButton
+          ><UButton variant="outline" color="neutral" @click="disconnecting = false">{{ t('common.cancel') }}</UButton>
         </div></template
       >
     </UModal>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
-useSeoMeta({ title: 'Regjistrohu · Rrit', robots: 'noindex' })
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('auth.title.signup')} · Rrit`, robots: 'noindex' })
 </script>
 <template><AuthSurface mode="signup" /></template>

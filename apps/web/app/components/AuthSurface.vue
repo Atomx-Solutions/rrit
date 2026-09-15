@@ -7,42 +7,27 @@ const props = defineProps<{
   mode: 'login' | 'signup' | 'forgot' | 'reset' | 'verify' | 'callback'
 }>()
 const route = useRoute()
+const { t } = useI18n()
 const { data: capabilities } = await useFetch('/api/capabilities')
 const pendingEmail = useState('pending-verification-email', () => '')
 const state = reactive({ name: '', email: pendingEmail.value, password: '', confirm: '' })
-const titles = {
-  login: 'Mirë se u ktheve.',
-  signup: 'Regjistro biznesin tënd.',
-  forgot: 'Rikthe aksesin tënd.',
-  reset: 'Një fjalëkalim i ri.',
-  verify: 'Kontrollo emailin tënd.',
-  callback: 'Vazhdo me biznesin tënd.',
-}
-const descriptions = {
-  login: 'Hyr në hapësirën tënde dhe vazhdo aty ku e le.',
-  signup: 'Krijo llogarinë. Pastaj të udhëzojmë për biznesin dhe postimin e parë.',
-  forgot: 'Të dërgojmë një lidhje për të vendosur fjalëkalim të ri.',
-  reset: 'Zgjidh një fjalëkalim me të paktën 12 karaktere.',
-  verify: 'Hape lidhjen në email për ta konfirmuar llogarinë. Kontrollo edhe dosjen Spam.',
-  callback: 'Hyr në llogari për të përfunduar konfigurimin.',
-}
 const schema = z
   .object({
     name:
       props.mode === 'signup'
-        ? z.string().trim().min(2, 'Vendos emrin tënd.').max(100)
+        ? z.string().trim().min(2, t('auth.validationName')).max(100)
         : z.string(),
-    email: props.mode === 'reset' ? z.string() : z.email('Vendos një adresë emaili të vlefshme.'),
+    email: props.mode === 'reset' ? z.string() : z.email(t('auth.validationEmail')),
     password: ['login', 'signup', 'reset'].includes(props.mode)
       ? z
           .string()
-          .min(props.mode === 'login' ? 1 : 12, 'Përdor të paktën 12 karaktere.')
+          .min(props.mode === 'login' ? 1 : 12, t('auth.validationPassword'))
           .max(128)
       : z.string(),
     confirm: z.string(),
   })
   .refine((s) => props.mode !== 'reset' || s.password === s.confirm, {
-    message: 'Fjalëkalimet nuk përputhen.',
+    message: t('auth.validationPasswordMatch'),
     path: ['confirm'],
   })
 const busy = ref(false)
@@ -66,7 +51,7 @@ onMounted(async () => {
     const result = await authClient.handleCallback()
     if (result.error) error.value = errorText(result.error)
     else if (!result.data.session)
-      error.value = 'Lidhja nuk u përfundua. Kërko një email të ri konfirmimi dhe provo sërish.'
+      error.value = t('auth.callbackIncompleteError')
     else await navigateTo(safeRedirect(route.query.next, '/onboarding'), { replace: true })
   } catch (caught) {
     error.value = errorText({ message: caught instanceof Error ? caught.message : '' })
@@ -81,13 +66,14 @@ function errorText(problem: {
 }) {
   const normalizedCode = problem.code?.toLowerCase() || ''
   const normalizedMessage = problem.message?.toLowerCase() || ''
+  if (normalizedMessage === 'supabase_not_configured') return t('auth.supabaseNotConfigured')
   if (
     problem.status === 429 ||
     normalizedCode.includes('rate_limit') ||
     normalizedCode.includes('too_many_requests') ||
     normalizedCode.includes('over_email_send_rate_limit')
   ) {
-    return 'Ke provuar disa herë. Prit pak dhe provo sërish.'
+    return t('auth.rateLimitError')
   }
   if (
     normalizedCode.includes('email_not_confirmed') ||
@@ -98,7 +84,7 @@ function errorText(problem: {
     normalizedMessage.includes('confirm your email') ||
     normalizedMessage.includes('verify your email')
   ) {
-    return 'Shko në emailin tënd dhe konfirmoje llogarinë përpara hyrjes. Kontrollo edhe dosjen Spam.'
+    return t('auth.emailNotConfirmedError')
   }
   if (
     normalizedCode === 'invalid_credentials' ||
@@ -106,37 +92,35 @@ function errorText(problem: {
     normalizedMessage.includes('invalid login credentials') ||
     normalizedMessage.includes('invalid credentials')
   ) {
-    return 'Emaili ose fjalëkalimi nuk është i saktë.'
+    return t('auth.invalidCredentialsError')
   }
   const messages: Record<string, string> = {
-    invalid_email: 'Vendos një adresë emaili të vlefshme.',
-    email_address_invalid: 'Vendos një adresë emaili të vlefshme.',
-    invalid_email_or_password: 'Emaili ose fjalëkalimi nuk është i saktë.',
-    email_not_verified: 'Konfirmo emailin përpara hyrjes. Kontrollo kutinë e emailit.',
-    invalid_token: 'Lidhja ka skaduar ose është përdorur. Kërko një lidhje të re.',
-    token_expired: 'Lidhja ka skaduar. Kërko një lidhje të re.',
-    otp_expired: 'Kodi ose lidhja ka skaduar. Kërko një lidhje të re.',
-    pkce_code_verifier_not_found:
-      'Hape linkun në të njëjtin browser ku e krijove llogarinë ose kërko një link të ri.',
-    user_already_exists: 'Kjo adresë ka tashmë një llogari. Provo hyrjen ose rikuperimin.',
-    user_already_exists_use_another_email:
-      'Nuk mund të vazhdojmë me këtë adresë. Provo hyrjen ose rikuperimin.',
-    password_too_short: 'Përdor të paktën 12 karaktere.',
-    weak_password: 'Zgjidh një fjalëkalim më të fortë me të paktën 12 karaktere.',
-    user_banned: 'Kjo llogari nuk mund të përdoret për momentin.',
+    invalid_email: t('auth.invalidEmailError'),
+    email_address_invalid: t('auth.invalidEmailError'),
+    invalid_email_or_password: t('auth.invalidCredentialsError'),
+    email_not_verified: t('auth.emailNotVerifiedError'),
+    invalid_token: t('auth.invalidTokenError'),
+    token_expired: t('auth.tokenExpiredError'),
+    otp_expired: t('auth.otpExpiredError'),
+    pkce_code_verifier_not_found: t('auth.pkceError'),
+    user_already_exists: t('auth.accountExistsError'),
+    user_already_exists_use_another_email: t('auth.accountExistsOtherEmailError'),
+    password_too_short: t('auth.passwordTooShortError'),
+    weak_password: t('auth.weakPasswordError'),
+    user_banned: t('auth.userBannedError'),
   }
   if (
     normalizedMessage.includes('invalid email') ||
     normalizedMessage.includes('email address is invalid')
   )
-    return messages.invalid_email ?? 'Vendos një adresë emaili të vlefshme.'
+    return messages.invalid_email ?? t('auth.invalidEmailError')
   if (normalizedMessage.includes('already registered'))
-    return messages.user_already_exists ?? 'Kjo adresë ka tashmë një llogari.'
+    return messages.user_already_exists ?? t('auth.accountExistsError')
   if (normalizedMessage.includes('password') && normalizedMessage.includes('weak'))
-    return messages.weak_password ?? 'Zgjidh një fjalëkalim më të fortë.'
+    return messages.weak_password ?? t('auth.weakPasswordError')
   if (normalizedMessage.includes('fetch') || normalizedMessage.includes('network'))
-    return 'Lidhja me serverin dështoi. Kontrollo internetin dhe provo sërish.'
-  return messages[normalizedCode] || 'Veprimi nuk përfundoi. Kontrollo të dhënat dhe provo sërish.'
+    return t('auth.networkError')
+  return messages[normalizedCode] || t('auth.genericError')
 }
 async function submit() {
   if (busy.value) return
@@ -145,10 +129,10 @@ async function submit() {
   if (!available.value) {
     error.value =
       props.mode === 'signup'
-        ? 'Regjistrimi nuk është i disponueshëm për momentin. Provo përsëri më vonë.'
+        ? t('auth.signupUnavailableError')
         : props.mode === 'forgot' || props.mode === 'verify'
-          ? 'Dërgimi i emailit nuk është i disponueshëm për momentin.'
-          : 'Hyrja nuk është e disponueshme për momentin. Provo përsëri më vonë.'
+          ? t('auth.emailUnavailableError')
+          : t('auth.loginUnavailableError')
     return
   }
   busy.value = true
@@ -186,18 +170,18 @@ async function submit() {
       })
       if (result.error) error.value = errorText(result.error)
       else
-        success.value = 'Nëse kjo adresë ka llogari, do të marrë një email me hapat e rikuperimit.'
+        success.value = t('auth.recoveryRequested')
     } else if (props.mode === 'verify') {
       const result = await authClient.sendVerificationEmail({
         email: state.email.trim(),
         callbackURL: '/auth/callback?next=/onboarding',
       })
       if (result.error) error.value = errorText(result.error)
-      else success.value = 'Nëse llogaria pret verifikim, lidhja do të mbërrijë në email.'
+      else success.value = t('auth.verificationRequested')
     } else if (props.mode === 'reset') {
       const token = typeof route.query.token === 'string' ? route.query.token : ''
       if (!token) {
-        error.value = 'Hape lidhjen nga emaili për ta ndryshuar fjalëkalimin.'
+        error.value = t('auth.confirmPasswordLinkError')
         return
       }
       const result = await authClient.resetPassword({ token, newPassword: state.password })
@@ -205,7 +189,7 @@ async function submit() {
       else {
         state.password = ''
         state.confirm = ''
-        success.value = 'Fjalëkalimi u ndryshua. Tani mund të hysh në llogari.'
+        success.value = t('auth.passwordChanged')
       }
     }
   } catch (caught) {
@@ -216,16 +200,16 @@ async function submit() {
 }
 </script>
 <template>
-  <h1>{{ titles[mode] }}</h1>
-  <p>{{ descriptions[mode] }}</p>
+  <h1>{{ t(`auth.title.${mode}`) }}</h1>
+  <p>{{ t(`auth.description.${mode}`) }}</p>
   <UAlert v-if="error" color="error" variant="outline" :title="error" class="mb-5" />
   <UAlert v-if="success" color="success" variant="outline" :title="success" class="mb-5" />
   <UAlert
     v-if="route.query.error"
     color="warning"
     variant="outline"
-    title="Lidhja nuk mund të përdoret"
-    description="Kërko një lidhje të re dhe provo sërish."
+    :title="t('auth.connectionUnavailableTitle')"
+    :description="t('auth.connectionUnavailableDescription')"
     class="mb-5"
   />
   <UForm
@@ -235,31 +219,31 @@ async function submit() {
     class="space-y-5"
     @submit="submit"
   >
-    <UFormField v-if="mode === 'signup'" label="Emri i plotë" name="name" required
+    <UFormField v-if="mode === 'signup'" :label="t('settings.fullName')" name="name" required
       ><UInput
         v-model="state.name"
         :disabled="!hydrated || busy"
         autocomplete="name"
         class="w-full"
-        placeholder="Emri yt"
+        :placeholder="t('auth.namePlaceholder')"
         maxlength="100"
     /></UFormField>
-    <UFormField v-if="mode !== 'reset'" label="Email" name="email" required
+    <UFormField v-if="mode !== 'reset'" :label="t('common.email')" name="email" required
       ><UInput
         v-model="state.email"
         :disabled="!hydrated || busy"
         type="email"
         autocomplete="email"
         class="w-full"
-        placeholder="emri@biznesi.com"
+        :placeholder="t('auth.emailPlaceholder')"
     /></UFormField>
     <UFormField
       v-if="['login', 'signup', 'reset'].includes(mode)"
-      label="Fjalëkalimi"
+      :label="t('legacy.password')"
       name="password"
       :description="
         mode === 'signup'
-          ? 'Të paktën 12 karaktere. Mund të përdorësh një fjali të gjatë.'
+          ? t('auth.passwordHint')
           : undefined
       "
       required
@@ -279,12 +263,12 @@ async function submit() {
             variant="ghost"
             size="sm"
             :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-            :aria-label="showPassword ? 'Fshih fjalëkalimin' : 'Shfaq fjalëkalimin'"
+            :aria-label="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
             @click="showPassword = !showPassword"
         /></template>
       </UInput>
     </UFormField>
-    <UFormField v-if="mode === 'reset'" label="Konfirmo fjalëkalimin" name="confirm" required
+    <UFormField v-if="mode === 'reset'" :label="t('auth.confirmPassword')" name="confirm" required
       ><UInput
         v-model="state.confirm"
         :disabled="busy"
@@ -293,16 +277,16 @@ async function submit() {
         class="w-full"
     /></UFormField>
     <div v-if="mode === 'login'" class="flex justify-end">
-      <ULink to="/forgot-password" class="text-primary text-sm">Ke harruar fjalëkalimin?</ULink>
+      <ULink to="/forgot-password" class="text-primary text-sm">{{ t('auth.forgotPasswordLink') }}</ULink>
     </div>
     <p v-if="mode === 'signup'" class="text-xs text-muted leading-relaxed">
-      Para regjistrimit, lexo
+      {{ t('auth.beforeSignup') }}
       <ULink to="/terms" target="_blank" class="text-primary underline underline-offset-2"
-        >kushtet</ULink
+        >{{ t('auth.terms') }}</ULink
       >
-      dhe
+      {{ t('auth.and') }}
       <ULink to="/privacy" target="_blank" class="text-primary underline underline-offset-2"
-        >privatësinë</ULink
+        >{{ t('auth.privacy') }}</ULink
       >.
     </p>
     <UButton
@@ -314,14 +298,14 @@ async function submit() {
       variant="outline"
       >{{
         mode === 'login'
-          ? 'Hyr në llogari'
+          ? t('auth.loginButton')
           : mode === 'signup'
-            ? 'Krijo llogarinë e biznesit'
+            ? t('auth.signupButton')
             : mode === 'forgot'
-              ? 'Kërko lidhjen e rikuperimit'
+              ? t('auth.forgotButton')
               : mode === 'verify'
-                ? 'Dërgo lidhjen sërish'
-                : 'Ruaj fjalëkalimin'
+                ? t('auth.resendButton')
+                : t('auth.savePasswordButton')
       }}</UButton
     >
   </UForm>
@@ -330,17 +314,16 @@ async function submit() {
     to="/login"
     block
     variant="outline"
-    >Vazhdo te hyrja</UButton
+    >{{ t('auth.continueLogin') }}</UButton
   >
   <p v-if="mode === 'signup' && capabilities?.trialHours" class="text-sm text-muted mt-5">
-    Trial falas për {{ capabilities.trialHours / 24 }} ditë pas krijimit të biznesit. Pa kartë
-    bankare. Një trial për përdorues dhe identitete të lidhura.
+    {{ t('auth.trialDescription', { days: capabilities.trialHours / 24 }) }}
   </p>
   <p class="text-center text-sm text-muted mt-6">
     <template v-if="mode === 'login'"
-      >Je i ri këtu? <ULink to="/signup" class="text-primary">Nis me biznesin tënd</ULink></template
+      >{{ t('auth.newHere') }}<ULink to="/signup" class="text-primary">{{ t('auth.startBusiness') }}</ULink></template
     ><template v-else
-      >Ke një llogari? <ULink to="/login" class="text-primary">Kthehu te hyrja</ULink></template
+      >{{ t('auth.haveAccount') }}<ULink to="/login" class="text-primary">{{ t('auth.backToLogin') }}</ULink></template
     >
   </p>
 </template>

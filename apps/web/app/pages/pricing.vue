@@ -2,28 +2,31 @@
 import '~/assets/css/landing.css'
 
 definePageMeta({ layout: 'public' })
+const { t } = useI18n()
 useSeoMeta({
-  title: 'Planet dhe çmimet · Rrit',
-  description:
-    'Krahaso paketat e Rrit në euro, numrin e postimeve dhe koston për postim. Zgjidh ritmin e biznesit tënd.',
+  title: t('pricing.seoTitle'),
+  description: t('pricing.seoDescription'),
 })
 const { capabilities, trialDuration } = useLandingOffer()
 const questions = computed(() => [
   {
-    label: 'Si funksionon prova falas?',
+    label: t('pricing.faqFreeTrial'),
     content: trialDuration.value
-      ? `Bizneset e reja që plotësojnë kushtet kanë ${trialDuration.value} për të provuar shërbimet e aktivizuara. ${capabilities.value?.emailVerificationRequired ? 'Verifiko emailin dhe plotëso' : 'Plotëso'} profilin e biznesit për të filluar. Nuk kërkohet kartë bankare.`
-      : 'Disponueshmëria dhe kushtet e provës konfirmohen gjatë regjistrimit.',
+      ? t('pricing.faqFreeTrialAvailable', {
+          duration: trialDuration.value,
+          verification: capabilities.value?.emailVerificationRequired
+            ? t('pricing.verifyEmailAndComplete')
+            : t('pricing.complete'),
+        })
+      : t('pricing.faqFreeTrialUnavailable'),
   },
   {
-    label: 'Çfarë përfshihet në çmim?',
-    content:
-      'Çmimi është për muajin dhe përfshin postimet e përfitimet e listuara te paketa. Kostoja për postim llogaritet kur përdor të gjithë numrin e postimeve. Me faturim vjetor, shiko edhe totalin për vitin.',
+    label: t('pricing.faqIncluded'),
+    content: t('pricing.faqIncludedAnswer'),
   },
   {
-    label: 'A paguaj automatikisht pas provës?',
-    content:
-      'Jo. Prova nuk kërkon kartë dhe nuk rinovohet automatikisht me pagesë. Të dhënat mbeten të lexueshme dhe të eksportueshme pasi prova përfundon.',
+    label: t('pricing.faqAutomaticPayment'),
+    content: t('pricing.faqAutomaticPaymentAnswer'),
   },
 ])
 </script>
@@ -33,9 +36,9 @@ const questions = computed(() => [
     <section class="landing-pricing-section" aria-labelledby="pricing-page-title">
       <UContainer class="landing-container">
         <div class="landing-section-heading">
-          <p class="landing-kicker">BUXHET I QARTË. POSTIM PAS POSTIMI.</p>
-          <h1 id="pricing-page-title">Sa postime të duhen?</h1>
-          <p>Një paketë për ritmin tënd. Çmimin për çdo postim e sheh menjëherë.</p>
+          <p class="landing-kicker">{{ t('landing.pricingKicker') }}</p>
+          <h1 id="pricing-page-title">{{ t('landing.howManyPosts') }}</h1>
+          <p>{{ t('landing.packageRhythm') }}</p>
         </div>
         <LandingPricing :show-details-link="false" />
       </UContainer>
@@ -43,15 +46,15 @@ const questions = computed(() => [
     <section class="landing-faq-section" aria-labelledby="pricing-faq-title">
       <UContainer class="landing-container landing-faq-layout">
         <div class="landing-faq-intro">
-          <p class="landing-kicker">PA PAQARTËSI</p>
-          <h2 id="pricing-faq-title">Para se të zgjedhësh.</h2>
+          <p class="landing-kicker">{{ t('legacy.noAmbiguity') }}</p>
+          <h2 id="pricing-faq-title">{{ t('legacy.beforeChoosing') }}</h2>
           <UButton
             to="/help"
             variant="link"
             color="neutral"
             class="landing-faq-help"
             trailing-icon="i-lucide-arrow-up-right"
-            >Ke pyetje tjetër?</UButton
+            >{{ t('landing.otherQuestion') }}</UButton
           >
         </div>
         <UAccordion

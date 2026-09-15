@@ -1,5 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'public' })
-useSeoMeta({ title: 'Privatësia · Rrit' })
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('policy.privacyTitle')} · Rrit` })
 </script>
 <template><PolicyPage kind="privacy" /></template>

@@ -2,19 +2,20 @@
 defineProps<{ total: number }>()
 const page = defineModel<number>('page', { required: true })
 const pageSize = defineModel<number>('pageSize', { required: true })
+const { t } = useI18n()
 </script>
 <template>
   <div class="flex flex-wrap items-center justify-between gap-3 border-t border-default px-4 py-3">
     <div class="flex items-center gap-3 text-xs text-muted">
       <span role="status"
-        >{{ total ? (page - 1) * pageSize + 1 : 0 }}–{{ Math.min(page * pageSize, total) }} nga
+        >{{ total ? (page - 1) * pageSize + 1 : 0 }}–{{ Math.min(page * pageSize, total) }} {{ t('common.of') }}
         {{ total }}</span
       >
       <USelect
         v-model="pageSize"
-        :items="[5, 10, 20, 50].map((value) => ({ label: `${value} për faqe`, value }))"
+        :items="[5, 10, 20, 50].map((value) => ({ label: `${value} ${t('common.perPage')}`, value }))"
         size="sm"
-        aria-label="Rreshta për faqe"
+        :aria-label="t('common.rowsPerPage')"
       />
     </div>
     <UPagination

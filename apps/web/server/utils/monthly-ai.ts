@@ -334,17 +334,29 @@ export async function monthlyProviderCall(
     maxOutput: number
     images?: string[]
     tenant?: TenantContext
+    language?: 'sq' | 'en'
   },
 ) {
   const config = monthlyAiConfig()
   if (args.tenant && args.tenant.organizationId !== args.businessId)
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
+  const language = args.language === 'en' ? 'en' : 'sq'
+  const localizedLanguageInstruction =
+    language === 'en'
+      ? 'All research, strategy, copy and quality explanations must be written in English.'
+      : 'All research, strategy, copy and quality explanations must be written in Albanian.'
   const instructions = [
+    localizedLanguageInstruction,
     monthlyInstructions[args.capability],
     monthlyInstructionAddenda[args.capability],
   ]
     .filter(Boolean)
     .join('\n')
+    .replace(/Write in Albanian in the verified brand voice/g, `Write in ${language === 'en' ? 'English' : 'Albanian'} in the verified brand voice`)
+    .replace(/Write in Albanian\./g, `Write in ${language === 'en' ? 'English' : 'Albanian'}.`)
+    .replace(/Albanian copywriter/g, `${language === 'en' ? 'English' : 'Albanian'} copywriter`)
+    .replace(/Format the Albanian research/g, `Format the ${language === 'en' ? 'English' : 'Albanian'} research`)
+    .replace(/in Albanian that the user can use/g, `in ${language === 'en' ? 'English' : 'Albanian'} that the user can use`)
   const serialized = JSON.stringify(args.input)
   if (Buffer.byteLength(serialized) > 110000) throw new PlannerFailure('EVIDENCE_TOO_LARGE')
   const search = args.capability === 'research'

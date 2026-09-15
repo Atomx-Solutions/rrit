@@ -1,7 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-useSeoMeta({ title: 'Postimet nga rrjetet · Rrit' })
 const { data, base } = useWorkspace()
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('nav.socialPosts')} · Rrit` })
 const page = ref(1)
 const pageSize = ref(10)
 const channel = ref<'all' | 'Facebook' | 'Instagram'>('all')
@@ -49,25 +50,22 @@ async function sync(more = false) {
     })
     cursor.value = response.nextCursor || undefined
     hasMore.value = !!cursor.value
-    message.value = `${response.imported} postime u kontrolluan dhe u përditësuan nga ${importChannel.value}.`
+    message.value = t('social.importedMessage', { count: response.imported, channel: importChannel.value })
     await refresh()
     await refreshNuxtData('meta-status')
   } catch (problem) {
     error.value =
-      (problem as { data?: { message?: string } }).data?.message || 'Importimi nuk u përfundua.'
+      (problem as { data?: { message?: string } }).data?.message || t('social.importError')
   } finally {
     importing.value = false
   }
 }
 </script>
 <template>
-  <DashboardPage
-    title="Postimet nga rrjetet"
-    description="Postimet e biznesit tënd, të lexuara nga Facebook dhe Instagram."
-  >
+  <DashboardPage :title="t('nav.socialPosts')" :description="t('legacy.socialPostsDescription')">
     <SocialConnections />
     <div class="flex flex-wrap items-end gap-3 mt-6">
-      <UFormField label="Importo nga"
+      <UFormField :label="t('social.importFrom')"
         ><USelect v-model="importChannel" :items="['Facebook', 'Instagram']" :disabled="importing"
       /></UFormField>
       <UButton
@@ -77,7 +75,7 @@ async function sync(more = false) {
         :loading="importing"
         :disabled="connection?.connection?.status !== 'connected'"
         @click="sync()"
-        >Përditëso postimet</UButton
+        >{{ t('social.refreshPosts') }}</UButton
       >
       <UButton
         v-if="hasMore"
@@ -85,7 +83,7 @@ async function sync(more = false) {
         color="neutral"
         :loading="importing"
         @click="sync(true)"
-        >Lexo postime më të vjetra</UButton
+        >{{ t('social.loadOlder') }}</UButton
       >
     </div>
     <UAlert
@@ -93,15 +91,15 @@ async function sync(more = false) {
       class="mt-4"
       color="error"
       variant="outline"
-      :title="error || 'Postimet nuk u ngarkuan.'"
+      :title="error || t('social.loadError')"
     />
     <p v-if="message" role="status" class="text-sm text-muted mt-4">{{ message }}</p>
     <div class="flex flex-wrap gap-3 justify-between my-5">
       <UInput
         v-model="search"
         icon="i-lucide-search"
-        aria-label="Kërko te postimet e importuara"
-        placeholder="Kërko në tekst…"
+        :aria-label="t('social.searchImported')"
+        :placeholder="t('social.searchText')"
         :maxlength="200"
       />
       <UTabs
@@ -109,11 +107,11 @@ async function sync(more = false) {
         :content="false"
         variant="link"
         :items="[
-          { label: 'Të gjitha', value: 'all' },
+          { label: t('common.all'), value: 'all' },
           { label: 'Facebook', value: 'Facebook' },
           { label: 'Instagram', value: 'Instagram' },
         ]"
-        aria-label="Filtro rrjetin"
+        :aria-label="t('social.filterNetwork')"
       />
     </div>
     <UCard
@@ -134,14 +132,14 @@ async function sync(more = false) {
                 }).format(new Date(post.publishedAt))
               }}
             </p>
-            <p class="text-sm line-clamp-2 mt-1">{{ post.caption || 'Postim pa tekst' }}</p>
+            <p class="text-sm line-clamp-2 mt-1">{{ post.caption || t('social.noCaption') }}</p>
           </div>
           <UButton
             variant="outline"
             color="neutral"
-            :aria-label="'Shiko postimin në ' + post.channel"
+            :aria-label="`${t('common.view')} ${t('social.postIn')} ${post.channel}`"
             @click="selected = post"
-            >Shiko</UButton
+            >{{ t('common.view') }}</UButton
           >
         </article>
       </div>
@@ -150,14 +148,14 @@ async function sync(more = false) {
     <DashboardEmpty
       v-else-if="status !== 'pending'"
       icon="i-lucide-images"
-      title="Ende pa postime të importuara"
-      description="Lidh biznesin dhe zgjidh Përditëso postimet. Nëse ke vendosur filtra, provo t’i pastrosh."
-      :actions="[{ label: 'Krijo postim', to: base + '/content/new' }]"
+      :title="t('social.emptyTitle')"
+      :description="t('social.emptyDescription')"
+      :actions="[{ label: t('content.createPost'), to: base + '/content/new' }]"
     />
     <USlideover
       :open="!!selected"
-      title="Postimi nga rrjeti"
-      description="Përmbajtja e lexuar nga llogaria jote e lidhur."
+      :title="t('social.postFromNetwork')"
+      :description="t('social.postFromNetworkDescription')"
       @update:open="selected = $event ? selected : null"
     >
       <template #body
@@ -175,13 +173,13 @@ async function sync(more = false) {
             variant="outline"
             color="neutral"
             icon="i-lucide-external-link"
-            >Hap në {{ selected.channel }}</UButton
+            >{{ t('social.openIn') }} {{ selected.channel }}</UButton
           >
           <p
             v-if="selected.mediaType === 'VIDEO' || selected.mediaType === 'CAROUSEL_ALBUM'"
             class="text-sm text-muted"
           >
-            Për videon ose të gjitha fotografitë, hape postimin në rrjetin social.
+            {{ t('social.mediaDescription') }}
           </p>
         </div></template
       >

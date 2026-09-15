@@ -2,8 +2,9 @@
 import { z } from 'zod'
 import { factInputProblem, type BrandFact } from '~~/shared/schemas/business-brain'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-useSeoMeta({ title: 'Biznesi im · Rrit' })
 const { data, base, syncing, commit, notify } = useWorkspace()
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('brand.title')} · Rrit` })
 const { form, clear, recovered, localError } = useDraft(
   `${base.value}:brand`,
   structuredClone(toRaw(data.value.brand)),
@@ -15,21 +16,21 @@ const dirty = computed(() => JSON.stringify(form) !== baseline.value)
 const leaveOpen = ref(false)
 let resolveLeave: ((allow: boolean) => void) | undefined
 const schema = z.object({
-  name: z.string().min(2, 'Vendos emrin e biznesit.'),
-  city: z.string().min(2, 'Vendos qytetin.'),
-  description: z.string().min(10, 'Trego shkurt çfarë ofron biznesi.'),
+  name: z.string().min(2, t('brand.nameRequired')),
+  city: z.string().min(2, t('brand.cityRequired')),
+  description: z.string().min(10, t('brand.descriptionRequired')),
   voice: z.string(),
   audience: z.string(),
   industry: z.string().max(200),
-  color: z.string().regex(/^#[0-9a-f]{6}$/i, 'Zgjidh një ngjyrë valide.'),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i, t('brand.colorInvalid')),
   facebookUrl: z
     .string()
-    .refine((value) => !value || URL.canParse(value), 'Vendos një URL valide.'),
+    .refine((value) => !value || URL.canParse(value), t('brand.urlInvalid')),
   instagramUrl: z
     .string()
-    .refine((value) => !value || URL.canParse(value), 'Vendos një URL valide.'),
+    .refine((value) => !value || URL.canParse(value), t('brand.urlInvalid')),
   goals: z
-    .array(z.string().trim().min(2, 'Qëllimi duhet të ketë të paktën 2 karaktere.').max(120))
+    .array(z.string().trim().min(2, t('brand.goalMinLength')).max(120))
     .max(10),
   facts: z
     .array(
@@ -59,7 +60,7 @@ async function save() {
     ...new Set((snapshot.researchSources || []).map((url) => url.trim())),
   ].filter(Boolean)
   if (snapshot.researchSources.some((url) => !validResearchSource(url))) {
-    notify('Burimet për hulumtim duhet të jenë URL HTTPS pa kredenciale.')
+    notify(t('brand.researchSourceInvalid'))
     return
   }
   const problem = snapshot.facts.map(factInputProblem).find(Boolean)
@@ -76,9 +77,9 @@ async function save() {
     Object.assign(form, structuredClone(toRaw(data.value.brand)))
     baseline.value = JSON.stringify(form)
     saved.value = true
-    notify('Identiteti i biznesit u ruajt')
+    notify(t('brand.identitySaved'))
   } else {
-    formError.value = 'Ndryshimet nuk u ruajtën. Kontrollo gabimin ose ngarko versionin e fundit.'
+    formError.value = t('brand.saveError')
   }
 }
 function addGoal() {
@@ -91,7 +92,7 @@ function addFact() {
   form.facts.push({
     id: crypto.randomUUID(),
     text: '',
-    source: 'Plotësuar nga biznesi',
+    source: t('brand.defaultSource'),
     verified: false,
   })
 }
@@ -136,8 +137,8 @@ function setPrice(fact: BrandFact, value: string | number) {
 </script>
 <template>
   <DashboardPage
-    title="Biznesi im"
-    description="Sa më mirë ta njohim biznesin, aq më natyrshëm mund të flasin postimet për të."
+    :title="t('brand.title')"
+    :description="t('brand.description')"
   >
     <UAlert v-if="localError" color="warning" variant="outline" :title="localError" />
     <UAlert v-else-if="formError" color="error" variant="outline" :title="formError" />
@@ -146,103 +147,103 @@ function setPrice(fact: BrandFact, value: string | number) {
       color="neutral"
       variant="outline"
       icon="i-lucide-history"
-      title="Vazhdo aty ku e le"
-      description="I rikthyem shënimet e fundit. Kliko Ruaj identitetin për t’i përdorur në profilin e biznesit."
+      :title="t('brand.recoveredTitle')"
+      :description="t('brand.recoveredDescription')"
     />
     <div class="grid xl:grid-cols-[minmax(0,1fr)_280px] gap-6 items-start max-w-6xl">
       <UCard :ui="{ body: 'p-5 sm:p-7' }"
         ><UForm :schema="schema" :state="form" class="space-y-6" @submit="save"
           ><div class="flex gap-3 items-center mb-2">
             <UAvatar icon="i-lucide-store" size="md" />
-            <h2 class="text-base font-semibold">Profili i biznesit</h2>
+            <h2 class="text-base font-semibold">{{ t('brand.profile') }}</h2>
           </div>
-          <UFormField label="Emri i biznesit" name="name" required
+          <UFormField :label="t('brand.name')" name="name" required
             ><UInput v-model="form.name" class="w-full" maxlength="120"
           /></UFormField>
           <div class="grid sm:grid-cols-2 gap-5">
-            <UFormField label="Qyteti" name="city" required
+            <UFormField :label="t('brand.city')" name="city" required
               ><UInput
                 v-model="form.city"
                 class="w-full"
-                placeholder="P.sh. Prishtinë" /></UFormField
-            ><UFormField label="Lloji i biznesit" name="industry"
-              ><UInput v-model="form.industry" class="w-full" placeholder="P.sh. Kafene"
+                :placeholder="t('brand.cityPlaceholder')" /></UFormField
+            ><UFormField :label="t('brand.industry')" name="industry"
+              ><UInput v-model="form.industry" class="w-full" :placeholder="t('brand.industryPlaceholder')"
             /></UFormField>
           </div>
           <UFormField
-            label="Çfarë ofron për klientët?"
+            :label="t('brand.offer')"
             name="description"
-            description="Produktet, shërbimet dhe detajet që të dallojnë."
+            :description="t('brand.offerDescription')"
             required
             ><UTextarea
               v-model="form.description"
               :rows="4"
               maxlength="2000"
               class="w-full" /></UFormField
-          ><UFormField label="Si dëshiron të flasësh në postime?" name="voice"
+          ><UFormField :label="t('brand.voice')" name="voice"
             ><UTextarea
               v-model="form.voice"
               :rows="2"
               maxlength="1000"
               class="w-full"
-              placeholder="P.sh. Thjesht, ngrohtë dhe miqësisht." /></UFormField
-          ><UFormField label="Për kë janë produktet ose shërbimet e tua?" name="audience"
+              :placeholder="t('brand.voicePlaceholder')" /></UFormField
+          ><UFormField :label="t('brand.audience')" name="audience"
             ><UTextarea
               v-model="form.audience"
               :rows="2"
               maxlength="1000"
               class="w-full"
-              placeholder="P.sh. Njerëzit e lagjes dhe ata që punojnë afër nesh."
+              :placeholder="t('brand.audiencePlaceholder')"
           /></UFormField>
           <div class="grid sm:grid-cols-2 gap-5">
-            <UFormField label="Ngjyra e brandit" name="color"
+            <UFormField :label="t('brand.color')" name="color"
               ><UInput v-model="form.color" type="color" class="w-full h-10" /></UFormField
-            ><UFormField label="Statusi" name="status"
+            ><UFormField :label="t('brand.status')" name="status"
               ><USelect
                 v-model="form.status"
                 :items="[
-                  { label: 'Aktiv', value: 'active' },
-                  { label: 'I arkivuar', value: 'archived' },
+                  { label: t('brand.active'), value: 'active' },
+                  { label: t('brand.archived'), value: 'archived' },
                 ]"
             /></UFormField>
           </div>
           <UFormField
-            label="Lidhjet sociale"
-            description="Opsionale; mund t'i shtosh edhe më vonë."
+            :label="t('brand.socialLinks')"
+            :description="t('brand.socialLinksDescription')"
           >
             <div class="grid sm:grid-cols-2 gap-5">
               <UFormField name="facebookUrl">
                 <UInput
                   v-model="form.facebookUrl"
-                  aria-label="Facebook URL"
-                  placeholder="https://facebook.com/..."
+                  :aria-label="t('brand.facebookUrl')"
+                  :placeholder="t('brand.facebookPlaceholder')"
                 />
               </UFormField>
               <UFormField name="instagramUrl">
                 <UInput
                   v-model="form.instagramUrl"
-                  aria-label="Instagram URL"
-                  placeholder="https://instagram.com/..."
+                  :aria-label="t('brand.instagramUrl')"
+                  :placeholder="t('brand.instagramPlaceholder')"
                 />
               </UFormField>
             </div>
           </UFormField>
           <div class="space-y-3">
             <div>
-              <h3 class="text-sm font-semibold">Qëllimet e biznesit</h3>
-              <p class="text-sm text-muted">Përdori për ta orientuar përmbajtjen dhe sugjerimet.</p>
+              <h3 class="text-sm font-semibold">{{ t('brand.goals') }}</h3>
+              <p class="text-sm text-muted">{{ t('brand.goalsDescription') }}</p>
             </div>
             <div v-for="(_, i) in form.goals" :key="i" class="flex gap-2">
               <UInput
                 v-model="form.goals[i]"
                 class="w-full"
-                placeholder="P.sh. Gjej klientë të rinj"
+                :placeholder="t('brand.goalPlaceholder')"
               />
               <UButton
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-trash-2"
-                :aria-label="`Hiq qëllimin ${i + 1}`"
+                :aria-label="t('brand.removeGoal', { index: i + 1 })"
                 @click="removeGoal(i)"
               />
             </div>
@@ -253,30 +254,29 @@ function setPrice(fact: BrandFact, value: string | number) {
               icon="i-lucide-plus"
               @click="addGoal"
             >
-              Shto qëllim
+              {{ t('brand.addGoal') }}
             </UButton>
           </div>
           <UAccordion
-            :items="[{ label: 'Detaje që postimet duhet t’i kenë të sakta', slot: 'facts' }]"
+            :items="[{ label: t('brand.facts'), slot: 'facts' }]"
             ><template #facts
               ><div class="space-y-4 pb-4">
                 <p class="text-sm text-muted leading-relaxed">
-                  Orari, adresa, çmimet ose shërbimet. Shëno edhe nga vjen informacioni. Nëse
-                  ndryshon një fakt të konfirmuar, ruaje fillimisht dhe pastaj rikonfirmoje.
+                  {{ t('brand.factsDescription') }}
                 </p>
                 <UCard
                   v-for="(fact, i) in form.facts"
                   :key="fact.id"
                   variant="outline"
                   :ui="{ body: 'p-4 space-y-3' }"
-                  ><UFormField :label="`Detaji ${i + 1}`"
+                  ><UFormField :label="t('brand.detailNumber', { index: i + 1 })"
                     ><UTextarea
                       v-model="fact.text"
                       class="w-full"
                       :rows="2"
                       maxlength="1000"
                       @update:model-value="invalidateFact(fact)" /></UFormField
-                  ><UFormField label="Burimi"
+                  ><UFormField :label="t('brand.source')"
                     ><UInput
                       v-model="fact.source"
                       class="w-full"
@@ -284,12 +284,12 @@ function setPrice(fact: BrandFact, value: string | number) {
                       @update:model-value="invalidateFact(fact)"
                   /></UFormField>
                   <div class="grid sm:grid-cols-3 gap-3">
-                    <UFormField label="Lloji">
+                    <UFormField :label="t('brand.type')">
                       <USelect
                         :model-value="fact.kind || 'fact'"
                         :items="[
-                          { label: 'Fakt', value: 'fact' },
-                          { label: 'Ofertë', value: 'offer' },
+                          { label: t('brand.fact'), value: 'fact' },
+                          { label: t('brand.offerType'), value: 'offer' },
                         ]"
                         class="w-full"
                         @update:model-value="
@@ -300,7 +300,7 @@ function setPrice(fact: BrandFact, value: string | number) {
                         "
                       />
                     </UFormField>
-                    <UFormField label="Vlen nga">
+                    <UFormField :label="t('brand.validFrom')">
                       <UInput
                         type="date"
                         :model-value="fact.validFrom || ''"
@@ -313,7 +313,7 @@ function setPrice(fact: BrandFact, value: string | number) {
                         "
                       />
                     </UFormField>
-                    <UFormField label="Vlen deri">
+                    <UFormField :label="t('brand.validUntil')">
                       <UInput
                         type="date"
                         :model-value="fact.validUntil || ''"
@@ -329,8 +329,8 @@ function setPrice(fact: BrandFact, value: string | number) {
                   </div>
                   <UFormField
                     v-if="fact.kind === 'offer'"
-                    label="Çmimi në EUR (opsional)"
-                    description="Datat janë të detyrueshme për ofertat e konfirmuara."
+                    :label="t('brand.price')"
+                    :description="t('brand.priceDescription')"
                   >
                     <UInput
                       type="number"
@@ -342,33 +342,31 @@ function setPrice(fact: BrandFact, value: string | number) {
                     />
                   </UFormField>
                   <p v-if="fact.revision" class="text-xs text-muted">
-                    Versioni {{ fact.revision }} ·
-                    {{ fact.verified ? 'Konfirmuar nga biznesi' : 'Pret konfirmim' }}
+                    {{ t('content.version', { version: fact.revision }) }} ·
+                    {{ fact.verified ? t('brand.confirmedByBusiness') : t('brand.awaitingConfirmation') }}
                   </p>
                   <div class="flex items-center justify-between gap-3">
                     <UCheckbox
                       v-model="fact.verified"
-                      label="E kam kontrolluar këtë informacion"
+                      :label="t('brand.checkedInformation')"
                     /><UButton
                       color="neutral"
                       variant="ghost"
                       icon="i-lucide-trash-2"
-                      :aria-label="`Hiq detajin ${i + 1}`"
+                      :aria-label="t('brand.removeDetail', { index: i + 1 })"
                       @click="form.facts.splice(i, 1)"
                     /></div></UCard
                 ><UButton color="neutral" variant="outline" icon="i-lucide-plus" @click="addFact"
-                  >Shto një detaj</UButton
+                  >{{ t('brand.addDetail') }}</UButton
                 >
               </div></template
             ></UAccordion
           >
-          <UAccordion :items="[{ label: 'Burime për hulumtim', slot: 'sources' }]">
+          <UAccordion :items="[{ label: t('brand.researchSources'), slot: 'sources' }]">
             <template #sources>
               <div class="space-y-3 pb-4">
                 <p class="text-sm text-muted leading-relaxed">
-                  Shto faqen zyrtare, menunë, katalogun ose burime të tjera që dëshiron t’i
-                  kontrollojë fillimisht hulumtimi mujor. Këto janë pista, jo fakte të konfirmuara;
-                  çdo pretendim vazhdon të kërkojë kontrollin tënd.
+                  {{ t('brand.researchDescription') }}
                 </p>
                 <div v-for="(_, i) in form.researchSources || []" :key="i" class="flex gap-2">
                   <UInput
@@ -376,15 +374,15 @@ function setPrice(fact: BrandFact, value: string | number) {
                     type="url"
                     inputmode="url"
                     maxlength="500"
-                    placeholder="https://biznesi-yt.com/menu"
-                    :aria-label="`Burimi ${i + 1}`"
+                    :placeholder="t('brand.researchSourcePlaceholder')"
+                    :aria-label="t('brand.sourceNumber', { index: i + 1 })"
                     class="flex-1"
                   />
                   <UButton
                     icon="i-lucide-x"
                     color="neutral"
                     variant="ghost"
-                    :aria-label="`Hiq burimin ${i + 1}`"
+                    :aria-label="t('brand.removeSource', { index: i + 1 })"
                     @click="form.researchSources!.splice(i, 1)"
                   />
                 </div>
@@ -394,21 +392,21 @@ function setPrice(fact: BrandFact, value: string | number) {
                   icon="i-lucide-plus"
                   :disabled="(form.researchSources?.length || 0) >= 10"
                   @click="addResearchSource"
-                  >Shto burim</UButton
+                  >{{ t('brand.addSource') }}</UButton
                 >
               </div>
             </template>
           </UAccordion>
-          <UAccordion :items="[{ label: 'Udhëzime dhe kufij për AI', slot: 'guardrails' }]">
+          <UAccordion :items="[{ label: t('brand.guardrails'), slot: 'guardrails' }]">
             <template #guardrails>
               <div class="space-y-3 pb-4">
                 <p class="text-sm text-muted">
-                  P.sh. mos përdor krahasime me konkurrentët ose premtime për rezultate.
+                  {{ t('brand.guardrailsDescription') }}
                 </p>
                 <div v-for="(_, i) in form.guardrails || []" :key="i" class="flex gap-2">
                   <UInput
                     v-model="form.guardrails![i]"
-                    :aria-label="`Udhëzimi ${i + 1}`"
+                    :aria-label="t('brand.guidanceNumber', { index: i + 1 })"
                     maxlength="500"
                     class="flex-1"
                   />
@@ -416,7 +414,7 @@ function setPrice(fact: BrandFact, value: string | number) {
                     icon="i-lucide-x"
                     color="neutral"
                     variant="ghost"
-                    :aria-label="`Hiq udhëzimin ${i + 1}`"
+                    :aria-label="t('brand.removeGuidance', { index: i + 1 })"
                     @click="form.guardrails!.splice(i, 1)"
                   />
                 </div>
@@ -426,7 +424,7 @@ function setPrice(fact: BrandFact, value: string | number) {
                   icon="i-lucide-plus"
                   :disabled="(form.guardrails?.length || 0) >= 20"
                   @click="(form.guardrails ||= []).push('')"
-                  >Shto udhëzim</UButton
+                  >{{ t('brand.addGuidance') }}</UButton
                 >
               </div>
             </template>
@@ -435,13 +433,13 @@ function setPrice(fact: BrandFact, value: string | number) {
           <div class="flex flex-wrap items-center justify-between gap-4">
             <span role="status" class="text-xs text-muted">{{
               dirty
-                ? 'Ndryshime të paruajtura në profil'
+                ? t('brand.unsaved')
                 : saved
-                  ? 'Identiteti u ruajt'
-                  : 'Ruhet në llogarinë e biznesit.'
+                  ? t('brand.identitySaved')
+                  : t('brand.savedInAccount')
             }}</span
             ><UButton :loading="syncing" variant="outline" type="submit" icon="i-lucide-check"
-              >Ruaj identitetin</UButton
+              >{{ t('brand.saveIdentity') }}</UButton
             >
           </div></UForm
         ></UCard
@@ -456,8 +454,7 @@ function setPrice(fact: BrandFact, value: string | number) {
             size="lg"
           /><USeparator />
           <p class="text-sm text-muted leading-relaxed">
-            Këto janë të dhënat që plotëson ti. Informacioni nga profilet sociale do të shfaqet për
-            kontroll pasi të lidhen llogaritë.
+            {{ t('brand.profileInfo') }}
           </p>
           <UButton
             :to="`${base}/social-posts`"
@@ -465,20 +462,20 @@ function setPrice(fact: BrandFact, value: string | number) {
             variant="outline"
             block
             trailing-icon="i-lucide-arrow-right"
-            >Postimet nga rrjetet</UButton
+            >{{ t('brand.socialPosts') }}</UButton
           ></UCard
         ><UCard :ui="{ body: 'p-5 space-y-4' }"
           ><UIcon name="i-lucide-camera" class="size-5 text-primary" />
-          <h2 class="text-sm font-semibold">Edhe fotografitë e tregojnë biznesin.</h2>
+          <h2 class="text-sm font-semibold">{{ t('brand.photosTitle') }}</h2>
           <p class="text-sm text-muted leading-relaxed">
-            Shto produktet, ambientin dhe momentet e tua.
+            {{ t('brand.photosDescription') }}
           </p>
           <UButton
             :to="`${base}/gallery`"
             variant="link"
             class="p-0"
             trailing-icon="i-lucide-arrow-right"
-            >Hap galerinë</UButton
+            >{{ t('brand.openGallery') }}</UButton
           ></UCard
         >
       </aside>

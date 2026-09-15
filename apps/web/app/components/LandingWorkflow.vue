@@ -1,35 +1,33 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const step = ref('business')
 const photo = '/images/table.jpg'
-const items = [
+const items = computed(() => [
   {
-    label: 'Biznesi',
+    label: t('landing.business'),
     value: 'business',
     icon: 'i-lucide-store',
-    title: 'Fillojmë me atë që të bën të veçantë.',
-    description:
-      'Trego çfarë ofron dhe si flet me klientët. Këto të dhëna mbeten te profili i biznesit tënd.',
-    detail: 'HAPI 01 · NJOFTOHU ME SISTEMIN',
+    title: t('landing.workflowBusinessTitle'),
+    description: t('landing.workflowBusinessDescription'),
+    detail: t('landing.workflowStepOne'),
   },
   {
-    label: 'Postimi',
+    label: t('landing.post'),
     value: 'post',
     icon: 'i-lucide-image-plus',
-    title: 'Një fotografi. Një mesazh që ka kuptim.',
-    description:
-      'Bashko fotografinë me tekstin. Lexoje, ndryshoje dhe miratoje kur të jesh i kënaqur.',
-    detail: 'HAPI 02 · PËRGATIT DHE MIRATO',
+    title: t('landing.workflowPostTitle'),
+    description: t('landing.workflowPostDescription'),
+    detail: t('landing.workflowStepTwo'),
   },
   {
-    label: 'Kalendari',
+    label: t('landing.calendar'),
     value: 'calendar',
     icon: 'i-lucide-calendar-days',
-    title: 'E di çfarë vjen më pas.',
-    description:
-      'Vendosi postimet në kalendar dhe ndiq gjendjen e tyre. Lidhjet me rrjetet sociale mund t’i bësh edhe më vonë.',
-    detail: 'HAPI 03 · ORGANIZO JAVËN',
+    title: t('landing.workflowCalendarTitle'),
+    description: t('landing.workflowCalendarDescription'),
+    detail: t('landing.workflowStepThree'),
   },
-]
+])
 </script>
 
 <template>
@@ -64,7 +62,7 @@ const items = [
               <div class="landing-example-cover">
                 <img
                   :src="photo"
-                  alt="Filxhanë kafeje për një shembull profili biznesi"
+                  :alt="t('landing.businessExampleAlt')"
                   width="1000"
                   height="667"
                   loading="lazy"
@@ -74,43 +72,41 @@ const items = [
                 <span class="landing-example-avatar"
                   ><UIcon name="i-lucide-coffee" aria-hidden="true"
                 /></span>
-                <div><strong>Kafeneja jote</strong><span>Kafe & shoqëri · Prishtinë</span></div>
+                <div><strong>{{ t('legacy.yourCafe') }}</strong><span>{{ t('legacy.coffeeSocialPrishtina') }}</span></div>
               </div>
               <dl class="landing-example-facts">
                 <div>
-                  <dt>Çfarë ofrojmë</dt>
-                  <dd>Kafe të mirë dhe një vend për t’u takuar.</dd>
+                  <dt>{{ t('legacy.whatWeOffer') }}</dt>
+                  <dd>{{ t('legacy.goodCoffeePlace') }}</dd>
                 </div>
                 <div>
-                  <dt>Si flasim</dt>
-                  <dd>Ngrohtë, thjesht dhe me buzëqeshje.</dd>
+                  <dt>{{ t('legacy.howWeSpeak') }}</dt>
+                  <dd>{{ t('legacy.warmSimple') }}</dd>
                 </div>
               </dl>
             </div>
             <div v-else-if="item.value === 'post'" class="landing-post-example">
               <div class="landing-example-topline">
-                <span>POSTIMI YT</span
-                ><UBadge variant="subtle" color="neutral" size="sm">Për miratim</UBadge>
+                <span>{{ t('legacy.yourPost') }}</span
+                ><UBadge variant="subtle" color="neutral" size="sm">{{ t('landing.postApproval') }}</UBadge>
               </div>
               <img
                 :src="photo"
-                alt="Fotografi kafeje e përzgjedhur për postimin ilustrues"
+                :alt="t('landing.postExampleAlt')"
                 width="1000"
                 height="667"
                 loading="lazy"
               />
               <p>
-                Ka gjithmonë kohë për një kafe të mirë. Dhe për njerëzit që ta bëjnë ditën më të
-                bukur.
+                {{ t('landing.postExampleCopy') }}
               </p>
               <div class="landing-example-ready">
-                <UIcon name="i-lucide-check-check" aria-hidden="true" /> Teksti dhe fotografia, gati
-                për kontrollin tënd.
+                <UIcon name="i-lucide-check-check" aria-hidden="true" /> {{ t('landing.postReady') }}
               </div>
             </div>
             <div v-else class="landing-calendar-example">
               <div class="landing-example-topline">
-                <span>JAVA JOTE</span><UIcon name="i-lucide-calendar-days" aria-hidden="true" />
+                <span>{{ t('legacy.yourWeek') }}</span><UIcon name="i-lucide-calendar-days" aria-hidden="true" />
               </div>
               <div class="landing-calendar-days" aria-hidden="true">
                 <span v-for="(day, index) in ['H', 'M', 'M', 'E', 'P', 'S', 'D']" :key="index">{{
@@ -118,23 +114,23 @@ const items = [
                 }}</span>
               </div>
               <div class="landing-calendar-item">
-                <span class="landing-day">HËN</span>
-                <div><strong>Kafeja e mëngjesit</strong><span>Fotografia + teksti</span></div>
-                <UIcon name="i-lucide-circle-check" aria-label="Miratuar" />
+                <span class="landing-day">{{ t('legacy.mondayUpper') }}</span>
+                <div><strong>{{ t('legacy.morningCoffee') }}</strong><span>{{ t('legacy.photoPlusText') }}</span></div>
+                <UIcon name="i-lucide-circle-check" :aria-label="t('landing.approved')" />
               </div>
               <div class="landing-calendar-item">
-                <span class="landing-day">MËR</span>
-                <div><strong>Një kënd nga lokali</strong><span>Për miratim</span></div>
-                <UIcon name="i-lucide-clock-3" aria-label="Për miratim" />
+                <span class="landing-day">{{ t('legacy.wednesdayUpper') }}</span>
+                <div><strong>{{ t('legacy.corner') }}</strong><span>{{ t('landing.postApproval') }}</span></div>
+                <UIcon name="i-lucide-clock-3" :aria-label="t('landing.postApproval')" />
               </div>
               <div class="landing-calendar-item">
-                <span class="landing-day">PRE</span>
-                <div><strong>Takimi i fundjavës</strong><span>Draft</span></div>
-                <UIcon name="i-lucide-pencil-line" aria-label="Draft" />
+                <span class="landing-day">{{ t('legacy.fridayUpper') }}</span>
+                <div><strong>{{ t('legacy.weekendMeeting') }}</strong><span>{{ t('landing.draft') }}</span></div>
+                <UIcon name="i-lucide-pencil-line" :aria-label="t('landing.draft')" />
               </div>
-              <p class="landing-calendar-note">Një javë e organizuar, me hapësirë për ndryshime.</p>
+              <p class="landing-calendar-note">{{ t('legacy.organizedWeek') }}</p>
             </div>
-            <p class="landing-example-label">Shembull ilustrues i mënyrës së punës</p>
+            <p class="landing-example-label">{{ t('legacy.workflowExample') }}</p>
           </div>
         </div>
       </UCard>

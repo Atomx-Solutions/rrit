@@ -3,6 +3,7 @@ import type { Post } from '~~/shared/schemas/workspace'
 import type { z } from 'zod'
 import type { qualitySchema } from '~~/shared/schemas/monthly-plan'
 const props = defineProps<{ post: Post; disabled?: boolean }>()
+const { t } = useI18n()
 const open = ref(false)
 const reviewing = ref(false)
 const loadingLatest = ref(false)
@@ -13,13 +14,13 @@ const reasoningItems = computed(() => {
   const reasoning = props.post.aiProvenance?.reasoning
   if (!reasoning) return []
   return [
-    { icon: 'i-lucide-lightbulb', title: 'Ideja', text: reasoning.concept },
-    { icon: 'i-lucide-pen-line', title: 'Teksti', text: reasoning.copy },
-    { icon: 'i-lucide-layout-template', title: 'Dizajni', text: reasoning.design },
-    { icon: 'i-lucide-image', title: 'Fotografia', text: reasoning.photo },
-    { icon: 'i-lucide-hash', title: 'Hashtagët', text: reasoning.hashtags },
-    { icon: 'i-lucide-instagram', title: 'Platforma', text: reasoning.platform },
-    { icon: 'i-lucide-clock-3', title: 'Orari', text: reasoning.timing },
+    { icon: 'i-lucide-lightbulb', title: t('provenance.idea'), text: reasoning.concept },
+    { icon: 'i-lucide-pen-line', title: t('provenance.copy'), text: reasoning.copy },
+    { icon: 'i-lucide-layout-template', title: t('provenance.design'), text: reasoning.design },
+    { icon: 'i-lucide-image', title: t('provenance.photo'), text: reasoning.photo },
+    { icon: 'i-lucide-hash', title: t('provenance.hashtags'), text: reasoning.hashtags },
+    { icon: 'i-lucide-instagram', title: t('provenance.platform'), text: reasoning.platform },
+    { icon: 'i-lucide-clock-3', title: t('provenance.timing'), text: reasoning.timing },
   ]
 })
 type CurrentReview = {
@@ -39,7 +40,7 @@ async function loadLatest() {
     }
   } catch (error) {
     problem.value =
-      (error as { data?: { message?: string } }).data?.message || 'Rishikimi i ruajtur nuk u lexua.'
+      (error as { data?: { message?: string } }).data?.message || t('provenance.loadError')
   } finally {
     loadingLatest.value = false
   }
@@ -71,7 +72,7 @@ async function review() {
     latestAt.value = new Date().toISOString()
   } catch (error) {
     problem.value =
-      (error as { data?: { message?: string } }).data?.message || 'Rishikimi nuk u përfundua.'
+      (error as { data?: { message?: string } }).data?.message || t('provenance.reviewError')
   } finally {
     reviewing.value = false
   }
@@ -85,20 +86,20 @@ async function review() {
       size="sm"
       icon="i-lucide-book-open"
       @click="open = true"
-      >Pse ky postim?</UButton
+      >{{ t('provenance.whyPost') }}</UButton
     >
     <USlideover
       v-model:open="open"
-      title="Ideja dhe burimet"
-      description="Konteksti i ruajtur kur u krijua ky draft."
+      :title="t('provenance.title')"
+      :description="t('provenance.description')"
     >
       <template #body>
         <div class="space-y-6">
           <div v-if="reasoningItems.length" class="space-y-3">
             <div>
-              <h3 class="text-sm font-semibold">Pse u krijua kështu?</h3>
+              <h3 class="text-sm font-semibold">{{ t('provenance.whyCreated') }}</h3>
               <p class="mt-1 text-xs leading-5 text-muted">
-                Arsyetimi i ruajtur për konceptin, tekstin, dizajnin dhe shpërndarjen.
+                {{ t('provenance.reasoningDescription') }}
               </p>
             </div>
             <div
@@ -131,7 +132,7 @@ async function review() {
               color="primary"
               variant="subtle"
               icon="i-lucide-sparkles"
-              title="Ridizajnimi i fundit me AI"
+              :title="t('provenance.latestRedesign')"
               :description="post.aiProvenance.revision.instruction"
             />
           </div>
@@ -139,7 +140,7 @@ async function review() {
             {{ post.aiProvenance.rationale }}
           </p>
           <div class="space-y-3">
-            <h3 class="text-sm font-semibold">Burime për kontekstin e tregut</h3>
+            <h3 class="text-sm font-semibold">{{ t('provenance.marketSources') }}</h3>
             <ULink
               v-for="url in post.aiProvenance.sourceUrls"
               :key="url"
@@ -158,13 +159,13 @@ async function review() {
               variant="outline"
               :title="
                 latest.decision === 'BLOCK'
-                  ? 'Kërkon korrigjim'
-                  : 'Rishikimi i versionit aktual u krye'
+                  ? t('provenance.needsCorrection')
+                  : t('provenance.reviewCompleted')
               "
               :description="latest.reasons.join(' ')"
             />
             <p v-if="latestAt" class="text-xs text-muted">
-              Rishikim i ruajtur për versionin aktual.
+              {{ t('provenance.savedReview') }}
             </p>
             <UButton
               v-if="['draft', 'review'].includes(post.status)"
@@ -174,13 +175,12 @@ async function review() {
               :loading="reviewing || loadingLatest"
               :disabled="disabled"
               @click="review"
-              >Rishiko versionin aktual me AI</UButton
+              >{{ t('provenance.reviewCurrent') }}</UButton
             >
             <p class="text-xs text-muted">
-              Përdor kuotën AI të paketës. Pas rishikimit, kryej kontrollin e përmbajtjes dhe
-              miratoje vetë.
+              {{ t('provenance.reviewNote') }}
             </p>
-            <h3 class="text-sm font-semibold">Rishikimi fillestar i cilësisë</h3>
+            <h3 class="text-sm font-semibold">{{ t('provenance.initialQuality') }}</h3>
             <p
               v-for="reason in post.aiProvenance.quality.reasons"
               :key="reason"
@@ -189,8 +189,7 @@ async function review() {
               {{ reason }}
             </p>
             <p v-if="(post.contentVersion || 1) > 1" class="text-xs text-muted">
-              Përmbajtja është ndryshuar që nga ky kontroll. Rishiko versionin aktual përpara
-              miratimit.
+              {{ t('provenance.contentChanged') }}
             </p>
           </div>
         </div>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NuxtError } from '#app'
 defineProps<{ error: NuxtError }>()
+const { t } = useI18n()
 </script>
 <template>
   <UApp
@@ -8,16 +9,18 @@ defineProps<{ error: NuxtError }>()
       <template #body
         ><BrandLogo /><span class="eyebrow mt-5">{{ error.statusCode }}</span>
         <h1>
-          {{ error.statusCode === 404 ? 'Kjo faqe nuk u gjet.' : 'Diçka nuk shkoi siç duhet.' }}
+          {{ t(error.statusCode === 404 ? 'public.errorNotFound' : 'public.errorGeneric') }}
         </h1>
         <p>
           {{
-            error.statusCode === 404
-              ? 'Lidhja mund të ketë ndryshuar. Kthehu te hapësira jote për të vazhduar.'
-              : 'Provo sërish. Kopjet e ruajtura në pajisje mbeten të disponueshme.'
+            t(
+              error.statusCode === 404
+                ? 'public.errorNotFoundDescription'
+                : 'public.errorGenericDescription',
+            )
           }}
         </p>
-        <UButton @click="clearError({ redirect: '/' })">Kthehu në fillim</UButton>
+        <UButton @click="clearError({ redirect: '/' })">{{ t('public.goHome') }}</UButton>
       </template></UEmpty
     ></UApp
   >

@@ -3,6 +3,12 @@ import type { Post } from '~~/shared/schemas/workspace'
 import { zonedToIso } from '~~/shared/utils/format'
 const props = defineProps<{ id?: string }>()
 const { data, base, commit, transition, notify, conflict, initLive, syncing } = useWorkspace()
+const { t } = useI18n()
+function validationMessage(check: { key: string; message: string }) {
+  return check.key === 'ai_quality' && check.message === 'Versioni aktual kërkon rishikim të tekstit dhe dizajnit me AI.'
+    ? t('validation.aiQualityReview')
+    : check.message
+}
 const route = useRoute()
 const { data: catalog } = await useFetch('/api/templates', { key: 'post-templates' })
 const { data: capabilities } = await useFetch('/api/capabilities')
@@ -10,7 +16,7 @@ const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' }
 const chosenTemplate = (catalog.value || []).find((p) => p.id === route.query.template)
 const existing = computed(() => data.value.posts.find((p) => p.id === props.id))
 if (props.id && !existing.value)
-  throw createError({ statusCode: 404, statusMessage: 'Postimi nuk u gjet' })
+  throw createError({ statusCode: 404, statusMessage: t('content.postNotFound') })
 const {
   form,
   localError,
@@ -70,17 +76,16 @@ async function reconcilePublication() {
       retry: 0,
     })
     if (result.resolved) {
-      notify('Meta e konfirmoi publikimin')
+      notify(t('content.metaConfirmed'))
       await initLive()
       await refreshPublication()
     } else {
       error.value =
-        'Nuk u gjet një rezultat i vetëm dhe i sigurt në Meta. Postimi nuk u ridërgua; kontrollo përsëri pas pak.'
+        t('content.metaUncertain')
     }
   } catch (problem) {
     error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      'Kontrolli me Meta nuk u përfundua.'
+      (problem as { data?: { message?: string } }).data?.message || t('content.metaCheckError')
   } finally {
     reconciling.value = false
   }
@@ -102,8 +107,7 @@ async function checkPost(scope: 'content' | 'publication' = 'content'): Promise<
     return result.passed
   } catch (problem) {
     error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      'Kontrolli nuk u përfundua. Provo sërish.'
+      (problem as { data?: { message?: string } }).data?.message || t('content.checkError')
     return false
   } finally {
     checking.value = false
@@ -115,7 +119,7 @@ async function publishNow() {
   error.value = ''
   try {
     if (!(await checkPost('publication'))) {
-      error.value ||= 'Lidhja me Meta nuk u konfirmua. Miratimi i postimit mbetet i ruajtur.'
+      error.value ||= t('content.metaNotConfirmed')
       return
     }
     await $fetch(`/api/posts/${post.value.id}/publish`, {
@@ -125,10 +129,10 @@ async function publishNow() {
     })
     publishOpen.value = false
     await initLive()
-    notify('Postimi u vendos në radhën e publikimit')
+    notify(t('content.publishQueued'))
   } catch (problem) {
     error.value =
-      (problem as { data?: { message?: string } }).data?.message || 'Publikimi nuk filloi.'
+      (problem as { data?: { message?: string } }).data?.message || t('content.publishError')
   } finally {
     publishing.value = false
   }
@@ -199,7 +203,7 @@ async function save(silent = false) {
   if (!editable.value || !dirty.value || saving.value || conflict.value) return
   error.value = ''
   if (form.title.trim().length < 3 || !form.caption.trim() || !form.image) {
-    if (!silent) error.value = 'Plotëso titullin (të paktën 3 shkronja), tekstin dhe fotografinë.'
+    if (!silent) error.value = t('content.requiredFields')
     return
   }
   saving.value = true
@@ -214,7 +218,7 @@ async function save(silent = false) {
       p.status = 'draft'
       p.policy = 'warn'
       p.policyReason =
-        'Përmbajtja është ndryshuar. Kontrollo manualisht faktet dhe të drejtat para miratimit.'
+        t('content.changedPolicyReason')
     } else
       d.posts.unshift({
         id,
@@ -225,7 +229,7 @@ async function save(silent = false) {
         history: [],
         policy: 'warn',
         policyReason:
-          'Draft i shkruar nga përdoruesi. Verifiko faktet dhe të drejtat përpara miratimit.',
+          t('content.draftPolicyReason'),
       })
   })
   saving.value = false
@@ -249,7 +253,7 @@ watch(form, () => {
 })
 async function setStatus(next: Post['status']) {
   if (next === 'approved' && post.value?.status !== 'scheduled' && !confirmed.value) {
-    error.value = 'Konfirmo që i ke kontrolluar faktet dhe fotografinë.'
+    error.value = t('content.confirmFacts')
     return
   }
   await save()
@@ -259,21 +263,21 @@ async function setStatus(next: Post['status']) {
     confirmed.value = true
   }
   if (await transition(savedId.value, next))
-    notify(next === 'approved' ? 'Postimi u miratua' : 'Gjendja e postimit u përditësua')
+    notify(next === 'approved' ? t('content.postApprovedToast') : t('content.statusUpdatedToast'))
 }
 async function schedulePost() {
   if (scheduleBusy.value) return
   scheduleError.value = ''
   const iso = zonedToIso(schedule.value, data.value.preferences.timezone)
   if (!iso || Date.parse(iso) <= Date.now()) {
-    scheduleError.value = 'Zgjidh një datë të ardhshme dhe një orar të vlefshëm, jo të dykuptimtë.'
+    scheduleError.value = t('content.invalidSchedule')
     return
   }
   scheduleBusy.value = true
   try {
     if (automatic.value && !(await checkPost('publication'))) {
       scheduleError.value =
-        error.value || 'Për publikim automatik, lidh llogarinë me Meta dhe kontrollo lejet.'
+        error.value || t('content.automaticRequirements')
       return
     }
     if (
@@ -281,7 +285,7 @@ async function schedulePost() {
       (await transition(savedId.value, 'scheduled', iso, automatic.value ? 'automatic' : 'manual'))
     ) {
       scheduleOpen.value = false
-      notify(automatic.value ? 'U planifikua publikimi automatik' : 'U shtua në kalendar')
+      notify(automatic.value ? t('content.automaticScheduled') : t('content.addedToCalendar'))
     }
   } finally {
     scheduleBusy.value = false
@@ -319,24 +323,24 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <DashboardPage
-    :title="props.id ? 'Redakto postimin' : 'Krijo postim'"
-    description="Zgjidh fotografinë dhe shkruaj mesazhin. Ne ta ruajmë punën gjatë shkrimit."
+    :title="props.id ? t('content.editPost') : t('content.createPost')"
+    :description="t('content.editorDescription')"
   >
     <PostProvenance v-if="post?.aiProvenance" :post="post" :disabled="dirty || syncing" />
     <template #actions
       ><span role="status" class="small muted">{{
         saving
-          ? 'Duke ruajtur…'
+          ? t('content.saving')
           : dirty
-            ? 'Ndryshime të paruajtura'
+            ? t('content.unsavedChanges')
             : savedAt
-              ? `Ruajtur në server · ${savedAt}`
+              ? t('content.savedAt', { time: savedAt })
               : post
-                ? 'Ruajtur në server'
-                : 'Ruajtje në server'
+                ? t('content.savedOnServer')
+                : t('content.serverSaving')
       }}</span
       ><UButton :to="`${base}/content`" variant="outline" color="neutral" icon="i-lucide-arrow-left"
-        >Postimet</UButton
+        >{{ t('nav.posts') }}</UButton
       ><UButton
         v-if="editable"
         variant="outline"
@@ -344,7 +348,7 @@ onBeforeUnmount(() => {
         :disabled="!dirty"
         icon="i-lucide-save"
         @click="save(false)"
-        >Ruaj draftin</UButton
+        >{{ t('content.saveDraft') }}</UButton
       ></template
     >
     <UStepper
@@ -357,11 +361,10 @@ onBeforeUnmount(() => {
       disabled
       size="sm"
       class="mb-8 max-w-2xl"
-      aria-label="Hapat e përgatitjes së postimit"
+      :aria-label="t('content.editorSteps')"
     />
     <span class="sr-only" role="status"
-      >Hapi {{ workflowStep + 1 }} nga 3:
-      {{ ['Shkruaj', 'Kontrollo', 'Zgjidh orarin'][workflowStep] }}</span
+      >{{ t('content.stepStatus', { step: workflowStep + 1, title: [t('content.write'), t('content.check'), t('content.chooseSchedule')][workflowStep] || '' }) }}</span
     >
     <div class="editor-layout">
       <div class="stack">
@@ -369,44 +372,44 @@ onBeforeUnmount(() => {
         <UAlert v-if="localError" color="warning" variant="outline" :title="localError" />
         <UCard as="div" :ui="{ body: 'p-5 sm:p-6 flex flex-col gap-5' }" class="">
           <div class="actions" style="justify-content: space-between">
-            <h2>Detajet e përmbajtjes</h2>
+            <h2>{{ t('content.contentDetails') }}</h2>
             <StatusBadge v-if="post" :status="post.status" />
           </div>
           <UFormField
-            label="Emri i postimit"
+            :label="t('content.postName')"
             name="title"
-            description="Vetëm për organizimin tënd. Nuk shfaqet në rrjetin social."
+            :description="t('content.postNameDescription')"
             class="field"
             ><UInput
               v-model="form.title"
               :disabled="!editable"
               maxlength="120"
-              placeholder="P.sh. Kafeja e mëngjesit"
+              :placeholder="t('content.postNamePlaceholder')"
               class="w-full"
           /></UFormField>
           <div class="grid-2">
-            <UFormField label="Kanali" name="channel" class="field"
+            <UFormField :label="t('content.channel')" name="channel" class="field"
               ><USelect
                 v-model="form.channel"
                 :disabled="!editable"
                 :items="['Instagram', 'Facebook']" /></UFormField
-            ><UFormField label="Tema e postimit" name="pillar" class="field"
+            ><UFormField :label="t('content.postTopic')" name="pillar" class="field"
               ><USelect
                 v-model="form.pillar"
                 :disabled="!editable"
-                :items="['Produkti', 'Atmosfera', 'Komuniteti', 'Stili i jetesës', 'Oferta']"
+                :items="[t('strategy.intent.product'), t('strategy.intent.behind_the_scenes'), t('strategy.goal.meaningful_comments'), t('strategy.goal.profile_actions'), t('brand.offerType')]"
             /></UFormField>
           </div>
-          <UFormField label="Teksti i postimit" name="caption" class="field"
+          <UFormField :label="t('content.postText')" name="caption" class="field"
             ><UTextarea
               v-model="form.caption"
               :disabled="!editable"
               :rows="8"
               :maxlength="2200"
-              placeholder="Çfarë dëshiron t’i thuash audiencës?"
+              :placeholder="t('content.postTextPlaceholder')"
               class="w-full"
             /><small
-              >{{ form.caption.length }} / 2 200 karaktere · Shfaqet si tekst i thjeshtë</small
+              >{{ t('content.characterCount', { count: form.caption.length }) }}</small
             ></UFormField
           >
           <div class="actions">
@@ -421,12 +424,12 @@ onBeforeUnmount(() => {
               color="neutral"
               icon="i-lucide-history"
               @click="versionOpen = true"
-              >Historiku · v{{ post.version }}</UButton
+              >{{ t('content.versionHistory', { version: post.version }) }}</UButton
             >
           </div>
           <USeparator class="divider" style="margin: 0" />
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <h3>Fotografia e postimit</h3>
+            <h3>{{ t('content.postPhoto') }}</h3>
             <CreativeEditor
               v-if="post?.aiProvenance"
               :post="post"
@@ -441,16 +444,31 @@ onBeforeUnmount(() => {
           >
             <MediaImage
               :src="form.image"
-              alt="Fotografia aktuale e postimit"
+              :alt="t('photo.choosePhoto')"
               class="size-full object-cover"
             />
           </div>
+          <div class="asset-picker">
+            <UButton
+              v-for="asset in data.assets.filter((a) => a.rights)"
+              :key="asset.id"
+              variant="ghost"
+              color="neutral"
+              :disabled="!editable"
+              :aria-label="t('content.choosePhoto', { name: asset.name })"
+              :aria-pressed="form.image === asset.url"
+              :class="{ selected: form.image === asset.url }"
+              @click="form.image = asset.url"
+            >
+              <MediaImage :src="asset.url" :alt="asset.name" class="w-full aspect-square rounded" />
+            </UButton>
+          </div>
           <ULink :to="`${base}/gallery`" class="text-primary small"
-            >Menaxho fotografitë dhe të drejtat →</ULink
+            >{{ t('content.managePhotos') }}</ULink
           >
         </UCard>
         <UCard as="div" :ui="{ body: 'p-5 sm:p-6 flex flex-col gap-5' }" class="">
-          <h2>Kontrolli para miratimit</h2>
+          <h2>{{ t('content.preApprovalCheck') }}</h2>
           <UButton
             v-if="post && post.status !== 'published'"
             variant="outline"
@@ -459,36 +477,36 @@ onBeforeUnmount(() => {
             :loading="checking"
             :disabled="dirty || syncing"
             @click="checkPost()"
-            >Kontrollo përmbajtjen</UButton
+            >{{ t('content.checkContent') }}</UButton
           >
-          <ul v-if="validation" class="space-y-3" aria-label="Rezultati i kontrolleve">
+          <ul v-if="validation" class="space-y-3" :aria-label="t('content.validationResult')">
             <li v-for="check in validation.checks" :key="check.key" class="flex gap-2 text-sm">
               <UIcon
                 :name="check.passed ? 'i-lucide-circle-check' : 'i-lucide-circle-x'"
                 :class="check.passed ? 'text-success' : 'text-error'"
                 class="size-4 shrink-0 mt-0.5"
-              /><span>{{ check.passed ? 'Në rregull: ' : '' }}{{ check.message }}</span>
+              /><span>{{ check.passed ? t('content.okPrefix') : '' }}{{ validationMessage(check) }}</span>
             </li>
           </ul>
           <UCheckbox
             v-if="post?.status === 'review' || post?.status === 'failed'"
             v-model="confirmed"
-            label="I kontrollova faktet, çmimet, datat dhe të drejtat e fotografisë."
-            description="Miratimi im vlen për këtë version të postimit."
+            :label="t('coverage.checkedFacts')"
+            :description="t('coverage.approvalVersion')"
           />
           <UAlert
             v-if="publication?.status === 'uncertain'"
             variant="outline"
             color="warning"
-            title="Publikimi pret verifikim"
-            description="Meta nuk dha konfirmim të plotë. Kontrollo postimin në profil; ridërgimi është bllokuar për të shmangur dyfishimin."
+            :title="t('coverage.publicationWaiting')"
+            :description="t('content.uncertainDescription')"
           />
           <UAlert
             v-else-if="publication?.disposition === 'retryable'"
             variant="outline"
             color="info"
-            title="Publikimi do të provohet sërish"
-            :description="`${publication.remediation} Tentimi ${publication.attempt} nga ${publication.maxAttempts}.`"
+            :title="t('coverage.publicationRetry')"
+            :description="`${publication.remediation} ${t('content.retryAttempt', { attempt: publication.attempt, maxAttempts: publication.maxAttempts })}`"
           />
           <UAlert
             v-else-if="publication?.status === 'failed'"
@@ -496,8 +514,8 @@ onBeforeUnmount(() => {
             :color="publication.disposition === 'blocked' ? 'warning' : 'error'"
             :title="
               publication.disposition === 'blocked'
-                ? 'Publikimi kërkon veprim'
-                : 'Publikimi nuk u përfundua'
+                ? t('coverage.publicationAction')
+                : t('coverage.publicationFailed')
             "
             :description="publication.remediation"
           />
@@ -507,9 +525,9 @@ onBeforeUnmount(() => {
               icon="i-lucide-refresh-cw"
               :loading="reconciling"
               @click="reconcilePublication"
-              >Kontrollo rezultatin në Meta</UButton
+              >{{ t('content.checkMetaResult') }}</UButton
             ><UButton :to="`${base}/social-posts`" color="neutral" variant="outline"
-              >Kontrollo lidhjen</UButton
+              >{{ t('content.checkConnection') }}</UButton
             >
           </div>
           <UAlert
@@ -522,16 +540,16 @@ onBeforeUnmount(() => {
             "
             :title="
               post?.policy === 'block'
-                ? 'Kërkon korrigjim'
+                ? t('coverage.needsCorrection')
                 : post?.policy === 'pass'
-                  ? 'Kontrollet teknike kaluan'
-                  : 'Kërkohet rishikim manual'
+                  ? t('coverage.technicalPassed')
+                  : t('coverage.manualReview')
             "
             :description="
-              post?.policyReason || 'Verifiko tekstin, burimet dhe të drejtat e fotografisë.'
+              post?.policyReason || t('content.verifyDescription')
             "
           /><ULink :to="`${base}/brand`" class="text-primary small"
-            >Shiko faktet dhe burimet e biznesit →</ULink
+            >{{ t('content.businessFacts') }}</ULink
           >
           <div class="actions">
             <UButton
@@ -539,7 +557,7 @@ onBeforeUnmount(() => {
               variant="outline"
               :disabled="!form.title || !form.caption"
               @click="setStatus('review')"
-              >Dërgo për miratim</UButton
+              >{{ t('content.submitApproval') }}</UButton
             ><template v-if="post?.status === 'review'"
               ><UButton
                 variant="outline"
@@ -547,17 +565,17 @@ onBeforeUnmount(() => {
                 :loading="checking"
                 icon="i-lucide-check"
                 @click="setStatus('approved')"
-                >Mirato postimin</UButton
+                >{{ t('content.approvePost') }}</UButton
               ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
-                >Kthe në draft</UButton
+                >{{ t('content.returnDraft') }}</UButton
               ></template
             ><template v-if="post?.status === 'approved'"
               ><UButton variant="outline" icon="i-lucide-send" @click="publishOpen = true"
-                >Publiko tani</UButton
+                >{{ t('content.publishNow') }}</UButton
               ><UButton variant="outline" icon="i-lucide-calendar-plus" @click="scheduleOpen = true"
-                >Planifiko postimin</UButton
+                >{{ t('content.schedulePost') }}</UButton
               ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
-                >Rihap për redaktim</UButton
+                >{{ t('content.reopenEditing') }}</UButton
               ></template
             ><template v-if="post?.status === 'failed'"
               ><UButton
@@ -566,16 +584,16 @@ onBeforeUnmount(() => {
                 :loading="checking"
                 icon="i-lucide-rotate-ccw"
                 @click="setStatus('approved')"
-                >Kontrollo dhe mirato sërish</UButton
+                >{{ t('content.reviewApproveAgain') }}</UButton
               ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
-                >Kthe në draft për korrigjim</UButton
+                >{{ t('content.returnForCorrection') }}</UButton
               ></template
             ><UButton
               v-if="post?.status === 'scheduled'"
               color="neutral"
               variant="outline"
               @click="setStatus('approved')"
-              >Hiq nga kalendari</UButton
+                >{{ t('content.removeFromCalendar') }}</UButton
             >
           </div>
           <UAlert
@@ -584,25 +602,24 @@ onBeforeUnmount(() => {
             variant="outline"
             :title="
               post.publicationMode === 'automatic'
-                ? 'Publikim automatik i planifikuar'
-                : 'Ruajtur vetëm në kalendar'
+                ? t('content.automaticPlanned')
+                : t('content.calendarOnlySaved')
             "
             :description="
               post.publicationMode === 'automatic'
-                ? 'Postimi do të dërgohet në orarin e zgjedhur nëse shërbimi dhe lidhja janë aktive.'
-                : 'Orari yt u ruajt. Ky postim nuk dërgohet automatikisht në Facebook ose Instagram.'
+                ? t('content.automaticDescription')
+                : t('content.calendarOnlyDescription')
             "
           />
           <p class="small muted">
-            Mund ta miratosh dhe ta shtosh në kalendar pa lidhur Meta. Lidhja kërkohet vetëm për
-            publikimin në rrjete sociale.
+            {{ t('content.approvalCalendarNote') }}
           </p>
         </UCard>
       </div>
       <aside class="stack lg:sticky lg:top-6">
         <div class="actions" style="justify-content: space-between">
-          <h2>Si do të duket</h2>
-          <UBadge variant="subtle" size="sm" class="">Parapamje</UBadge>
+          <h2>{{ t('content.howItLooks') }}</h2>
+          <UBadge variant="subtle" size="sm" class="">{{ t('preview.preview') }}</UBadge>
         </div>
         <ChannelPreview
           :channel="form.channel"
@@ -611,14 +628,14 @@ onBeforeUnmount(() => {
           :caption="form.caption"
         />
         <p class="small muted text-center">
-          Paraqitja përfundimtare mund të ndryshojë sipas kanalit.
+          {{ t('content.previewNote') }}
         </p>
       </aside>
     </div>
     <UModal
       v-model:open="publishOpen"
-      :title="'Publiko në ' + form.channel + '?'"
-      :description="'Postimi do të dërgohet në llogarinë e lidhur të ' + data.brand.name + '.'"
+      :title="t('content.publishTitle', { channel: form.channel })"
+      :description="t('content.publishDescription', { business: data.brand.name })"
     >
       <template #body
         ><div class="space-y-5">
@@ -627,10 +644,10 @@ onBeforeUnmount(() => {
             v-if="!canPublish"
             color="neutral"
             variant="outline"
-            title="Publikimi kërkon lidhje aktive me Meta"
+            :title="t('content.metaConnectionRequiredTitle')"
             :actions="[
               {
-                label: 'Shiko lidhjet',
+                label: t('content.viewConnections'),
                 to: base + '/social-posts',
                 variant: 'outline',
                 color: 'neutral',
@@ -648,52 +665,52 @@ onBeforeUnmount(() => {
             :loading="publishing"
             :disabled="!canPublish"
             @click="publishNow"
-            >Konfirmoj publikimin tani</UButton
+            >{{ t('content.confirmPublishNow') }}</UButton
           ><UButton block color="neutral" variant="ghost" @click="publishOpen = false"
-            >Anulo</UButton
+            >{{ t('common.cancel') }}</UButton
           >
         </div></template
       >
     </UModal>
     <UModal
       v-model:open="scheduleOpen"
-      title="Shto në kalendar"
-      :description="`Orari interpretohet në ${data.preferences.timezone}.`"
+      :title="t('content.addToCalendar')"
+      :description="t('content.scheduleTimezone', { timezone: data.preferences.timezone })"
       ><template #body
         ><UForm :state="{ schedule, automatic }" class="stack" @submit="schedulePost">
-          <UFormField label="Data dhe ora" name="schedule" class="field"
+          <UFormField :label="t('content.dateAndTime')" name="schedule" class="field"
             ><UInput v-model="schedule" class="w-full" type="datetime-local" required
           /></UFormField>
           <p v-if="scheduleError" role="alert" class="field-error">{{ scheduleError }}</p>
           <UCheckbox
             v-model="automatic"
             :disabled="!canPublish || scheduleBusy"
-            label="Publiko automatikisht në këtë orar"
+            :label="t('content.publishAutomatically')"
             :description="
               canPublish
-                ? 'Nëse e aktivizon, postimi dërgohet në rrjetin e zgjedhur.'
-                : 'Opsionale. Për këtë shërbim kërkohet lidhje aktive me Meta.'
+                ? t('content.automaticEnabledDescription')
+                : t('content.automaticDisabledDescription')
             "
           />
           <UAlert
             color="neutral"
             variant="outline"
-            :title="automatic ? 'Publikim automatik' : 'Vetëm në kalendar'"
+            :title="automatic ? t('content.automaticPublication') : t('content.calendarOnly')"
             :description="
               automatic
-                ? 'Postimi publikohet vetëm nëse shërbimi dhe lidhja me Meta janë aktive në atë orar.'
-                : 'Orari ruhet për organizimin tënd. Nuk kërkohet lidhje me Meta dhe nuk kryhet publikim automatik.'
+                ? t('content.automaticAlertDescription')
+                : t('content.calendarOnlyAlertDescription')
             "
           /><UButton variant="outline" type="submit" :loading="scheduleBusy"
-            >Konfirmo orarin</UButton
+            >{{ t('content.confirmSchedule') }}</UButton
           >
         </UForm></template
       ></UModal
     >
     <USlideover
       v-model:open="versionOpen"
-      title="Historiku i versioneve"
-      description="Versionet e mëparshme ruhen pa u mbishkruar."
+      :title="t('content.versionHistoryTitle')"
+      :description="t('content.versionHistoryDescription')"
       ><template #body
         ><div class="stack">
           <UCard
@@ -703,28 +720,28 @@ onBeforeUnmount(() => {
             :ui="{ body: 'p-5 sm:p-6' }"
             class=""
           >
-            <h3>Versioni {{ version.version }}</h3>
+            <h3>{{ t('content.version', { version: version.version }) }}</h3>
             <p class="small muted my-2">{{ version.at }}</p>
             <p style="white-space: pre-wrap">{{ version.caption }}</p>
           </UCard>
-          <p v-if="!post?.history.length" class="muted">Ky është versioni i parë.</p>
+          <p v-if="!post?.history.length" class="muted">{{ t('content.firstVersion') }}</p>
         </div></template
       ></USlideover
     >
     <UModal
       :open="leaving"
-      title="Ke ndryshime të paruajtura"
-      description="Ruaji para se të largohesh ose vazhdo duke i hequr ndryshimet e fundit."
+      :title="t('content.unsavedTitle')"
+      :description="t('content.unsavedDescription')"
       @update:open="handleLeaveOpen"
       ><template #body
         ><div class="actions">
           <UButton
             variant="outline"
             @click="saveAndLeave"
-            >Ruaj dhe vazhdo</UButton
+            >{{ t('content.saveContinue') }}</UButton
           ><UButton color="error" variant="outline" @click="discardAndLeave()"
-            >Largohu pa ruajtur</UButton
-          ><UButton color="neutral" variant="ghost" @click="finishLeave(false)">Qëndro këtu</UButton>
+            >{{ t('content.leaveWithoutSaving') }}</UButton
+          ><UButton color="neutral" variant="ghost" @click="finishLeave(false)">{{ t('content.stayHere') }}</UButton>
         </div></template
       ></UModal
     >

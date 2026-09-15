@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { z } from 'zod'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-useSeoMeta({ title: 'Cilësimet · Rrit' })
 const { data, base, syncing, commit, notify, exportData } = useWorkspace()
+const { setLocale, t } = useI18n()
+useSeoMeta({ title: () => `${t('settings.title')} · Rrit` })
 const { data: capabilities } = await useFetch('/api/capabilities')
+const notificationDescription = computed(() => {
+  const recovery = capabilities.value?.passwordRecovery
+    ? t('settings.emailRecoveryActive')
+    : t('settings.emailRecoveryPending')
+  const verification = capabilities.value?.emailVerificationRequired
+    ? `${t('settings.emailVerificationActive')} `
+    : ''
+  return `${t('settings.preferencesSaved')} ${verification}${recovery} ${t('settings.emailPostNotificationsPending')}`
+})
 const route = useRoute()
 const tabNames = ['profile', 'preferences', 'notifications', 'security', 'organization']
 const tab = computed({
@@ -21,6 +31,12 @@ const tab = computed({
 const { form, clear, recovered, localError } = useDraft(`${base.value}:preferences`, {
   ...data.value.preferences,
 })
+watch(
+  () => form.locale,
+  (value) => {
+    if (value) setLocale(value)
+  },
+)
 const baseline = ref(JSON.stringify(form))
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
 const saved = ref(false)
@@ -28,8 +44,8 @@ const formError = ref('')
 const leaveOpen = ref(false)
 let resolveLeave: ((allow: boolean) => void) | undefined
 const schema = z.object({
-  name: z.string().trim().min(2, 'Vendos emrin tënd.').max(100),
-  email: z.email('Vendos një adresë emaili të vlefshme.'),
+  name: z.string().trim().min(2, t('settings.nameRequired')).max(100),
+  email: z.email(t('settings.emailInvalid')),
   timezone: z.string().refine((value) => {
     try {
       new Intl.DateTimeFormat('sq', { timeZone: value })
@@ -37,7 +53,7 @@ const schema = z.object({
     } catch {
       return false
     }
-  }, 'Zgjidh një zonë kohore të vlefshme.'),
+  }, t('settings.timezoneInvalid')),
   locale: z.enum(['sq-XK', 'en-US']),
   currency: z.literal('EUR'),
 })
@@ -51,7 +67,7 @@ async function save() {
     formError.value = ''
     clear()
   } else {
-    formError.value = 'Ndryshimet nuk u ruajtën. Kontrollo gabimin ose ngarko versionin e fundit.'
+    formError.value = t('settings.saveError')
   }
 }
 onBeforeRouteLeave(() => {
@@ -80,16 +96,16 @@ async function saveAndLeave() {
 }
 </script>
 <template>
-  <DashboardPage title="Cilësimet" description="Profili, preferencat dhe siguria në një vend.">
+  <DashboardPage :title="t('settings.title')" :description="t('settings.description')">
     <template #toolbar>
       <UTabs
         v-model="tab"
         :items="[
-          { id: 'profile', label: 'Profili' },
-          { id: 'preferences', label: 'Preferencat' },
-          { id: 'notifications', label: 'Njoftimet' },
-          { id: 'security', label: 'Siguria' },
-          { id: 'organization', label: 'Organizata' },
+          { id: 'profile', label: t('settings.profile') },
+          { id: 'preferences', label: t('settings.preferences') },
+          { id: 'notifications', label: t('settings.notifications') },
+          { id: 'security', label: t('settings.security') },
+          { id: 'organization', label: t('settings.organization') },
         ]"
         value-key="id"
         :content="false"
@@ -110,8 +126,8 @@ async function saveAndLeave() {
       color="neutral"
       variant="outline"
       icon="i-lucide-history"
-      title="Ndryshimet e fundit janë rikthyer"
-      description="Kontrolloji dhe ruaji për ta përditësuar profilin."
+      :title="t('settings.recoveredTitle')"
+      :description="t('settings.recoveredDescription')"
       class="max-w-3xl"
     />
     <UCard class="max-w-3xl" :ui="{ body: 'p-5 sm:p-7' }"
@@ -122,7 +138,7 @@ async function saveAndLeave() {
         class="space-y-6"
         @submit="save"
         @error="
-          formError = 'Kontrollo emrin dhe emailin te Profili, si dhe zonën kohore te Preferencat.'
+          formError = t('settings.formError')
         "
       >
         <UAlert v-if="formError" color="error" variant="outline" :title="formError" />
@@ -130,65 +146,65 @@ async function saveAndLeave() {
           ><div class="actions">
             <UAvatar :alt="form.name" size="xl" />
             <div class="space-y-1">
-              <h2>Profili yt</h2>
-              <p class="small muted mt-1">Llogaria e biznesit</p>
+              <h2>{{ t('settings.yourProfile') }}</h2>
+              <p class="small muted mt-1">{{ t('settings.businessAccount') }}</p>
             </div>
           </div>
-          <UFormField label="Emri i plotë" name="name" class="field"
+          <UFormField :label="t('settings.fullName')" name="name" class="field"
             ><UInput
               v-model="form.name"
               class="w-full"
               required
               minlength="2"
               maxlength="100" /></UFormField
-          ><UFormField label="Email" name="email" class="field"
+          ><UFormField :label="t('settings.email')" name="email" class="field"
             ><UInput v-model="form.email" class="w-full" type="email" required /><small
-              >Kjo është adresa e kontaktit. Emaili i hyrjes në llogari mbetet i pandryshuar.</small
+              >{{ t('settings.emailDescription') }}</small
             ></UFormField
           ></template
         ><template v-if="tab === 'preferences'"
-          ><h2>Gjuha dhe rajoni</h2>
-           <UFormField label="Gjuha" name="locale" class="field"
+          ><h2>{{ t('settings.languageRegion') }}</h2>
+           <UFormField :label="t('settings.language')" name="locale" class="field"
             ><USelect
               v-model="form.locale"
               :items="[
-                { label: 'Shqip · Kosovë', value: 'sq-XK' },
-                { label: 'English · United States', value: 'en-US' },
+                { label: t('settings.albanianKosovo'), value: 'sq-XK' },
+                { label: t('settings.englishUnitedStates'), value: 'en-US' },
               ]"
             /></UFormField
-          ><UFormField label="Zona kohore" name="timezone" class="field"
+><UFormField :label="t('settings.timezone')" name="timezone" class="field"
             ><USelect
               v-model="form.timezone"
               :items="[
-                { label: 'Kosovë · ora lokale', value: 'Europe/Belgrade' },
-                { label: 'Shqipëri · ora lokale', value: 'Europe/Tirane' },
-                { label: 'Maqedoni e Veriut · ora lokale', value: 'Europe/Skopje' },
-                { label: 'Mbretëria e Bashkuar', value: 'Europe/London' },
+                { label: t('onboarding.timezoneKosovo'), value: 'Europe/Belgrade' },
+                { label: t('onboarding.timezoneAlbania'), value: 'Europe/Tirane' },
+                { label: t('onboarding.timezoneNorthMacedonia'), value: 'Europe/Skopje' },
+                { label: t('onboarding.timezoneUnitedKingdom'), value: 'Europe/London' },
               ]" /></UFormField
-          ><UFormField label="Monedha" name="currency" class="field"
+          ><UFormField :label="t('settings.currency')" name="currency" class="field"
             ><USelect
               v-model="form.currency"
-              :items="[{ label: 'Euro (EUR)', value: 'EUR' }]"
-            /><small>Çmimet e paketave paraqiten në euro.</small></UFormField
+              :items="[{ label: t('settings.currencyEuro'), value: 'EUR' }]"
+            /><small>{{ t('settings.currencyDescription') }}</small></UFormField
           ></template
         ><template v-if="tab === 'notifications'"
-          ><h2>Vetëm njoftimet që të duhen</h2>
+          ><h2>{{ t('settings.notificationsOnly') }}</h2>
           <div
             v-for="item in [
               {
                 key: 'emailApprovals' as const,
-                label: 'Përmbajtje për miratim',
-                text: 'Kur një postim është gati për rishikimin tënd.',
+                label: t('settings.contentApproval'),
+                text: t('settings.contentApprovalDescription'),
               },
               {
                 key: 'emailPublished' as const,
-                label: 'Publikime të përfunduara',
-                text: 'Përmbledhje e postimeve të konfirmuara.',
+                label: t('settings.completedPublications'),
+                text: t('settings.completedPublicationsDescription'),
               },
               {
                 key: 'emailTips' as const,
-                label: 'Ide & këshilla produkti',
-                text: 'Udhëzime për ta përdorur më mirë Rrit.',
+                label: t('settings.productIdeas'),
+                text: t('settings.productIdeasDescription'),
               },
             ]"
             :key="item.key"
@@ -203,24 +219,24 @@ async function saveAndLeave() {
           <UAlert
             color="neutral"
             variant="outline"
-            title="Preferencat e njoftimeve"
-            :description="`Preferencat ruhen në llogari. ${capabilities?.emailVerificationRequired ? 'Email-i i verifikimit është aktiv. ' : ''}${capabilities?.passwordRecovery ? 'Rikuperimi me email është aktiv. ' : 'Rikuperimi me email aktivizohet pasi të konfigurohet shërbimi i emailit. '}Njoftimet e postimeve me email janë ende në përgatitje.`" /></template
+            :title="t('settings.notificationPreferences')"
+            :description="notificationDescription" /></template
         ><template v-if="tab === 'organization'"
-          ><h2>Menaxhimi i hapësirës</h2>
+          ><h2>{{ t('settings.workspaceManagement') }}</h2>
           <div class="actions">
             <UButton :to="`${base}/brand`" variant="outline" color="neutral"
-              >Identiteti i biznesit</UButton
+              >{{ t('settings.businessIdentity') }}</UButton
             ><UButton :to="`${base}/billing`" variant="outline" color="neutral"
-              >Plani & faturimi</UButton
+              >{{ t('settings.planBilling') }}</UButton
             >
           </div>
           <USeparator class="divider" />
-          <h3>Një kopje e punës tënde</h3>
+          <h3>{{ t('settings.workCopy') }}</h3>
           <p class="text-sm text-muted">
-            Shkarko një skedar me postimet, profilin dhe të dhënat e biznesit.
+            {{ t('settings.workCopyDescription') }}
           </p>
           <UButton icon="i-lucide-download" variant="outline" @click="exportData"
-            >Eksporto të dhënat</UButton
+            >{{ t('settings.exportData') }}</UButton
           >
         </template>
         <div
@@ -233,13 +249,13 @@ async function saveAndLeave() {
             :loading="syncing"
             icon="i-lucide-save"
             style="align-self: flex-start"
-            >Ruaj ndryshimet</UButton
+            >{{ t('settings.saveChanges') }}</UButton
           ><span role="status" class="text-xs text-muted">{{
             dirty
-              ? 'Ke ndryshime të paruajtura'
+              ? t('settings.unsavedChanges')
               : saved
-                ? 'Ndryshimet u ruajtën'
-                : 'Preferencat ruhen në llogarinë tënde.'
+                ? t('common.saved')
+                : t('settings.preferencesSaved')
           }}</span>
         </div>
       </UForm></UCard

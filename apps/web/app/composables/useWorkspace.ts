@@ -8,6 +8,7 @@ import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 import type { Brand } from '~~/shared/schemas/brand'
 
 export function useWorkspace() {
+  const { t } = useI18n()
   const data = useState<Workspace>('workspace', () => emptyWorkspace())
   const ready = useState('workspace-ready', () => false)
   const context = useState<{ id: string; slug: string } | null>('workspace-context', () => null)
@@ -49,8 +50,8 @@ export function useWorkspace() {
     const parsed = workspaceSchema.safeParse(draft)
     if (!parsed.success) {
       toast?.add({
-        title: 'Kontrollo fushat e formularit',
-        description: 'Një vlerë është jashtë kufijve të lejuar. Ndryshimet nuk u ruajtën.',
+        title: t('workspace.formInvalidTitle'),
+        description: t('workspace.formInvalidDescription'),
         color: 'error',
       })
       return false
@@ -71,8 +72,8 @@ export function useWorkspace() {
       if (problem.statusCode === 409) conflict.value = true
       storageError.value =
         problem.statusCode === 401
-          ? 'Sesioni përfundoi. Hyr sërish për të ruajtur punën.'
-          : problem.data?.message || 'Nuk u ruajt në server. Kontrollo lidhjen dhe provo sërish.'
+          ? t('workspace.sessionExpired')
+          : problem.data?.message || t('workspace.saveFailed')
       return false
     } finally {
       syncing.value = false
@@ -98,11 +99,15 @@ export function useWorkspace() {
     if (!post) return false
     const error = validateTransition(post, status)
     if (error) {
-      toast?.add({ title: 'Kërkohet rishikim', description: error, color: 'error' })
+      toast?.add({
+        title: t('workspace.reviewRequired'),
+        description: error.startsWith('transition.') ? t(error) : error,
+        color: 'error',
+      })
       return false
     }
     if (status === 'scheduled' && (!scheduledAt || Date.parse(scheduledAt) <= Date.now())) {
-      toast?.add({ title: 'Zgjidh një orar në të ardhmen', color: 'error' })
+      toast?.add({ title: t('workspace.futureScheduleRequired'), color: 'error' })
       return false
     }
     return commit((d) => {
@@ -122,9 +127,8 @@ export function useWorkspace() {
   }
   function unavailable() {
     toast?.add({
-      title: 'Ky shërbim ende nuk është aktiv',
-      description:
-        'Lidhjet sociale, publikimi, asistenti AI dhe pagesat kërkojnë aktivizimin e shërbimit përkatës.',
+      title: t('workspace.serviceInactive'),
+      description: t('workspace.serviceInactiveDescription'),
       color: 'warning',
     })
   }

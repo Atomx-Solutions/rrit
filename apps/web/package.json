@@ -19,6 +19,7 @@
     "postinstall": "nuxt prepare",
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
+    "check:i18n": "node scripts/check-locales.mjs",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
+    "@iconify-json/flag": "1.2.12",
     "@nuxt/eslint": "^1.15.0",
     "@playwright/test": "^1.58.0",
     "@types/pg": "8.23.1",

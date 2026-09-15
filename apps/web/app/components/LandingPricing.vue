@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 withDefaults(defineProps<{ showDetailsLink?: boolean }>(), { showDetailsLink: true })
 const { plans, error, status, refresh } = usePlanCatalog()
 const { capabilities } = useLandingOffer()
@@ -7,16 +8,16 @@ const annualDiscount = computed(() =>
   Math.max(0, ...plans.value.map((plan) => plan.annualDiscount)),
 )
 const billingOptions = computed(() => [
-  { label: 'Mujor', value: 'monthly' },
-  { label: 'Vjetor', value: 'annual', badge: `deri −${annualDiscount.value}%` },
+  { label: t('billing.monthly'), value: 'monthly' },
+  { label: t('billing.annual'), value: 'annual', badge: t('landing.upToDiscount', { discount: annualDiscount.value }) },
 ])
 const annual = computed(() => billing.value === 'annual' && annualDiscount.value > 0)
 const pendingServices = computed(() => [
-  ...(!capabilities.value?.billing ? ['pagesat'] : []),
+  ...(!capabilities.value?.billing ? [t('landing.pendingBilling')] : []),
   ...(!capabilities.value?.ai && plans.value.some((plan) => plan.entitlements.includes('ai'))
-    ? ['ndihma AI']
+    ? [t('landing.pendingAi')]
     : []),
-  ...(!capabilities.value?.publishing ? ['publikimi automatik'] : []),
+  ...(!capabilities.value?.publishing ? [t('landing.pendingPublishing')] : []),
 ])
 </script>
 
@@ -26,15 +27,15 @@ const pendingServices = computed(() => [
       v-if="error"
       color="warning"
       variant="outline"
-      title="Çmimet nuk u ngarkuan."
-      description="Provo sërish për të parë katalogun aktual."
-      :actions="[{ label: 'Provo sërish', variant: 'outline', onClick: () => refresh() }]"
+      :title="t('landing.pricingLoadErrorTitle')"
+      :description="t('landing.pricingLoadErrorDescription')"
+      :actions="[{ label: t('landing.retry'), variant: 'outline', onClick: () => refresh() }]"
     />
     <div
       v-else-if="status === 'pending'"
       class="landing-plan-grid"
       role="status"
-      aria-label="Duke ngarkuar planet"
+      :aria-label="t('landing.loadingPlans')"
     >
       <USkeleton v-for="item in 3" :key="item" class="h-96 rounded-xl" />
     </div>
@@ -42,8 +43,8 @@ const pendingServices = computed(() => [
       v-else-if="!plans.length"
       color="neutral"
       variant="outline"
-      title="Planet do të shfaqen së shpejti."
-      description="Katalogu i çmimeve nuk është publikuar ende."
+      :title="t('landing.plansSoonTitle')"
+      :description="t('landing.plansSoonDescription')"
     />
     <template v-else>
       <div v-if="annualDiscount > 0" class="landing-billing">
@@ -51,7 +52,7 @@ const pendingServices = computed(() => [
           v-model="billing"
           :items="billingOptions"
           :content="false"
-          aria-label="Periudha e faturimit"
+          :aria-label="t('landing.billingPeriod')"
           :ui="{
             list: 'rounded-full p-1 bg-default ring ring-default',
             trigger: 'rounded-full px-5 min-h-10',
@@ -62,26 +63,24 @@ const pendingServices = computed(() => [
       <PlanCards :annual="annual" direct-signup />
       <div class="landing-pricing-footnotes">
         <p>
-          <UIcon name="i-lucide-info" aria-hidden="true" /> Kostoja për postim llogaritet kur përdor
-          të gjitha postimet e planit.
+          <UIcon name="i-lucide-info" aria-hidden="true" /> {{ t('legacy.costExplanation') }}
         </p>
         <p v-if="annual">
-          Çmimi mujor është mesatarja e pagesës vjetore. Totali për vitin shfaqet te secili plan.
+          {{ t('legacy.annualPriceExplanation') }}
         </p>
         <p v-if="pendingServices.length">
-          Në përgatitje: {{ pendingServices.join(', ') }}. Shërbimet e aktivizuara mund t’i shohësh
-          në llogari.
+          {{ t('landing.pendingServices', { services: pendingServices.join(', ') }) }}
         </p>
       </div>
       <div class="landing-pricing-detail">
-        <span>Çmimet në euro. Të gjitha përfitimet, të shkruara qartë.</span>
+        <span>{{ t('legacy.pricingDescription') }}</span>
         <UButton
           v-if="showDetailsLink"
           to="/pricing"
           variant="link"
           color="neutral"
           trailing-icon="i-lucide-arrow-right"
-          >Krahaso planet në detaje</UButton
+          >{{ t('legacy.comparePlans') }}</UButton
         >
       </div>
     </template>

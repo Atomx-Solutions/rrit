@@ -496,7 +496,7 @@ function generationAssetIds(evidence: PlannerEvidence) {
   return evidence.assets.map((asset) => asset.id)
 }
 async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
-  await plannerStep('advance.evidence', () => assertCurrentEvidence(db, plan))
+  const workspace = await plannerStep('advance.evidence', () => assertCurrentEvidence(db, plan))
   const access = await plannerAccess(plan.business_id, plan.month_key, plan.evidence.timezone, db)
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
@@ -515,6 +515,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     // ledger transaction, even though the dedicated worker has a narrowly
     // scoped cross-tenant RLS policy for queue discovery.
     tenant: { userId: plan.owner_id, organizationId: plan.business_id },
+    language: (workspace.preferences.locale === 'en-US' ? 'en' : 'sq') as 'en' | 'sq',
   }
   if (plan.stage === 'research') {
     const response = await monthlyProviderCall(db, {

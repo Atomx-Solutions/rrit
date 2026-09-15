@@ -1,5 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
-useSeoMeta({ title: 'Verifiko emailin · Rrit', robots: 'noindex' })
+const { t } = useI18n()
+useSeoMeta({ title: () => `${t('auth.title.verify')} · Rrit`, robots: 'noindex' })
 </script>
 <template><AuthSurface mode="verify" /></template>

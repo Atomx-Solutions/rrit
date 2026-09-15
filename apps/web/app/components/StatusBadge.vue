@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { statusLabels } from '~~/shared/utils/format'
+import type { statusLabels } from '~~/shared/utils/format'
 defineProps<{ status: keyof typeof statusLabels }>()
 const colors = {
   draft: 'neutral',
@@ -17,9 +17,18 @@ const icons = {
   published: 'i-lucide-circle-check',
   failed: 'i-lucide-circle-alert',
 }
+const { t } = useI18n()
+const labels = {
+  draft: 'status.draft',
+  review: 'status.review',
+  approved: 'status.approved',
+  scheduled: 'status.scheduled',
+  published: 'status.published',
+  failed: 'status.failed',
+} as const
 </script>
 <template>
-  <UBadge :color="colors[status]" :icon="icons[status]" variant="subtle" size="sm">{{
-    statusLabels[status]
-  }}</UBadge>
+  <UBadge :color="colors[status]" :icon="icons[status]" variant="subtle" size="sm">
+    {{ t(labels[status]) }}
+  </UBadge>
 </template>

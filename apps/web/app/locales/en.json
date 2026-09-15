@@ -1,0 +1,1589 @@
+{
+  "common.cancel": "Cancel",
+  "common.save": "Save",
+  "common.saved": "Changes saved",
+  "common.continue": "Continue",
+  "common.back": "Back",
+  "common.next": "Next",
+  "common.previous": "Previous",
+  "common.close": "Close",
+  "common.delete": "Delete",
+  "common.edit": "Edit",
+  "common.select": "Select",
+  "common.retry": "Try again",
+  "common.search": "Search",
+  "common.loading": "Loading…",
+  "common.none": "None",
+  "common.yes": "Yes",
+  "common.no": "No",
+  "common.view": "View",
+  "common.download": "Download",
+  "common.export": "Export",
+  "common.remove": "Remove",
+  "common.status": "Status",
+  "common.details": "Details",
+  "common.preview": "Preview",
+  "common.language": "Language",
+  "common.timezone": "Time zone",
+  "common.currency": "Currency",
+  "common.email": "Email",
+  "common.name": "Name",
+  "common.description": "Description",
+  "common.approval": "Approval",
+  "nav.overview": "Overview",
+  "nav.posts": "Posts",
+  "nav.monthlyPlanner": "AI planning",
+  "nav.calendar": "Calendar",
+  "nav.templates": "Templates",
+  "nav.gallery": "Gallery",
+  "nav.socialPosts": "Social posts",
+  "nav.brand": "My business",
+  "nav.billing": "Plan & billing",
+  "nav.settings": "Settings",
+  "nav.content": "Content",
+  "nav.channels": "Brand and channels",
+  "nav.administration": "Administration",
+  "nav.help": "Help",
+  "nav.navigation": "Navigation",
+  "nav.navigationDescription": "Your business posts and settings.",
+  "nav.skipToContent": "Skip to content",
+  "nav.search": "Search...",
+  "nav.searchWorkspace": "Search workspace",
+  "nav.searchPages": "Search pages or content...",
+  "nav.main": "Main navigation",
+  "nav.settingsHelp": "Settings and help",
+  "nav.close": "Close navigation",
+  "nav.open": "Open navigation",
+  "nav.toggle": "Collapse or expand menu",
+  "nav.account": "My account",
+  "nav.myProfile": "My profile",
+  "nav.profile": "Profile",
+  "nav.businessProfile": "My business profile",
+  "nav.stepHelp": "Step-by-step help",
+  "nav.signOut": "Sign out",
+  "nav.whereToGo": "Where do you want to go?",
+  "nav.yourPosts": "Your posts",
+  "nav.notifications": "Notifications",
+  "nav.notificationsDescription": "What needs your attention.",
+  "nav.approvalPosts": "Posts awaiting approval",
+  "nav.viewPosts": "View posts",
+  "nav.meta": "Facebook and Instagram",
+  "nav.metaDescription": "Check authorization, expiry and posts imported from Meta.",
+  "nav.viewConnections": "View connections",
+  "nav.notificationSettings": "Notification settings",
+  "nav.copilotTitle": "How can I help?",
+  "nav.copilotDescription": "Choose a step and continue with guidance.",
+  "nav.conflictTitle": "Changes from another tab",
+  "nav.conflictDescription": "Download your copy or load the latest changes to avoid losing work.",
+  "nav.exportCopy": "Export my copy",
+  "nav.loadLatest": "Load latest version",
+  "dashboard.aiBalance": "Balance for AI services",
+  "dashboard.credits": "credits",
+  "dashboard.changeAppearance": "Change appearance",
+  "dashboard.savedStatus": "Private business workspace",
+  "dashboard.savingStatus": "Saving changes…",
+  "settings.title": "Settings",
+  "settings.description": "Profile, preferences and security in one place.",
+  "settings.profile": "Profile",
+  "settings.preferences": "Preferences",
+  "settings.notifications": "Notifications",
+  "settings.security": "Security",
+  "settings.organization": "Organization",
+  "settings.recoveredTitle": "Your latest changes were recovered",
+  "settings.recoveredDescription": "Review and save them to update your profile.",
+  "settings.yourProfile": "Your profile",
+  "settings.businessAccount": "Business account",
+  "settings.fullName": "Full name",
+  "settings.email": "Email",
+  "settings.contactAddress": "This is your contact address. Your account login email stays unchanged.",
+  "settings.languageRegion": "Language and region",
+  "settings.language": "Language",
+  "settings.timezone": "Time zone",
+  "settings.currency": "Currency",
+  "settings.currencyDescription": "Plan prices are shown in euros.",
+  "settings.notificationsOnly": "Only the notifications you need",
+  "settings.contentApproval": "Content awaiting approval",
+  "settings.contentApprovalDescription": "When a post is ready for your review.",
+  "settings.completedPublications": "Completed publications",
+  "settings.completedPublicationsDescription": "A summary of confirmed posts.",
+  "settings.productIdeas": "Product ideas & tips",
+  "settings.productIdeasDescription": "Guidance for getting more from Rrit.",
+  "settings.notificationPreferences": "Notification preferences",
+  "settings.emailVerificationActive": "Email verification is active.",
+  "settings.emailRecoveryActive": "Email recovery is active.",
+  "settings.emailRecoveryPending": "Email recovery will activate after the email service is configured.",
+  "settings.emailPostNotificationsPending": "Email notifications for posts are still being prepared.",
+  "settings.workspaceManagement": "Workspace management",
+  "settings.businessIdentity": "Business identity",
+  "settings.workCopy": "A copy of your work",
+  "settings.workCopyDescription": "Download a file with your posts, profile and business data.",
+  "settings.exportData": "Export data",
+  "settings.saveChanges": "Save changes",
+  "settings.unsavedChanges": "You have unsaved changes",
+  "settings.preferencesSaved": "Preferences are saved to your account.",
+  "settings.identityLanguage": "Business identity",
+  "settings.planBilling": "Plan & billing",
+  "locale.albanianKosovo": "Albanian · Kosovo",
+  "locale.englishUnitedStates": "English · United States",
+  "locale.kosovoTime": "Kosovo · local time",
+  "locale.albaniaTime": "Albania · local time",
+  "locale.northMacedoniaTime": "North Macedonia · local time",
+  "locale.ukTime": "United Kingdom",
+  "onboarding.welcome": "Welcome to Rrit",
+  "onboarding.business": "Business",
+  "onboarding.networks": "Networks",
+  "onboarding.firstStep": "First step",
+  "onboarding.addFact": "Add fact",
+  "onboarding.finishLater": "Finish later",
+  "onboarding.businessName": "Business name",
+  "onboarding.businessNamePlaceholder": "What is your business called?",
+  "onboarding.city": "City",
+  "onboarding.industry": "Business type",
+  "onboarding.offer": "What do you offer customers?",
+  "onboarding.offerDescription": "Products, services and what makes you different.",
+  "onboarding.voice": "How do you want to speak in posts?",
+  "onboarding.goals": "Business goals",
+  "onboarding.goalsDescription": "Choose what you want to achieve with your posts.",
+  "onboarding.facts": "Important facts",
+  "onboarding.factsDescription": "Add only real information that posts must respect.",
+  "onboarding.factSource": "Information source",
+  "onboarding.factChecked": "I have checked this",
+  "onboarding.notificationPreferences": "Notification preferences",
+  "onboarding.networkProfileInstagram": "Instagram profile (optional)",
+  "onboarding.networkPageFacebook": "Facebook page (optional)",
+  "onboarding.createFirstPost": "Create your first post",
+  "onboarding.saveContinue": "Save and continue",
+  "onboarding.businessSetup": "Business setup",
+  "content.post": "Post",
+  "content.saveDraft": "Save draft",
+  "content.contentDetails": "Content details",
+  "content.postPhoto": "Post photo",
+  "content.managePhotos": "Manage photos and rights →",
+  "content.preApprovalCheck": "Pre-approval check",
+  "content.checkContent": "Check content",
+  "content.checkMetaResult": "Check result in Meta",
+  "content.checkConnection": "Check connection",
+  "content.businessFacts": "View business facts and sources →",
+  "content.submitApproval": "Submit for approval",
+  "content.approvePost": "Approve post",
+  "content.returnDraft": "Return to draft",
+  "content.publishNow": "Publish now",
+  "content.schedulePost": "Schedule post",
+  "content.reopenEditing": "Reopen for editing",
+  "content.reviewApproveAgain": "Review and approve again",
+  "content.returnForCorrection": "Return to draft for correction",
+  "content.removeFromCalendar": "Remove from calendar",
+  "content.howItLooks": "How it will look",
+  "content.confirmPublishNow": "Confirm publishing now",
+  "content.confirmSchedule": "Confirm schedule",
+  "content.validationResult": "Validation result",
+  "content.okPrefix": "OK: ",
+  "content.verifyDescription": "Verify the text, sources and photo rights.",
+  "validation.aiQualityReview": "The current version requires AI review of the text and design.",
+  "content.postApprovedToast": "Post approved",
+  "content.statusUpdatedToast": "Post status updated",
+  "content.firstVersion": "This is the first version.",
+  "content.saveContinue": "Save and continue",
+  "content.leaveWithoutSaving": "Leave without saving",
+  "content.stayHere": "Stay here",
+  "content.photoUnavailable": "Photo unavailable",
+  "monthly.title": "AI Monthly Studio",
+  "monthly.checkingService": "Checking your plan and AI service.",
+  "monthly.paused": "Preparation is paused",
+  "monthly.needStep": "One more step needed",
+  "monthly.requiredStep": "A step is required",
+  "monthly.completedDrafts": "Completed drafts",
+  "monthly.originalPhotos": "Original photos",
+  "monthly.automaticPublications": "Automatic publications",
+  "monthly.leavePage": "You can leave this page",
+  "monthly.noAutoRegeneration": "No automatic regeneration",
+  "monthly.firstDraftSaved": "First draft is saved",
+  "monthly.systemLookingFor": "What the system is looking for",
+  "monthly.researchSaved": "Research saved",
+  "monthly.monthReady": "The month is ready",
+  "monthly.monthPhotos": "This month's photos",
+  "monthly.readyToPrepare": "Ready to prepare this month",
+  "monthly.clearStartAgain": "Clear and start again",
+  "monthly.sourcesConsulted": "Sources consulted",
+  "monthly.usage": "Usage",
+  "strategy.audience": "Audience",
+  "strategy.differentIntents": "Different intents",
+  "strategy.editorialPlan": "Editorial plan",
+  "strategy.everyPostTask": "Every post has a job",
+  "strategy.objective": "Objective",
+  "strategy.visualDirection": "Visual direction",
+  "strategy.selectedPhoto": "Photo selected by you",
+  "strategy.photo": "Photo:",
+  "brain.title": "Business Brain",
+  "brain.description": "Facts, voice, audiences, offers and rules that AI must follow.",
+  "brain.loading": "Loading Business Brain…",
+  "brain.facts": "Facts",
+  "brain.factsDescription": "Proposed facts must be verified or rejected.",
+  "brain.addFact": "Add fact",
+  "brain.rule": "Rule {{index}}",
+  "brain.source": "Source",
+  "brain.rulePlaceholder": "E.g. Do not promise guaranteed results",
+  "brain.sourcePlaceholder": "E.g. Business policy",
+  "brain.businessOwnerSource": "Information provided by the business owner",
+  "brain.candidate": "Candidate",
+  "brain.explicit": "Explicit",
+  "brain.confidence": "Confidence: {{percent}}%",
+  "brain.saveFact": "Save fact",
+  "brain.noFacts": "No facts yet.",
+  "brain.voice": "Brand voice",
+  "brain.voiceDescription": "Every save creates a new version.",
+  "brain.voiceSource": "Voice source",
+  "brain.voiceSourcePlaceholder": "E.g. Completed by the business",
+  "brain.audiences": "Audiences",
+  "brain.audiencesDescription": "Define who the business is for.",
+  "brain.addAudience": "Add audience",
+  "brain.audienceName": "Audience name {{index}}",
+  "brain.audienceNamePlaceholder": "E.g. Local car owners",
+  "brain.audienceDescription": "Audience description {{index}}",
+  "brain.descriptionLabel": "Description",
+  "brain.noAudiences": "No structured audiences yet.",
+  "brain.offers": "Offers",
+  "brain.offersDescription": "Only active and valid offers can be used as current offers.",
+  "brain.addOffer": "Add offer",
+  "brain.saveDraft": "Save as draft",
+  "brain.activate": "Activate",
+  "brain.noOffers": "No offers yet.",
+  "brain.guardrails": "Guardrails",
+  "brain.guardrailsDescription": "Rules that content must not break.",
+  "brain.addRule": "Add rule",
+  "brain.noGuardrails": "No guardrails yet.",
+  "brain.save": "Save Business Brain",
+  "auth.forgotPassword": "Forgot your password?",
+  "auth.continueLogin": "Continue to login",
+  "auth.newHere": "New here? ",
+  "auth.startBusiness": "Start with your business",
+  "auth.haveAccount": "Already have an account? ",
+  "auth.backToLogin": "Back to login",
+  "auth.albanianBusiness": "In Albanian. For businesses in Kosovo.",
+  "public.login": "Log in",
+  "public.trialDurationDays": "{{count}} days",
+  "public.trialDurationHours": "{{count}} hours",
+  "public.tryFree": "Try {{duration}} free",
+  "public.createBusinessAccount": "Create your business account",
+  "public.accountLogin": "Log in to your account",
+  "public.createAccount": "Create your account",
+  "public.helpCenter": "Help center",
+  "public.howItWorks": "How it works",
+  "public.pricing": "Plans",
+  "public.faq": "Frequently asked questions",
+  "public.contact": "Contact us",
+  "public.privacy": "Privacy",
+  "public.skip": "Skip to content",
+  "public.moreTime": "More time",
+  "public.forYourBusiness": "for your business.",
+  "public.businessAndRrit": "You with the business. Rrit with the posts.",
+  "public.explore": "EXPLORE",
+  "public.letsStart": "LET'S START",
+  "public.nextPost": "to your next post.",
+  "public.kosovoAlbanian": "For businesses in Kosovo · In Albanian",
+  "landing.postsStandOut": "Posts that stand out.",
+  "landing.checkRegistration": "Check registration",
+  "landing.viewPackages": "View plans",
+  "landing.allMonth": "All month.",
+  "landing.underControl": "Under control.",
+  "landing.photoText": "Photo & text",
+  "landing.yourApproval": "Your approval",
+  "landing.inCalendar": "On the calendar",
+  "landing.clearBudget": "CLEAR BUDGET. POST BY POST.",
+  "landing.howManyPosts": "How many posts do you need?",
+  "landing.packageRhythm": "A plan for your rhythm. See the price per post right away.",
+  "landing.goodToKnow": "GOOD TO KNOW",
+  "landing.beforeStart": "Before you start.",
+  "landing.firstStepClarity": "A little clarity for the first step.",
+  "landing.otherQuestion": "Another question?",
+  "landing.yourNextPost": "YOUR NEXT POST",
+  "landing.letThemSee": "Now, let them see you.",
+  "landing.noCard": "No bank card.",
+  "landing.photoReal": "Real photos",
+  "landing.businessMaterials": "Your business materials, always close.",
+  "landing.moreOrder": "MORE ORDER",
+  "landing.yourBusiness": "It looks like your business.",
+  "landing.lastWord": "Because the final word is yours.",
+  "landing.postApproval": "Awaiting approval",
+  "landing.draft": "Draft",
+  "landing.helpTitle": "How can we help?",
+  "landing.openWorkspace": "Open your workspace",
+  "legal.dataUsed": "Data we use",
+  "legal.metaConnection": "Meta connection",
+  "legal.freeTrial": "Free trial",
+  "legal.photos": "Photos",
+  "legal.exportRequests": "Exports and requests",
+  "legal.accountContent": "Account and content",
+  "legal.publishing": "Publishing",
+  "social.connected": "Connected",
+  "social.selectPage": "Select page",
+  "social.disconnect": "Disconnect",
+  "social.disconnectConnection": "Disconnect connection",
+  "social.select": "Select",
+  "social.back": "Back",
+  "social.next": "Next",
+  "gallery.addPhoto": "Add photo",
+  "copilot.readAll": "Read all guidance",
+  "assistant.prepareWithAi": "Prepare text with AI",
+  "assistant.prepareVariants": "Prepare variants",
+  "assistant.useText": "Use this text",
+  "creative.improveWithAi": "Improve with AI",
+  "creative.originalRedesign": "Original AI redesign",
+  "creative.createVariant": "Create AI variant",
+  "provenance.whyPost": "Why this post?",
+  "provenance.whyCreated": "Why was it created this way?",
+  "provenance.marketSources": "Sources for market context",
+  "provenance.reviewWithAi": "Review current version with AI",
+  "provenance.initialReview": "Initial quality review",
+  "research.conclusions": "Conclusions",
+  "research.whatFound": "What the research found",
+  "research.transparency": "Transparency",
+  "research.sources": "Sources consulted",
+  "trial.viewPlan": "View plan",
+  "trial.days": "days",
+  "trial.hours": "hours",
+  "trial.free": "Free trial · {{remaining}} remaining",
+  "trial.used": "The trial has already been used",
+  "trial.inactive": "The trial is not active",
+  "trial.activeDescription": "All activated services are included. No automatic renewal.",
+  "trial.endedDescription": "Your posts and data remain readable and exportable.",
+  "trial.endsAt": "Ends",
+  "trial.loadError": "Trial status could not be loaded",
+  "errors.notFound": "This page could not be found.",
+  "errors.somethingWrong": "Something went wrong.",
+  "errors.backHome": "Back to start",
+  "legacy.accountSecurity": "Account security",
+  "legacy.changePassword": "Change password",
+  "legacy.loggedInDevices": "Devices where you're signed in",
+  "legacy.signOutOtherSessions": "Sign out other sessions",
+  "legacy.termsWord": "terms",
+  "legacy.privacyWord": "privacy policy",
+  "legacy.verify": "Verify",
+  "legacy.reject": "Reject",
+  "legacy.profileHistory": "Profile history",
+  "legacy.like": "Like",
+  "legacy.comment": "Comment",
+  "legacy.share": "Share",
+  "legacy.photoWords": "Photos and words.",
+  "legacy.samePlace": "In the same place.",
+  "legacy.workMoments": "Products, spaces and work moments. Find them easily and turn them into your next post.",
+  "legacy.moreOrder": "MORE ORDER",
+  "legacy.clearWeek": "A week you can see clearly.",
+  "legacy.weekDescription": "Know what is ready and what still needs attention, without keeping it all in your head.",
+  "legacy.mondayShort": "Mon",
+  "legacy.tuesdayShort": "Tue",
+  "legacy.wednesdayShort": "Wed",
+  "legacy.thursdayShort": "Thu",
+  "legacy.fridayShort": "Fri",
+  "legacy.saturdayShort": "Sat",
+  "legacy.sundayShort": "Sun",
+  "legacy.controlStays": "YOU STAY IN CONTROL",
+  "legacy.readReview": "Read the text, see the photo and approve only what represents you.",
+  "legacy.coffeeSocial": "COFFEE / SOCIAL",
+  "legacy.satisfy": "SATISFY",
+  "legacy.day": "THE DAY.",
+  "legacy.goodCoffee": "GOOD COFFEE. EVEN BETTER COMPANY.",
+  "legacy.burgerHouse": "BURGER / HOUSE",
+  "legacy.prishtina": "PRISHTINA",
+  "legacy.fewWords": "FEW WORDS.",
+  "legacy.muchTaste": "SO MUCH TASTE.",
+  "legacy.make": "MAKE",
+  "legacy.break": "THE BREAK.",
+  "legacy.tastyMoment": "YOUR TASTY MOMENT. ↗",
+  "legacy.spaceForYou": "SPACE / FOR YOU",
+  "legacy.stay": "STAY",
+  "legacy.aLittle": "a little.",
+  "legacy.somePlaces": "Some places",
+  "legacy.makeYouStop": "make you stop.",
+  "legacy.illustrativeDesigns": "Illustrative designs · real photography",
+  "legacy.pricingDescription": "Prices in euros. Every benefit, clearly written.",
+  "legacy.comparePlans": "Compare plans in detail",
+  "legacy.fromWhatYouDo": "01 / FROM WHAT YOU DO",
+  "legacy.yourPhoto": "A photo of yours.",
+  "legacy.fullCharacter": "Full of character.",
+  "legacy.businessIsYours": "The business is yours.",
+  "legacy.finalWord": "And the final word.",
+  "legacy.yourPhotoUpper": "YOUR PHOTO",
+  "legacy.withTaste": "WITH TASTE. WITH CHARACTER.",
+  "legacy.yesAlso": "Yes, even",
+  "legacy.bite": "one more bite.",
+  "legacy.roomForTaste": "THERE IS ALWAYS ROOM FOR TASTE. ↗",
+  "legacy.forBusinessesLikeYours": "02 / FOR BUSINESSES LIKE YOURS",
+  "legacy.youCreateExperience": "You create the experience.",
+  "legacy.giveItRoom": "Give it room in a post.",
+  "legacy.sportServices": "Sport, services or something entirely different.",
+  "legacy.roomForStory": "There is room for your story.",
+  "legacy.post": "Post",
+  "legacy.instagramPost": "Instagram · your post",
+  "legacy.onCourt": "On court. After work.",
+  "legacy.tennisAfterWork": "TENNIS / AFTER WORK",
+  "legacy.onCourtUpper": "ON COURT.",
+  "legacy.afterWorkUpper": "AFTER WORK.",
+  "legacy.morePlay": "More play.",
+  "legacy.lessRoutine": "Less routine.",
+  "legacy.yourCafe": "Your café",
+  "legacy.coffeeSocialPrishtina": "Coffee & company · Prishtina",
+  "legacy.whatWeOffer": "What we offer",
+  "legacy.goodCoffeePlace": "Good coffee and a place to meet.",
+  "legacy.howWeSpeak": "How we speak",
+  "legacy.warmSimple": "Warm, simple and smiling.",
+  "legacy.yourPost": "YOUR POST",
+  "legacy.yourWeek": "YOUR WEEK",
+  "legacy.mondayUpper": "MON",
+  "legacy.morningCoffee": "Morning coffee",
+  "legacy.photoPlusText": "Photo + text",
+  "legacy.wednesdayUpper": "WED",
+  "legacy.corner": "A corner of the café",
+  "legacy.fridayUpper": "FRI",
+  "legacy.weekendMeeting": "Weekend meeting",
+  "legacy.organizedWeek": "An organized week, with room for changes.",
+  "legacy.workflowExample": "Illustrative example of the workflow",
+  "legacy.oneCopy": "1 call · Copy",
+  "legacy.aiImage": "1 call · AI image 4:5",
+  "legacy.check": "1 call · Check",
+  "legacy.beforeFreePeriod": "Free period",
+  "legacy.accountLogin": "Account login",
+  "legacy.businessAccess": "Business access",
+  "legacy.actionConfirmation": "Action confirmation",
+  "legacy.usageGuidance": "Usage guidance",
+  "legacy.authHeroKicker": "FOR THE BUSINESS YOU ARE BUILDING",
+  "legacy.everyDay": "Every day,",
+  "legacy.opportunity": "an opportunity",
+  "legacy.toGrow": "to grow.",
+  "legacy.postsInOnePlace": "Business posts, in one place. More time for what you do best.",
+  "legacy.backToRrit": "← Back to Rrit",
+  "legacy.posts": "Posts that",
+  "legacy.standOut": "stand out.",
+  "legacy.allMonth": "All month.",
+  "legacy.underControl": "Under control.",
+  "legacy.before": "Before you",
+  "legacy.start": "start.",
+  "legacy.nowLet": "Now, let them",
+  "legacy.seeYou": "see you.",
+  "legacy.stepByStep": "STEP BY STEP",
+  "legacy.noAmbiguity": "NO AMBIGUITY",
+  "legacy.beforeChoosing": "Before you choose.",
+  "page.settingsTitle": "Settings · Rrit",
+  "page.loginTitle": "Log in · Rrit",
+  "page.signupTitle": "Sign up · Rrit",
+  "page.forgotPasswordTitle": "Recover access · Rrit",
+  "page.resetPasswordTitle": "New password · Rrit",
+  "page.verifyEmailTitle": "Verify email · Rrit",
+  "page.onboardingTitle": "Meet your business · Rrit",
+  "page.helpTitle": "Help and guidance · Rrit",
+  "page.pricingTitle": "Plans and pricing · Rrit",
+  "page.privacyTitle": "Privacy · Rrit",
+  "page.securityTitle": "Security · Rrit",
+  "page.termsTitle": "Terms · Rrit",
+  "page.defaultTitle": "Rrit — Your marketing, with direction",
+  "page.defaultDescription": "Plan, create and organize your business marketing in one place. Built for Albanian businesses.",
+  "legacy.passwordDescription": "Update your password and check the devices where you're signed in.",
+  "legacy.readTerms": "Before signing up, read",
+  "legacy.and": "and",
+  "legacy.newHereNoSpace": "New here?",
+  "legacy.haveAccountNoSpace": "Already have an account?",
+  "legacy.metaPreparing": "Meta connection is still being prepared by the platform. You can complete your profile and prepare posts now.",
+  "legacy.metaLogin": "Log in through Meta and select the business page. Instagram must be a professional profile linked to that page.",
+  "legacy.missingPostPermission": "Permission to create posts is missing.",
+  "legacy.approvalWithoutMeta": "You can approve it and add it to the calendar without connecting Meta. A connection is only required for publishing to social networks.",
+  "legacy.previewDisclaimer": "The final appearance may vary by channel.",
+  "legacy.copilotDescription": "Start with the step you need. You can return to this guidance at any time.",
+  "legacy.creativeDescription": "AI cleans up the photo, improves quality and creates the final composition while preserving the strategy, platform and business context.",
+  "legacy.aiRequestDescription": "Use an AI request from your plan. The post is not approved or published automatically.",
+  "legacy.captionAssistantDescription": "Review the text before approval. Choosing a variant saves it as a draft.",
+  "legacy.monthlyHeading": "Your calendar, planned ahead",
+  "legacy.pause": "Pause",
+  "legacy.startOver": "Start over",
+  "legacy.monthlyChecking": "Checking monthly preparation…",
+  "legacy.monthlySavedDescription": "Saved drafts and photos will not change.",
+  "legacy.completeBusiness": "Complete your business",
+  "legacy.safe": "Safe",
+  "legacy.continuePreparation": "Continue preparation",
+  "legacy.viewStrategyResearch": "View strategy and research",
+  "legacy.researchDescription": "Sources and conclusions appear once the response is saved—without showing made-up results while waiting.",
+  "legacy.openStrategyResearch": "Open strategy and research",
+  "legacy.nextContentStudio": "The next step is to review them in Content Studio.",
+  "legacy.reviewPosts": "Review posts",
+  "legacy.choosePhotoQuestion": "Would you like to choose a photo?",
+  "legacy.originalsDescription": "Originals remain in the gallery. AI creates cleaned-up, professional copies designed in 4:5 format.",
+  "legacy.letAiChoose": "Let AI decide",
+  "legacy.aiChoosesDescription": "AI inspects the gallery and chooses the strongest photo for each intent.",
+  "legacy.choosePhotos": "I want to choose photos",
+  "legacy.selectedPhotoDescription": "Each selected photo is used only once, in the post where it makes the most sense.",
+  "legacy.monthlyProcess": "We start with real research, build the strategy and then create the drafts one by one.",
+  "legacy.prepareMonth": "Prepare this month",
+  "legacy.researchComplete": "Research complete",
+  "legacy.strategyCopySchedule": "Strategy, copy and timing",
+  "legacy.strategyMonth": "This month's strategy",
+  "legacy.whyChannelTime": "Why this channel and timing?",
+  "legacy.uploadRetry": "Try again",
+  "legacy.fileTypeError": "Choose a JPG, PNG or WebP up to 5 MB.",
+  "legacy.costPerPost": "Cost per post",
+  "legacy.costExplanation": "Cost per post is calculated when you use all posts in the plan.",
+  "legacy.annualPriceExplanation": "The monthly price is the average annual payment. The yearly total appears on each plan.",
+  "legacy.accountData": "The account contains your name, email, sessions and business profile. Posts and photos are stored on the server. Unfinished forms may be stored in the tab session for recovery.",
+  "legacy.metaData": "With your authorization, Rrit reads pages you can access and posts from the selected account. Authorizations are encrypted on the server. Disconnecting from Social posts removes the stored authorization and posts imported by Rrit.",
+  "legacy.trialData": "To limit trial reuse, HMAC traces of the verified email and Meta identities are stored, along with a signed device cookie valid for one year.",
+  "legacy.photoData": "The server removes photo metadata during upload. During publishing, Meta receives a signed link valid for up to 15 minutes for the selected photo.",
+  "legacy.accountRules": "Sign up with your email and connect only a business you are authorized to manage. Upload materials you have the right to use. Check prices, dates and claims before approval.",
+  "legacy.publishingRules": "A post moves from draft to review and approval. Approval and saving a calendar time do not require a Meta connection. Publishing requires your action, a Meta connection and an active service period.",
+  "legacy.trialRules": "The trial duration and end date appear in your account. The trial is granted once and checked against verified identities and a browser identifier. No payment or automatic renewal is created.",
+  "legacy.loginRules": "Email is verified before using the business. You can change your password and close other sessions from Settings → Security.",
+  "legacy.accessRules": "The server checks ownership for every read and change. Meta authorizations are not sent to the browser. Publications and key changes are recorded in the database.",
+  "legacy.publicationStatus": "Published status requires confirmation from Meta. When the response is unclear, resending is blocked until the result is verified.",
+  "legacy.privacyContact": "Privacy contact:",
+  "legacy.welcomeBack": "Welcome back.",
+  "legacy.loginContinue": "Log in to your workspace and continue where you left off.",
+  "legacy.password": "Password",
+  "legacy.emailVerification": "Email verification",
+  "legacy.resetPassword": "Reset password",
+  "legacy.sendLink": "Send link",
+  "legacy.updatePassword": "Update password",
+  "coverage.signupQuestion": "How do I create my business account?",
+  "coverage.metaQuestion": "How do I connect Facebook and Instagram?",
+  "coverage.existingPostsQuestion": "How do I read existing posts?",
+  "coverage.firstPostQuestion": "How do I create my first post?",
+  "coverage.approveWithoutMetaQuestion": "Can I approve a post without connecting Meta?",
+  "coverage.publishScheduleQuestion": "How do publishing and scheduling work?",
+  "coverage.waitingVerificationQuestion": "What if publishing is awaiting verification?",
+  "coverage.storageQuestion": "Where are photos and drafts stored?",
+  "coverage.afterTrialQuestion": "What happens after the trial?",
+  "coverage.searchHelp": "Search help",
+  "coverage.searchTopic": "Search a topic…",
+  "coverage.textPlaceholder": "Your text will appear here.",
+  "coverage.selectPhoto": "Select a photo",
+  "coverage.addPhotoDescription": "Add a photo to see the full post.",
+  "coverage.connectionStateError": "Connection status could not be loaded.",
+  "coverage.connectionRenew": "Connection needs renewal",
+  "coverage.notConnected": "Not connected yet",
+  "coverage.noInstagram": "No linked professional profile found",
+  "coverage.changeMeta": "Change or renew connection",
+  "coverage.connectMeta": "Connect through Meta",
+  "coverage.selectBusiness": "Select your business",
+  "coverage.selectBusinessDescription": "Only pages where Meta confirms your access are shown.",
+  "coverage.noPage": "No page found",
+  "coverage.noPageDescription": "Check in Meta that you can access the business page and have allowed Rrit to access it.",
+  "coverage.noInstagramLinked": "No linked Instagram profile",
+  "coverage.disconnectQuestion": "Disconnect Meta connection?",
+  "coverage.disconnectDescription": "Stored authorization and imported posts are removed from Rrit. Pending automatic publications are cancelled; schedules remain on the calendar.",
+  "coverage.write": "Write",
+  "coverage.check": "Check",
+  "coverage.chooseTime": "Choose timing",
+  "coverage.postTitle": "Post name",
+  "coverage.postTitleDescription": "For your organization only. It is not shown on the social network.",
+  "coverage.channel": "Channel",
+  "coverage.postTopic": "Post topic",
+  "coverage.product": "Product",
+  "coverage.atmosphere": "Atmosphere",
+  "coverage.community": "Community",
+  "coverage.lifestyle": "Lifestyle",
+  "coverage.offer": "Offer",
+  "coverage.postText": "Post text",
+  "coverage.postTextPlaceholder": "What do you want to say to your audience?",
+  "coverage.simpleText": "Shown as plain text",
+  "coverage.checkedFacts": "I checked the facts, prices, dates and photo rights.",
+  "coverage.approvalVersion": "My approval applies to this post version.",
+  "coverage.publicationWaiting": "Publishing awaiting verification",
+  "coverage.publicationRetry": "Publishing will be retried",
+  "coverage.publicationAction": "Publishing requires action",
+  "coverage.publicationFailed": "Publishing did not complete",
+  "coverage.technicalPassed": "Technical checks passed",
+  "coverage.manualReview": "Manual review required",
+  "coverage.needsCorrection": "Needs correction",
+  "coverage.scheduledAutomatic": "Automatic publication scheduled",
+  "coverage.calendarOnly": "Saved to calendar only",
+  "coverage.dateTime": "Date and time",
+  "coverage.autoPublish": "Publish automatically at this time",
+  "coverage.autoPublishDescription": "If enabled, the post is sent to the selected network.",
+  "coverage.optionalMeta": "Optional. This service requires an active Meta connection.",
+  "coverage.onlyCalendar": "Calendar only",
+  "coverage.versionHistory": "Version history",
+  "coverage.previousVersions": "Previous versions are stored without overwriting.",
+  "coverage.version": "Version",
+  "coverage.unsavedLeave": "You have unsaved changes",
+  "coverage.unsavedLeaveDescription": "Save them before leaving or continue by removing the latest changes.",
+  "coverage.backWorkspace": "The link may have changed. Return to your workspace to continue.",
+  "coverage.retrySaved": "Try again. Copies saved on the device remain available.",
+  "public.prices": "Pricing",
+  "public.faqLink": "Frequently asked questions",
+  "public.privacyLink": "Privacy",
+  "public.skipToContent": "Skip to content",
+  "public.loginAccount": "Log in",
+  "public.moreTimeFooter": "More time",
+  "public.forYourBusinessFooter": "for your business.",
+  "public.getStarted": "LET’S GET STARTED",
+  "public.createAccountFooter": "Create your account",
+  "public.helpCenterFooter": "Help center",
+  "public.fromIdea": "From your idea,",
+  "public.nextPostFooter": "to your next post.",
+  "public.forKosovoBusinesses": "For businesses in Kosovo · In Albanian",
+  "public.errorNotFound": "This page was not found.",
+  "public.errorGeneric": "Something went wrong.",
+  "public.errorNotFoundDescription": "The link may have changed. Return to your workspace to continue.",
+  "public.errorGenericDescription": "Try again. Copies saved on the device remain available.",
+  "public.goHome": "Go back home",
+  "public.skipBusiness": "FOR THE BUSINESS YOU’RE BUILDING",
+  "public.everyDay": "Every day,",
+  "public.growOpportunity": "an opportunity to grow.",
+  "public.businessPosts": "Your business posts, in one place. More time for what you do best.",
+  "public.inAlbanian": "In Albanian. For businesses in Kosovo.",
+  "public.helpTitle": "How can we help?",
+  "public.searchHelp": "Search help",
+  "public.searchTopic": "Search a topic…",
+  "public.openWorkspace": "Open your workspace",
+  "public.tryAgain": "Try again",
+  "public.noPlans": "Plans will appear soon.",
+  "public.pricesUnavailable": "Pricing could not be loaded.",
+  "public.catalogNotPublished": "The pricing catalog has not been published yet.",
+  "public.comparePlans": "Compare plans in detail",
+  "public.anotherQuestion": "Have another question?",
+  "public.unsavedTitle": "You have unsaved changes",
+  "public.unsavedDescription": "Save them before leaving or continue without saving the latest changes.",
+  "public.stayHere": "Stay here",
+  "public.connectionPagesError": "Pages could not be loaded. Try again or reconnect the account.",
+  "public.authorizationFailed": "Authorization did not start. Try again.",
+  "public.disconnectFailed": "Disconnection did not complete.",
+  "public.authorizationNotConfirmed": "Authorization was not confirmed. Try again and allow access to the business page.",
+  "public.connectionCancelled": "Connection was cancelled. You can try again when you’re ready.",
+  "public.disconnect": "Disconnect",
+  "public.other": "Other",
+  "public.whyRrit": "Why Rrit",
+  "public.terms": "Terms",
+  "public.changeAppearance": "Change page appearance",
+  "public.contactUs": "Contact us",
+  "public.youWithBusiness": "You with your business. Rrit with your posts.",
+  "public.exploreRrit": "Explore Rrit",
+  "public.plans": "Plans",
+  "public.accountAndHelp": "Account and help"
+  ,"public.backToRrit": "Back to Rrit"
+  ,"common.discard": "Leave without saving"
+  ,"content.createPost": "Create post"
+  ,"content.editPost": "Edit post"
+  ,"content.editorDescription": "Choose a photo and write your message. Your work is saved while you write."
+  ,"content.editorSteps": "Post preparation steps"
+  ,"content.write": "Write"
+  ,"content.check": "Check"
+  ,"content.chooseSchedule": "Choose schedule"
+  ,"content.stepStatus": "Step {{step}} of 3: {{title}}"
+  ,"content.postName": "Post name"
+  ,"content.postNameDescription": "For your organization only. It is not shown on the social network."
+  ,"content.postNamePlaceholder": "e.g. Morning coffee"
+  ,"content.channel": "Channel"
+  ,"content.postTopic": "Post topic"
+  ,"content.postText": "Post text"
+  ,"content.postTextPlaceholder": "What do you want to tell your audience?"
+  ,"content.characterCount": "{{count}} / 2,200 characters · Shown as plain text"
+  ,"content.versionHistory": "History · v{{version}}"
+  ,"content.metaConfirmed": "Meta confirmed the publication"
+  ,"content.metaUncertain": "No single, reliable result was found in Meta. The post was not resent; check again shortly."
+  ,"content.metaCheckError": "The Meta check could not be completed."
+  ,"content.checkError": "The check could not be completed. Try again."
+  ,"content.metaNotConfirmed": "Meta connection was not confirmed. The post approval remains saved."
+  ,"content.publishQueued": "The post was added to the publication queue"
+  ,"content.publishError": "Publishing could not be started."
+  ,"content.requiredFields": "Complete a title of at least 3 characters, the text and a photo."
+  ,"content.changedPolicyReason": "The content changed. Manually check facts and rights before approval."
+  ,"content.draftPolicyReason": "Draft written by the user. Verify facts and rights before approval."
+  ,"content.confirmFacts": "Confirm that you checked the facts and photo."
+  ,"content.invalidSchedule": "Choose a future date and a valid, unambiguous time."
+  ,"content.automaticRequirements": "For automatic publishing, connect the account to Meta and check permissions."
+  ,"content.automaticScheduled": "Automatic publishing scheduled"
+  ,"content.addedToCalendar": "Added to calendar"
+  ,"content.saving": "Saving…"
+  ,"content.unsavedChanges": "Unsaved changes"
+  ,"content.savedAt": "Saved on server · {{time}}"
+  ,"content.savedOnServer": "Saved on server"
+  ,"content.serverSaving": "Saving on server"
+  ,"content.uncertainDescription": "Meta did not provide full confirmation. Check the post on the profile; resending is blocked to avoid duplicates."
+  ,"content.automaticPlanned": "Automatic publication scheduled"
+  ,"content.calendarOnlySaved": "Saved only in calendar"
+  ,"content.automaticDescription": "The post will be sent at the selected time if the service and connection are active."
+  ,"content.calendarOnlyDescription": "Your schedule was saved. This post is not sent automatically to Facebook or Instagram."
+  ,"content.approvalCalendarNote": "You can approve it and add it to the calendar without connecting Meta. A connection is only required for publishing to social networks."
+  ,"content.previewNote": "The final appearance may vary by channel."
+  ,"content.publishTitle": "Publish to {{channel}}?"
+  ,"content.publishDescription": "The post will be sent to the connected account of {{business}}."
+  ,"content.viewConnections": "View connections"
+  ,"content.addToCalendar": "Add to calendar"
+  ,"content.dateAndTime": "Date and time"
+  ,"content.publishAutomatically": "Publish automatically at this time"
+  ,"content.automaticEnabledDescription": "If enabled, the post is sent to the selected network."
+  ,"content.automaticDisabledDescription": "Optional. This service requires an active Meta connection."
+  ,"content.automaticPublication": "Automatic publication"
+  ,"content.calendarOnly": "Calendar only"
+  ,"content.automaticAlertDescription": "The post is published only if the service and Meta connection are active at that time."
+  ,"content.calendarOnlyAlertDescription": "The schedule is saved for your organization. No Meta connection or automatic publication is required."
+  ,"content.versionHistoryTitle": "Version history"
+  ,"content.versionHistoryDescription": "Previous versions are saved without being overwritten."
+  ,"content.unsavedTitle": "You have unsaved changes"
+  ,"content.unsavedDescription": "Save them before leaving or continue by removing the latest changes."
+  ,"creative.error": "The photo could not be regenerated. The current version remains unchanged."
+  ,"creative.title": "Improve design with AI"
+  ,"creative.description": "AI redesigns the current photo according to your instruction. No coded layout or template is used."
+  ,"creative.originalTitle": "Original AI redesign"
+  ,"creative.originalDescription": "AI cleans the photo, improves quality and creates the final composition while preserving the strategy, platform and business context."
+  ,"creative.instructionLabel": "What do you want to change?"
+  ,"creative.instructionPlaceholder": "e.g. clean the photo, keep the real venue and create an elegant original dinner composition without a standard template, header or footer."
+  ,"creative.note": "Use an AI request from your plan. The post is not approved or published automatically."
+  ,"settings.nameRequired": "Enter your name."
+  ,"settings.emailInvalid": "Enter a valid email address."
+  ,"settings.timezoneInvalid": "Choose a valid time zone."
+  ,"settings.saveError": "Changes could not be saved. Check the error or load the latest version."
+  ,"settings.formError": "Check the name and email under Profile, and the time zone under Preferences."
+  ,"settings.emailDescription": "This is the contact address. Your account login email remains unchanged."
+  ,"provenance.idea": "Idea"
+  ,"provenance.copy": "Copy"
+  ,"provenance.design": "Design"
+  ,"provenance.photo": "Photo"
+  ,"provenance.hashtags": "Hashtags"
+  ,"provenance.platform": "Platform"
+  ,"provenance.timing": "Timing"
+  ,"provenance.loadError": "Saved review could not be loaded."
+  ,"provenance.reviewError": "Review could not be completed."
+  ,"provenance.title": "Idea and sources"
+  ,"provenance.description": "Context saved when this draft was created."
+  ,"provenance.reasoningDescription": "Saved reasoning for the concept, copy, design and distribution."
+  ,"provenance.latestRedesign": "Latest AI redesign"
+  ,"provenance.needsCorrection": "Needs correction"
+  ,"provenance.reviewCompleted": "Current version review completed"
+  ,"provenance.savedReview": "Review saved for the current version."
+  ,"provenance.reviewCurrent": "Review current version with AI"
+  ,"provenance.reviewNote": "Uses AI quota from your plan. After review, check the content and approve it yourself."
+  ,"provenance.initialQuality": "Initial quality review"
+  ,"provenance.contentChanged": "The content changed after this check. Review the current version before approval."
+  ,"status.draft": "Draft"
+  ,"status.review": "Awaiting approval"
+  ,"status.approved": "Approved"
+  ,"status.scheduled": "Scheduled"
+  ,"status.published": "Published"
+  ,"status.failed": "Failed"
+  ,"content.yourPosts": "Your posts"
+  ,"content.yourPostsDescription": "Create a post, review it and choose when it should be published."
+  ,"content.searchPlaceholder": "Search for a post..."
+  ,"content.searchPosts": "Search posts"
+  ,"content.allChannels": "All channels"
+  ,"content.filterChannel": "Filter by channel"
+  ,"content.postCount": "{{visible}} of {{total}} posts"
+  ,"content.clearFilters": "Clear filters"
+  ,"content.noPosts": "No posts found"
+  ,"content.noPostsDescription": "Try another search or create your first post."
+  ,"content.network": "Network"
+  ,"content.status": "Status"
+  ,"content.schedule": "Schedule"
+  ,"content.noPostsSelection": "No posts match this selection."
+  ,"content.noSchedule": "Not scheduled"
+  ,"common.of": "of"
+  ,"common.perPage": "per page"
+  ,"common.rowsPerPage": "Rows per page"
+  ,"legacyUi.templates": "Templates"
+  ,"legacyUi.createPost": "Create post"
+  ,"legacyUi.searchPost": "Search for a post..."
+  ,"legacyUi.allChannels": "All channels"
+  ,"legacyUi.filterChannel": "Filter by channel"
+  ,"legacyUi.clearFilters": "Clear filters"
+  ,"legacyUi.approved": "Approved"
+  ,"legacyUi.scheduled": "Scheduled"
+  ,"legacyUi.published": "Published"
+  ,"legacyUi.failed": "Failed"
+  ,"legacyUi.noSchedule": "Not scheduled"
+  ,"legacyUi.calendarOnly": "Calendar only"
+  ,"legacyUi.automaticPublication": "Automatic publication"
+  ,"legacyUi.viewPlan": "View plan"
+  ,"templates.title": "Post templates"
+  ,"templates.description": "Choose a starting point. Then adapt the photo and text to your business."
+  ,"templates.startFromScratch": "Start from scratch"
+  ,"templates.searchPlaceholder": "Search by template or industry..."
+  ,"templates.searchLabel": "Search templates"
+  ,"templates.count": "{{visible}} of {{total}} templates"
+  ,"templates.loadError": "Templates could not be loaded"
+  ,"templates.use": "Use template"
+  ,"templates.useAria": "Use template: {{name}}"
+  ,"templates.useThis": "Use this template"
+  ,"templates.introduceProduct": "Introduce a product"
+  ,"templates.businessUpdate": "A business update"
+  ,"templates.productGoal": "Product"
+  ,"templates.businessGoal": "Community"
+  ,"templates.allIndustries": "All"
+  ,"templates.noResults": "No templates found"
+  ,"templates.noResultsDescription": "Try another word or view all templates."
+  ,"templates.clearSearch": "Clear search"
+  ,"overview.title": "Overview"
+  ,"overview.allPosts": "All posts"
+  ,"overview.awaitingApproval": "Awaiting approval"
+  ,"overview.drafts": "Drafts"
+  ,"overview.scheduled": "Scheduled"
+  ,"overview.postsForReview": "Posts for review"
+  ,"overview.reviewWaiting": "{{count}} posts are waiting for your approval."
+  ,"overview.noReviewPosts": "You have no posts waiting."
+  ,"overview.closePosts": "Close posts"
+  ,"overview.postCount": "{{visible}} of {{total}} posts"
+  ,"overview.all": "All"
+  ,"overview.postsSummary": "Posts in overview"
+  ,"overview.noReviewPostsTitle": "No posts waiting"
+  ,"overview.noReviewPostsDescription": "When you send a post for approval, you will find it here."
+  ,"overview.viewAllPosts": "View all posts"
+  ,"overview.nextCalendarPost": "Next post on the calendar"
+  ,"overview.noUpcomingPost": "After approving a post, choose the day and time."
+  ,"overview.connected": "Connected"
+  ,"overview.connectionRequired": "Connection required"
+  ,"overview.connectedPage": "Connected page: {{page}}. Refresh posts to see your business history."
+  ,"overview.connectDescription": "Connect your business page through Meta and read posts you have already shared."
+  ,"monthly.pageTitle": "AI planning"
+  ,"monthly.pageDescription": "From market research to drafts ready for your approval."
+  ,"monthly.viewCalendar": "View calendar"
+  ,"monthly.realResearch": "Real research"
+  ,"monthly.realResearchDescription": "The market, audience, platforms and sources are stored with the plan."
+  ,"monthly.strategyDesign": "Strategy and design"
+  ,"monthly.strategyDesignDescription": "Every idea, text, photo, hashtag and time has its own reasoning."
+  ,"monthly.youDecide": "You decide at the end"
+  ,"monthly.youDecideDescription": "Nothing is published without your review and approval in Content Studio."
+  ,"monthly.heading": "Your calendar, planned ahead"
+  ,"monthly.description": "AI researches, plans and prepares up to {{limit}} posts. Nothing is published without your approval."
+  ,"dashboard.signOutFailed": "Sign out failed. Try again."
+  ,"dashboard.content": "Content"
+  ,"dashboard.helpStepByStep": "Step-by-step help"
+  ,"dashboard.whereToGo": "Where do you want to go?"
+  ,"dashboard.navigation": "Navigation"
+  ,"dashboard.navigationDescription": "Your business posts and settings."
+  ,"dashboard.searchPages": "Search pages or content..."
+  ,"dashboard.notificationsDescription": "What needs your attention."
+  ,"dashboard.copilotTitle": "How can I help?"
+  ,"dashboard.copilotDescription": "Choose a step and continue with guidance."
+  ,"dashboard.conflictTitle": "Changes from another tab"
+  ,"dashboard.conflictDescription": "Download your copy or load the latest changes to avoid losing work."
+  ,"dashboard.searchWorkspace": "Search workspace"
+  ,"dashboard.coffeeAlt": "Warm coffee on a table"
+  ,"calendar.description": "View scheduled posts and their timing."
+  ,"calendar.previousWeek": "Previous week"
+  ,"calendar.previousMonth": "Previous month"
+  ,"calendar.nextWeek": "Next week"
+  ,"calendar.nextMonth": "Next month"
+  ,"calendar.today": "Today"
+  ,"calendar.month": "Month"
+  ,"calendar.week": "Week"
+  ,"calendar.list": "List"
+  ,"calendar.view": "Calendar view"
+  ,"calendar.metaDescription": "Plan without connecting Meta. Only posts with automatic publishing selected are sent to social networks."
+  ,"calendar.postsIn": "posts in this"
+  ,"calendar.weekLower": "week"
+  ,"calendar.monthLower": "month"
+  ,"calendar.localTime": "Business local time"
+  ,"calendar.monday": "Monday"
+  ,"calendar.tuesday": "Tuesday"
+  ,"calendar.wednesday": "Wednesday"
+  ,"calendar.thursday": "Thursday"
+  ,"calendar.friday": "Friday"
+  ,"calendar.saturday": "Saturday"
+  ,"calendar.sunday": "Sunday"
+  ,"calendar.openPost": "Open post"
+  ,"calendar.proposalAwaitingApproval": "Proposal · awaiting approval"
+  ,"calendar.automaticPublication": "Automatic publishing"
+  ,"calendar.calendarOnly": "Calendar only"
+  ,"calendar.emptyTitle": "No posts in this period"
+  ,"calendar.emptyDescription": "After approving a post, choose the day and time to add it here."
+  ,"common.all": "All"
+  ,"legacy.socialPostsDescription": "Your business posts, read from Facebook and Instagram."
+  ,"social.importFrom": "Import from"
+  ,"social.refreshPosts": "Refresh posts"
+  ,"social.loadOlder": "Load older posts"
+  ,"social.loadError": "Posts could not be loaded."
+  ,"social.searchImported": "Search imported posts"
+  ,"social.searchText": "Search text…"
+  ,"social.filterNetwork": "Filter network"
+  ,"social.postIn": "post in"
+  ,"social.emptyTitle": "No imported posts yet"
+  ,"social.emptyDescription": "Connect your business and select Refresh posts. If you set filters, try clearing them."
+  ,"social.postFromNetwork": "Post from network"
+  ,"social.postFromNetworkDescription": "Content read from your connected account."
+  ,"social.openIn": "Open in"
+  ,"billing.description": "Choose the space that fits your business. All prices are in euros."
+  ,"billing.proposedPlans": "Suggested plans"
+  ,"billing.monthly": "Monthly"
+  ,"billing.annual": "Annual"
+  ,"billing.annualBilling": "Annual billing"
+  ,"billing.aiCredits": "AI credits"
+  ,"billing.aiCreditsDescription": "For research, text, design and review."
+  ,"billing.currentUsage": "Current usage"
+  ,"billing.currentUsageDescription": "Limits come from the active service on the server."
+  ,"billing.yourInvoices": "Your invoices"
+  ,"billing.noInvoices": "No invoices"
+  ,"billing.noInvoicesDescription": "Invoices will appear here after the first confirmed payment."
+  ,"security.currentPassword": "Current password"
+  ,"security.newPassword": "New password"
+  ,"security.confirmPassword": "Repeat new password"
+  ,"security.signedInDevices": "Devices where you're signed in"
+  ,"security.sessionsLoadError": "Sessions could not be loaded"
+  ,"security.unknownDevice": "Unknown device"
+  ,"security.signedInAt": "Signed in"
+  ,"workspace.sessionExpired": "Your session expired. Sign in again to save your work."
+  ,"workspace.exportCopy": "Export copy"
+  ,"copilot.setupBusiness": "Set up your business"
+  ,"copilot.setupBusinessDescription": "Name, products, hours and facts your customers should know."
+  ,"copilot.connectNetworks": "Connect networks — optional"
+  ,"copilot.connectNetworksDescription": "Choose your page through Meta to read its history, or continue without connecting."
+  ,"copilot.createPost": "Prepare a post"
+  ,"copilot.createPostDescription": "Upload a photo, write the text and view the preview."
+  ,"copilot.reviewApprove": "Review and approve"
+  ,"copilot.reviewApproveDescription": "Review the facts and photo. You decide what gets published."
+  ,"copilot.watchSchedule": "Watch the schedule"
+  ,"copilot.watchScheduleDescription": "View scheduled posts and their status."
+  ,"auth.title.login": "Welcome back."
+  ,"auth.title.signup": "Register your business."
+  ,"auth.title.forgot": "Recover your access."
+  ,"auth.title.reset": "A new password."
+  ,"auth.title.verify": "Check your email."
+  ,"auth.title.callback": "Continue with your business."
+  ,"auth.description.login": "Enter your workspace and continue where you left off."
+  ,"auth.description.signup": "Create your account. Then we’ll guide you through your business and first post."
+  ,"auth.description.forgot": "We’ll send you a link to set a new password."
+  ,"auth.description.reset": "Choose a password with at least 12 characters."
+  ,"auth.description.verify": "Open the link in your email to confirm your account. Check Spam too."
+  ,"auth.description.callback": "Log in to finish setting up your account."
+  ,"auth.namePlaceholder": "Your name"
+  ,"auth.passwordHint": "At least 12 characters. You can use a long sentence."
+  ,"auth.hidePassword": "Hide password"
+  ,"auth.showPassword": "Show password"
+  ,"auth.confirmPassword": "Confirm password"
+  ,"auth.beforeSignup": "Before signing up, read"
+  ,"auth.terms": "terms"
+  ,"auth.and": "and"
+  ,"auth.privacy": "privacy policy"
+  ,"auth.loginButton": "Log in"
+  ,"auth.signupButton": "Create your business account"
+  ,"auth.forgotButton": "Request recovery link"
+  ,"auth.resendButton": "Send the link again"
+  ,"auth.savePasswordButton": "Save password"
+  ,"auth.trialDescription": "Free trial for {{days}} days after creating your business. No bank card. One trial per user and connected identity."
+  ,"auth.validationName": "Enter your name."
+  ,"auth.validationEmail": "Enter a valid email address."
+  ,"auth.validationPassword": "Use at least 12 characters."
+  ,"auth.validationPasswordMatch": "Passwords do not match."
+  ,"billing.usagePosts": "Posts this month"
+  ,"billing.usageAi": "AI requests today"
+  ,"billing.usageStorage": "Photo storage"
+  ,"billing.usageSocial": "Social accounts"
+  ,"billing.usageMembers": "Members"
+  ,"billing.usagePostsDescription": "Counts only drafts and posts actually created."
+  ,"billing.usageAiDescription": "Research, text, image and quality checks are counted separately."
+  ,"billing.usageMembersDescription": "Number of people who can access this business."
+  ,"billing.limitPosts": "Post limit reached; AI will not create more posts."
+  ,"billing.limitAi": "Daily AI request limit reached."
+  ,"billing.limitMembers": "All team seats are in use."
+  ,"billing.limitSocial": "All social accounts in the plan are connected."
+  ,"billing.limitStorage": "Photo storage is full."
+  ,"billing.limitReached": "The limit has been reached."
+  ,"billing.limitWarning": "You are approaching the plan limit."
+  ,"gallery.description": "Photos of your products, space and business moments."
+  ,"gallery.uploadPhotos": "Upload photos"
+  ,"gallery.searchPlaceholder": "Search by name or tag..."
+  ,"gallery.searchLabel": "Search gallery"
+  ,"gallery.photos": "photos"
+  ,"gallery.clearSelection": "Clear selection"
+  ,"gallery.removeSelected": "Remove"
+  ,"gallery.rightsConfirmed": "Rights confirmed"
+  ,"gallery.confirmationRequired": "Confirmation required"
+  ,"gallery.noResults": "No photos found"
+  ,"gallery.emptyTitle": "Space for your story"
+  ,"gallery.noResultsDescription": "Try another name or view the whole gallery."
+  ,"gallery.emptyDescription": "Add your photos to use them in posts."
+  ,"gallery.clearSearch": "Clear search"
+  ,"gallery.rightsWithdrawnInFlight": "Rights withdrawn; a publication in progress requires verification"
+  ,"gallery.rightsWithdrawn": "Rights withdrawn and future use blocked"
+  ,"gallery.withdrawRightsError": "Rights could not be withdrawn."
+  ,"gallery.confirmRightsBeforeUpload": "Confirm rights before uploading."
+  ,"gallery.maxPhotos": "Upload up to 8 photos at once."
+  ,"gallery.invalidFormat": "JPG, PNG and WebP up to 5 MB are accepted. SVG is not accepted."
+  ,"gallery.photosSaved": "{{count}} photos saved"
+  ,"gallery.saveError": "Photos could not be saved. Check the save notification and try again."
+  ,"gallery.photosRemoved": "Photos removed"
+  ,"gallery.selectPhoto": "Select {{name}}"
+  ,"gallery.photoDetails": "Details for {{name}}"
+  ,"gallery.openPhoto": "Open photo: {{name}}"
+  ,"gallery.addToGalleryTitle": "Add photos to gallery"
+  ,"gallery.privateDescription": "Photos are stored privately in the business account."
+  ,"gallery.rightsLabel": "I have the right to use these photos and consent from identifiable people."
+  ,"gallery.choosePhotos": "Choose photos or drag them here"
+  ,"gallery.formats": "JPG, PNG or WebP up to 5 MB each. Up to 8 photos."
+  ,"gallery.uploadProgress": "Upload progress"
+  ,"gallery.retryUpload": "Retry upload"
+  ,"gallery.resizeNote": "We save an optimized copy for posts, up to 1,200 pixels. Keep your originals too."
+  ,"billing.serviceActive": "Active service"
+  ,"billing.trialActive": "Free trial active"
+  ,"billing.noActivePeriod": "No active period"
+  ,"billing.serviceDescription": "Service status is checked by the server. Card payments are not active yet; no renewal or automatic charge is made."
+  ,"billing.usageLoadError": "Usage could not be loaded"
+  ,"billing.creditsUnit": "credits"
+  ,"billing.remainingCredits": "Remaining AI credits"
+  ,"billing.planSummaryDescription": "View the plan summary."
+  ,"billing.paymentsInactive": "Payments are not active yet"
+  ,"billing.paymentsInactiveDescription": "No payment will be charged. Final terms, taxes and limits will be confirmed before subscriptions are activated."
+  ,"billing.closeSummary": "Close summary"
+  ,"billing.catalogError": "Plans could not be loaded"
+  ,"billing.month": "month"
+  ,"billing.perYear": "per year"
+  ,"billing.monthlyBilling": "Monthly billing"
+  ,"billing.illustrativePrice": "Illustrative price"
+  ,"billing.planTitle": "Plan"
+  ,"billing.planStart": "Start"
+  ,"billing.planStartDescription": "Be present without making it complicated."
+  ,"billing.planWeekly": "Weekly"
+  ,"billing.planWeeklyDescription": "For a business with something to share every week."
+  ,"billing.planMore": "More"
+  ,"billing.planMoreDescription": "More space for your ideas and posts."
+  ,"billing.featureOneBusiness": "1 business"
+  ,"billing.featureMeta": "Facebook & Instagram"
+  ,"billing.feature12Drafts": "12 post drafts per month"
+  ,"billing.feature30Drafts": "30 post drafts per month"
+  ,"billing.feature60Drafts": "60 post drafts per month"
+  ,"billing.featurePhotos": "Your photos"
+  ,"billing.featureCalendar": "Post calendar"
+  ,"billing.featureAiText": "AI research and preparation"
+  ,"billing.featureApprovalPlanning": "Design, approval and planning"
+  ,"billing.featurePriorityHelp": "Priority help"
+  ,"brand.title": "My business"
+  ,"brand.description": "The better we know your business, the more naturally your posts can speak for it."
+  ,"brand.profile": "Business profile"
+  ,"brand.name": "Business name"
+  ,"brand.city": "City"
+  ,"brand.industry": "Business type"
+  ,"brand.offer": "What do you offer customers?"
+  ,"brand.offerDescription": "Products, services and details that set you apart."
+  ,"brand.voice": "How do you want to speak in posts?"
+  ,"brand.audience": "Who are your products or services for?"
+  ,"brand.color": "Brand color"
+  ,"brand.status": "Status"
+  ,"brand.active": "Active"
+  ,"brand.archived": "Archived"
+  ,"brand.socialLinks": "Social links"
+  ,"brand.socialLinksDescription": "Optional; you can add them later."
+  ,"brand.goals": "Business goals"
+  ,"brand.goalsDescription": "Use these to guide content and suggestions."
+  ,"brand.addGoal": "Add goal"
+  ,"brand.facts": "Details your posts must get right"
+  ,"brand.researchSources": "Research sources"
+  ,"brand.guardrails": "AI guidance and guardrails"
+  ,"brand.saveIdentity": "Save identity"
+  ,"brand.profileInfo": "This is the information you provide. Information from social profiles will appear for review after the accounts are connected."
+  ,"brand.socialPosts": "Social posts"
+  ,"brand.photosTitle": "Photos tell your business story too."
+  ,"brand.photosDescription": "Add your products, space and moments."
+  ,"brand.openGallery": "Open gallery"
+  ,"brand.recoveredTitle": "Your latest changes were recovered"
+  ,"brand.recoveredDescription": "Review and save them to update your business profile."
+  ,"brand.factsDescription": "Hours, address, prices or services. Also note where the information comes from. If a confirmed fact changes, save it first and then confirm it again."
+  ,"brand.detail": "Detail"
+  ,"brand.source": "Source"
+  ,"brand.type": "Type"
+  ,"brand.fact": "Fact"
+  ,"brand.offerType": "Offer"
+  ,"brand.validFrom": "Valid from"
+  ,"brand.validUntil": "Valid until"
+  ,"brand.confirmedByBusiness": "Confirmed by business"
+  ,"brand.awaitingConfirmation": "Awaiting confirmation"
+  ,"brand.checkedInformation": "I have checked this information"
+  ,"brand.addDetail": "Add detail"
+  ,"brand.researchDescription": "Add the official website, menu, catalogue or other sources you want monthly research to check first. These are leads, not confirmed facts; every claim still needs your review."
+  ,"brand.addSource": "Add source"
+  ,"brand.guardrailsDescription": "For example, do not use comparisons with competitors or promises about results."
+  ,"brand.guidance": "Guidance"
+  ,"brand.addGuidance": "Add guidance"
+  ,"brand.unsaved": "Unsaved changes in profile"
+  ,"brand.savedInAccount": "Saved in the business account."
+  ,"policy.privacyTitle": "Privacy and data"
+  ,"policy.termsTitle": "Terms of service"
+  ,"policy.securityTitle": "Account security"
+  ,"policy.accountTitle": "Account and content"
+  ,"policy.accountDescription": "Sign up with your email and connect only a business you are authorized to manage. Upload materials you have the right to use. Check prices, dates and claims before approval."
+  ,"policy.publishingTitle": "Publishing"
+  ,"policy.publishingDescription": "Posts move from draft to review and approval. Approval and saving a schedule to the calendar do not require a Meta connection. Publishing requires your action, a Meta connection and an active service period. Meta rules and availability may affect the publishing result."
+  ,"policy.freePeriodTitle": "Free period"
+  ,"policy.freePeriodDescription": "The trial duration and end date appear in your account. The trial is granted once and checked against verified identities and a browser identifier. No payment or automatic renewal is created."
+  ,"policy.operator": "Operator"
+  ,"policy.privacyContact": "Privacy contact"
+  ,"policy.operatorPendingTitle": "Operator information is being prepared"
+  ,"policy.operatorPendingDescription": "This page describes the technical implementation. The operator identity, contact, final retention periods and commercial terms must be completed before public launch."
+  ,"policy.usageGuidance": "Usage guidance"
+  ,"policy.dataTitle": "Data we use"
+  ,"policy.dataDescription": "The account contains your name, email, sessions and business profile. Posts and photos are stored on the server. Unfinished forms may be stored in the tab session for recovery."
+  ,"policy.metaTitle": "Meta connection"
+  ,"policy.metaDescription": "With your authorization, Rrit reads the pages you can access and posts from the selected account. Authorizations are stored encrypted on the server. Disconnecting from Social posts removes the stored authorization and posts imported by Rrit. You can also remove access from Meta integration settings."
+  ,"policy.trialTitle": "Free trial"
+  ,"policy.trialDescription": "To limit trial reuse, HMAC traces of the verified email and Meta identities are stored, along with a signed device cookie valid for one year. This cookie identifies the browser, not a physical device. Trial usage traces remain after networks are disconnected."
+  ,"policy.photosTitle": "Photos"
+  ,"policy.photosDescription": "The server removes photo metadata during upload. During publishing, Meta receives a signed link valid for up to 15 minutes for the selected photo."
+  ,"policy.exportTitle": "Exports and requests"
+  ,"policy.exportDescription": "Export your data from Settings → Organization. For other requests, use the privacy contact below."
+  ,"onboarding.timezone": "Time zone"
+  ,"onboarding.language": "Language"
+  ,"onboarding.timezoneKosovo": "Kosovo - local time"
+  ,"onboarding.timezoneAlbania": "Albania - local time"
+  ,"onboarding.timezoneNorthMacedonia": "North Macedonia - local time"
+  ,"onboarding.timezoneUnitedKingdom": "United Kingdom"
+  ,"onboarding.requiredBusinessFields": "Complete the business name, city and a short description."
+  ,"onboarding.invalidProfileUrl": "Use a complete profile link or leave it blank for now."
+  ,"onboarding.saveError": "The setup could not be saved. Try again."
+  ,"onboarding.businessIntro": "Tell us about your business."
+  ,"onboarding.networksIntro": "The profiles your business uses."
+  ,"onboarding.firstPostIntro": "Ready for your first post."
+  ,"onboarding.businessDescription": "We only need a few details. You can change them later."
+  ,"onboarding.networksDescription": "Save your profile links. You can continue without them."
+  ,"onboarding.firstPostDescription": "Your business has its own space. Now we will create a post step by step."
+  ,"onboarding.stepStatus": "Step {{step}} of 3"
+  ,"onboarding.goalAwareness": "Increase business awareness"
+  ,"onboarding.goalNewCustomers": "Find new customers"
+  ,"onboarding.goalPromote": "Promote products or services"
+  ,"onboarding.goalCommunity": "Build community relationships"
+  ,"onboarding.factPlaceholder": "Fact {{index}}"
+  ,"onboarding.notificationsDescription": "These are optional and can be changed later."
+  ,"onboarding.emailApprovals": "Notify me about posts awaiting approval"
+  ,"onboarding.emailPublished": "Notify me about completed publications"
+  ,"onboarding.emailTips": "Send me ideas and tips"
+  ,"onboarding.networksNote": "The links above complete your profile. Access to posts requires authorization through the Connect through Meta button."
+  ,"onboarding.firstPostStepOne": "Choose Facebook or Instagram and add a photo."
+  ,"onboarding.firstPostStepTwo": "Write the message and preview the post."
+  ,"onboarding.firstPostStepThree": "Review it, approve it and choose a day in the calendar."
+  ,"onboarding.firstPostNote": "Every post requires your review and approval. No post is published by this initial setup."
+  ,"onboarding.back": "Back"
+  ,"onboarding.continue": "Continue"
+  ,"onboarding.cityPlaceholder": "e.g. Pristina"
+  ,"onboarding.industryPlaceholder": "e.g. Flower shop"
+  ,"onboarding.voicePlaceholder": "e.g. Simple, warm and friendly."
+  ,"onboarding.removeFact": "Remove fact {{index}}"
+  ,"common.tryAgain": "Try again"
+  ,"social.pagesLoadError": "Pages could not be loaded. Try again or reconnect your account."
+  ,"social.connectError": "Authorization could not be started. Try again."
+  ,"social.pageSelectError": "The page could not be connected."
+  ,"social.disconnectError": "The connection could not be removed."
+  ,"social.authorizationFailed": "Authorization was not confirmed. Try again and allow access to the business page."
+  ,"social.connectionCancelled": "The connection was cancelled. You can try again when ready."
+  ,"social.statusLoadError": "Connection status could not be loaded."
+  ,"social.noProfessionalProfile": "No connected professional profile found"
+  ,"social.connectionExpired": "Connection needs renewal"
+  ,"social.notConnected": "Not connected yet"
+  ,"social.preparing": "Meta connection is still being prepared by the platform. You can complete your profile and prepare posts now."
+  ,"social.connectInstruction": "Sign in through Meta and choose the business page. Instagram must be a professional profile connected to that page."
+  ,"social.changeConnection": "Change or renew connection"
+  ,"social.connectMeta": "Connect through Meta"
+  ,"social.choosePage": "Choose page"
+  ,"social.chooseBusiness": "Choose your business"
+  ,"social.chooseBusinessDescription": "Only pages where Meta confirms your access are shown."
+  ,"social.noPages": "No pages found"
+  ,"social.noPagesDescription": "Check in Meta that you can access the business page and have allowed Rrit to use it."
+  ,"social.noInstagram": "No connected Instagram profile"
+  ,"social.missingCreatePermission": "Permission to create posts is missing."
+  ,"social.choose": "Choose"
+  ,"social.disconnectTitle": "Disconnect from Meta?"
+  ,"social.disconnectDescription": "The saved authorization and imported posts will be removed from Rrit. Pending automatic publications are cancelled; scheduled items remain in the calendar. Publications awaiting verification remain marked as such."
+  ,"social.disconnectConfirm": "Disconnect"
+  ,"help.eyebrow": "STEP BY STEP"
+  ,"help.title": "How can we help?"
+  ,"help.searchLabel": "Search help"
+  ,"help.searchPlaceholder": "Search a topic…"
+  ,"help.openWorkspace": "Open your workspace"
+  ,"help.verifyEmail": "Verify your email from the link we send, then"
+  ,"help.then": "Then"
+  ,"caption.generationError": "The preparation could not be completed."
+  ,"caption.prepareWithAi": "Prepare text with AI"
+  ,"caption.title": "A little help with your text"
+  ,"caption.description": "Your profile, confirmed facts, text and some imported posts are sent to OpenAI for this preparation."
+  ,"caption.unavailableTitle": "Assistant is being prepared"
+  ,"caption.unavailableDescription": "The AI service is not active yet. You can continue writing the text yourself."
+  ,"caption.ideaLabel": "What do you want to say?"
+  ,"caption.ideaPlaceholder": "Describe the idea in your own words…"
+  ,"caption.prepareVariants": "Prepare variants"
+  ,"caption.useText": "Use this text"
+  ,"caption.reviewNote": "Review the text before approval. Choosing a variant saves it as a draft."
+  ,"preview.preview": "Preview"
+  ,"preview.captionPlaceholder": "Your text will appear here."
+  ,"preview.selectedPhoto": "Selected photo for the post"
+  ,"preview.choosePhoto": "Choose a photo"
+  ,"preview.addPhotoDescription": "Add a photo to see the complete post."
+  ,"preview.like": "Like"
+  ,"preview.comment": "Comment"
+  ,"preview.share": "Share"
+  ,"photo.invalidType": "Choose JPG, PNG or WebP up to 5 MB."
+  ,"photo.tooSmall": "The photo must be at least 100 × 100 pixels."
+  ,"photo.saveError": "The photo could not be saved. Try again."
+  ,"photo.added": "Photo added"
+  ,"photo.uploadError": "Upload failed."
+  ,"photo.addPhoto": "Add photo"
+  ,"photo.title": "Post photo"
+  ,"photo.description": "Add a photo without leaving the post."
+  ,"photo.rightsLabel": "I have the right to use this photo and consent from identifiable people."
+  ,"photo.choosePhoto": "Choose photo"
+  ,"photo.formats": "JPG, PNG or WebP up to 5 MB."
+  ,"photo.saving": "Saving photo"
+  ,"brain.loadError": "Business Brain could not be loaded."
+  ,"brain.actionError": "The action could not be completed."
+  ,"brain.factSaved": "Fact saved."
+  ,"brain.factRequired": "Complete the fact text and source."
+  ,"brain.factAdded": "Fact added."
+  ,"brain.factVerified": "Fact verified."
+  ,"brain.factRejected": "Fact rejected."
+  ,"brain.voiceRequired": "Write the brand voice before saving."
+  ,"brain.saved": "Business Brain saved."
+  ,"brain.offerRequired": "Complete the offer name and source."
+  ,"brain.offerSaved": "Offer saved as draft."
+  ,"brain.offerActivated": "Offer activated."
+  ,"brain.factType": "Fact type"
+  ,"brain.factSource": "Fact source"
+  ,"brain.factSourcePlaceholder": "e.g. Business document"
+  ,"brain.factText": "Fact text"
+  ,"brain.factTextPlaceholder": "Write a fact that AI can use."
+  ,"brain.editFact": "Edit fact"
+  ,"brain.editSource": "Edit source"
+  ,"brain.verify": "Verify"
+  ,"brain.reject": "Reject"
+  ,"brain.historyButton": "Profile history"
+  ,"brain.historyTitle": "Business history"
+  ,"brain.historyDescription": "The 20 latest saved versions. Facts are confirmed by the business, not AI."
+  ,"brain.historyLoading": "Loading history…"
+  ,"brain.historyLoadError": "History could not be loaded."
+  ,"brain.historyEmpty": "History appears after saving the profile."
+  ,"brain.version": "Version {{version}}"
+  ,"brain.sourceValue": "Source: {{source}}"
+  ,"brain.verifiedByBusiness": "Confirmed by business"
+  ,"brain.notVerified": "Not confirmed"
+  ,"help.topic1Label": "How do I create a business account?"
+  ,"help.topic1Content": "Choose Try for free, enter your name, email and a password with at least 12 characters. {{verification}} complete the business setup in three steps."
+  ,"help.topic2Label": "How do I connect Facebook and Instagram?"
+  ,"help.topic2Content": "In Social posts, choose Connect through Meta. Authorize access and choose the business page. Instagram requires a professional profile connected to that page."
+  ,"help.topic3Label": "How do I read existing posts?"
+  ,"help.topic3Content": "After connecting, choose the network and refresh posts. Use Read older posts and the filters to find the text you need."
+  ,"help.topic4Label": "How do I create my first post?"
+  ,"help.topic4Content": "Open Posts, choose Create post, write the title and text, choose a network and upload a photo. A valid draft is saved on the server while you write."
+  ,"help.topic5Label": "Can I approve a post without connecting Meta?"
+  ,"help.topic5Content": "Yes. The server checks the text, photo, declared rights and format. Confirm prices, dates and promises yourself, then approve the current version."
+  ,"help.topic6Label": "How do publishing and scheduling work?"
+  ,"help.topic6Content": "From an approved post, choose Schedule post and save it to the calendar without connecting Meta. Publishing to a social network requires an active service and connection."
+  ,"help.topic7Label": "What if a publication is awaiting verification?"
+  ,"help.topic7Content": "Check the social network page. Rrit does not automatically resend an unclear response, to avoid duplicates. Save the post identifier when requesting help."
+  ,"help.topic8Label": "Where are photos and drafts stored?"
+  ,"help.topic8Content": "Photos are stored privately on the server and their metadata is removed during upload. Unfinished forms may be recovered in the same tab."
+  ,"help.topic9Label": "What happens after the trial?"
+  ,"help.topic9Content": "The trial does not renew automatically and no charge is made. Your data remains readable; new actions require an active service."
+  ,"auth.connectionUnavailableTitle": "This link cannot be used"
+  ,"auth.connectionUnavailableDescription": "Request a new link and try again."
+  ,"auth.emailPlaceholder": "name@business.com"
+  ,"auth.forgotPasswordLink": "Forgot your password?"
+  ,"auth.rateLimitError": "You tried several times. Wait a moment and try again."
+  ,"auth.emailNotConfirmedError": "Go to your email and confirm your account before signing in. Check Spam too."
+  ,"auth.invalidCredentialsError": "The email or password is incorrect."
+  ,"auth.invalidEmailError": "Enter a valid email address."
+  ,"auth.accountExistsError": "This address already has an account. Try signing in or recovering access."
+  ,"auth.accountExistsOtherEmailError": "We cannot continue with this address. Try signing in or recovering access."
+  ,"auth.emailNotVerifiedError": "Confirm your email before signing in. Check your inbox."
+  ,"auth.invalidTokenError": "The link expired or was already used. Request a new link."
+  ,"auth.tokenExpiredError": "The link expired. Request a new link."
+  ,"auth.otpExpiredError": "The code or link expired. Request a new link."
+  ,"auth.pkceError": "Open the link in the same browser where you created the account, or request a new link."
+  ,"auth.passwordTooShortError": "Use at least 12 characters."
+  ,"auth.weakPasswordError": "Choose a stronger password with at least 12 characters."
+  ,"auth.userBannedError": "This account cannot be used right now."
+  ,"auth.networkError": "The connection to the server failed. Check your internet connection and try again."
+  ,"auth.genericError": "The action could not be completed. Check the details and try again."
+  ,"auth.signupUnavailableError": "Registration is unavailable right now. Try again later."
+  ,"auth.emailUnavailableError": "Email delivery is unavailable right now."
+  ,"auth.loginUnavailableError": "Sign-in is unavailable right now. Try again later."
+  ,"auth.confirmPasswordLinkError": "Open the link from your email to change your password."
+  ,"auth.callbackIncompleteError": "The connection was not completed. Request a new confirmation email and try again."
+  ,"auth.recoveryRequested": "If this address has an account, you will receive an email with recovery steps."
+  ,"auth.verificationRequested": "If the account is waiting for verification, the link will arrive by email."
+  ,"auth.passwordChanged": "Your password was changed. You can now sign in."
+  ,"auth.supabaseNotConfigured": "Authentication is not configured. Contact support."
+  ,"security.currentPasswordRequired": "Enter your current password."
+  ,"security.passwordTooShort": "Use at least 12 characters."
+  ,"security.passwordMismatch": "Passwords do not match."
+  ,"security.sessionReadError": "The session could not be read."
+  ,"security.passwordChangeError": "The password was not changed. Check the current password and try again."
+  ,"security.passwordChanged": "Password changed. Other sessions were signed out."
+  ,"security.sessionsRevokeError": "Sessions could not be signed out. Try again."
+  ,"security.sessionsRevoked": "Sessions on other devices were signed out."
+  ,"draft.localRecoveryUnavailable": "Local recovery is unavailable."
+  ,"draft.saveRecoveryError": "The draft could not be saved for recovery."
+  ,"draft.clearRecoveryError": "The recovery copy could not be cleared in this browser."
+  ,"workspace.currentDevice": "This device"
+  ,"workspace.notFound": "The workspace was not found."
+  ,"workspace.connectionFailed": "The connection to the workspace failed. Try again."
+  ,"workspace.formInvalidTitle": "Check the form fields"
+  ,"workspace.formInvalidDescription": "A value is outside the allowed limits. Changes were not saved."
+  ,"workspace.saveFailed": "Could not save to the server. Check the connection and try again."
+  ,"nav.businessAria": "Business: {{name}}"
+  ,"social.importedMessage": "{{count}} posts were checked and updated from {{channel}}."
+  ,"social.importError": "The import could not be completed."
+  ,"social.noCaption": "Post without text"
+  ,"social.mediaDescription": "For video or all photos, open the post on the social network."
+  ,"settings.currencyEuro": "Euro (EUR)"
+  ,"content.postNotFound": "The post was not found."
+  ,"content.retryAttempt": "Attempt {{attempt}} of {{maxAttempts}}."
+  ,"billing.currencyLabel": "EUR · €"
+  ,"onboarding.instagramPlaceholder": "https://www.instagram.com/business"
+  ,"onboarding.facebookPlaceholder": "https://www.facebook.com/business"
+  ,"transition.invalid": "This change is not allowed from the current status."
+  ,"transition.policyBlocked": "The content has an issue that must be resolved."
+  ,"workspace.reviewRequired": "Review is required"
+  ,"workspace.futureScheduleRequired": "Choose a future time"
+  ,"workspace.serviceInactive": "This service is not active yet"
+  ,"workspace.serviceInactiveDescription": "Social connections, publishing, the AI assistant and payments require the relevant service to be activated."
+  ,"api.serviceNotConfigured": "The service is not configured"
+  ,"nav.approvalPostsDescription": "{{count}} posts are waiting for your review."
+  ,"brand.nameRequired": "Enter the business name."
+  ,"brand.cityRequired": "Enter the city."
+  ,"brand.descriptionRequired": "Briefly describe what the business offers."
+  ,"brand.colorInvalid": "Choose a valid color."
+  ,"brand.urlInvalid": "Enter a valid URL."
+  ,"brand.goalMinLength": "A goal must have at least 2 characters."
+  ,"brand.researchSourceInvalid": "Research sources must be HTTPS URLs without credentials."
+  ,"brand.identitySaved": "Business identity saved."
+  ,"brand.saveError": "Changes were not saved. Check the error or load the latest version."
+  ,"brand.defaultSource": "Provided by the business"
+  ,"brand.detailNumber": "Detail {{index}}"
+  ,"brand.removeGoal": "Remove goal {{index}}"
+  ,"brand.removeDetail": "Remove detail {{index}}"
+  ,"brand.removeSource": "Remove source {{index}}"
+  ,"brand.removeGuidance": "Remove guidance {{index}}"
+  ,"gallery.detailsDescription": "Tags and usage rights"
+  ,"gallery.tags": "Tags"
+  ,"gallery.tagsHint": "Separate with commas."
+  ,"gallery.saveTags": "Save tags"
+  ,"gallery.withdrawRights": "Withdraw rights"
+  ,"gallery.withdrawRightsTitle": "Withdraw this photo's rights?"
+  ,"gallery.withdrawRightsDescription": "The photo will not be available for new posts. Unpublished posts that depend on it will return to draft."
+  ,"gallery.pendingPublicationsNotice": "Publications already sent or awaiting confirmation from Meta are not deleted automatically."
+  ,"gallery.confirmWithdrawRights": "Confirm withdrawal"
+  ,"gallery.removePhotosTitle": "Remove selected photos?"
+  ,"gallery.removePhotosDescription": "Selected photos will be removed from the business account. Photos used in posts are kept."
+  ,"gallery.photosUsedTitle": "Photos are used in posts"
+  ,"gallery.photosUsedDescription": "{{count}} posts use these photos. Change the post photos before removing them."
+  ,"gallery.photosWillBeRemoved": "{{count}} photos will be removed. This action cannot be undone."
+  ,"gallery.confirmRemove": "Confirm removal"
+  ,"gallery.privatePhoto": "Business photo · stored privately"
+  ,"gallery.sizeStored": "{{size}} KB · stored privately"
+  ,"gallery.rightsConfirmedTitle": "Rights are confirmed"
+  ,"gallery.rightsUnconfirmedTitle": "Rights are not confirmed yet"
+  ,"monthly.phaseResearch": "Research"
+  ,"monthly.phaseResearchDescription": "Market, audience and platforms"
+  ,"monthly.phaseStrategy": "Strategy"
+  ,"monthly.phaseStrategyDescription": "Topics, channels and timing"
+  ,"monthly.phaseContent": "Creation"
+  ,"monthly.phaseContentDescription": "Text, design and review"
+  ,"monthly.selectPhotoRequired": "Choose at least one photo or let AI decide."
+  ,"monthly.changeNotSaved": "The change was not saved. Try again."
+  ,"monthly.recoveringTitle": "Preparing the next version"
+  ,"monthly.recoveringDescription": "Nothing was lost. The system continues from the saved phase and does not repeat completed AI calls."
+  ,"monthly.researchingTitle": "Researching the market"
+  ,"monthly.researchingDescription": "An AI call is gathering real sources about the market, audience and how Instagram and Facebook work."
+  ,"monthly.planningTitle": "Building this month's strategy"
+  ,"monthly.planningDescription": "An AI call is creating the full calendar: topics, channels and timing for the plan's post count."
+  ,"monthly.creatingTitle": "Creating the posts"
+  ,"monthly.creatingDescription": "Each post is going through text, design with your photo and quality checks before it is saved."
+  ,"monthly.workerWaitingTitle": "The process is waiting for the worker"
+  ,"monthly.workerWaitingDescription": "Preparation will continue automatically when the background service connects."
+  ,"monthly.noOriginalPhotosTitle": "No original photos with active rights"
+  ,"monthly.noOriginalPhotosDescription": "Upload photos to Gallery or let AI decide after you upload them."
+  ,"monthly.resetTitle": "Start the plan from scratch"
+  ,"monthly.resetDescription": "Only drafts and designs created by this plan will be removed. Original photos in the gallery are not affected."
+  ,"monthly.resetWarningTitle": "This action does not affect original photos"
+  ,"monthly.resetWarningDescription": "The research, strategy and current drafts for this month will be cleared to create a new plan with the improved workflow."
+  ,"monthly.planResearchTitle": "Plan and research"
+  ,"monthly.planResearchDescription": "Strategy, conclusions and real sources consulted for this month."
+  ,"monthly.researchSourcesCount": "Sources consulted"
+  ,"monthly.usageDetails": "Strategy, copy and timing"
+  ,"monthly.none": "None"
+  ,"monthly.drafts": "drafts"
+  ,"monthly.updatedAt": "Updated {{time}}"
+  ,"monthly.firstDraftAppears": "The first draft appears after research and strategy finish. Therefore {{completed}} / {{total}} is normal at this stage."
+  ,"monthly.serverUnavailableTitle": "We cannot connect to the server"
+  ,"monthly.serverUnavailableDescription": "Refresh the page after the application starts. Your plan and data have not changed."
+  ,"monthly.aiNotConfiguredTitle": "The AI service is not configured"
+  ,"monthly.aiNotConfiguredDescription": "The platform must enable the service before this month can be prepared."
+  ,"monthly.noActivePlanTitle": "No active plan"
+  ,"monthly.noActivePlanDescription": "All plans include AI Monthly Studio. Activate Start for 12, Weekly for 30 or More for 60 posts per month."
+  ,"monthly.recoveringShort": "Recovering"
+  ,"monthly.workingShort": "Working"
+  ,"monthly.postProgress": "Post {{current}} of {{total}}"
+  ,"monthly.researchSourcesUsed": "{{count}} real sources are being used by the strategy and posts. This phase is not repeated."
+  ,"monthly.photosIncluded": "{{count}} photos will be included in the strategy."
+  ,"monthly.postsAwaitingApproval": "{{count}} posts are waiting for your approval"
+  ,"monthly.researchTopicMarket": "Local market, audience and seasonality"
+  ,"monthly.researchTopicPositioning": "Positioning and content opportunities"
+  ,"monthly.researchTopicGuidance": "Current guidance for Instagram and Facebook"
+  ,"monthly.researchTopicTiming": "Timing hypotheses and data gaps"
+  ,"monthly.activePreparingTitle": "Preparing"
+  ,"monthly.activePreparingDescription": "The plan is being prepared."
+  ,"monthly.failureProviderCreditTitle": "The AI service credit was not enough"
+  ,"monthly.failureProviderCreditDescription": "Preparation stopped without losing anything. Add credit, then continue from this button."
+  ,"monthly.failureRateLimitTitle": "The AI service is temporarily busy"
+  ,"monthly.failureRateLimitDescription": "Nothing was lost or published. Wait a moment and continue preparation."
+  ,"monthly.failureUncertainTitle": "Technical review required"
+  ,"monthly.failureUncertainDescription": "The automatic retry was not safe. Photos, research, strategy and saved drafts remain untouched."
+  ,"monthly.failureRetryTitle": "The AI call did not finish"
+  ,"monthly.failureRetryDescription": "The process stopped without another automatic retry to avoid creating extra cost. Saved results are safe."
+  ,"monthly.failureBudgetTitle": "The process stopped at the safety limit"
+  ,"monthly.failureBudgetDescription": "The platform must check the cost of this request before preparation can continue."
+  ,"monthly.failureQualityTitle": "The design needs review"
+  ,"monthly.failureQualityDescription": "Continue once to save it as a draft. Then decide in Content Studio whether to improve it."
+  ,"monthly.failureDateTitle": "A proposed time had already passed"
+  ,"monthly.failureDateDescription": "The plan stopped to avoid saving a post in the past. Continue preparation for a corrected calendar."
+  ,"monthly.failureDefaultTitle": "Preparation stopped"
+  ,"monthly.failureDefaultDescription": "Nothing was published. You can try again without losing your photos."
+  ,"strategy.intents": "Different intents"
+  ,"strategy.day": "Day"
+  ,"strategy.intent.educate": "Education"
+  ,"strategy.intent.inspire": "Inspiration"
+  ,"strategy.intent.trust": "Trust"
+  ,"strategy.intent.conversation": "Conversation"
+  ,"strategy.intent.product": "Product"
+  ,"strategy.intent.behind_the_scenes": "Behind the scenes"
+  ,"strategy.intent.local_relevance": "Local relevance"
+  ,"strategy.intent.conversion": "Conversion"
+  ,"strategy.goal.watch_time": "Attention"
+  ,"strategy.goal.saves": "Saves"
+  ,"strategy.goal.shares": "Shares"
+  ,"strategy.goal.meaningful_comments": "Meaningful comments"
+  ,"strategy.goal.profile_actions": "Profile actions"
+  ,"strategy.goal.clicks": "Clicks"
+  ,"content.version": "Version {{version}}"
+  ,"content.choosePhoto": "Choose {{name}}"
+  ,"content.metaConnectionRequiredTitle": "Publishing requires an active Meta connection"
+  ,"content.scheduleTimezone": "Timing is interpreted in {{timezone}}."
+  ,"content.openPost": "Open post: {{title}}"
+  ,"content.reviewPost": "Review post"
+  ,"content.openPostLabel": "Open post"
+  ,"brain.noDescription": "No description"
+  ,"brain.statusVerified": "Verified"
+  ,"brain.statusRejected": "Rejected"
+  ,"brain.statusProposed": "Proposed"
+  ,"brain.active": "Active"
+  ,"brain.draft": "Draft"
+  ,"brain.voicePlaceholder": "E.g. Informative and friendly"
+  ,"brain.offerName": "Offer name"
+  ,"brain.offerNamePlaceholder": "E.g. Free consultation"
+  ,"brain.offerSourcePlaceholder": "E.g. Price list"
+  ,"brain.offerSource": "Offer source"
+  ,"brain.offerDescriptionPlaceholder": "Offer description"
+  ,"brain.offerDescription": "Offer description"
+  ,"brain.currency": "Currency"
+  ,"brain.price": "Price"
+  ,"brain.optional": "Optional"
+  ,"brain.validFrom": "Valid from"
+  ,"settings.albanianKosovo": "Albanian · Kosovo"
+  ,"settings.englishUnitedStates": "English · United States"
+  ,"brand.cityPlaceholder": "e.g. Pristina"
+  ,"brand.industryPlaceholder": "e.g. Flower shop"
+  ,"brand.voicePlaceholder": "e.g. Simple, warm and friendly."
+  ,"brand.audiencePlaceholder": "e.g. People from the neighbourhood and those who work nearby."
+  ,"brand.goalPlaceholder": "e.g. Find new customers"
+  ,"brand.facebookUrl": "Facebook URL"
+  ,"brand.instagramUrl": "Instagram URL"
+  ,"brand.facebookPlaceholder": "https://facebook.com/..."
+  ,"brand.instagramPlaceholder": "https://instagram.com/..."
+  ,"brand.price": "Price in EUR"
+  ,"brand.priceDescription": "Dates are required for confirmed offers."
+  ,"brand.researchSourcePlaceholder": "https://your-business.com/menu"
+  ,"brand.sourceNumber": "Source {{index}}"
+  ,"brand.guidanceNumber": "Guidance {{index}}"
+  ,"public.brandHomeAria": "Rrit home page"
+  ,"legacy.loginRulesTitle": "Account access"
+  ,"legacy.accessRulesTitle": "Business access"
+  ,"legacy.publicationStatusTitle": "Action confirmation"
+  ,"landing.seoTitle": "Rrit — Posts that stand out."
+  ,"landing.seoDescription": "Prepare, approve and schedule posts in Albanian. Euro plans for businesses in Kosovo."
+  ,"landing.ogTitle": "Your business deserves to be seen. Rrit."
+  ,"landing.ogDescription": "Less time on posts. More time on your business."
+  ,"landing.heroKicker": "FOR BUSINESSES WITH SOMETHING TO SAY"
+  ,"landing.heroDescription": "You have a business to run. Give your posts less of your day."
+  ,"landing.heroDetail": "Prepare, approve and schedule for Facebook and Instagram. In one place. In Albanian."
+  ,"landing.fromPrice": "From {{price}}/month."
+  ,"landing.registrationUnavailable": "Registration could not be confirmed. Try again shortly."
+  ,"landing.processAria": "What you do with Rrit"
+  ,"landing.pricingKicker": "CLEAR BUDGET. POST BY POST."
+  ,"landing.finalDescription": "Your business has the story. Give it a place in your next post."
+  ,"landing.seeHowItWorks": "See how it works"
+  ,"landing.albanianNoCard": "In Albanian. No bank card."
+  ,"landing.faqStart": "How do I start?"
+  ,"landing.faqStartAnswer": "Create your account, tell us about your business and add your first photo. Registration guides you in Albanian. Connect Facebook and Instagram later."
+  ,"landing.faqAutoPublish": "Are posts published automatically?"
+  ,"landing.faqAutoPublishEnabled": "Only after your approval and at the time you choose. Publishing requires connected accounts and active permissions."
+  ,"landing.faqAutoPublishDisabled": "Automatic publishing is not active yet. You can prepare, approve and schedule posts, then publish them manually."
+  ,"landing.faqAfterTrial": "What happens after the trial?"
+  ,"landing.faqAfterTrialAvailable": "You have {{duration}} for the activated services under the trial terms. No card or automatic payment is required. When the trial ends, your data remains readable and exportable."
+  ,"landing.faqAfterTrialUnavailable": "Trial availability is confirmed during registration. No card or automatic payment is required."
+  ,"landing.moment": "A moment."
+  ,"landing.product": "A product."
+  ,"landing.story": "A story."
+  ,"landing.clearWeekDescription": "Know what is ready and what still needs attention, without keeping it all in your head."
+  ,"landing.approvalDescription": "Read the text, see the photo and approve only what represents you."
+  ,"landing.coffeeAlt": "Three coffee cups held by friends around a table"
+  ,"landing.burgerAlt": "Close-up burger with cheese, lettuce and sauce"
+  ,"landing.spaceAlt": "Café interior with plants and wooden tables"
+  ,"landing.resumeAnimation": "Resume animation"
+  ,"landing.pauseAnimation": "Pause animation"
+  ,"landing.resume": "Resume"
+  ,"landing.pause": "Pause"
+  ,"landing.storyOneDescription": "Your product, your words, your style. Keep them together and prepare a post that represents you."
+  ,"landing.studioSceneLabel": "the studio view"
+  ,"landing.studioSceneCaption": "From photo to composition · illustrative example"
+  ,"landing.originalBurgerAlt": "The original burger photo"
+  ,"landing.composedBurgerAlt": "The same photo in a warm-toned post composition"
+  ,"landing.paletteAlt": "Example palette: orange, cream and brown"
+  ,"landing.approvedByYou": "You approve it."
+  ,"landing.storyTwoDescription": "A match after work. An hour for yourself. Show what makes your business special with posts in your style."
+  ,"landing.tennisSceneLabel": "the tennis view"
+  ,"landing.tennisSceneCaption": "Visual simulation · creating and publishing a post"
+  ,"landing.publish": "Publish"
+  ,"landing.publishedSimulation": "Published · simulation"
+  ,"landing.tennisPhotoAlt": "Real photograph of a tennis ball and its shadow across the court lines"
+  ,"landing.business": "Business"
+  ,"landing.post": "Post"
+  ,"landing.calendar": "Calendar"
+  ,"landing.workflowBusinessTitle": "We start with what makes you special."
+  ,"landing.workflowBusinessDescription": "Tell us what you offer and how you speak to customers. This information stays in your business profile."
+  ,"landing.workflowStepOne": "STEP 01 · GET TO KNOW THE SYSTEM"
+  ,"landing.workflowPostTitle": "A photo. A message that makes sense."
+  ,"landing.workflowPostDescription": "Combine the photo with the text. Read it, change it and approve it when you are happy."
+  ,"landing.workflowStepTwo": "STEP 02 · PREPARE AND APPROVE"
+  ,"landing.workflowCalendarTitle": "You know what comes next."
+  ,"landing.workflowCalendarDescription": "Place posts on the calendar and follow their status. Connect social networks later if you choose."
+  ,"landing.workflowStepThree": "STEP 03 · ORGANIZE THE WEEK"
+  ,"landing.businessExampleAlt": "Coffee cups for an example business profile"
+  ,"landing.postExampleAlt": "Coffee photo selected for the illustrative post"
+  ,"landing.postExampleCopy": "There is always time for good coffee. And for the people who make your day better."
+  ,"landing.postReady": "Text and photo, ready for your review."
+  ,"landing.approved": "Approved"
+  ,"landing.upToDiscount": "up to −{{discount}}%"
+  ,"landing.pendingBilling": "payments"
+  ,"landing.pendingAi": "AI assistance"
+  ,"landing.pendingPublishing": "automatic publishing"
+  ,"landing.pendingServices": "In preparation: {{services}}. You can see activated services in your account."
+  ,"landing.pricingLoadErrorTitle": "Prices could not be loaded."
+  ,"landing.pricingLoadErrorDescription": "Try again to see the current catalog."
+  ,"landing.retry": "Try again"
+  ,"landing.loadingPlans": "Loading plans"
+  ,"landing.plansSoonTitle": "Plans will appear soon."
+  ,"landing.plansSoonDescription": "The price catalog has not been published yet."
+  ,"landing.billingPeriod": "Billing period"
+  ,"landing.lessPerPost": "{{percent}}% less per post than {{plan}}"
+  ,"landing.perMonth": "/ month"
+  ,"landing.recommended": "Our recommendation"
+  ,"landing.bestPerPost": "Lowest cost per post"
+  ,"landing.viewPlan": "View the {{plan}} plan"
+  ,"landing.perYear": "{{price}} per year"
+  ,"landing.noCardNoAutoRenewal": "No bank card. No automatic renewal."
+  ,"landing.posts": "posts"
+  ,"landing.contactUs": "Contact us"
+  ,"pricing.seoTitle": "Plans and prices · Rrit"
+  ,"pricing.seoDescription": "Compare Rrit plans in euros, post counts and cost per post. Choose your business rhythm."
+  ,"pricing.faqFreeTrial": "How does the free trial work?"
+  ,"pricing.faqFreeTrialAvailable": "New businesses that meet the conditions have {{duration}} to try the activated services. {{verification}} your business profile to begin. No bank card is required."
+  ,"pricing.verifyEmailAndComplete": "Verify your email and complete"
+  ,"pricing.complete": "Complete"
+  ,"pricing.faqFreeTrialUnavailable": "Trial availability and terms are confirmed during registration."
+  ,"pricing.faqIncluded": "What is included in the price?"
+  ,"pricing.faqIncludedAnswer": "The price is monthly and includes the posts and benefits listed in the plan. Cost per post is calculated when you use the full number of posts. With annual billing, you can also see the yearly total."
+  ,"pricing.faqAutomaticPayment": "Do I pay automatically after the trial?"
+  ,"pricing.faqAutomaticPaymentAnswer": "No. The trial requires no card and does not renew automatically by payment. Your data remains readable and exportable after the trial ends."
+  ,"public.language": "Language"
+  ,"public.albanian": "Albanian"
+  ,"public.english": "English"
+}
