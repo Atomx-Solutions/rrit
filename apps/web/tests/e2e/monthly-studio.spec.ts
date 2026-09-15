@@ -3,12 +3,20 @@ import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { createDemo } from '../fixtures/workspace'
 
+const usageFixture = {
+  plan: 'business',
+  state: 'active',
+  credits: { available: 1000, used: 0, limit: 1000, percentage: 100, state: 'available' },
+  usage: [],
+}
+
 // Browser-only contract fixtures. No provider call, customer account or database
 // is used; database/provider orchestration is exercised in the integration suite.
 test('monthly drafts, visible research citations and creative editing', async ({ page }, info) => {
   const id = randomUUID(),
     postId = randomUUID(),
     assetId = randomUUID(),
+    unrelatedAssetId = randomUUID(),
     planId = randomUUID()
   const workspace = createDemo()
   const now = new Date()
@@ -28,6 +36,15 @@ test('monthly drafts, visible research citations and creative editing', async ({
       kind: 'photo',
       size: image.length,
       url: `/api/media/${assetId}`,
+    },
+    {
+      id: unrelatedAssetId,
+      name: 'Fotografi tjetër nga galeria',
+      tags: [],
+      rights: true,
+      kind: 'photo',
+      size: image.length,
+      url: `/api/media/${unrelatedAssetId}`,
     },
   ]
   workspace.posts = [
@@ -78,7 +95,6 @@ test('monthly drafts, visible research citations and creative editing', async ({
     },
   ]
   const business = { id, slug: 'monthly-test', workspace }
-  let savedCreative = false
   let aiEdited = false
   let reviewedVersion = 0
   await page.route('**/api/**', async (route) => {
@@ -88,6 +104,7 @@ test('monthly drafts, visible research citations and creative editing', async ({
       return route.fulfill({ contentType: 'image/jpeg', body: image })
     if (path === '/api/business')
       json = { user: { name: 'Testuesi', email: 'test@example.test' }, business }
+    else if (path === '/api/usage') json = usageFixture
     else if (path === '/api/trial')
       json = {
         paid: true,
@@ -160,14 +177,9 @@ test('monthly drafts, visible research citations and creative editing', async ({
       }
     else if (path === `/api/posts/${postId}/creative`) {
       const input = route.request().postDataJSON()
-      if (input.action === 'ai-edit') {
-        workspace.posts[0]!.contentVersion = 3
-        aiEdited = true
-      } else {
-        workspace.posts[0]!.aiProvenance!.creative = input.creative
-        workspace.posts[0]!.contentVersion = 2
-        savedCreative = true
-      }
+      expect(input).toMatchObject({ action: 'ai-edit', contentVersion: 1 })
+      workspace.posts[0]!.contentVersion = 3
+      aiEdited = true
       json = { business, image: `/api/media/${assetId}` }
     } else if (path === `/api/posts/${postId}/quality`) {
       if (route.request().method() === 'POST') {
@@ -211,20 +223,19 @@ test('monthly drafts, visible research citations and creative editing', async ({
   ).toBeVisible()
   await page.screenshot({ path: info.outputPath('monthly-calendar.png'), fullPage: true })
   await page.goto(`/app/${id}/monthly-test/content/${postId}`)
-  await page.getByRole('button', { name: 'Ndrysho dizajnin' }).click()
+  await expect(page.getByRole('img', { name: 'Fotografia aktuale e postimit' })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Zgjidh Fotografi tjetër nga galeria' })).toHaveCount(
+    0,
+  )
+  await page.getByRole('button', { name: 'Përmirëso me AI' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
-  await page.getByLabel('Titulli në fotografi').fill('Një pushim për ty')
-  await page.screenshot({ path: info.outputPath('creative-editor.png'), fullPage: true })
-  await page.getByRole('button', { name: 'Ruaj dizajnin', exact: true }).click()
-  await expect(page.getByRole('dialog')).not.toBeVisible()
-  expect(savedCreative).toBe(true)
-  await expect(page.getByRole('button', { name: 'Ndrysho dizajnin' })).toBeEnabled()
-  await page.getByRole('button', { name: 'Ndrysho dizajnin' }).click()
   await page
     .getByLabel('Çfarë dëshiron të ndryshosh?')
     .fill('Ruaje fotografinë aktuale dhe krijo atmosferë më editoriale.')
-  await page.getByRole('button', { name: 'Rigjenero me AI', exact: true }).click()
+  await page.screenshot({ path: info.outputPath('creative-editor.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Krijo variantin me AI', exact: true }).click()
   await expect(page.getByRole('dialog')).not.toBeVisible()
+  await expect(page.getByRole('button', { name: 'Përmirëso me AI' })).toBeEnabled()
   expect(aiEdited).toBe(true)
   await page.getByRole('button', { name: 'Pse ky postim?' }).click()
   await expect(page.getByRole('heading', { name: 'Dizajni' })).toBeVisible()
@@ -254,6 +265,7 @@ test('the user can require a gallery photo before monthly generation starts', as
     const path = new URL(route.request().url()).pathname
     if (path === '/api/business')
       return route.fulfill({ json: { user: { name: 'Testuesi' }, business } })
+    if (path === '/api/usage') return route.fulfill({ json: usageFixture })
     if (path === '/api/trial')
       return route.fulfill({
         json: { paid: true, state: 'active', limits: { posts_per_month: 12 } },
@@ -312,6 +324,7 @@ test('a blocked quality review can restart, but existing drafts are preserved', 
     const path = new URL(route.request().url()).pathname
     if (path === '/api/business')
       return route.fulfill({ json: { user: { name: 'Testuesi' }, business } })
+    if (path === '/api/usage') return route.fulfill({ json: usageFixture })
     if (path === '/api/trial')
       return route.fulfill({
         json: { paid: true, state: 'active', limits: { posts_per_month: 30 } },
@@ -355,7 +368,7 @@ test('a blocked quality review can restart, but existing drafts are preserved', 
   })
   await page.goto(`/app/${id}/restart-test/monthly-planner`)
   await expect(
-    page.getByRole('heading', { name: 'Dizajni nuk kaloi kontrollin e cilësisë' }),
+    page.getByRole('heading', { name: 'Dizajni kërkon rishikim' }),
   ).toBeVisible({
     timeout: 15000,
   })

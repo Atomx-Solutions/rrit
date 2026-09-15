@@ -31,10 +31,10 @@ Nga root-i i repository-t:
 ```powershell
 npm ci
 npm run check
-npm run verify
+npm run verify:local
 ```
 
-`check` verifikon Node/npm, ESLint, typecheck dhe testet unit. `verify` shton integration tests dhe production build kur CI ka PostgreSQL test service të disponueshëm. Hook-u i versionuar instalohet nga `npm ci` dhe ekzekuton `npm run check` para commit-it.
+`check` verifikon Node/npm, ESLint, typecheck dhe testet unit. `verify:local` shton vetëm production build dhe nuk kërkon PostgreSQL. `verify` mbetet gate-i i plotë i CI-së me integration dhe security tests. Hook-u i versionuar instalohet nga `npm ci` dhe ekzekuton `npm run check` para commit-it.
 
 Integration tests pranojnë vetëm `DATABASE_URL` ose `MIGRATION_DATABASE_URL` lokale/testuese. URL-të remote të Supabase nuk përdoren për testet destruktive.
 

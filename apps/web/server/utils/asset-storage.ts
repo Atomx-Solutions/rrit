@@ -1,6 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 const DEFAULT_BUCKET = 'assets'
+export const MAX_ASSET_BYTES = 2097152
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 15000
 
 let client: SupabaseClient | undefined
 
@@ -16,6 +18,15 @@ function storageClient() {
 
 export function assetBucket() {
   return process.env.MEDIA_BUCKET || DEFAULT_BUCKET
+}
+
+function assetDownloadTimeoutMs() {
+  const configured = Number(
+    process.env.ASSET_STORAGE_DOWNLOAD_TIMEOUT_MS || DEFAULT_DOWNLOAD_TIMEOUT_MS,
+  )
+  return Number.isFinite(configured) && configured >= 1000
+    ? Math.min(Math.floor(configured), 60000)
+    : DEFAULT_DOWNLOAD_TIMEOUT_MS
 }
 
 export function assetStorageFolder(slug: string, businessId: string) {
@@ -47,10 +58,29 @@ export async function uploadAsset(path: string, bytes: Buffer) {
   if (error) throw createError({ statusCode: 502, message: 'Fotografia nuk u ruajt në storage.' })
 }
 
-export async function downloadAsset(path: string) {
-  const { data, error } = await storageClient().storage.from(assetBucket()).download(path)
-  if (error || !data) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
-  return Buffer.from(await data.arrayBuffer())
+export async function downloadAsset(path: string, maxBytes = MAX_ASSET_BYTES) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), assetDownloadTimeoutMs())
+  try {
+    const { data, error } = await storageClient()
+      .storage.from(assetBucket())
+      .download(path, {}, { signal: controller.signal, cache: 'no-store' })
+    if (error || !data) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
+    if (data.size > maxBytes)
+      throw createError({ statusCode: 413, message: 'Fotografia tejkalon kufirin e lejuar.' })
+    const bytes = Buffer.from(await data.arrayBuffer())
+    if (bytes.length > maxBytes) {
+      bytes.fill(0)
+      throw createError({ statusCode: 413, message: 'Fotografia tejkalon kufirin e lejuar.' })
+    }
+    return bytes
+  } catch (error) {
+    if (controller.signal.aborted)
+      throw createError({ statusCode: 504, message: 'Shkarkimi i fotografisë zgjati shumë.' })
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export async function removeAsset(path: string) {

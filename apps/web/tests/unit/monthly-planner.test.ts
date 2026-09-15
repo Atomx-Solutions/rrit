@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { createDemo } from '../fixtures/workspace'
 import {
   plannerEvidence,
+  plannerPrerequisites,
   normalizeEditorialPlanResponse,
   validateEditorialPlan,
   planningMonth,
@@ -21,6 +22,7 @@ import {
   type ProviderResponse,
 } from '../../server/utils/monthly-ai'
 import { assetContactSheet, normalizeGeneratedCreative } from '../../server/utils/image-processing'
+import { loadPlannerAssets } from '../../server/utils/monthly-planner'
 import { generatedPostSchema, editorialPlanSchema } from '../../shared/schemas/monthly-plan'
 import { paidAccessForPlanningMonth } from '../../server/utils/trials'
 import { aiProviderJsonSchema } from '../../server/utils/ai-provider'
@@ -129,6 +131,32 @@ describe('monthly evidence and provider boundaries', () => {
     workspace.brand.audience = ''
     expect(() => plannerEvidence(workspace)).toThrow('BUSINESS_CONTEXT_REQUIRED')
   })
+  it('reports every missing input that blocks monthly generation', () => {
+    const workspace = createDemo()
+    workspace.brand.industry = ''
+    workspace.brand.audience = ''
+    workspace.brand.facts = [{ id: 'empty', text: '', source: '', verified: false }]
+    workspace.assets = workspace.assets.map((asset) => ({ ...asset, rights: false }))
+
+    const missing = plannerPrerequisites(workspace, now, '2026-09')
+    expect(missing.map((item) => item.id)).toEqual([
+      'industry',
+      'audience',
+      'fact-text',
+      'fact-source',
+      'fact-confirmation',
+      'owned-photo',
+    ])
+    expect(missing.map((item) => item.label)).toEqual([
+      'Lloji i biznesit',
+      'Audienca e biznesit',
+      'Teksti i detajit të biznesit',
+      'Burimi i detajit',
+      'Konfirmimi i detajit',
+      'Fotografi reale me të drejta të konfirmuara',
+    ])
+    expect(() => plannerEvidence(workspace, now, '2026-09')).toThrow('BUSINESS_CONTEXT_REQUIRED')
+  })
   it('captures user-selected photos and requires the strategy to assign each one once', () => {
     const workspace = createDemo()
     const selectedId = randomUUID()
@@ -137,6 +165,7 @@ describe('monthly evidence and provider boundaries', () => {
       mode: 'selected',
       selectedAssetIds: [selectedId],
     })
+    expect(evidence.assets.map((asset) => asset.id)).toEqual([selectedId])
     const research = researchFromResponse(researchFixture(), now)
     const plan: z.infer<typeof editorialPlanSchema> = editorialFixture()
     plan.slots[0]!.requiredAssetId = selectedId
@@ -447,5 +476,93 @@ describe('AI creative generation', () => {
       height: 1350,
       format: 'jpeg',
     })
+  })
+})
+
+describe('monthly planner source photos', () => {
+  it('hydrates a real JPEG stored in Supabase Storage for model input', async () => {
+    const photo = await sharp({
+      create: { width: 800, height: 600, channels: 3, background: '#236052' },
+    })
+      .jpeg()
+      .toBuffer()
+    const assetId = randomUUID()
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: assetId,
+          bytes: null,
+          storage_path: 'uji-rugova-business/photo_20260909T142337481Z.jpg',
+          size_bytes: photo.length,
+        },
+      ],
+    })
+    const download = vi.fn().mockResolvedValue(photo)
+
+    const assets = await loadPlannerAssets({ query } as never, 'business-id', [assetId], download)
+
+    expect(query.mock.calls[0]![0]).toContain('storage_path')
+    expect(query.mock.calls[0]![0]).toContain('bytes IS NOT NULL OR storage_path IS NOT NULL')
+    expect(download).toHaveBeenCalledWith(
+      'uji-rugova-business/photo_20260909T142337481Z.jpg',
+      2097152,
+    )
+    expect(assets).toEqual([{ id: assetId, bytes: photo }])
+    expect(await sharp(assets[0]!.bytes).metadata()).toMatchObject({
+      width: 800,
+      height: 600,
+      format: 'jpeg',
+    })
+  })
+
+  it('rejects Storage metadata above the image input limit before downloading', async () => {
+    const assetId = randomUUID()
+    const download = vi.fn()
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: assetId,
+          bytes: null,
+          storage_path: 'uji-rugova-business/too-large.jpg',
+          size_bytes: 2097153,
+        },
+      ],
+    })
+
+    await expect(
+      loadPlannerAssets({ query } as never, 'business-id', [assetId], download),
+    ).rejects.toThrow('OWNED_PHOTOS_REQUIRED')
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('cleans already downloaded source buffers when a later Storage asset fails', async () => {
+    const firstAsset = randomUUID()
+    const secondAsset = randomUUID()
+    const firstPhoto = Buffer.from([255, 216, 255, 217])
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: firstAsset,
+          bytes: null,
+          storage_path: 'business/first.jpg',
+          size_bytes: firstPhoto.length,
+        },
+        {
+          id: secondAsset,
+          bytes: null,
+          storage_path: 'business/missing.jpg',
+          size_bytes: firstPhoto.length,
+        },
+      ],
+    })
+    const download = vi
+      .fn()
+      .mockResolvedValueOnce(firstPhoto)
+      .mockRejectedValueOnce(new Error('Storage unavailable'))
+
+    await expect(
+      loadPlannerAssets({ query } as never, 'business-id', [firstAsset, secondAsset], download),
+    ).rejects.toThrow('Storage unavailable')
+    expect(firstPhoto).toEqual(Buffer.alloc(firstPhoto.length))
   })
 })

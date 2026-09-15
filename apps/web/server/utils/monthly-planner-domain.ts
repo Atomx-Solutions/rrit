@@ -19,6 +19,80 @@ export class PlannerFailure extends Error {
 export function evidenceHash(value: unknown) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
+export type PlannerPrerequisite = {
+  id: 'industry' | 'audience' | 'fact-text' | 'fact-source' | 'fact-confirmation' | 'owned-photo'
+  code: string
+  label: string
+  description: string
+}
+export function plannerPrerequisites(
+  workspace: Workspace,
+  now = new Date(),
+  month = planningMonth(workspace.preferences.timezone, now),
+): PlannerPrerequisite[] {
+  const start = `${month}-01`
+  const end = `${month}-${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()}`
+  const today = dayInZone(now, workspace.preferences.timezone)
+  const earliest = start > today ? start : today
+  const facts = workspace.brand.facts.filter((fact) => {
+    const day = fact.validFrom && fact.validFrom > earliest ? fact.validFrom : earliest
+    return day <= end && factIsUsable(fact, day)
+  })
+  const missing: PlannerPrerequisite[] = []
+  if (!workspace.brand.industry.trim())
+    missing.push({
+      id: 'industry',
+      code: 'BUSINESS_CONTEXT_REQUIRED',
+      label: 'Lloji i biznesit',
+      description: 'Te Profili i biznesit, plotëso fushën “Lloji i biznesit”.',
+    })
+  if (!workspace.brand.audience.trim())
+    missing.push({
+      id: 'audience',
+      code: 'BUSINESS_CONTEXT_REQUIRED',
+      label: 'Audienca e biznesit',
+      description:
+        'Te Profili i biznesit, plotëso fushën “Për kë janë produktet ose shërbimet e tua?”.',
+    })
+  if (!facts.length) {
+    const candidate = workspace.brand.facts.find(
+      (fact) => !fact.validFrom || fact.validFrom <= end,
+    )
+    if (!candidate || !candidate.text.trim())
+      missing.push({
+        id: 'fact-text',
+        code: 'VERIFIED_FACTS_REQUIRED',
+        label: 'Teksti i detajit të biznesit',
+        description:
+          'Te “Detaje që postimet duhet t’i kenë të sakta”, shkruaj informacionin që AI mund ta përdorë.',
+      })
+    if (!candidate || !candidate.source.trim())
+      missing.push({
+        id: 'fact-source',
+        code: 'VERIFIED_FACTS_REQUIRED',
+        label: 'Burimi i detajit',
+        description:
+          'Te i njëjti detaj, plotëso fushën “Burimi” për të treguar nga vjen informacioni.',
+      })
+    if (!candidate || !candidate.verified)
+      missing.push({
+        id: 'fact-confirmation',
+        code: 'VERIFIED_FACTS_REQUIRED',
+        label: 'Konfirmimi i detajit',
+        description:
+          'Te i njëjti detaj, aktivizo “E kam kontrolluar këtë informacion” dhe ruaj identitetin.',
+      })
+  }
+  if (!workspace.assets.some((asset) => asset.rights && !asset.generated))
+    missing.push({
+      id: 'owned-photo',
+      code: 'OWNED_PHOTOS_REQUIRED',
+      label: 'Fotografi reale me të drejta të konfirmuara',
+      description:
+        'Te Galeria, ngarko një fotografi të biznesit dhe konfirmo të drejtat e përdorimit.',
+    })
+  return missing
+}
 export function plannerEvidence(
   workspace: Workspace,
   now = new Date(),
@@ -37,10 +111,12 @@ export function plannerEvidence(
     return day <= end && factIsUsable(fact, day)
   })
   const assets = workspace.assets.filter((asset) => asset.rights && !asset.generated)
-  if (!facts.length) throw new PlannerFailure('VERIFIED_FACTS_REQUIRED')
-  if (!assets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
-  if (!workspace.brand.industry.trim() || !workspace.brand.audience.trim())
-    throw new PlannerFailure('BUSINESS_CONTEXT_REQUIRED')
+  const missing = plannerPrerequisites(workspace, now, month)
+  if (missing.length)
+    throw new PlannerFailure(
+      missing[0]!.code,
+      missing.map((item) => item.id),
+    )
   const eligibleAssetIds = new Set(assets.map((asset) => asset.id))
   const selectedAssetIds = [...new Set(photoSelection.selectedAssetIds)]
   if (
@@ -48,13 +124,18 @@ export function plannerEvidence(
     (!selectedAssetIds.length || selectedAssetIds.some((id) => !eligibleAssetIds.has(id)))
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
-  const orderedAssets = [...assets].sort(
-    (a, b) => Number(selectedAssetIds.includes(b.id)) - Number(selectedAssetIds.includes(a.id)),
-  )
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]))
+  const generationAssets =
+    photoSelection.mode === 'selected'
+      ? selectedAssetIds.map((id) => assetsById.get(id)!)
+      : assets
   const evidence = {
     brand: { ...workspace.brand, facts },
     timezone: workspace.preferences.timezone,
-    assets: orderedAssets.slice(0, 40).map(({ id, name, tags }) => ({ id, name, tags })),
+    // In selected mode this is an allow-list, not merely a preference. Keeping
+    // unselected gallery assets out of evidence prevents downstream stages from
+    // silently choosing them.
+    assets: generationAssets.slice(0, 40).map(({ id, name, tags }) => ({ id, name, tags })),
     photoSelection: {
       mode: photoSelection.mode,
       selectedAssetIds: photoSelection.mode === 'selected' ? selectedAssetIds : [],

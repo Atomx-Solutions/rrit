@@ -13,6 +13,7 @@
     "prepare": "node scripts/install-git-hooks.mjs",
     "toolchain:check": "node scripts/check-toolchain.mjs",
     "check": "npm run toolchain:check && npm run lint && npm run typecheck && npm run test:unit",
+    "verify:local": "npm run check && npm run build",
     "verify": "npm run check && npm run test:integration && npm run test:security && npm run build",
     "db:migrate": "npm run db:migrate --workspace apps/web",
     "db:configure-roles": "npm run db:configure-roles --workspace apps/web",
