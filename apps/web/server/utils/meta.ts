@@ -236,23 +236,11 @@ export async function exchangeMetaCode(code: string) {
       }
       if (!response.ok || !result.access_token) {
         const providerCode = result.error?.code || response.status
-        console.warn('Meta token exchange rejected.', {
-          exchangeType,
-          httpStatus: response.status,
-          providerCode,
-          providerType: result.error?.type,
-          providerMessage: result.error?.message?.slice(0, 240),
-        })
         throw new MetaFailure(providerCode, false, undefined, {
           category: metaFailureCategory(response.status, providerCode, result.error?.error_subcode),
           httpStatus: response.status,
         })
       }
-      console.info('Meta token exchange accepted.', {
-        exchangeType,
-        httpStatus: response.status,
-        expiresIn: result.expires_in,
-      })
       return { token: result.access_token, seconds: result.expires_in || 0 }
     } catch (error) {
       if (error instanceof MetaFailure) throw error
@@ -285,23 +273,8 @@ export async function exchangeMetaCode(code: string) {
     !debug.data.user_id ||
     (!hasUsableExpiry && !neverExpires)
   ) {
-    console.warn('Meta token debug validation rejected.', {
-      isValid: debug.data.is_valid,
-      appIdMatches: debug.data.app_id === config.appId,
-      hasUserId: Boolean(debug.data.user_id),
-      expiresAt: debug.data.expires_at,
-      dataAccessExpiresAt: debug.data.data_access_expires_at,
-      scopeCount: debug.data.scopes?.length || 0,
-    })
     throw new MetaFailure(190, false)
   }
-  console.info('Meta token debug validation accepted.', {
-    hasUsableExpiry,
-    neverExpires,
-    expiresAt: debug.data.expires_at,
-    dataAccessExpiresAt: debug.data.data_access_expires_at,
-    scopeCount: debug.data.scopes?.length || 0,
-  })
   return {
     token: long.token,
     userId: debug.data.user_id,

@@ -1,7 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import { recordAuditEvent, transitionMetadata } from '../../utils/audit'
 import { setTenantContext } from '../../utils/database'
-import { MetaFailure } from '../../utils/meta'
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const state = typeof query.state === 'string' ? query.state : ''
@@ -53,25 +52,11 @@ export default defineEventHandler(async (event) => {
     })
   }
   if (query.error || typeof query.code !== 'string') {
-    console.warn('Meta OAuth was cancelled or returned an error.', {
-      hasProviderError: Boolean(query.error),
-      providerError: typeof query.error === 'string' ? query.error.slice(0, 120) : undefined,
-      providerErrorDescription:
-        typeof query.error_description === 'string'
-          ? query.error_description.slice(0, 200)
-          : undefined,
-      hasCode: typeof query.code === 'string',
-    })
     await recordAuthorizationResult('cancelled', 'provider_cancelled')
     return sendRedirect(event, `${returnPath}?meta=cancelled`)
   }
   try {
     const token = await exchangeMetaCode(query.code)
-    console.info('Meta OAuth token exchange completed.', {
-      scopeCount: token.scopes.length,
-      scopes: token.scopes,
-      expiresAt: token.expiresAt.toISOString(),
-    })
     if (
       !token.scopes.includes('pages_show_list') ||
       !token.scopes.includes('pages_read_engagement')
@@ -125,13 +110,6 @@ export default defineEventHandler(async (event) => {
     })
     return sendRedirect(event, `${returnPath}?meta=select`)
   } catch (error) {
-    console.error('Meta OAuth callback failed.', {
-      name: error instanceof Error ? error.name : typeof error,
-      code: error instanceof MetaFailure ? error.code : undefined,
-      category: error instanceof MetaFailure ? error.category : undefined,
-      httpStatus: error instanceof MetaFailure ? error.details.httpStatus : undefined,
-      retryable: error instanceof MetaFailure ? error.retryable : undefined,
-    })
     await recordAuthorizationResult('failed', 'exchange_or_connection_failed')
     return sendRedirect(event, `${returnPath}?meta=failed`)
   }
