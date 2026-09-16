@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import { recordAuditEvent, transitionMetadata } from '../../utils/audit'
+import { setTenantContext } from '../../utils/database'
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const state = typeof query.state === 'string' ? query.state : ''
@@ -12,11 +13,19 @@ export default defineEventHandler(async (event) => {
   )
     throw createError({ statusCode: 400, message: 'Autorizimi ka skaduar. Nise lidhjen sërish.' })
   const user = await requireUser(event)
-  const stored = await withUserTransaction(user.id, (client) => client.query(
-    'UPDATE meta_oauth_states SET consumed_at = now() WHERE state_hash=$1 AND user_id=$2 AND consumed_at IS NULL AND expires_at>now() RETURNING business_id,return_path',
-    [hashState(state), user.id],
-  ))
-  if (!stored.rows[0])
+  const stored = await withUserTransaction(user.id, async (client) => {
+    const pending = await client.query<{ business_id: string }>(
+      'SELECT business_id FROM meta_oauth_states WHERE state_hash=$1 AND user_id=$2 AND consumed_at IS NULL AND expires_at>now()',
+      [hashState(state), user.id],
+    )
+    if (!pending.rows[0]) return null
+    await setTenantContext(client, { userId: user.id, organizationId: pending.rows[0].business_id })
+    return client.query<{ business_id: string; return_path: string }>(
+      'UPDATE meta_oauth_states SET consumed_at = now() WHERE state_hash=$1 AND user_id=$2 AND consumed_at IS NULL AND expires_at>now() RETURNING business_id,return_path',
+      [hashState(state), user.id],
+    )
+  })
+  if (!stored?.rows[0])
     throw createError({
       statusCode: 400,
       message: 'Kjo lidhje autorizimi nuk mund të përdoret përsëri.',
@@ -36,7 +45,7 @@ export default defineEventHandler(async (event) => {
         action: 'meta.authorization_received',
         result,
         metadata: {
-          ...transitionMetadata({ authorization_status: ['pending', result] }),
+          ...transitionMetadata({ oauth_status: ['pending', result] }),
           ...(reason ? { reason } : {}),
         },
       })
@@ -92,7 +101,7 @@ export default defineEventHandler(async (event) => {
         action: 'meta.authorization_received',
         metadata: {
           ...transitionMetadata({
-            authorization_status: ['pending', 'received'],
+            oauth_status: ['pending', 'received'],
             connection_status: ['absent', 'pending'],
           }),
           scopeCount: token.scopes.length,

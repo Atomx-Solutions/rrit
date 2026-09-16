@@ -1086,7 +1086,7 @@ export async function runMonthlyPlannerTick(
       // remains resumable, but only an explicit user action may continue it.
       await db.query(
         `UPDATE monthly_plans
-          SET status='blocked',error_code=$1,next_run_at=NULL,updated_at=now()
+          SET status='blocked',error_code=$1,next_run_at=now(),updated_at=now()
           WHERE id=$2`,
         [code, plan.id],
       )

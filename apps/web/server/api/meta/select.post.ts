@@ -27,22 +27,14 @@ export default defineEventHandler(async (event) => {
     page = await graphRequest<MetaPage>(
       input.data.pageId,
       decryptMetaToken(stored.rows[0].token_ciphertext, business.id),
-      { fields: 'id,name,access_token,tasks,instagram_business_account{id,username}' },
+      { fields: 'id,name,access_token,instagram_business_account{id,username}' },
     )
   } catch {
     throw createError({ statusCode: 403, message: 'Nuk u konfirmua qasja jote në këtë faqe.' })
   }
   if (
     page.id !== input.data.pageId ||
-    !page.access_token ||
-    !page.tasks?.some((task) =>
-      [
-        'CREATE_CONTENT',
-        'MANAGE',
-        'PROFILE_PLUS_CREATE_CONTENT',
-        'PROFILE_PLUS_FULL_CONTROL',
-      ].includes(task),
-    )
+    !page.access_token
   )
     throw createError({
       statusCode: 403,

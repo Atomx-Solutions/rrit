@@ -168,7 +168,13 @@ export async function graphRequest<T>(
     )
   }
   let result: T & {
-    error?: { code?: number; error_subcode?: number; is_transient?: boolean }
+    error?: {
+      code?: number
+      error_subcode?: number
+      is_transient?: boolean
+      type?: string
+      message?: string
+    }
   }
   try {
     result = (raw ? JSON.parse(raw) : {}) as typeof result
@@ -222,10 +228,21 @@ export async function exchangeMetaCode(code: string) {
     }).toString()
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(15000), redirect: 'error' })
-      const result = (await response.json()) as { access_token?: string; expires_in?: number }
-      if (!response.ok || !result.access_token) throw new Error('Token exchange failed')
+      const result = (await response.json()) as {
+        access_token?: string
+        expires_in?: number
+        error?: { code?: number; error_subcode?: number; type?: string; message?: string }
+      }
+      if (!response.ok || !result.access_token) {
+        const providerCode = result.error?.code || response.status
+        throw new MetaFailure(providerCode, false, undefined, {
+          category: metaFailureCategory(response.status, providerCode, result.error?.error_subcode),
+          httpStatus: response.status,
+        })
+      }
       return { token: result.access_token, seconds: result.expires_in || 0 }
-    } catch {
+    } catch (error) {
+      if (error instanceof MetaFailure) throw error
       throw new MetaFailure(190, false, 'Autorizimi nuk u përfundua. Nise lidhjen edhe një herë.')
     }
   }
