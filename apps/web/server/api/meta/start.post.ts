@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
       resourceId: business.id,
       action: 'meta.authorization_started',
       metadata: {
-        ...transitionMetadata({ authorization_status: ['absent', 'pending'] }),
+        ...transitionMetadata({ oauth_status: ['absent', 'pending'] }),
         onboarding: input.onboarding === true,
       },
     })

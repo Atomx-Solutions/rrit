@@ -15,7 +15,14 @@ import { setTenantContext } from './database'
 import { postContentSnapshot, postFingerprint } from './post-validation'
 import { normalizeQualityReview } from './post-quality-domain'
 import { assetContactSheet, normalizeGeneratedCreative } from './image-processing'
-import { downloadAsset, MAX_ASSET_BYTES } from './asset-storage'
+import {
+  assetStorageFolder,
+  assetStoragePath,
+  downloadAsset,
+  MAX_ASSET_BYTES,
+  removeAsset,
+  uploadAsset,
+} from './asset-storage'
 import {
   monthlyAiConfigured,
   monthlyAutomaticStageKey,
@@ -300,20 +307,30 @@ export async function resetMonthlyPlan(
   )
   if (!plan.rows[0]) return { status: 'cancelled' as const, removedPosts: 0 }
   const planId = plan.rows[0].id
-  const unsafe = await client.query(
-    `SELECT count(*)::integer AS count FROM posts
+  // Preserve approved, scheduled, failed and published posts. They are no
+  // longer part of the regenerated plan, but they must remain in the workspace.
+  await client.query(
+    `UPDATE posts
+        SET monthly_plan_id=NULL,monthly_slot=NULL
       WHERE business_id=$1 AND monthly_plan_id=$2
         AND COALESCE(payload->>'status','draft') NOT IN ('draft','review')`,
     [businessId, planId],
   )
-  if (unsafe.rows[0].count > 0) throw new PlannerFailure('PLAN_RESET_UNSAFE')
   const removed = await client.query(
-    'DELETE FROM posts WHERE business_id=$1 AND monthly_plan_id=$2 RETURNING id',
+    `DELETE FROM posts
+      WHERE business_id=$1 AND monthly_plan_id=$2
+        AND COALESCE(payload->>'status','draft') IN ('draft','review')
+      RETURNING id`,
     [businessId, planId],
   )
   await client.query(
     `DELETE FROM assets
-      WHERE business_id=$1 AND creative_provenance->>'planId'=$2`,
+      WHERE business_id=$1 AND creative_provenance->>'planId'=$2
+        AND NOT EXISTS (
+          SELECT 1 FROM posts p
+          WHERE p.business_id=assets.business_id
+            AND p.payload->>'image'='/api/media/' || assets.id::text
+        )`,
     [businessId, planId],
   )
   await client.query(
@@ -750,8 +767,20 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     }
     if (!content || !original || !creative || !imageGeneration || !quality)
       throw new PlannerFailure('GENERATION_FAILED')
-    await plannerStep('content.persist', () =>
-      transaction(db, async (client) => {
+    const business = await plannerStep('content.persist.business', () =>
+      db.query<{ slug: string }>('SELECT slug FROM businesses WHERE id=$1', [plan.business_id]),
+    )
+    const businessSlug = business.rows[0]?.slug
+    if (!businessSlug) throw new PlannerFailure('GENERATION_FAILED')
+    const assetId = randomUUID()
+    const storagePath = assetStoragePath(
+      assetStorageFolder(businessSlug, plan.business_id),
+      `${content.title}-${assetId}`,
+    )
+    await plannerStep('content.persist.storage', () => uploadAsset(storagePath, creative))
+    try {
+      const committed = await plannerStep('content.persist', () =>
+        transaction(db, async (client) => {
         await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [plan.business_id])
         const locked = await client.query(
           'SELECT completed_count,status FROM monthly_plans WHERE id=$1 FOR UPDATE',
@@ -809,8 +838,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           Number(usage.rows[0].bytes) + creative.length > currentAccess.limits.media_storage_bytes
         )
           throw new PlannerFailure('QUOTA_EXCEEDED')
-        const assetId = randomUUID(),
-          postId = randomUUID()
+        const postId = randomUUID()
         const provenance = {
           planId: plan.id,
           slot: plan.completed_count,
@@ -864,13 +892,14 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         )
         await plannerStep('content.persist.asset_insert', () =>
           client.query(
-            "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',$5,1080,1350,$6)",
+            "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,storage_path,size_bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',NULL,$5,$6,1080,1350,$7)",
             [
               assetId,
               plan.business_id,
               content.title,
               JSON.stringify(['monthly-creative', slot.pillar]),
-              creative,
+              storagePath,
+              creative.length,
               JSON.stringify({
                 ...provenance,
                 checksum: evidenceHash(creative.toString('base64')),
@@ -921,8 +950,21 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             [plan.business_id, postId],
           ),
         )
-      }),
-    )
+        return true
+        }),
+      )
+      if (!committed) await removeAsset(storagePath)
+    } catch (error) {
+      try {
+        await removeAsset(storagePath)
+      } catch (cleanupError) {
+        console.error('Failed to clean up generated planner asset after rollback', {
+          storagePath,
+          error: cleanupError,
+        })
+      }
+      throw error
+    }
   } finally {
     contactSheet?.fill(0)
     releasePlannerAssets(assets)
@@ -1086,7 +1128,7 @@ export async function runMonthlyPlannerTick(
       // remains resumable, but only an explicit user action may continue it.
       await db.query(
         `UPDATE monthly_plans
-          SET status='blocked',error_code=$1,next_run_at=NULL,updated_at=now()
+          SET status='blocked',error_code=$1,next_run_at=now(),updated_at=now()
           WHERE id=$2`,
         [code, plan.id],
       )

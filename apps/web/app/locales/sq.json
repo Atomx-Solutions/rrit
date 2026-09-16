@@ -178,6 +178,7 @@
   "content.confirmSchedule": "Konfirmo orarin",
   "content.validationResult": "Rezultati i kontrolleve",
   "content.okPrefix": "Në rregull: ",
+  "content.warningPrefix": "Kujdes: ",
   "content.verifyDescription": "Verifiko tekstin, burimet dhe të drejtat e fotografisë.",
   "validation.aiQualityReview": "Versioni aktual kërkon rishikim të tekstit dhe dizajnit me AI.",
   "content.postApprovedToast": "Postimi u miratua",

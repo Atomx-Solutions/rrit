@@ -5,6 +5,13 @@ import { normalizeGeneratedCreative } from '../../../utils/image-processing'
 import { monthlyImageCall, postImageEditPrompt } from '../../../utils/monthly-ai'
 import { evidenceHash, PlannerFailure, plannerMessages } from '../../../utils/monthly-planner-domain'
 import { postContentVersion, postContentSnapshot, postFingerprint } from '../../../utils/post-validation'
+import {
+  assetStorageFolder,
+  assetStoragePath,
+  downloadAsset,
+  removeAsset,
+  uploadAsset,
+} from '../../../utils/asset-storage'
 
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -34,18 +41,21 @@ export default defineEventHandler(async (event) => {
       if (!sourceAssetId.success)
         throw createError({ statusCode: 422, message: 'Fotografia aktuale duhet të ruhet në galeri përpara rigjenerimit.' })
       const source = await client.query(
-        'SELECT bytes,mime FROM assets WHERE business_id=$1 AND id=$2 AND rights=true',
+        'SELECT storage_path,bytes,mime FROM assets WHERE business_id=$1 AND id=$2 AND rights=true',
         [business.id, sourceAssetId.data],
       )
       if (!source.rowCount)
         throw createError({ statusCode: 422, message: 'Fotografia aktuale nuk ka më të drejta të konfirmuara.' })
-      const { workspace } = await loadWorkspace(client, business.id, user.id)
+      const { workspace, slug } = await loadWorkspace(client, business.id, user.id)
       return {
         businessId: business.id,
         post,
         workspace,
+        workspaceSlug: slug,
         sourceAssetId: sourceAssetId.data,
-        sourceBytes: source.rows[0].bytes as Buffer,
+        sourceBytes: source.rows[0].storage_path
+          ? await downloadAsset(source.rows[0].storage_path)
+          : (source.rows[0].bytes as Buffer),
         sourceMime: source.rows[0].mime as string,
       }
     })
@@ -74,7 +84,14 @@ export default defineEventHandler(async (event) => {
       tenant: { userId: user.id, organizationId: snapshot.businessId },
     })
     const bytes = await normalizeGeneratedCreative(generated.bytes)
-    return await withBusinessTransaction(user.id, async (client, business) => {
+    const assetId = randomUUID()
+    const storagePath = assetStoragePath(
+      assetStorageFolder(snapshot.workspaceSlug, snapshot.businessId),
+      `${snapshot.post.title}-${assetId}`,
+    )
+    await uploadAsset(storagePath, bytes)
+    try {
+      return await withBusinessTransaction(user.id, async (client, business) => {
       if (business.id !== snapshot.businessId)
         throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sërish.' })
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
@@ -83,7 +100,6 @@ export default defineEventHandler(async (event) => {
       if (!previous?.aiProvenance || postContentVersion(previous) !== input.data.contentVersion || previous.image !== snapshot.post.image)
         throw createError({ statusCode: 409, message: 'Postimi ndryshoi gjatë gjenerimit. Varianti ekzistues mbeti i paprekur.' })
       await requireQuota(business.id, 'media_storage_bytes', bytes.length, client)
-      const assetId = randomUUID()
       const createdAt = new Date().toISOString()
       const post = postSchema.parse({
         ...previous,
@@ -107,9 +123,9 @@ export default defineEventHandler(async (event) => {
         },
       })
       await client.query(
-        `INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,creative_provenance)
-         VALUES($1,$2,$3,'["monthly-creative","ai-edited"]',true,'image/jpeg',$4,1080,1350,$5)`,
-        [assetId, business.id, post.title, bytes, JSON.stringify({ ...post.aiProvenance, editedBy: user.id, editSourceAssetId: snapshot.sourceAssetId })],
+        `INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,storage_path,size_bytes,width,height,creative_provenance)
+         VALUES($1,$2,$3,'["monthly-creative","ai-edited"]',true,'image/jpeg',NULL,$4,$5,1080,1350,$6)`,
+        [assetId, business.id, post.title, storagePath, bytes.length, JSON.stringify({ ...post.aiProvenance, editedBy: user.id, editSourceAssetId: snapshot.sourceAssetId })],
       )
       await client.query('UPDATE posts SET payload=$1,content_version=$2,updated_at=now() WHERE id=$3 AND business_id=$4', [JSON.stringify(post), postContentVersion(post), post.id, business.id])
       await client.query(
@@ -122,7 +138,18 @@ export default defineEventHandler(async (event) => {
         [business.id, user.id, id.data],
       )
       return { business: await loadWorkspace(client, business.id, user.id), image: post.image }
-    })
+      })
+    } catch (error) {
+      try {
+        await removeAsset(storagePath)
+      } catch (cleanupError) {
+        console.error('Failed to clean up AI-edited asset after rollback', {
+          storagePath,
+          error: cleanupError,
+        })
+      }
+      throw error
+    }
   } catch (error) {
     if (error instanceof PlannerFailure)
       throw createError({

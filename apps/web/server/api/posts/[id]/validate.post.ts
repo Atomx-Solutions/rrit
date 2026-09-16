@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { postSchema } from '../../../../shared/schemas/workspace'
-import { postContentVersion } from '../../../utils/post-validation'
+import { blockingPostChecks, postContentVersion } from '../../../utils/post-validation'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
@@ -36,10 +36,14 @@ export default defineEventHandler(async (event) => {
       return { post, contentChecks, checks }
     },
   )
-  const contentPassed = contentChecks.every((check) => check.passed)
+  const contentBlockingChecks = blockingPostChecks(contentChecks)
+  const blockingChecks = blockingPostChecks(checks)
+  const contentPassed = contentBlockingChecks.every((check) => check.passed)
+  const passed = blockingChecks.every((check) => check.passed)
+  const advisoryWarnings = checks.filter((check) => check.advisory && !check.passed)
   const result = {
     scope: input.data.scope,
-    passed: checks.every((check) => check.passed),
+    passed,
     checks,
     checkedAt: new Date().toISOString(),
     manualReview:
@@ -73,8 +77,8 @@ export default defineEventHandler(async (event) => {
     await client.query(
       "UPDATE posts SET payload=jsonb_set(jsonb_set(payload,'{policy}',to_jsonb($1::text)),'{policyReason}',to_jsonb($2::text)) WHERE id=$3 AND business_id=$4",
       [
-        contentPassed ? 'pass' : 'block',
-        contentPassed
+        !contentPassed ? 'block' : advisoryWarnings.length ? 'warn' : 'pass',
+        contentPassed && !advisoryWarnings.length
           ? 'Kontrollet e përmbajtjes kaluan. Mund ta miratosh dhe ta shtosh në kalendar pa lidhur Meta.'
           : contentChecks
               .filter((check) => !check.passed)

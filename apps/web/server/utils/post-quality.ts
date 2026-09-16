@@ -66,7 +66,14 @@ export async function reviewPostQuality(
     const original = assets.rows.find((asset) => asset.id === post.aiProvenance!.assetId)
     const current = assets.rows.find((asset) => `/api/media/${asset.id}` === post.image)
     if (!original || !current) throw new PlannerFailure('EVIDENCE_CHANGED')
-    return { post, brand, day, original: original.bytes as Buffer, image: current.bytes as Buffer }
+    return {
+      post,
+      brand,
+      day,
+      language: (result.rows[0].state.preferences.locale === 'en-US' ? 'en' : 'sq') as 'en' | 'sq',
+      original: original.bytes as Buffer,
+      image: current.bytes as Buffer,
+    }
   })
   const fingerprint = postFingerprint(snapshot.post)
   const brandHash = qualityBrandHash(snapshot.brand)
@@ -74,8 +81,15 @@ export async function reviewPostQuality(
     tenant,
     businessId: tenant.organizationId,
     planId: snapshot.post.aiProvenance!.planId,
-    stageKey: qualityReviewKey(snapshot.post, fingerprint, snapshot.brand, snapshot.day),
+    stageKey: qualityReviewKey(
+      snapshot.post,
+      fingerprint,
+      snapshot.brand,
+      snapshot.day,
+      snapshot.language,
+    ),
     capability: 'quality',
+    language: snapshot.language,
     schema: qualitySchema,
     maxOutput: 2000,
     input: {
@@ -114,6 +128,22 @@ export async function reviewPostQuality(
     const checks = await localPostChecks(post, tenant.organizationId, client)
     if (checks.some((check) => check.key !== 'ai_quality' && !check.passed))
       throw new PlannerFailure('EVIDENCE_CHANGED')
+    const language = current.rows[0].state.preferences.locale === 'en-US' ? 'en' : 'sq'
+    const policyReason =
+      quality.reasons.join(' ') ||
+      (language === 'en'
+        ? 'Review the facts and design before approval.'
+        : 'Kontrollo faktet dhe dizajnin përpara miratimit.')
+    await client.query(
+      "UPDATE posts SET payload=jsonb_set(jsonb_set(jsonb_set(payload,'{policy}',to_jsonb($1::text)),'{policyReason}',to_jsonb($2::text)),'{aiProvenance,quality}',$5::jsonb) WHERE id=$3 AND business_id=$4",
+      [
+        quality.factuality ? 'warn' : 'block',
+        policyReason,
+        postId,
+        tenant.organizationId,
+        JSON.stringify(quality),
+      ],
+    )
     await client.query(
       "INSERT INTO audit_events(business_id,organization_id,actor_id,action,resource_type,resource_id,result,revision) SELECT id,id,$2,'post.quality_reviewed','post',$3,'succeeded',revision FROM businesses WHERE id=$1",
       [tenant.organizationId, tenant.userId, postId],
@@ -141,13 +171,22 @@ export async function currentPostQuality(
     if (!post.aiProvenance)
       return { contentVersion, quality: null, reviewedAt: null as string | null }
     const timezone = result.rows[0].state.preferences.timezone
+    const language = (result.rows[0].state.preferences.locale === 'en-US' ? 'en' : 'sq') as
+      | 'en'
+      | 'sq'
     const day = qualityReviewDay(post, timezone)
     const review = await client.query(
       "SELECT result,completed_at FROM monthly_ai_runs WHERE business_id=$1 AND plan_id=$2 AND stage_key=$3 AND status='completed' AND actual_cost_micro_eur<=reserved_cost_micro_eur",
       [
         tenant.organizationId,
         post.aiProvenance.planId,
-        qualityReviewKey(post, postFingerprint(post), result.rows[0].state.brand, day),
+        qualityReviewKey(
+          post,
+          postFingerprint(post),
+          result.rows[0].state.brand,
+          day,
+          language,
+        ),
       ],
     )
     if (!review.rows[0]) return { contentVersion, quality: null, reviewedAt: null as string | null }

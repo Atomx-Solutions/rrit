@@ -34,6 +34,12 @@ const {
 )
 const savedId = ref(props.id)
 const post = computed(() => data.value.posts.find((p) => p.id === savedId.value))
+const selectableAssets = computed(() => {
+  const assets = data.value.assets.filter((asset) => asset.rights)
+  if (!post.value) return assets
+  const currentImage = form.image || post.value.image
+  return assets.filter((asset) => asset.url === currentImage)
+})
 const baseline = ref(
   JSON.stringify(chosenTemplate && !props.id ? { ...form, title: '', caption: '' } : form),
 )
@@ -52,7 +58,7 @@ const publishing = ref(false)
 const validation = ref<{
   scope: 'content' | 'publication'
   passed: boolean
-  checks: { key: string; passed: boolean; message: string }[]
+  checks: { key: string; passed: boolean; message: string; advisory?: boolean }[]
   manualReview: string
 } | null>(null)
 const publication = ref<{
@@ -262,8 +268,10 @@ async function setStatus(next: Post['status']) {
     if (!(await checkPost())) return
     confirmed.value = true
   }
-  if (await transition(savedId.value, next))
+  if (await transition(savedId.value, next)) {
     notify(next === 'approved' ? t('content.postApprovedToast') : t('content.statusUpdatedToast'))
+    if (next === 'approved') scheduleOpen.value = true
+  }
 }
 async function schedulePost() {
   if (scheduleBusy.value) return
@@ -450,7 +458,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="asset-picker">
             <UButton
-              v-for="asset in data.assets.filter((a) => a.rights)"
+              v-for="asset in selectableAssets"
               :key="asset.id"
               variant="ghost"
               color="neutral"
@@ -482,10 +490,10 @@ onBeforeUnmount(() => {
           <ul v-if="validation" class="space-y-3" :aria-label="t('content.validationResult')">
             <li v-for="check in validation.checks" :key="check.key" class="flex gap-2 text-sm">
               <UIcon
-                :name="check.passed ? 'i-lucide-circle-check' : 'i-lucide-circle-x'"
-                :class="check.passed ? 'text-success' : 'text-error'"
+                :name="check.passed ? 'i-lucide-circle-check' : check.advisory ? 'i-lucide-triangle-alert' : 'i-lucide-circle-x'"
+                :class="check.passed ? 'text-success' : check.advisory ? 'text-warning' : 'text-error'"
                 class="size-4 shrink-0 mt-0.5"
-              /><span>{{ check.passed ? t('content.okPrefix') : '' }}{{ validationMessage(check) }}</span>
+              /><span>{{ check.passed ? t('content.okPrefix') : check.advisory ? t('content.warningPrefix') : '' }}{{ validationMessage(check) }}</span>
             </li>
           </ul>
           <UCheckbox

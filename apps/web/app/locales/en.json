@@ -178,6 +178,7 @@
   "content.confirmSchedule": "Confirm schedule",
   "content.validationResult": "Validation result",
   "content.okPrefix": "OK: ",
+  "content.warningPrefix": "Warning: ",
   "content.verifyDescription": "Verify the text, sources and photo rights.",
   "validation.aiQualityReview": "The current version requires AI review of the text and design.",
   "content.postApprovedToast": "Post approved",

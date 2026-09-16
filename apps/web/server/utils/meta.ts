@@ -168,7 +168,13 @@ export async function graphRequest<T>(
     )
   }
   let result: T & {
-    error?: { code?: number; error_subcode?: number; is_transient?: boolean }
+    error?: {
+      code?: number
+      error_subcode?: number
+      is_transient?: boolean
+      type?: string
+      message?: string
+    }
   }
   try {
     result = (raw ? JSON.parse(raw) : {}) as typeof result
@@ -214,6 +220,7 @@ export async function graphRequest<T>(
 export async function exchangeMetaCode(code: string) {
   const config = metaConfiguration()
   async function exchange(parameters: Record<string, string>) {
+    const exchangeType = parameters.grant_type ? 'long_lived_token' : 'authorization_code'
     const url = new URL(`https://graph.facebook.com/${config.version}/oauth/access_token`)
     url.search = new URLSearchParams({
       client_id: config.appId,
@@ -222,10 +229,21 @@ export async function exchangeMetaCode(code: string) {
     }).toString()
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(15000), redirect: 'error' })
-      const result = (await response.json()) as { access_token?: string; expires_in?: number }
-      if (!response.ok || !result.access_token) throw new Error('Token exchange failed')
+      const result = (await response.json()) as {
+        access_token?: string
+        expires_in?: number
+        error?: { code?: number; error_subcode?: number; type?: string; message?: string }
+      }
+      if (!response.ok || !result.access_token) {
+        const providerCode = result.error?.code || response.status
+        throw new MetaFailure(providerCode, false, undefined, {
+          category: metaFailureCategory(response.status, providerCode, result.error?.error_subcode),
+          httpStatus: response.status,
+        })
+      }
       return { token: result.access_token, seconds: result.expires_in || 0 }
-    } catch {
+    } catch (error) {
+      if (error instanceof MetaFailure) throw error
       throw new MetaFailure(190, false, 'Autorizimi nuk u përfundua. Nise lidhjen edhe një herë.')
     }
   }
@@ -241,19 +259,27 @@ export async function exchangeMetaCode(code: string) {
       scopes?: string[]
     }
   }>('debug_token', `${config.appId}|${config.appSecret}`, { input_token: long.token })
+  const now = Date.now()
+  const expiryCandidates = [debug.data.expires_at, debug.data.data_access_expires_at].filter(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0,
+  )
+  const expirySeconds = expiryCandidates.length ? Math.min(...expiryCandidates) : undefined
+  const neverExpires =
+    debug.data.expires_at === 0 && (debug.data.data_access_expires_at || 0) === 0
+  const hasUsableExpiry = expirySeconds !== undefined && expirySeconds * 1000 > now
   if (
     !debug.data.is_valid ||
     debug.data.app_id !== config.appId ||
     !debug.data.user_id ||
-    debug.data.expires_at * 1000 <= Date.now()
-  )
+    (!hasUsableExpiry && !neverExpires)
+  ) {
     throw new MetaFailure(190, false)
+  }
   return {
     token: long.token,
     userId: debug.data.user_id,
     expiresAt: new Date(
-      Math.min(debug.data.expires_at, debug.data.data_access_expires_at || debug.data.expires_at) *
-        1000,
+      expirySeconds ? expirySeconds * 1000 : '9999-12-31T23:59:59.999Z',
     ),
     scopes: debug.data.scopes || [],
   }

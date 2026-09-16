@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { workspaceSchema, validateTransition, type Post } from '../../../shared/schemas/workspace'
 import { recordAuditEvent, transitionMetadata, workspaceAuditMetadata } from '../../utils/audit'
 import {
+  blockingPostChecks,
   postContentSnapshot,
   postContentVersion,
   requireCurrentApproval,
@@ -269,9 +270,10 @@ export default defineEventHandler(async (event) => {
               id.data,
               client,
             )
-            if (checks.some((check) => !check.passed))
+            const blockingChecks = blockingPostChecks(checks)
+            if (blockingChecks.some((check) => !check.passed))
               fail(
-                checks
+                blockingChecks
                   .filter((check) => !check.passed)
                   .map((check) => check.message)
                   .join(' '),
@@ -336,7 +338,7 @@ export default defineEventHandler(async (event) => {
       }
       if (!previous || editableKeys.some((key) => previous[key] !== post[key])) {
         const checks = await localPostChecks(post, id.data, client)
-        post.policy = checks.every((check) => check.passed) ? 'warn' : 'block'
+        post.policy = blockingPostChecks(checks).every((check) => check.passed) ? 'warn' : 'block'
         post.policyReason = checks.every((check) => check.passed)
           ? 'Kontrollet e përmbajtjes kaluan. Konfirmo faktet përpara miratimit. Meta është opsionale për kalendarin.'
           : checks

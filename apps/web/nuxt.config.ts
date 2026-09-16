@@ -6,6 +6,11 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/eslint'],
   css: ['@fontsource-variable/inter', '~/assets/css/main.css'],
   devtools: { enabled: false },
+  vite: {
+    server: {
+      allowedHosts: ['january-reviving-humbly.ngrok-free.dev'],
+    },
+  },
   ui: { fonts: false },
   colorMode: { preference: 'light', fallback: 'light' },
   icon: {
