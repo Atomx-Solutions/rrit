@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from 'pg'
 import { postSchema, type Post } from '../../shared/schemas/workspace'
 import { recordAuditEvent, transitionMetadata } from './audit'
 import { setTenantContext } from './database'
-import { localPostChecks, postContentVersion, providerPostChecks } from './post-validation'
+import { blockingPostChecks, localPostChecks, postContentVersion, providerPostChecks } from './post-validation'
 import { requireEntitlement, trialStatus } from './trials'
 import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
 
@@ -504,7 +504,8 @@ async function runOnePublishingJob(db: Pool) {
       ...(await localPostChecks(post, job.business_id, db)),
       ...(await providerPostChecks(post, job.business_id, { throwProviderFailure: true, db })),
     ]
-    if (checks.some((check) => !check.passed)) throw new Error('preflight_failed')
+    if (blockingPostChecks(checks).some((check) => !check.passed))
+      throw new Error('preflight_failed')
     const connection = await connectedMeta(job.business_id, db)
     if (
       connection.page_id !== job.target_page_id ||

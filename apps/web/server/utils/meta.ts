@@ -220,6 +220,7 @@ export async function graphRequest<T>(
 export async function exchangeMetaCode(code: string) {
   const config = metaConfiguration()
   async function exchange(parameters: Record<string, string>) {
+    const exchangeType = parameters.grant_type ? 'long_lived_token' : 'authorization_code'
     const url = new URL(`https://graph.facebook.com/${config.version}/oauth/access_token`)
     url.search = new URLSearchParams({
       client_id: config.appId,
@@ -235,11 +236,23 @@ export async function exchangeMetaCode(code: string) {
       }
       if (!response.ok || !result.access_token) {
         const providerCode = result.error?.code || response.status
+        console.warn('Meta token exchange rejected.', {
+          exchangeType,
+          httpStatus: response.status,
+          providerCode,
+          providerType: result.error?.type,
+          providerMessage: result.error?.message?.slice(0, 240),
+        })
         throw new MetaFailure(providerCode, false, undefined, {
           category: metaFailureCategory(response.status, providerCode, result.error?.error_subcode),
           httpStatus: response.status,
         })
       }
+      console.info('Meta token exchange accepted.', {
+        exchangeType,
+        httpStatus: response.status,
+        expiresIn: result.expires_in,
+      })
       return { token: result.access_token, seconds: result.expires_in || 0 }
     } catch (error) {
       if (error instanceof MetaFailure) throw error
@@ -258,19 +271,42 @@ export async function exchangeMetaCode(code: string) {
       scopes?: string[]
     }
   }>('debug_token', `${config.appId}|${config.appSecret}`, { input_token: long.token })
+  const now = Date.now()
+  const expiryCandidates = [debug.data.expires_at, debug.data.data_access_expires_at].filter(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0,
+  )
+  const expirySeconds = expiryCandidates.length ? Math.min(...expiryCandidates) : undefined
+  const neverExpires =
+    debug.data.expires_at === 0 && (debug.data.data_access_expires_at || 0) === 0
+  const hasUsableExpiry = expirySeconds !== undefined && expirySeconds * 1000 > now
   if (
     !debug.data.is_valid ||
     debug.data.app_id !== config.appId ||
     !debug.data.user_id ||
-    debug.data.expires_at * 1000 <= Date.now()
-  )
+    (!hasUsableExpiry && !neverExpires)
+  ) {
+    console.warn('Meta token debug validation rejected.', {
+      isValid: debug.data.is_valid,
+      appIdMatches: debug.data.app_id === config.appId,
+      hasUserId: Boolean(debug.data.user_id),
+      expiresAt: debug.data.expires_at,
+      dataAccessExpiresAt: debug.data.data_access_expires_at,
+      scopeCount: debug.data.scopes?.length || 0,
+    })
     throw new MetaFailure(190, false)
+  }
+  console.info('Meta token debug validation accepted.', {
+    hasUsableExpiry,
+    neverExpires,
+    expiresAt: debug.data.expires_at,
+    dataAccessExpiresAt: debug.data.data_access_expires_at,
+    scopeCount: debug.data.scopes?.length || 0,
+  })
   return {
     token: long.token,
     userId: debug.data.user_id,
     expiresAt: new Date(
-      Math.min(debug.data.expires_at, debug.data.data_access_expires_at || debug.data.expires_at) *
-        1000,
+      expirySeconds ? expirySeconds * 1000 : '9999-12-31T23:59:59.999Z',
     ),
     scopes: debug.data.scopes || [],
   }

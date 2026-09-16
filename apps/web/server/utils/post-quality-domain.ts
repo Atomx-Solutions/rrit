@@ -32,8 +32,9 @@ export function qualityReviewKey(
   fingerprint: string,
   brand: Workspace['brand'],
   day: string,
+  language: 'sq' | 'en' = 'sq',
 ) {
-  return `review:${post.id}:${post.contentVersion || 1}:${fingerprint}:${qualityBrandHash(brand)}:${day}`
+  return `review:${post.id}:${post.contentVersion || 1}:${fingerprint}:${qualityBrandHash(brand)}:${day}:${language}`
 }
 export function qualityReviewDay(post: Post, timezone: string, now = new Date()) {
   const intended = dayInZone(post.scheduledAt || post.proposedAt || now, timezone)

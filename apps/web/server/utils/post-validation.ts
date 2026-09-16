@@ -19,7 +19,10 @@ const limitsSchema = z.object({
   max_hashtags: z.number().int().nonnegative(),
   daily_ai_requests: z.number().int().positive(),
 })
-export type PostCheck = { key: string; passed: boolean; message: string }
+export type PostCheck = { key: string; passed: boolean; message: string; advisory?: boolean }
+export function blockingPostChecks(checks: PostCheck[]) {
+  return checks.filter((check) => !check.advisory)
+}
 export function postContentVersion(post: Post) {
   return post.contentVersion ?? 1
 }
@@ -132,12 +135,13 @@ export async function localPostChecks(
     })
     let quality = null
     if (row?.state?.brand) {
+      const language = (row.state.preferences?.locale === 'en-US' ? 'en' : 'sq') as 'en' | 'sq'
       const review = await db.query(
         "SELECT result FROM monthly_ai_runs WHERE business_id=$1 AND plan_id=$2 AND stage_key=$3 AND status='completed' AND actual_cost_micro_eur<=reserved_cost_micro_eur",
         [
           businessId,
           provenance.planId,
-          qualityReviewKey(post, postFingerprint(post), row.state.brand, useDay),
+          qualityReviewKey(post, postFingerprint(post), row.state.brand, useDay, language),
         ],
       )
       if (review.rows[0]) {
@@ -164,10 +168,13 @@ export async function localPostChecks(
       key: 'ai_quality',
       passed:
         !!quality &&
-        quality.decision !== 'BLOCK' &&
         quality.factuality &&
         quality.brandFit &&
         quality.visualQuality,
+      // AI quality is guidance for the human approver. Keep the finding
+      // visible, but do not block approval or scheduling when it is missing
+      // or negative.
+      advisory: true,
       message:
         quality?.reasons.join(' ') ||
         'Versioni aktual kërkon rishikim të tekstit dhe dizajnit me AI.',
