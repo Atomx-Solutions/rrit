@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import { factInputProblem, type BrandFact } from '~~/shared/schemas/business-brain'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-const { data, base, syncing, commit, notify } = useWorkspace()
+const { data, base, syncing, saveBrand, notify } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('brand.title')} · Rrit` })
 const { form, clear, recovered, localError } = useDraft(
@@ -68,11 +68,7 @@ async function save() {
     notify(problem)
     return
   }
-  if (
-    await commit((d) => {
-      d.brand = snapshot
-    })
-  ) {
+  if (await saveBrand(snapshot)) {
     clear()
     Object.assign(form, structuredClone(toRaw(data.value.brand)))
     baseline.value = JSON.stringify(form)

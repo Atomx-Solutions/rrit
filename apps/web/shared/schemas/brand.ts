@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { brandFactSchema } from './business-brain'
 
 const supportedTimezones = new Set(
   typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [],
@@ -19,6 +20,14 @@ export const ianaTimezoneSchema = z.string().trim().refine(isIanaTimezone, {
   message: 'Timezone duhet të jetë një IANA timezone valide.',
 })
 
+const brandResearchSourceSchema = z
+  .url()
+  .max(500)
+  .refine((value) => {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password
+  })
+
 export const brandProfileSchema = z.object({
   description: z.string().max(2000).default(''),
   voice: z.string().max(1000).default(''),
@@ -29,17 +38,10 @@ export const brandProfileSchema = z.object({
   facebookUrl: z.string().max(500).default(''),
   instagramUrl: z.string().max(500).default(''),
   goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
-  facts: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(100),
-        text: z.string().max(1000),
-        source: z.string().max(500),
-        verified: z.boolean(),
-      }),
-    )
-    .max(100)
-    .default([]),
+  researchSources: z.array(brandResearchSourceSchema).max(10).default([]),
+  facts: z.array(brandFactSchema).max(100).default([]),
+  guardrails: z.array(z.string().trim().min(1).max(500)).max(20).default([]),
+  brainVersion: z.number().int().nonnegative().optional(),
 })
 
 export const brandSettingsSchema = z.object({
@@ -65,7 +67,9 @@ export const brandCreateSchema = z.object({
     facebookUrl: '',
     instagramUrl: '',
     goals: [],
+    researchSources: [],
     facts: [],
+    guardrails: [],
   }),
   settings: brandSettingsSchema.default({
     emailApprovals: true,

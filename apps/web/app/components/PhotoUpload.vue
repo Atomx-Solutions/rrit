@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import type { Asset } from '~~/shared/schemas/workspace'
-const { data, commit, notify } = useWorkspace()
+const { uploadAsset, notify } = useWorkspace()
 const { t } = useI18n()
 const emit = defineEmits<{ uploaded: [url: string] }>()
 const open = ref(false)
@@ -23,30 +22,13 @@ async function upload(value: File | null | undefined) {
       bitmap.close()
       throw new Error(t('photo.tooSmall'))
     }
-    const scale = Math.min(1, 1200 / Math.max(bitmap.width, bitmap.height))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(bitmap.width * scale)
-    canvas.height = Math.round(bitmap.height * scale)
-    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
     bitmap.close()
-    const asset: Asset = {
-      id: crypto.randomUUID(),
-      name: value.name,
-      url: canvas.toDataURL('image/jpeg', 0.8),
-      tags: [],
-      rights: true,
-      kind: 'photo',
-      size: value.size,
-    }
-    if (
-      !(await commit((d) => {
-        d.assets.unshift(asset)
-      }))
-    ) {
+    const asset = await uploadAsset(value, { name: value.name, tags: [], rights: true })
+    if (!asset) {
       error.value = t('photo.saveError')
       return
     }
-    emit('uploaded', data.value.assets.find((a) => a.id === asset.id)!.url)
+    emit('uploaded', asset.url)
     notify(t('photo.added'))
     open.value = false
   } catch (problem) {

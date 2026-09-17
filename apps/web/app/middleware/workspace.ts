@@ -2,14 +2,21 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const workspace = useWorkspace()
   const { t } = useI18n()
   try {
-    const business = await workspace.initLive()
-    if (!business && to.path !== '/onboarding') return navigateTo('/onboarding', { replace: true })
-    if (business && to.path === '/onboarding' && business.workspace.onboarding >= 4)
-      return navigateTo(`/app/${business.id}/${business.slug}/overview`, { replace: true })
+    const routeId = typeof to.params.org === 'string' ? to.params.org : undefined
+    const bootstrap = await workspace.initBootstrap(routeId)
+    if (!bootstrap && to.path !== '/onboarding') return navigateTo('/onboarding', { replace: true })
+    if (bootstrap) {
+      await Promise.all([
+        workspace.loadPosts({ page: 1, pageSize: 50 }),
+        workspace.loadAssets({ page: 1, pageSize: 50 }),
+      ])
+    }
+    if (bootstrap && to.path === '/onboarding' && bootstrap.onboarding >= 4)
+      return navigateTo(`/app/${bootstrap.id}/${bootstrap.slug}/overview`, { replace: true })
     if (
-      business &&
+      bootstrap &&
       to.params.org &&
-      (to.params.org !== business.id || to.params.brand !== business.slug)
+      (to.params.org !== bootstrap.id || to.params.brand !== bootstrap.slug)
     )
       return abortNavigation(createError({ statusCode: 404, statusMessage: t('workspace.notFound') }))
   } catch (error) {

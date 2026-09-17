@@ -3,7 +3,7 @@ import type { Post } from '~~/shared/schemas/workspace'
 
 const props = defineProps<{ post: Post; disabled?: boolean }>()
 const emit = defineEmits<{ saved: [image: string] }>()
-const { applyBusiness } = useWorkspace()
+const { applyPostResource } = useWorkspace()
 const { t } = useI18n()
 const open = ref(false)
 const busy = ref(false)
@@ -22,7 +22,7 @@ async function generateWithAi() {
   busy.value = true
   error.value = ''
   try {
-    const result = await $fetch(`/api/posts/${props.post.id}/creative`, {
+    const result = await $fetch<{ post: Post; image: string; workspaceRevision: number }>(`/api/posts/${props.post.id}/creative`, {
       method: 'POST',
       body: {
         action: 'ai-edit',
@@ -32,7 +32,7 @@ async function generateWithAi() {
       retry: 0,
       timeout: 330000,
     })
-    applyBusiness(result.business)
+    applyPostResource(result.post, result.workspaceRevision)
     emit('saved', result.image)
     open.value = false
   } catch (problem) {

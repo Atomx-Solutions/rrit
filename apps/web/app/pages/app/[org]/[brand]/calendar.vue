@@ -5,23 +5,39 @@ import {
   moveCalendar,
   type CalendarView,
 } from '~~/shared/utils/calendar'
+import { zonedToIso } from '~~/shared/utils/format'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-const { data, base } = useWorkspace()
+const { data, base, loadPosts } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.calendar')} · Rrit` })
 const today = computed(() => dayInZone(new Date(), data.value.preferences.timezone))
 const anchor = ref(today.value)
 const view = ref<CalendarView>('list')
 const period = computed(() => calendarPeriod(anchor.value, view.value))
-const posts = computed(() =>
-  data.value.posts
+const posts = ref<typeof data.value.posts>([])
+async function loadCalendarPosts() {
+  const timezone = data.value.preferences.timezone
+  const from = zonedToIso(`${period.value.start}T00:00`, timezone)
+  const to = zonedToIso(`${period.value.end}T23:59`, timezone)
+  if (!from || !to) return
+  const items = [] as typeof data.value.posts
+  for (let page = 1, hasNext = true; hasNext; page++) {
+    const result = await loadPosts({ page, pageSize: 50, from, to, status: 'scheduled' })
+    if (!result) break
+    items.push(...result.items)
+    hasNext = result.hasNext
+  }
+  posts.value = items
+}
+const scheduledPosts = computed(() =>
+  posts.value
     .map((p) => ({ ...p, scheduledAt: p.scheduledAt || p.proposedAt || null }))
     .filter((p) => p.scheduledAt)
     .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!)),
 )
 const localDay = (value: string) => dayInZone(value, data.value.preferences.timezone)
 const visible = computed(() =>
-  posts.value.filter((p) => {
+  scheduledPosts.value.filter((p) => {
     const day = localDay(p.scheduledAt!)
     return day >= period.value.start && day <= period.value.end
   }),
@@ -29,7 +45,9 @@ const visible = computed(() =>
 const { page, pageSize, total, paginated } = usePagination(visible)
 watch([anchor, view], () => {
   page.value = 1
+  void loadCalendarPosts()
 })
+onMounted(() => { void loadCalendarPosts() })
 function move(direction: number) {
   anchor.value = moveCalendar(anchor.value, view.value, direction)
 }

@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import type { Post } from '~~/shared/schemas/workspace'
 import { statusLabels } from '~~/shared/utils/format'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-const { data, base } = useWorkspace()
+const { base, loadPosts } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('content.yourPosts')} · Rrit` })
 const route = useRoute()
@@ -34,8 +35,12 @@ const tabs = computed(() => [
   { value: 'all', label: t('overview.all') },
   ...Object.keys(statusLabels).map((value) => ({ value, label: t(`status.${value}`) })),
 ])
+const result = ref({ items: [] as Post[], page: 1, pageSize: 20, total: 0, hasNext: false })
+const page = ref(1)
+const pageSize = ref(20)
+const total = computed(() => result.value.total)
 const posts = computed(() =>
-  data.value.posts.filter(
+  result.value.items.filter(
     (p) =>
       (filter.value === 'all' || p.status === filter.value) &&
       (channel.value === 'all' || p.channel === channel.value) &&
@@ -44,10 +49,21 @@ const posts = computed(() =>
         .includes(search.value.trim().toLocaleLowerCase('sq')),
   ),
 )
-const { page, pageSize, total, paginated } = usePagination(posts)
+async function refreshPosts() {
+  const response = await loadPosts({
+    page: page.value,
+    pageSize: pageSize.value,
+    ...(filter.value === 'all' ? {} : { status: filter.value as Post['status'] }),
+    ...(channel.value === 'all' ? {} : { channel: channel.value as Post['channel'] }),
+  })
+  if (response) result.value = response
+}
 watch([search, filter, channel], () => {
   page.value = 1
+  void refreshPosts()
 })
+watch([page, pageSize], () => { void refreshPosts() })
+onMounted(() => { void refreshPosts() })
 </script>
 <template>
   <DashboardPage
@@ -94,7 +110,7 @@ watch([search, filter, channel], () => {
     />
     <div class="flex items-center justify-between gap-3">
       <p role="status" class="text-sm text-muted">
-        {{ t('content.postCount', { visible: posts.length, total: data.posts.length }) }}
+        {{ t('content.postCount', { visible: posts.length, total }) }}
       </p>
       <UButton
         v-if="hasFilters"
@@ -107,7 +123,7 @@ watch([search, filter, channel], () => {
       >
     </div>
     <UCard v-if="posts.length" as="div" :ui="{ body: 'p-0 sm:p-0' }" class="table-wrap">
-      <PostsTable :posts="paginated" />
+      <PostsTable :posts="posts" />
       <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" />
     </UCard>
     <DashboardEmpty

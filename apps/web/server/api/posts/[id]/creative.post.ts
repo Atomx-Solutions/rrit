@@ -132,12 +132,19 @@ export default defineEventHandler(async (event) => {
         "INSERT INTO post_content_versions(post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES($1,$2,$3,$4,$5,'editor',$6)",
         [post.id, business.id, postContentVersion(post), postFingerprint(post), JSON.stringify(postContentSnapshot(post)), user.id],
       )
-      await client.query('UPDATE businesses SET revision=revision+1,updated_at=now() WHERE id=$1', [business.id])
+      const revision = await client.query<{ revision: number }>(
+        'UPDATE businesses SET revision=revision+1,updated_at=now() WHERE id=$1 RETURNING revision',
+        [business.id],
+      )
       await client.query(
         "INSERT INTO audit_events(business_id,organization_id,actor_id,action,resource_type,resource_id,result,revision) SELECT id,id,$2,'creative.ai_edited','post',$3,'succeeded',revision FROM businesses WHERE id=$1",
         [business.id, user.id, id.data],
       )
-      return { business: await loadWorkspace(client, business.id, user.id), image: post.image }
+      return {
+        post,
+        image: post.image,
+        workspaceRevision: Number(revision.rows[0]!.revision),
+      }
       })
     } catch (error) {
       try {

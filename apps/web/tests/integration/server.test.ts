@@ -78,6 +78,9 @@ import { createDemo } from '../fixtures/workspace'
 import { syncBusinessBrain } from '../../server/utils/business-brain'
 import { currentPostQuality, reviewPostQuality } from '../../server/utils/post-quality'
 import { isolateMigrationSql } from '../migration-test-utils'
+import { saveWorkspacePosts } from '../../server/utils/workspace-posts'
+import { saveWorkspacePreferencesAndProfile } from '../../server/utils/workspace-preferences'
+import { workspaceSchema } from '../../shared/schemas/workspace'
 
 const env = fileURLToPath(new URL('../../../../.env', import.meta.url))
 if (existsSync(env)) process.loadEnvFile(env)
@@ -1393,6 +1396,120 @@ describe('immutable post content and approvals', () => {
       [post.id],
     )
     expect(original.rows[0].snapshot).toEqual(postContentSnapshot(post))
+  })
+})
+
+describe('extracted workspace persistence services', () => {
+  async function fixture() {
+    const item = await business()
+    await organization(item)
+    const assetId = randomUUID()
+    const bytes = await sharp({ create: { width: 800, height: 800, channels: 3, background: '#ffffff' } }).jpeg().toBuffer()
+    await pool.query(
+      "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,width,height,size_bytes) VALUES($1,$2,'Owned photo','[]',true,'image/jpeg',$3,800,800,$4)",
+      [assetId, item.id, bytes, bytes.length],
+    )
+    const post: Post = { ...createDemo().posts[0]!, id: randomUUID(), image: `/api/media/${assetId}`,
+      status: 'review', version: 1, contentVersion: 1 }
+    await pool.query('INSERT INTO posts(id,business_id,payload,content_version) VALUES($1,$2,$3,1)', [post.id, item.id, JSON.stringify(post)])
+    await pool.query(
+      "INSERT INTO post_content_versions(post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES($1,$2,1,$3,$4,'editor',$5)",
+      [post.id, item.id, postFingerprint(post), JSON.stringify(postContentSnapshot(post)), item.user],
+    )
+    return { item, post }
+  }
+
+  it('persists an edited draft and its immutable snapshot in the same transaction', async () => {
+    const { item, post } = await fixture()
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await setTenantContext(client, { userId: item.user, organizationId: item.id })
+      await client.query('SELECT revision FROM businesses WHERE id=$1 FOR UPDATE', [item.id])
+      await saveWorkspacePosts(client, {
+        businessId: item.id, userId: item.user, revision: 1,
+        currentPosts: [post], posts: [{ ...post, caption: 'Updated caption.', status: 'draft' }],
+        images: new Map(), allowedImages: new Set([post.image]), inFlightPostIds: [],
+      })
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+    const saved = await pool.query('SELECT payload,content_version FROM posts WHERE id=$1', [post.id])
+    expect(saved.rows[0]).toMatchObject({ content_version: 2, payload: { status: 'draft', caption: 'Updated caption.', version: 2, contentVersion: 2 } })
+    const versions = await pool.query('SELECT content_version,snapshot FROM post_content_versions WHERE post_id=$1 ORDER BY content_version', [post.id])
+    expect(versions.rows).toHaveLength(2)
+    expect(versions.rows[0].snapshot).toEqual(postContentSnapshot(post))
+    expect(versions.rows[1].snapshot).toMatchObject({ contentVersion: 2, caption: 'Updated caption.' })
+  })
+
+  it('rolls back a post write if its immutable version already exists', async () => {
+    const { item, post } = await fixture()
+    const next = { ...post, caption: 'Another version', contentVersion: 2 }
+    await pool.query(
+      "INSERT INTO post_content_versions(post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES($1,$2,2,$3,$4,'editor',$5)",
+      [post.id, item.id, postFingerprint(next), JSON.stringify(postContentSnapshot(next)), item.user],
+    )
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await setTenantContext(client, { userId: item.user, organizationId: item.id })
+      await client.query('SELECT revision FROM businesses WHERE id=$1 FOR UPDATE', [item.id])
+      await expect(saveWorkspacePosts(client, {
+        businessId: item.id, userId: item.user, revision: 1,
+        currentPosts: [post], posts: [{ ...post, caption: 'Edited', status: 'draft' }],
+        images: new Map(), allowedImages: new Set([post.image]), inFlightPostIds: [],
+      })).rejects.toMatchObject({ statusCode: 422 })
+    } finally {
+      await client.query('ROLLBACK')
+      client.release()
+    }
+    expect((await pool.query('SELECT payload FROM posts WHERE id=$1', [post.id])).rows[0].payload).toEqual(post)
+  })
+
+  it('persists preferences and the canonical brand atomically and rejects stale brand revisions', async () => {
+    const item = await business()
+    await organization(item)
+    const workspace = emptyWorkspace('Test account', item.email)
+    workspace.brand.name = 'Test brand'
+    const { posts: _posts, assets: _assets, brandRevision: _brandRevision, ...state } = workspaceSchema.parse(workspace)
+    state.revision = 1
+    state.preferences.timezone = 'UTC'
+    state.preferences.locale = 'en-US'
+    state.preferences.emailTips = true
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await setTenantContext(client, { userId: item.user, organizationId: item.id })
+      const brand = await createBrand(client, item.id, brandCreateSchema.parse({ name: 'Test brand', slug: 'test-business', timezone: 'Europe/Tirane', locale: 'sq-XK', category: 'cafe' }))
+      await client.query('SELECT revision FROM businesses WHERE id=$1 FOR UPDATE', [item.id])
+      const revision = await saveWorkspacePreferencesAndProfile(client, {
+        businessId: item.id, userId: item.user, state, brandRevision: brand.revision, canonicalBrandId: brand.id,
+      })
+      expect(revision).toBe(brand.revision + 1)
+      await client.query('COMMIT')
+      const businessRow = (await pool.query('SELECT state,revision FROM businesses WHERE id=$1', [item.id])).rows[0]
+      expect(businessRow).toMatchObject({ revision: 1, state: { preferences: { timezone: 'UTC', locale: 'en-US', emailTips: true } } })
+      expect((await pool.query('SELECT timezone,locale,settings FROM brands WHERE id=$1', [brand.id])).rows[0]).toMatchObject({ timezone: 'UTC', locale: 'en-US', settings: { emailTips: true } })
+      await client.query('BEGIN')
+      await setTenantContext(client, { userId: item.user, organizationId: item.id })
+      await client.query('SELECT revision FROM businesses WHERE id=$1 FOR UPDATE', [item.id])
+      await expect(saveWorkspacePreferencesAndProfile(client, {
+        businessId: item.id, userId: item.user,
+        state: { ...state, revision: 2, preferences: { ...state.preferences, timezone: 'Europe/Tirane' } },
+        brandRevision: brand.revision, canonicalBrandId: brand.id,
+      })).rejects.toMatchObject({ statusCode: 409 })
+      await client.query('ROLLBACK')
+      expect((await pool.query('SELECT state,revision FROM businesses WHERE id=$1', [item.id])).rows[0]).toEqual(businessRow)
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
   })
 })
 

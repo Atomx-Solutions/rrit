@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { data, base, context, applyBusiness, commit, syncing } = useWorkspace()
+const { data, base, context, applyBusiness, saveBrand, saveOnboarding, updateMetadata, syncing } = useWorkspace()
 const { setLocale, t } = useI18n()
 const step = ref(context.value ? Math.min(data.value.onboarding, 2) : 0)
 const busy = ref(false)
@@ -103,29 +103,39 @@ async function next() {
             retry: 0,
           }),
         )
-      else if (
-        !(await commit((d) => {
-          Object.assign(d.brand, {
+      else {
+        const { name: _name, status, ...profile } = {
+          ...data.value.brand,
+          name: form.name,
+          city: form.city,
+          industry: form.industry,
+          description: form.description,
+          voice: form.voice,
+          audience: form.audience,
+          goals: form.goals,
+          facts: form.facts,
+        }
+        if (!(await saveOnboarding({
+          brand: {
             name: form.name,
-            city: form.city,
-            industry: form.industry,
-            description: form.description,
-            voice: form.voice,
-            audience: form.audience,
-            goals: form.goals,
-            facts: form.facts,
-          })
-          Object.assign(d.preferences, {
+            category: form.industry.trim() || 'general',
+            status,
+            profile: {
+              ...profile,
+              researchSources: profile.researchSources ?? [],
+              guardrails: profile.guardrails ?? [],
+            },
+          },
+          preferences: {
             timezone: form.timezone,
             locale: form.locale,
             emailApprovals: form.emailApprovals,
             emailPublished: form.emailPublished,
             emailTips: form.emailTips,
-          })
-          d.onboarding = 1
-        }))
-      )
-        return
+          },
+          metadata: { onboarding: 1 },
+        }))) return
+      }
       clearRecovery()
       step.value = 1
     } else if (step.value === 1) {
@@ -146,22 +156,13 @@ async function next() {
           return
         }
       }
-      if (
-        await commit((d) => {
-          d.brand.facebookUrl = form.facebookUrl
-          d.brand.instagramUrl = form.instagramUrl
-          d.onboarding = 2
-        })
-      ) {
+      const brandSaved = await saveBrand({ ...data.value.brand, facebookUrl: form.facebookUrl, instagramUrl: form.instagramUrl })
+      if (brandSaved && await updateMetadata({ onboarding: 2 })) {
         clearRecovery()
         step.value = 2
       }
     } else {
-      if (
-        await commit((d) => {
-          d.onboarding = 3
-        })
-      ) {
+      if (await updateMetadata({ onboarding: 3 })) {
         clearRecovery()
         await navigateTo(`${base.value}/content/new`)
       }

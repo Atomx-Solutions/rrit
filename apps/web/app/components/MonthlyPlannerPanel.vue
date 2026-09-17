@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{ month: string }>()
 const { t } = useI18n()
-const { data: workspace, base, initLive, syncing } = useWorkspace()
+const { data: workspace, base, loadPosts, loadAssets, syncing } = useWorkspace()
 const {
   data: planner,
   error: loadError,
@@ -22,6 +22,7 @@ const selectedPhotoIds = ref<string[]>([
 const originalPhotos = computed(() =>
   workspace.value.assets.filter((asset) => asset.rights && !asset.generated).slice(0, 40),
 )
+onMounted(() => { void loadAssets({ page: 1, pageSize: 20 }) })
 
 function togglePhoto(id: string) {
   selectedPhotoIds.value = selectedPhotoIds.value.includes(id)
@@ -165,7 +166,7 @@ async function act(action: 'prepare' | 'restart' | 'reset' | 'pause' | 'enable')
       resetOpen.value = false
       photoMode.value = 'auto'
       selectedPhotoIds.value = []
-      await initLive()
+      await loadPosts({ page: 1, pageSize: 20 })
     }
   } catch (problem) {
     error.value =
@@ -185,7 +186,7 @@ onMounted(() => {
     const before = planner.value?.plan?.completed
     try {
       await refresh()
-      if (!syncing.value && planner.value?.plan?.completed !== before) await initLive()
+      if (!syncing.value && planner.value?.plan?.completed !== before) await loadPosts({ page: 1, pageSize: 20 })
     } catch {
       /* The last persisted state remains visible. */
     } finally {

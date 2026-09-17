@@ -1,43 +1,59 @@
 <script setup lang="ts">
+import type { Post } from '~~/shared/schemas/workspace'
 import { formatDate } from '~~/shared/utils/format'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-const { data, base } = useWorkspace()
+const { data, base, bootstrap, loadPosts } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('overview.title')} · Rrit` })
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const filter = ref('review')
 const postsOpen = ref(false)
-const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
-const upcoming = computed(() =>
-  data.value.posts
-    .filter((p) => p.status === 'scheduled')
-    .sort((a, b) => (a.scheduledAt || '').localeCompare(b.scheduledAt || '')),
-)
+const reviews = ref<Post[]>([])
+const allPosts = ref<Post[]>([])
+const reviewTotal = ref(0)
+const draftTotal = ref(0)
+const scheduledTotal = ref(0)
+const upcoming = ref<Post[]>([])
+async function refreshOverview() {
+  const [all, review, draft, scheduled] = await Promise.all([
+    loadPosts({ page: 1, pageSize: 6 }),
+    loadPosts({ page: 1, pageSize: 6, status: 'review' }),
+    loadPosts({ page: 1, pageSize: 1, status: 'draft' }),
+    loadPosts({ page: 1, pageSize: 1, status: 'scheduled' }),
+  ])
+  allPosts.value = all?.items || []
+  reviews.value = review?.items || []
+  reviewTotal.value = review?.total || 0
+  draftTotal.value = draft?.total || 0
+  scheduledTotal.value = scheduled?.total || 0
+  upcoming.value = scheduled?.items || []
+}
+onMounted(() => { void refreshOverview() })
 const visible = computed(() =>
-  (filter.value === 'review' ? reviews.value : data.value.posts).slice(0, 6),
+  filter.value === 'review' ? reviews.value : allPosts.value,
 )
 const summaries = computed(() => [
   {
     label: t('overview.allPosts'),
-    value: data.value.posts.length,
+    value: bootstrap.value?.postCount || 0,
     icon: 'i-lucide-files',
     to: `${base.value}/content`,
   },
   {
     label: t('overview.awaitingApproval'),
-    value: reviews.value.length,
+    value: reviewTotal.value,
     icon: 'i-lucide-file-check',
     to: `${base.value}/content?status=review`,
   },
   {
     label: t('overview.drafts'),
-    value: data.value.posts.filter((p) => p.status === 'draft').length,
+    value: draftTotal.value,
     icon: 'i-lucide-file-pen-line',
     to: `${base.value}/content?status=draft`,
   },
   {
     label: t('overview.scheduled'),
-    value: upcoming.value.length,
+    value: scheduledTotal.value,
     icon: 'i-lucide-calendar-days',
     to: `${base.value}/calendar`,
   },
@@ -85,8 +101,8 @@ const summaries = computed(() => [
             <span class="block text-sm font-semibold">{{ t('overview.postsForReview') }}</span>
             <p class="text-sm text-muted font-normal mt-1">
               {{
-                reviews.length
-                  ? t('overview.reviewWaiting', { count: reviews.length })
+                reviewTotal
+                  ? t('overview.reviewWaiting', { count: reviewTotal })
                   : t('overview.noReviewPosts')
               }}
             </p>
@@ -104,7 +120,7 @@ const summaries = computed(() => [
           <div class="border-t border-default">
             <div class="flex flex-wrap justify-between items-center gap-3 px-4 sm:px-5 py-3">
               <span class="text-xs text-muted"
-                >{{ t('overview.postCount', { visible: visible.length, total: filter === 'review' ? reviews.length : data.posts.length }) }}</span
+                >{{ t('overview.postCount', { visible: visible.length, total: filter === 'review' ? reviewTotal : bootstrap?.postCount || 0 }) }}</span
               ><UTabs
                 v-model="filter"
                 :items="[

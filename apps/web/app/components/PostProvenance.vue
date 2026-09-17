@@ -4,7 +4,7 @@ import type { z } from 'zod'
 import type { qualitySchema } from '~~/shared/schemas/monthly-plan'
 const props = defineProps<{ post: Post; disabled?: boolean }>()
 const { t } = useI18n()
-const { initLive } = useWorkspace()
+const { initBootstrap, loadPosts } = useWorkspace()
 const open = ref(false)
 const reviewing = ref(false)
 const loadingLatest = ref(false)
@@ -71,7 +71,8 @@ async function review() {
     if (!props.disabled && result.contentVersion === (props.post.contentVersion || 1))
       latest.value = result.quality
     latestAt.value = new Date().toISOString()
-    await initLive()
+    await initBootstrap()
+    await loadPosts({ page: 1, pageSize: 50 })
   } catch (error) {
     problem.value =
       (error as { data?: { message?: string } }).data?.message || t('provenance.reviewError')

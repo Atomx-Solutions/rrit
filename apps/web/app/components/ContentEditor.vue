@@ -2,7 +2,7 @@
 import type { Post } from '~~/shared/schemas/workspace'
 import { zonedToIso } from '~~/shared/utils/format'
 const props = defineProps<{ id?: string }>()
-const { data, base, commit, transition, notify, conflict, initLive, syncing } = useWorkspace()
+const { data, base, createPost, updatePost, loadPosts, transition, notify, conflict, syncing } = useWorkspace()
 const { t } = useI18n()
 function validationMessage(check: { key: string; message: string }) {
   return check.key === 'ai_quality' && check.message === 'Versioni aktual kërkon rishikim të tekstit dhe dizajnit me AI.'
@@ -15,6 +15,15 @@ const { data: capabilities } = await useFetch('/api/capabilities')
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const chosenTemplate = (catalog.value || []).find((p) => p.id === route.query.template)
 const existing = computed(() => data.value.posts.find((p) => p.id === props.id))
+async function ensureExistingPost() {
+  if (!props.id || existing.value) return
+  for (let page = 1, hasNext = true; hasNext; page++) {
+    const result = await loadPosts({ page, pageSize: 50 })
+    if (!result || result.items.some((post) => post.id === props.id)) return
+    hasNext = result.hasNext
+  }
+}
+onMounted(() => { void ensureExistingPost() })
 if (props.id && !existing.value)
   throw createError({ statusCode: 404, statusMessage: t('content.postNotFound') })
 const {
@@ -83,7 +92,7 @@ async function reconcilePublication() {
     })
     if (result.resolved) {
       notify(t('content.metaConfirmed'))
-      await initLive()
+      await loadPosts({ page: 1, pageSize: 20 })
       await refreshPublication()
     } else {
       error.value =
@@ -109,7 +118,7 @@ async function checkPost(scope: 'content' | 'publication' = 'content'): Promise<
       retry: 0,
     })
     validation.value = result
-    await initLive()
+    await loadPosts({ page: 1, pageSize: 20 })
     return result.passed
   } catch (problem) {
     error.value =
@@ -134,7 +143,7 @@ async function publishNow() {
       retry: 0,
     })
     publishOpen.value = false
-    await initLive()
+    await loadPosts({ page: 1, pageSize: 20 })
     notify(t('content.publishQueued'))
   } catch (problem) {
     error.value =
@@ -162,7 +171,7 @@ async function refreshPublication() {
       ['published', 'failed', 'uncertain'].includes(result.job.status) &&
       post.value.status === 'scheduled'
     )
-      await initLive()
+      await loadPosts({ page: 1, pageSize: 20 })
   } catch {
     /* Keep the last confirmed status; the user can refresh. */
   }
@@ -214,33 +223,18 @@ async function save(silent = false) {
   }
   saving.value = true
   const snapshot = structuredClone(toRaw(form))
-  const id = savedId.value || crypto.randomUUID()
-  const ok = await commit((d) => {
-    const p = d.posts.find((p) => p.id === id)
-    if (p) {
-      p.history.push({ version: p.version, caption: p.caption, at: new Date().toISOString() })
-      Object.assign(p, snapshot)
-      p.version++
-      p.status = 'draft'
-      p.policy = 'warn'
-      p.policyReason =
-        t('content.changedPolicyReason')
-    } else
-      d.posts.unshift({
-        id,
+  const currentPost = savedId.value ? data.value.posts.find((p) => p.id === savedId.value) : null
+  const saved = currentPost
+    ? await updatePost(currentPost.id, {
         ...snapshot,
-        status: 'draft',
-        scheduledAt: null,
-        version: 1,
-        history: [],
-        policy: 'warn',
-        policyReason:
-          t('content.draftPolicyReason'),
+        workspaceRevision: data.value.revision,
+        postVersion: currentPost.version,
       })
-  })
+    : await createPost({ ...snapshot, workspaceRevision: data.value.revision })
+  const ok = !!saved
   saving.value = false
   if (ok) {
-    savedId.value = id
+    savedId.value = saved.id
     baseline.value = JSON.stringify(snapshot)
     if (!dirty.value) clearRecovery()
     savedAt.value = new Intl.DateTimeFormat('sq-AL', { hour: '2-digit', minute: '2-digit' }).format(
@@ -248,7 +242,7 @@ async function save(silent = false) {
     )
     if (!silent) notify()
     if (dirty.value) timer = setTimeout(() => save(true), 900)
-    else if (!props.id) await navigateTo(`${base.value}/content/${id}`, { replace: true })
+    else if (!props.id) await navigateTo(`${base.value}/content/${savedId.value}`, { replace: true })
   }
 }
 watch(form, () => {

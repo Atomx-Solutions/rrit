@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Asset } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-const { data, commit, notify, initLive } = useWorkspace()
+const { data, uploadAsset, updateAsset, deleteAsset, notify, initBootstrap, loadPosts, loadAssets } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Rrit` })
 const query = ref('')
@@ -22,17 +22,31 @@ function openDetail(asset: Asset) {
   detail.value = asset
   tags.value = asset.tags.join(', ')
 }
+const assetPage = ref({ items: [] as Asset[], page: 1, pageSize: 20, total: 0, hasNext: false })
+const page = ref(1)
+const pageSize = ref(20)
+const total = computed(() => assetPage.value.total)
 const assets = computed(() =>
-  data.value.assets.filter((a) =>
+  assetPage.value.items.filter((a) =>
     `${a.name} ${a.tags.join(' ')}`
       .toLocaleLowerCase('sq')
       .includes(query.value.trim().toLocaleLowerCase('sq')),
   ),
 )
-const { page, pageSize, total, paginated } = usePagination(assets)
+async function refreshAssets() {
+  const response = await loadAssets({
+    page: page.value,
+    pageSize: pageSize.value,
+    ...(query.value.trim() ? { search: query.value.trim() } : {}),
+  })
+  if (response) assetPage.value = response
+}
+onMounted(() => { void refreshAssets() })
 watch(query, () => {
   page.value = 1
+  void refreshAssets()
 })
+watch([page, pageSize], () => { void refreshAssets() })
 const dependencies = computed(() =>
   data.value.posts.filter((p) =>
     data.value.assets.some((a) => selected.value.includes(a.id) && a.url === p.image),
@@ -62,7 +76,11 @@ async function withdrawRights() {
       body: { rights: false, confirmed: true },
       retry: 0,
     })
-    await initLive()
+    await initBootstrap()
+    await Promise.all([
+      refreshAssets(),
+      loadPosts({ page: 1, pageSize: 50 }),
+    ])
     rightsOpen.value = false
     detail.value = null
     notify(
@@ -92,7 +110,6 @@ async function upload(files: File[] | null | undefined) {
   uploading.value = true
   progress.value = 0
   try {
-    const added: Asset[] = []
     for (const [i, file] of files.entries()) {
       if (
         !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
@@ -104,31 +121,15 @@ async function upload(files: File[] | null | undefined) {
         bitmap.close()
         throw new Error(t('photo.tooSmall'))
       }
-      const ratio = Math.min(1, 1200 / Math.max(bitmap.width, bitmap.height))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(bitmap.width * ratio)
-      canvas.height = Math.round(bitmap.height * ratio)
-      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
       bitmap.close()
-      const url = canvas.toDataURL('image/jpeg', 0.8)
-      added.push({
-        id: crypto.randomUUID(),
-        name: file.name,
-        url,
-        tags: ['ngarkim'],
-        rights: true,
-        kind: 'photo',
-        size: file.size,
-      })
+      if (!(await uploadAsset(file, { name: file.name, tags: ['ngarkim'], rights: true })))
+        throw new Error(t('gallery.saveError'))
       progress.value = Math.round(((i + 1) / files.length) * 100)
     }
-    if (await commit((d) => d.assets.unshift(...added))) {
-      notify(t('gallery.photosSaved', { count: added.length }))
-      uploadOpen.value = false
-      selectedFiles.value = []
-    } else {
-      error.value = t('gallery.saveError')
-    }
+    await refreshAssets()
+    notify(t('gallery.photosSaved', { count: files.length }))
+    uploadOpen.value = false
+    selectedFiles.value = []
   } catch (e) {
     error.value = e instanceof Error ? e.message : t('photo.uploadError')
   } finally {
@@ -137,7 +138,10 @@ async function upload(files: File[] | null | undefined) {
 }
 async function remove() {
   if (dependencies.value.length) return
-  if (await commit((d) => (d.assets = d.assets.filter((a) => !selected.value.includes(a.id))))) {
+  let ok = true
+  for (const id of selected.value) if (!(await deleteAsset(id))) ok = false
+  if (ok) {
+    await refreshAssets()
     selected.value = []
     deleteOpen.value = false
     notify(t('gallery.photosRemoved'))
@@ -146,15 +150,8 @@ async function remove() {
 async function saveMetadata() {
   if (!detail.value) return
   const id = detail.value.id
-  if (
-    await commit((d) => {
-      const a = d.assets.find((a) => a.id === id)!
-      a.tags = tags.value
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    })
-  ) {
+  if (await updateAsset(id, { tags: tags.value.split(',').map((t) => t.trim()).filter(Boolean), workspaceRevision: data.value.revision })) {
+    await refreshAssets()
     detail.value = null
     notify()
   }
@@ -180,7 +177,7 @@ async function saveMetadata() {
           class="w-full sm:w-80"
         />
         <div class="actions">
-          <span role="status" class="text-sm text-muted">{{ assets.length }} {{ t('gallery.photos') }}</span
+          <span role="status" class="text-sm text-muted">{{ total }} {{ t('gallery.photos') }}</span
           ><UButton
             v-if="selected.length"
             color="neutral"
@@ -202,7 +199,7 @@ async function saveMetadata() {
     <UCard v-if="assets.length" :ui="{ body: 'p-0 sm:p-0' }">
       <div class="divide-y divide-default">
         <article
-          v-for="asset in paginated"
+          v-for="asset in assets"
           :key="asset.id"
           class="flex items-center gap-3 sm:gap-4 p-4 sm:p-5"
         >

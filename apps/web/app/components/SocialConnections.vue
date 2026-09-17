@@ -2,7 +2,7 @@
 defineProps<{ compact?: boolean }>()
 const route = useRoute()
 const { t } = useI18n()
-const { initLive } = useWorkspace()
+const { initBootstrap, loadPosts } = useWorkspace()
 const {
   data: status,
   error: statusError,
@@ -81,7 +81,8 @@ async function disconnect() {
     await $fetch('/api/meta/disconnect', { method: 'POST', body: {}, retry: 0 })
     disconnecting.value = false
     await refresh()
-    await initLive()
+    await initBootstrap()
+    await loadPosts({ page: 1, pageSize: 50, status: 'scheduled' })
     await refreshNuxtData('social-posts')
   } catch (problem) {
     error.value =

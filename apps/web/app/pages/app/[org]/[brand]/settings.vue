@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { z } from 'zod'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-const { data, base, syncing, commit, notify, exportData } = useWorkspace()
+const { data, base, syncing, updatePreferences, notify, exportData } = useWorkspace()
 const { setLocale, t } = useI18n()
 useSeoMeta({ title: () => `${t('settings.title')} · Rrit` })
 const { data: capabilities } = await useFetch('/api/capabilities')
@@ -60,7 +60,7 @@ const schema = z.object({
 async function save() {
   formError.value = ''
   const snapshot = { ...form }
-  if (await commit((d) => (d.preferences = snapshot))) {
+  if (await updatePreferences(snapshot)) {
     notify()
     baseline.value = JSON.stringify(snapshot)
     saved.value = true
