@@ -109,7 +109,7 @@ export default defineEventHandler(async (event) => {
       })
     })
     return sendRedirect(event, `${returnPath}?meta=select`)
-  } catch (error) {
+  } catch {
     await recordAuthorizationResult('failed', 'exchange_or_connection_failed')
     return sendRedirect(event, `${returnPath}?meta=failed`)
   }
