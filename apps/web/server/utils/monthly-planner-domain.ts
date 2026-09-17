@@ -420,6 +420,7 @@ export const plannerMessages: Record<string, string> = {
 export function resumableContentFailureCode(code: string | null | undefined) {
   return [
     'QUALITY_BLOCKED',
+    'UNGROUNDED_CONTENT',
     'GENERATION_FAILED',
     'PROVIDER_CREDIT_REQUIRED',
     'PROVIDER_RATE_LIMITED',

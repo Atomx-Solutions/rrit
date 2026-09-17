@@ -72,11 +72,9 @@ export default defineEventHandler(async (event) => {
         message: 'Llogaria ndryshoi gjatë importimit. Provo sërish.',
       })
     await requireEntitlement(business.id, 'social_import', client)
-    const remoteProviderIds: string[] = []
     for (const post of response.data) {
       const timestamp = post.timestamp || post.created_time
       if (!post.id || !timestamp || !Number.isFinite(Date.parse(timestamp))) continue
-      remoteProviderIds.push(post.id)
       const safeUrl = (value?: string) => {
         try {
           const url = new URL(value || '')
@@ -100,15 +98,9 @@ export default defineEventHandler(async (event) => {
         ],
       )
     }
-    // A refresh without a cursor is a reconciliation of the first page. Only
-    // remove local rows when Meta confirms that this is the complete result;
-    // otherwise older local posts may still exist on the next page.
-    if (!input.data.after && !response.paging?.next) {
-      await client.query(
-        'DELETE FROM social_posts WHERE business_id=$1 AND channel=$2 AND source_account_id=$3 AND NOT (provider_id = ANY($4::text[]))',
-        [business.id, input.data.channel, sourceAccountId, remoteProviderIds],
-      )
-    }
+    // A refresh is additive/upsert-only. Meta may omit older, visitor-created,
+    // permission-limited or expired media from a later response, so a missing
+    // provider id must never erase the local style history.
     await client.query(
       'UPDATE meta_connections SET last_sync_at=now(),updated_at=now() WHERE id=$1',
       [connection.id],

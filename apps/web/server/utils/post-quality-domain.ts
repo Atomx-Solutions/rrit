@@ -49,8 +49,21 @@ export function normalizeQualityReview(quality: z.infer<typeof qualitySchema>) {
   // Factual safety is always terminal. Brand-fit and visual-quality findings
   // can be subjective refinements, so respect an explicit WARN from the
   // reviewer and surface its reasons to the human approver.
+  if (quality.styleReasons.length)
+    quality.reasons = [...new Set([...quality.reasons, ...quality.styleReasons])].slice(0, 10)
+  if (quality.distinctnessReasons.length)
+    quality.reasons = [...new Set([...quality.reasons, ...quality.distinctnessReasons])].slice(0, 10)
+  if (quality.sourceFidelityReasons.length)
+    quality.reasons = [...new Set([...quality.reasons, ...quality.sourceFidelityReasons])].slice(0, 10)
   if (!quality.factuality) quality.decision = 'BLOCK'
-  else if (quality.decision === 'PASS' && (!quality.brandFit || !quality.visualQuality))
+  else if (
+    quality.decision === 'PASS' &&
+    (!quality.brandFit ||
+      !quality.visualQuality ||
+      !quality.sourceFidelity ||
+      !quality.styleConsistency ||
+      !quality.visualDistinctness)
+  )
     quality.decision = 'WARN'
   return quality
 }

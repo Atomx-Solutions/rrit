@@ -3,7 +3,7 @@ import pg, { type Pool, type PoolClient } from 'pg'
 import {
   generatedPostSchema,
   qualitySchema,
-  editorialPlanSchema,
+  editorialPlanGenerationSchema,
   researchSchema,
 } from '../../shared/schemas/monthly-plan'
 import { postSchema } from '../../shared/schemas/workspace'
@@ -23,6 +23,7 @@ import {
   removeAsset,
   uploadAsset,
 } from './asset-storage'
+import { syncAllConnectedSocialPosts } from './meta-social-history'
 import {
   monthlyAiConfigured,
   monthlyAutomaticStageKey,
@@ -191,9 +192,10 @@ export async function ensureMonthlyPlan(
   return created.rows[0] as { id: string; status: string }
 }
 
-// A blocked plan with no drafts can be rebuilt from the current Business Brain.
-// Completed provider runs deliberately remain as cost/audit records; the changed
-// evidence hash in every new stage key prevents their reuse.
+// A blocked plan can resume from its current stage when all earlier stages have
+// already produced durable results. Completed provider runs remain as
+// cost/audit records and are reused through the stable stage key, so Continue
+// preparation does not spend credits on research or planning again.
 export async function restartMonthlyPlan(
   client: PoolClient,
   businessId: string,
@@ -232,6 +234,13 @@ export async function restartMonthlyPlan(
     !['EVIDENCE_CHANGED', 'BUDGET_ESTIMATE_EXCEEDED', 'PROVIDER_RETRY_EXHAUSTED'].includes(
       prior.error_code || '',
     )
+  const resumePlanning =
+    prior.stage === 'planning' &&
+    prior.has_research &&
+    !prior.has_editorial_plan &&
+    !['EVIDENCE_CHANGED', 'BUDGET_ESTIMATE_EXCEEDED', 'PROVIDER_RETRY_EXHAUSTED'].includes(
+      prior.error_code || '',
+    )
   if (prior.completed_count > 0 && !resumeContent) throw new PlannerFailure('PLAN_HAS_DRAFTS')
   // An explicit user restart is allowed after an interrupted provider call. A
   // fresh evidence capture creates new stage keys while the ambiguous run stays
@@ -254,7 +263,7 @@ export async function restartMonthlyPlan(
   )
   const target = Math.min(access.limits.posts_per_month, 100) - existing.rows[0].count
   if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
-  if (resumeContent) {
+  if (resumePlanning || resumeContent) {
     await client.query(
       "UPDATE monthly_plans SET status='queued',error_code=NULL,next_run_at=now(),updated_at=now() WHERE id=$1 AND business_id=$2",
       [prior.id, businessId],
@@ -372,6 +381,60 @@ interface PlannerAssetRow {
   size_bytes: number | string | null
 }
 
+interface PreviousPageStyleRow {
+  provider_id: string
+  channel: 'Facebook' | 'Instagram'
+  caption: string
+  media_url: string | null
+  published_at: string
+  media_type: string
+}
+
+interface PublishedPlatformPostRow {
+  post_id: string
+  channel: 'Facebook' | 'Instagram'
+  caption: string
+  published_at: string
+  provider_id: string | null
+  asset_id: string
+}
+
+interface PageStyleReference {
+  source: 'facebook' | 'instagram' | 'platform'
+  channel: 'Facebook' | 'Instagram'
+  postId?: string
+  providerId?: string
+  assetId?: string
+  publishedAt: string
+}
+
+interface PageStyleHistorySummary {
+  totalPosts: number
+  byChannel: { Facebook: number; Instagram: number }
+  bySource: { platform: number; facebook: number; instagram: number }
+  mediaTypes: Record<string, number>
+  captionedPosts: number
+  averageCaptionLength: number
+  oldestPublishedAt: string | null
+  newestPublishedAt: string | null
+}
+
+export interface PreviousPageStyle {
+  revision: string
+  examples: Array<{
+    channel: 'Facebook' | 'Instagram'
+    caption: string
+    publishedAt: string
+    mediaType: string
+  }>
+  references: PageStyleReference[]
+  referenceCount: number
+  platformPublishedCount: number
+  importedSocialCount: number
+  historySummary: PageStyleHistorySummary
+  contactSheet?: Buffer
+}
+
 export interface PlannerAsset {
   id: string
   bytes: Buffer
@@ -428,6 +491,254 @@ export async function loadPlannerAssets(
     // is created and every temporary buffer is released at this boundary.
     for (const bytes of downloaded) bytes.fill(0)
     throw error
+  }
+}
+
+const MAX_STYLE_REFERENCES = 8
+const MAX_STYLE_REFERENCE_BYTES = 2097152
+
+function isoTimestamp(value: string) {
+  const parsed = new Date(value)
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : value
+}
+
+function normalizeGeneratedHashtags(value: unknown) {
+  if (!Array.isArray(value)) return value
+  const hashtags = value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => {
+      const body = item
+        .normalize('NFKC')
+        .trim()
+        .replace(/^#+/u, '')
+        .replace(/[^\p{L}\p{N}_]+/gu, '_')
+        .replace(/^_+|_+$/gu, '')
+        .slice(0, 50)
+      return body.length >= 2 ? `#${body}` : null
+    })
+    .filter((item): item is string => !!item)
+  return [...new Set(hashtags)]
+}
+
+// Imported page media is used only as visual style evidence. It is never saved
+// as a business asset and it is never treated as a source of business facts.
+export async function loadPreviousPageStyle(
+  db: Pool | PoolClient,
+  businessId: string,
+): Promise<PreviousPageStyle> {
+  try {
+    // The planner must see the whole connected page history, including posts
+    // that were never created or imported manually through this platform.
+    await syncAllConnectedSocialPosts(db, businessId)
+  } catch (error) {
+    // Cached social history remains usable when Meta is temporarily unavailable.
+    console.warn('[monthly-planner] social history sync failed; using cached posts', {
+      businessId,
+      code:
+        typeof error === 'object' && error && 'code' in error
+          ? String(error.code).slice(0, 64)
+          : undefined,
+      errorMessage: error instanceof Error ? error.message.slice(0, 300) : typeof error,
+    })
+  }
+  const socialResult = await db.query<PreviousPageStyleRow>(
+    `SELECT sp.provider_id,sp.channel,sp.caption,sp.media_url,sp.published_at,sp.media_type
+       FROM social_posts sp
+      WHERE sp.business_id=$1
+        AND EXISTS (
+          SELECT 1
+          FROM meta_connections mc
+          WHERE mc.business_id=sp.business_id
+            AND mc.status='connected'
+            AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id)
+              OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))
+        )
+      ORDER BY sp.published_at DESC,sp.provider_id DESC`,
+    [businessId],
+  )
+  const platformResult = await db.query<PublishedPlatformPostRow>(
+    `SELECT DISTINCT ON (p.id)
+        p.id::text AS post_id,
+        p.payload->>'channel' AS channel,
+        COALESCE(p.payload->>'caption','') AS caption,
+        COALESCE(j.updated_at,p.updated_at,p.created_at)::text AS published_at,
+        j.provider_post_id AS provider_id,
+        replace(p.payload->>'image','/api/media/','') AS asset_id
+       FROM posts p
+       JOIN publication_jobs j
+         ON j.post_id=p.id
+        AND j.business_id=p.business_id
+        AND j.status='published'
+       JOIN assets a
+         ON a.business_id=p.business_id
+        AND a.id::text=replace(p.payload->>'image','/api/media/','')
+        AND a.rights=true
+      WHERE p.business_id=$1
+        AND p.payload->>'status'='published'
+        AND p.payload->>'image' ~ '^/api/media/[0-9a-fA-F-]{36}$'
+      ORDER BY p.id,j.updated_at DESC,p.updated_at DESC`,
+    [businessId],
+  )
+
+  const localProviderIds = new Set(
+    platformResult.rows
+      .map((row) => row.provider_id)
+      .filter((id): id is string => !!id),
+  )
+  const socialRows = socialResult.rows.filter((row) => !localProviderIds.has(row.provider_id))
+  const combinedRows = [
+    ...socialRows.map((row) => ({
+      source: row.channel === 'Facebook' ? ('facebook' as const) : ('instagram' as const),
+      channel: row.channel,
+      postId: undefined,
+      providerId: row.provider_id,
+      assetId: undefined,
+      caption: row.caption,
+      mediaUrl: row.media_url,
+      publishedAt: isoTimestamp(row.published_at),
+      mediaType: row.media_type,
+      sortId: row.provider_id,
+    })),
+    ...platformResult.rows.map((row) => ({
+      source: 'platform' as const,
+      channel: row.channel,
+      postId: row.post_id,
+      providerId: row.provider_id || undefined,
+      assetId: row.asset_id,
+      caption: row.caption,
+      mediaUrl: null,
+      publishedAt: isoTimestamp(row.published_at),
+      mediaType: 'POST',
+      sortId: row.post_id,
+    })),
+  ].sort((left, right) => {
+    const dateOrder = Date.parse(right.publishedAt) - Date.parse(left.publishedAt)
+    return dateOrder || right.sortId.localeCompare(left.sortId)
+  })
+
+  const styleRows =
+    combinedRows.length <= MAX_STYLE_REFERENCES
+      ? combinedRows
+      : Array.from(
+          { length: MAX_STYLE_REFERENCES },
+          (_, index) =>
+            combinedRows[
+              Math.round((index * (combinedRows.length - 1)) / (MAX_STYLE_REFERENCES - 1))
+            ]!,
+        )
+  const examples = styleRows.map((row) => ({
+    channel: row.channel,
+    caption: row.caption.slice(0, 700),
+    publishedAt: row.publishedAt,
+    mediaType: row.mediaType,
+  }))
+  const revision = evidenceHash(
+    combinedRows.map((row) => [
+      row.source,
+      row.postId || null,
+      row.providerId || null,
+      row.assetId || null,
+      row.publishedAt,
+      row.mediaUrl,
+    ]),
+  )
+  const references = styleRows.map((row) => ({
+    source: row.source,
+    channel: row.channel,
+    ...(row.postId ? { postId: row.postId } : {}),
+    ...(row.providerId ? { providerId: row.providerId } : {}),
+    ...(row.assetId ? { assetId: row.assetId } : {}),
+    publishedAt: row.publishedAt,
+  }))
+  const captionLengths = combinedRows
+    .map((row) => row.caption.trim().length)
+    .filter((length) => length > 0)
+  const historySummary: PageStyleHistorySummary = {
+    totalPosts: combinedRows.length,
+    byChannel: {
+      Facebook: combinedRows.filter((row) => row.channel === 'Facebook').length,
+      Instagram: combinedRows.filter((row) => row.channel === 'Instagram').length,
+    },
+    bySource: {
+      platform: combinedRows.filter((row) => row.source === 'platform').length,
+      facebook: combinedRows.filter((row) => row.source === 'facebook').length,
+      instagram: combinedRows.filter((row) => row.source === 'instagram').length,
+    },
+    mediaTypes: combinedRows.reduce<Record<string, number>>((counts, row) => {
+      const mediaType = row.mediaType.trim().toUpperCase() || 'POST'
+      counts[mediaType] = (counts[mediaType] || 0) + 1
+      return counts
+    }, {}),
+    captionedPosts: captionLengths.length,
+    averageCaptionLength: captionLengths.length
+      ? Math.round(captionLengths.reduce((total, length) => total + length, 0) / captionLengths.length)
+      : 0,
+    oldestPublishedAt: combinedRows.at(-1)?.publishedAt || null,
+    newestPublishedAt: combinedRows[0]?.publishedAt || null,
+  }
+  const referenceImages: PlannerAsset[] = []
+  const localStyleAssetIds = styleRows
+    .map((row) => row.assetId)
+    .filter((id): id is string => !!id)
+  const localStyleAssets = localStyleAssetIds.length
+    ? await loadPlannerAssets(db, businessId, localStyleAssetIds)
+    : []
+  const localStyleAssetMap = new Map(localStyleAssets.map((asset) => [asset.id, asset.bytes]))
+  for (const [index, row] of styleRows.entries()) {
+    if (row.assetId) {
+      const bytes = localStyleAssetMap.get(row.assetId)
+      if (bytes) referenceImages.push({ id: `platform-post-${row.postId || index + 1}`, bytes })
+      continue
+    }
+    if (!row.mediaUrl) continue
+    let url: URL
+    try {
+      url = new URL(row.mediaUrl)
+    } catch {
+      continue
+    }
+    if (url.protocol !== 'https:') continue
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(12000),
+        headers: { Accept: 'image/*' },
+      })
+      if (!response.ok) continue
+      const contentType = response.headers.get('content-type') || ''
+      const contentLength = Number(response.headers.get('content-length') || 0)
+      if (!contentType.startsWith('image/') || contentLength > MAX_STYLE_REFERENCE_BYTES)
+        continue
+      const bytes = Buffer.from(await response.arrayBuffer())
+      if (bytes.length < 1000 || bytes.length > MAX_STYLE_REFERENCE_BYTES) {
+        bytes.fill(0)
+        continue
+      }
+      referenceImages.push({ id: `previous-post-${index + 1}`, bytes })
+    } catch {
+      // A Meta media URL can expire. The text examples remain useful when that happens.
+    }
+  }
+  const baseResult = {
+    revision,
+    examples,
+    references,
+    referenceCount: combinedRows.length,
+    platformPublishedCount: platformResult.rows.length,
+    importedSocialCount: socialRows.length,
+    historySummary,
+  }
+  if (!referenceImages.length) {
+    for (const bytes of localStyleAssets.map((asset) => asset.bytes)) bytes.fill(0)
+    return baseResult
+  }
+  try {
+    const contactSheet = await assetContactSheet(referenceImages)
+    return { ...baseResult, contactSheet }
+  } finally {
+    for (const image of referenceImages) image.bytes.fill(0)
+    for (const bytes of localStyleAssets.map((asset) => asset.bytes)) bytes.fill(0)
   }
 }
 
@@ -564,16 +875,22 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     )
     if (!planningAssets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
     let planningContactSheet: Buffer | undefined
+    let previousPageStyle: PreviousPageStyle | undefined
     try {
       planningContactSheet = await assetContactSheet(planningAssets)
+      previousPageStyle = await loadPreviousPageStyle(db, plan.business_id)
       // Plan the complete month once. A stable key makes every later worker tick
       // reuse the same audited response instead of paying for another attempt.
       const response = await monthlyProviderCall(db, {
         ...common,
-        stageKey: monthlyAutomaticStageKey('planning', plan.evidence_hash, plan.target_count),
+        stageKey: monthlyAutomaticStageKey(
+          'planning',
+          plan.evidence_hash,
+          `${plan.target_count}:${previousPageStyle.revision}`,
+        ),
         capability: 'planning',
         maxOutput: Math.min(30000, 3000 + plan.target_count * 350),
-        schema: editorialPlanSchema,
+        schema: editorialPlanGenerationSchema,
         input: {
           evidence: plan.evidence,
           research,
@@ -587,8 +904,29 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
               asset.id,
             ),
           })),
+          previousPageStyle: {
+            examples: previousPageStyle.examples,
+            referenceCount: previousPageStyle.referenceCount,
+            platformPublishedCount: previousPageStyle.platformPublishedCount,
+            importedSocialCount: previousPageStyle.importedSocialCount,
+            historySummary: previousPageStyle.historySummary,
+            styleDimensions: [
+              'dominant color palette and saturation',
+              'contrast, brightness and recurring color accents',
+              'typography family, scale, weight and text density',
+              'visual hierarchy, spacing and safe-area discipline',
+              'photographic crop, lighting, depth and retouching treatment',
+              'recurring brand elements such as logo, border, CTA or icon treatment',
+              'caption length, tone, CTA and hashtag patterns by channel',
+            ],
+          },
         },
-        images: [`data:image/jpeg;base64,${planningContactSheet.toString('base64')}`],
+        images: [
+          `data:image/jpeg;base64,${planningContactSheet.toString('base64')}`,
+          ...(previousPageStyle.contactSheet
+            ? [`data:image/jpeg;base64,${previousPageStyle.contactSheet.toString('base64')}`]
+            : []),
+        ],
       })
       const editorial = validateEditorialPlan(
         normalizeEditorialPlanResponse(
@@ -608,6 +946,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       )
     } finally {
       planningContactSheet?.fill(0)
+      previousPageStyle?.contactSheet?.fill(0)
       releasePlannerAssets(planningAssets)
     }
     return
@@ -632,8 +971,12 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   )
   if (!assets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
   let contactSheet: Buffer | undefined
+  let previousPageStyle: PreviousPageStyle | undefined
+  let previousGeneratedAssets: PlannerAsset[] = []
+  let previousGeneratedContactSheet: Buffer | undefined
   try {
     contactSheet = await assetContactSheet(assets)
+    previousPageStyle = await loadPreviousPageStyle(db, plan.business_id)
     const earlier = await db.query<{
       caption: string
       title: string
@@ -648,6 +991,18 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     FROM posts WHERE monthly_plan_id=$1 ORDER BY monthly_slot`,
       [plan.id],
     )
+    const previousGeneratedAssetIds = earlier.rows
+      .map((post) => post.asset_id)
+      .filter((id): id is string => !!id)
+    if (previousGeneratedAssetIds.length) {
+      previousGeneratedAssets = await loadPlannerAssets(
+        db,
+        plan.business_id,
+        previousGeneratedAssetIds,
+      )
+      if (previousGeneratedAssets.length)
+        previousGeneratedContactSheet = await assetContactSheet(previousGeneratedAssets)
+    }
     const assetUsage = new Map<string, number>()
     for (const post of earlier.rows) {
       if (post.asset_id) assetUsage.set(post.asset_id, (assetUsage.get(post.asset_id) || 0) + 1)
@@ -664,12 +1019,17 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     let imageGeneration: Awaited<ReturnType<typeof monthlyImageCall>> | undefined
     let quality: ReturnType<typeof qualitySchema.parse> | undefined
     const revisionFeedback: string[] = []
-    // One content, one image and one independent review per calendar slot. The
-    // first result is persisted as a draft even when QA recommends refinement.
+    // Keep one paid generation per calendar slot. The page-style references and
+    // distinctness instructions are applied before generation; QA reports a
+    // warning for human review instead of spending credits on a second attempt.
     for (let attempt = 0; attempt < 1; attempt++) {
       const response = await monthlyProviderCall(db, {
         ...common,
-        stageKey: monthlyAutomaticStageKey('content', plan.evidence_hash, plan.completed_count),
+        stageKey: monthlyAutomaticStageKey(
+          'content',
+          plan.evidence_hash,
+          `${plan.completed_count}:${previousPageStyle.revision}`,
+        ),
         capability: 'content',
         maxOutput: 3000,
         schema: generatedPostSchema,
@@ -679,6 +1039,21 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           strategy: editorial.objective,
           research: { sources: research.sources },
           previousPosts: earlier.rows,
+          previousGeneratedPostCount: previousGeneratedAssets.length,
+          styleProfile: editorial.styleProfile,
+          previousPageStyle: {
+            examples: previousPageStyle.examples,
+            historySummary: previousPageStyle.historySummary,
+            styleDimensions: [
+              'dominant color palette and saturation',
+              'contrast, brightness and recurring color accents',
+              'typography family, scale, weight and text density',
+              'visual hierarchy, spacing and safe-area discipline',
+              'photographic crop, lighting, depth and retouching treatment',
+              'recurring brand elements such as logo, border, CTA or icon treatment',
+              'caption length, tone, CTA and hashtag patterns by channel',
+            ],
+          },
           contactSheet: assets.map((asset, index) => ({
             photo: index + 1,
             ...plan.evidence.assets.find((item) => item.id === asset.id),
@@ -688,7 +1063,15 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             reservedForLater: futureRequiredAssetIds.has(asset.id),
           })),
         },
-        images: [`data:image/jpeg;base64,${contactSheet.toString('base64')}`],
+        images: [
+          `data:image/jpeg;base64,${contactSheet.toString('base64')}`,
+          ...(previousPageStyle.contactSheet
+            ? [`data:image/jpeg;base64,${previousPageStyle.contactSheet.toString('base64')}`]
+            : []),
+          ...(previousGeneratedContactSheet
+            ? [`data:image/jpeg;base64,${previousGeneratedContactSheet.toString('base64')}`]
+            : []),
+        ],
       })
       let rawContent: unknown
       try {
@@ -698,7 +1081,11 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           'Ofruesi nuk ktheu objektin e strukturuar të kërkuar.',
         ])
       }
-      const parsedContent = generatedPostSchema.safeParse(rawContent)
+      const normalizedContent =
+        rawContent && typeof rawContent === 'object'
+          ? { ...(rawContent as Record<string, unknown>), hashtags: normalizeGeneratedHashtags((rawContent as Record<string, unknown>).hashtags) }
+          : rawContent
+      const parsedContent = generatedPostSchema.safeParse(normalizedContent)
       if (!parsedContent.success) {
         throw new PlannerFailure('UNGROUNDED_CONTENT', [
           `Përgjigjja nuk përmbushi kontratën: ${parsedContent.error.issues
@@ -731,20 +1118,52 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         brand: plan.evidence.brand,
         slot,
         creative: content.creative,
+        styleProfile: editorial.styleProfile,
+        previousPageStyle: previousPageStyle.contactSheet
+          ? {
+              exampleCount: previousPageStyle.examples.length,
+              dimensions: [
+                'the dominant palette and recurring accent colors',
+                'the typography scale and density',
+                'the spacing and hierarchy',
+                'the photographic crop and treatment',
+                'the recurring brand elements without copying their exact layout',
+              ],
+            }
+          : undefined,
+        previousGeneratedPostCount: previousGeneratedAssets.length,
         revisionFeedback,
       })
       imageGeneration = await monthlyImageCall(db, {
         ...common,
-        stageKey: monthlyAutomaticStageKey('image', plan.evidence_hash, plan.completed_count),
+        stageKey: monthlyAutomaticStageKey(
+          'image',
+          plan.evidence_hash,
+          `${plan.completed_count}:${previousPageStyle.revision}`,
+        ),
         prompt: imagePrompt,
         reference: original.bytes,
+        styleReferences: previousPageStyle.contactSheet
+          ? [
+              { bytes: previousPageStyle.contactSheet },
+              ...(previousGeneratedContactSheet
+                ? [{ bytes: previousGeneratedContactSheet }]
+                : []),
+            ]
+          : previousGeneratedContactSheet
+            ? [{ bytes: previousGeneratedContactSheet }]
+            : undefined,
       })
       // The provider result is the complete design. Local processing is limited to
       // format, dimensions and compression; it adds no template or visual element.
       creative = await normalizeGeneratedCreative(imageGeneration.bytes)
       const qualityResponse = await monthlyProviderCall(db, {
         ...common,
-        stageKey: monthlyAutomaticStageKey('quality', plan.evidence_hash, plan.completed_count),
+        stageKey: monthlyAutomaticStageKey(
+          'quality',
+          plan.evidence_hash,
+          `${plan.completed_count}:${previousPageStyle.revision}`,
+        ),
         capability: 'quality',
         maxOutput: 2000,
         schema: qualitySchema,
@@ -752,12 +1171,33 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           brand: plan.evidence.brand,
           slot,
           content,
+          previousPosts: earlier.rows,
+          previousGeneratedPostCount: previousGeneratedAssets.length,
+          styleProfile: editorial.styleProfile,
+          previousPageStyle: {
+            examples: previousPageStyle.examples,
+            referenceCount: previousPageStyle.referenceCount,
+            platformPublishedCount: previousPageStyle.platformPublishedCount,
+            importedSocialCount: previousPageStyle.importedSocialCount,
+            historySummary: previousPageStyle.historySummary,
+          },
           revisionAttempt: attempt,
-          imageOrder: ['Finished AI creative', 'Original owned photograph'],
+          imageOrder: [
+            'Finished AI creative',
+            'Original owned photograph',
+            ...(previousPageStyle.contactSheet ? ['Previous page style references'] : []),
+            ...(previousGeneratedContactSheet ? ['Earlier generated post references'] : []),
+          ],
         },
         images: [
           `data:image/jpeg;base64,${creative.toString('base64')}`,
           `data:image/jpeg;base64,${original.bytes.toString('base64')}`,
+          ...(previousPageStyle.contactSheet
+            ? [`data:image/jpeg;base64,${previousPageStyle.contactSheet.toString('base64')}`]
+            : []),
+          ...(previousGeneratedContactSheet
+            ? [`data:image/jpeg;base64,${previousGeneratedContactSheet.toString('base64')}`]
+            : []),
         ],
       })
       quality = normalizeQualityReview(
@@ -839,12 +1279,19 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         )
           throw new PlannerFailure('QUOTA_EXCEEDED')
         const postId = randomUUID()
+        if (!previousPageStyle) throw new PlannerFailure('GENERATION_FAILED')
         const provenance = {
           planId: plan.id,
           slot: plan.completed_count,
           evidenceHash: plan.evidence_hash,
           factIds: content.factIds,
           sourceUrls: slot.sourceUrls,
+          styleReferenceRevision: previousPageStyle.revision,
+          styleReferences: previousPageStyle.references,
+          styleReferenceCount: previousPageStyle.referenceCount,
+          platformPublishedStyleCount: previousPageStyle.platformPublishedCount,
+          importedSocialStyleCount: previousPageStyle.importedSocialCount,
+          pageStyleHistory: previousPageStyle.historySummary,
           rationale: `${content.reasoning.concept}\n${content.reasoning.copy}\n${content.reasoning.design}\n${content.reasoning.hashtags}\n${slot.platformRationale}\n${slot.timingRationale}\n${content.assetReason}`,
           hashtags: content.hashtags,
           reasoning: {
@@ -967,6 +1414,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     }
   } finally {
     contactSheet?.fill(0)
+    previousPageStyle?.contactSheet?.fill(0)
+    previousGeneratedContactSheet?.fill(0)
+    releasePlannerAssets(previousGeneratedAssets)
     releasePlannerAssets(assets)
   }
 }

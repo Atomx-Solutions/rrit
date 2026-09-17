@@ -59,11 +59,34 @@ export const slotBriefSchema = z.object({
   sourceUrls: z.array(researchSourceSchema.shape.url).min(1).max(5),
   requiredAssetId: z.uuid().nullable(),
 })
+export const styleProfileSchema = z.object({
+  palette: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
+  contrast: z.string().trim().max(500).optional(),
+  typography: z.string().trim().max(500).optional(),
+  hierarchy: z.string().trim().max(500).optional(),
+  density: z.string().trim().max(500).optional(),
+  spacing: z.string().trim().max(500).optional(),
+  photography: z.string().trim().max(500).optional(),
+  composition: z.string().trim().max(500).optional(),
+  brandElements: z.string().trim().max(500).optional(),
+  tone: z.string().trim().max(500).optional(),
+  doNotUse: z.array(z.string().trim().min(1).max(200)).max(12).optional(),
+})
+// OpenAI-compatible structured outputs require every object property to be
+// listed as required. Keep the persisted schema permissive for older plans,
+// but use a strict variant when requesting a new editorial plan.
+export const styleProfileGenerationSchema = styleProfileSchema.required()
 export const editorialPlanSchema = z.object({
   objective: z.string().min(10).max(1500),
   audience: z.string().min(5).max(1000),
   rationale: z.string().min(10).max(2000),
   slots: z.array(slotBriefSchema).min(1).max(100),
+  // Generated from the connected page history and current application brand
+  // controls; this is a dynamic style contract, not a hard-coded template.
+  styleProfile: styleProfileSchema.optional(),
+})
+export const editorialPlanGenerationSchema = editorialPlanSchema.extend({
+  styleProfile: styleProfileGenerationSchema,
 })
 export const creativeSchema = z.object({
   headline: z.string().trim().min(3).max(64),
@@ -96,11 +119,53 @@ export const qualitySchema = z.object({
   factuality: z.boolean(),
   brandFit: z.boolean(),
   visualQuality: z.boolean(),
+  sourceFidelity: z.boolean().default(true),
+  sourceFidelityReasons: z.array(z.string().min(1).max(500)).max(5).default([]),
+  styleConsistency: z.boolean().default(true),
+  styleReasons: z.array(z.string().min(1).max(500)).max(5).default([]),
+  visualDistinctness: z.boolean().default(true),
+  distinctnessReasons: z.array(z.string().min(1).max(500)).max(5).default([]),
 })
 export const monthlyPostProvenanceSchema = z.object({
   planId: z.uuid(),
   slot: z.number().int().nonnegative(),
   evidenceHash: z.string(),
+  styleReferenceRevision: z.string().optional(),
+  styleReferences: z
+    .array(
+      z.object({
+        source: z.enum(['facebook', 'instagram', 'platform']),
+        channel: z.enum(['Facebook', 'Instagram']),
+        postId: z.uuid().optional(),
+        providerId: z.string().min(1).optional(),
+        assetId: z.uuid().optional(),
+        publishedAt: z.iso.datetime(),
+      }),
+    )
+    .max(8)
+    .optional(),
+  styleReferenceCount: z.number().int().nonnegative().optional(),
+  platformPublishedStyleCount: z.number().int().nonnegative().optional(),
+  importedSocialStyleCount: z.number().int().nonnegative().optional(),
+  pageStyleHistory: z
+    .object({
+      totalPosts: z.number().int().nonnegative(),
+      byChannel: z.object({
+        Facebook: z.number().int().nonnegative(),
+        Instagram: z.number().int().nonnegative(),
+      }),
+      bySource: z.object({
+        platform: z.number().int().nonnegative(),
+        facebook: z.number().int().nonnegative(),
+        instagram: z.number().int().nonnegative(),
+      }),
+      mediaTypes: z.record(z.string(), z.number().int().nonnegative()),
+      captionedPosts: z.number().int().nonnegative(),
+      averageCaptionLength: z.number().int().nonnegative(),
+      oldestPublishedAt: z.iso.datetime().nullable(),
+      newestPublishedAt: z.iso.datetime().nullable(),
+    })
+    .optional(),
   factIds: z.array(z.string()),
   sourceUrls: z.array(researchSourceSchema.shape.url),
   rationale: z.string(),
@@ -138,4 +203,5 @@ export const monthlyPostProvenanceSchema = z.object({
 export type SlotBrief = z.infer<typeof slotBriefSchema>
 export type Research = z.infer<typeof researchSchema>
 export type Creative = z.infer<typeof creativeSchema>
+export type StyleProfile = z.infer<typeof styleProfileSchema>
 export type PlannedCreativeLayout = z.infer<typeof plannedCreativeLayoutSchema>

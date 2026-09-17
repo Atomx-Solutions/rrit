@@ -220,7 +220,6 @@ export async function graphRequest<T>(
 export async function exchangeMetaCode(code: string) {
   const config = metaConfiguration()
   async function exchange(parameters: Record<string, string>) {
-    const exchangeType = parameters.grant_type ? 'long_lived_token' : 'authorization_code'
     const url = new URL(`https://graph.facebook.com/${config.version}/oauth/access_token`)
     url.search = new URLSearchParams({
       client_id: config.appId,
