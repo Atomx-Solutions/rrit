@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
       .map(([key, value]) => ({
         key,
         ...value,
+        remaining: Math.max(0, value.limit - value.current),
         percentage: value.limit
           ? Math.min(100, Math.round((value.current / value.limit) * 100))
           : 100,
