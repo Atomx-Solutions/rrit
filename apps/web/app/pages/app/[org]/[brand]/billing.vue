@@ -18,6 +18,7 @@ const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/
   key: 'billing-subscription',
 })
 const commercialPlans = computed(() => plans.value.filter(plan => !plan.isTrial))
+const annualDiscount = computed(() => Math.max(0, ...commercialPlans.value.map(plan => plan.annualDiscount)))
 const { page, pageSize, total, paginated } = usePagination(commercialPlans)
 const selected = ref('')
 const selectedPlan = computed(() => commercialPlans.value.find((plan) => plan.name === selected.value))
@@ -116,6 +117,7 @@ const exhaustedMessages: Record<string, string> = {
   social_accounts: 'billing.limitSocial',
   media_storage_bytes: 'billing.limitStorage',
 }
+const postsUsage = computed(() => usage.value?.usage.find(item => item.key === 'posts_per_month'))
 
 function translateOptional(key: string | undefined, fallback: string) {
   return key ? t(key) : fallback
@@ -138,8 +140,8 @@ function usageValue(key: string, value: number) {
         <span class="text-sm text-muted">{{ t('billing.proposedPlans') }}</span>
         <div class="flex items-center gap-3">
           <span class="text-sm">{{ t('billing.monthly') }}</span
-          ><USwitch v-model="annual" :aria-label="t('billing.annualBilling')" /><span class="text-sm"
-            >{{ t('billing.annual') }}</span
+          ><USwitch v-model="annual" :aria-label="t('billing.annualBilling')" /><span class="flex items-center gap-1 text-sm"
+            >{{ t('billing.annual') }}<UBadge v-if="annualDiscount > 0" size="sm" color="success" variant="subtle">-{{ annualDiscount }}%</UBadge></span
           >
         </div>
       </div>
@@ -211,6 +213,13 @@ function usageValue(key: string, value: number) {
           </div>
         </UCard>
       </div>
+      <UAlert
+        v-if="usage.credits.research.spendable === 0 || usage.credits.generation.spendable === 0"
+        color="warning"
+        variant="outline"
+        icon="i-lucide-circle-alert"
+        :title="usage.credits.research.spendable === 0 ? t('billing.researchCreditsExhausted') : t('billing.generationCreditsExhausted')"
+      />
       <UCard v-if="billing?.selfServiceEnabled && topUpConfig" as="section" :ui="{ body: 'p-4 sm:p-5' }">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div class="space-y-1">
@@ -220,10 +229,9 @@ function usageValue(key: string, value: number) {
           </div>
           <div class="flex flex-col gap-2 sm:w-80">
             <UFormField name="credit-top-up" :label="t('billing.creditTopUpQuantity')">
-              <UInput
+              <UInputNumber
                 id="credit-top-up"
-                v-model.number="topUpCredits"
-                type="number"
+                v-model="topUpCredits"
                 :min="topUpConfig.minimum"
                 :max="topUpConfig.maximum"
                 :step="1"
@@ -246,6 +254,9 @@ function usageValue(key: string, value: number) {
         <div class="mb-5">
           <h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2>
           <p class="text-sm text-muted mt-1">{{ t('billing.currentUsageDescription') }}</p>
+          <p v-if="postsUsage" class="text-sm font-medium mt-2">
+            {{ t('billing.postsRemaining', { count: usageValue('posts_per_month', postsUsage.remaining) }) }}
+          </p>
         </div>
         <div class="grid gap-5 sm:grid-cols-2">
           <div v-for="item in usage.usage" :key="item.key" class="space-y-2">

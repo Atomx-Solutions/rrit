@@ -9,7 +9,7 @@ const annualDiscount = computed(() =>
 )
 const billingOptions = computed(() => [
   { label: t('billing.monthly'), value: 'monthly' },
-  { label: t('billing.annual'), value: 'annual', badge: t('landing.upToDiscount', { discount: annualDiscount.value }) },
+  { label: t('billing.annual'), value: 'annual', badge: `-${annualDiscount.value}%` },
 ])
 const annual = computed(() => billing.value === 'annual' && annualDiscount.value > 0)
 const pendingServices = computed(() => [
