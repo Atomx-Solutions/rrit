@@ -19,7 +19,8 @@ export const formatMoney = (value: number, currency = 'EUR') =>
   new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 0,
+    // Whole amounts stay compact (19 €); any cents always show two digits (254,90 €).
+    minimumFractionDigits: Number.isInteger(Math.round(value * 100) / 100) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(value)
 export const formatDate = (value: string, timezone = 'Europe/Tirane', short = false) => {

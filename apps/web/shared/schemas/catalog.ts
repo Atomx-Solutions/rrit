@@ -52,6 +52,7 @@ export type PlanCatalogPlan = z.infer<typeof planCatalogSchema> & {
   monthlyCredits: number
   styleFetchPostCount: number
   price: number
+  annualPrice: number
   features: string[]
 }
 export type PlanLimits = z.infer<typeof planLimitsSchema>

@@ -25,6 +25,7 @@ describe('entitlement fail-safe behavior', () => {
           }
         }
         if (sql.includes('FROM entitlements')) return { rows: [] }
+        if (sql.includes('FROM subscriptions')) return { rows: [] }
         if (sql.includes('FROM app_settings')) {
           return {
             rows: [
