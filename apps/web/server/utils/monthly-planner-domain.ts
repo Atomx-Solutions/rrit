@@ -417,6 +417,14 @@ export const plannerMessages: Record<string, string> = {
     'Kostoja e shërbimit tejkaloi rezervimin. Platforma duhet të rishikojë kufijtë përpara vazhdimit.',
 }
 
+/**
+ * Posts the package still allows this month (3 / 14 / 30 / 60). With Pako 1
+ * and 14 posts created it returns 0, so the 15th generation is blocked.
+ */
+export function remainingMonthlyPosts(postsPerMonth: number, createdThisMonth: number) {
+  return Math.max(0, Math.min(postsPerMonth, 100) - createdThisMonth)
+}
+
 export function resumableContentFailureCode(code: string | null | undefined) {
   return [
     'QUALITY_BLOCKED',

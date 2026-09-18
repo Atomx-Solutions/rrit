@@ -367,6 +367,16 @@ const monthlyInstructionAddenda: Partial<Record<keyof typeof monthlyInstructions
     'The original photograph was deliberately uploaded to this business gallery by its owner and its usage rights were explicitly confirmed. Treat it as authorized first-party business media: missing visible signage is not a factuality failure and is never, by itself, a reason to BLOCK. Do still BLOCK material invention or replacement of products, people, furniture, architecture, signage or venue geometry. When the design remains faithful but needs subjective refinement, use WARN so it can reach human review. When previous-page style references are supplied, set styleConsistency=false and add concise styleReasons when the finished photo materially leaves the page scope in palette, contrast, typography, density, spacing, crop, lighting, photographic treatment or recurring brand elements. Set visualDistinctness=false and add concise distinctnessReasons if the first glance or fine details materially repeat an earlier post. Style mismatch and repetition are WARN findings, not factuality BLOCKs.',
 }
 
+/**
+ * Research and monthly planning spend the research wallet; producing a post
+ * (copy, image and quality review) spends the generation wallet.
+ */
+export function creditWalletForCapability(
+  capability: keyof typeof monthlyInstructions,
+): 'research' | 'generation' {
+  return capability === 'research' || capability === 'planning' ? 'research' : 'generation'
+}
+
 // Each paid stage reserves money before dispatch and persists its response before
 // domain validation. Ambiguous calls are never re-sent. Explicit zero-result
 // failures can be retried only after the user explicitly resumes a blocked plan.
@@ -432,6 +442,7 @@ export async function monthlyProviderCall(
     searchUses * config.searchRate
   const creditReserve = Math.ceil(inputBound / 4) + args.maxOutput
   const platformCost = args.capability === 'style'
+  const usageKind = creditWalletForCapability(args.capability)
   const client = await db.connect()
   let runId: string
   try {
@@ -526,7 +537,7 @@ export async function monthlyProviderCall(
       await reserveCredits(client, {
         organizationId: args.businessId,
         credits: creditReserve,
-        usageKind: args.capability === 'research' ? 'research' : 'generation',
+        usageKind,
         referenceType: 'monthly_ai_run',
         referenceId: runId,
         idempotencyKey: `monthly-ai-credit-reserve:${runId}`,
@@ -568,7 +579,6 @@ export async function monthlyProviderCall(
     try {
       await connection.query('BEGIN')
       if (args.tenant) await setTenantContext(connection, args.tenant)
-      const usageKind = args.capability === 'research' ? 'research' : 'generation'
       if (!platformCost) {
         await consumeReservedCredits(connection, {
           organizationId: args.businessId,

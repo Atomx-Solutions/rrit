@@ -260,6 +260,25 @@ export async function trialStatus(
   const now = new Date()
   const paidAccess =
     (await subscriptionAccess(businessId, now, now, db)) || paidEntitlementAccess(paid.rows[0])
+  // A trial follows its package allowance (Free Trial: 3 posts), not the
+  // legacy app_settings limit.
+  const trialPlan = paidAccess
+    ? undefined
+    : (
+        await db.query<{ posts_per_month: number }>(
+          `SELECT plan.posts_per_month
+             FROM subscriptions subscription
+             JOIN plans plan ON plan.code=subscription.plan_code
+            WHERE subscription.organization_id=$1
+              AND subscription.status='trialing'
+              AND subscription.current_period_end>now()
+            LIMIT 1`,
+          [businessId],
+        )
+      ).rows[0]
+  const trialLimits = trialPlan
+    ? { ...policy.limits, posts_per_month: Number(trialPlan.posts_per_month) }
+    : policy.limits
   return {
     state,
     startsAt: row?.starts_at?.toISOString() || null,
@@ -268,7 +287,7 @@ export async function trialStatus(
     durationHours: policy.duration_hours,
     paid: !!paidAccess,
     features: paidAccess?.features || (state === 'active' ? policy.features : []),
-    limits: paidAccess?.limits || policy.limits,
+    limits: paidAccess?.limits || trialLimits,
     plan: paidAccess?.plan || null,
   }
 }
