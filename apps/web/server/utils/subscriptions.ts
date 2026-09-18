@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg'
 import { expireRemainingCredits, grantAdditionalCredits, grantMonthlyCredits } from './credits'
+import { issueInvoice } from './invoices'
 
 export type BillingInterval = 'monthly' | 'annual'
 export type PlanChange = 'upgrade' | 'downgrade' | 'unchanged'
@@ -21,6 +22,10 @@ type SubscriptionRow = {
   current_period_start: Date
   current_period_end: Date
   pending_plan_code: string | null
+}
+
+function planInvoiceLabel(plan: PlanRow, interval: BillingInterval) {
+  return `${plan.name} · ${interval === 'annual' ? 'abonim vjetor (12 muaj)' : 'abonim mujor'}`
 }
 
 function billingError(statusCode: number, code: string, message: string) {
@@ -140,6 +145,13 @@ export async function activateSubscription(
     ],
   )
   const subscriptionId = created.rows[0]!.id
+  const invoice = await issueInvoice(client, {
+    organizationId: input.organizationId,
+    sourceType: 'subscription_activation',
+    sourceReference: subscriptionId,
+    lines: [{ description: planInvoiceLabel(plan, input.interval), quantity: 1, unitPriceCents: periodPriceCents(plan, input.interval) }],
+    now,
+  })
   // Annual subscriptions also receive only one month of credits at a time.
   const window = creditWindow(now, periodEnd, now)
   await grantMonthlyCredits(client, {
@@ -149,7 +161,7 @@ export async function activateSubscription(
     periodStart: window.start,
     periodEnd: window.end,
   })
-  return { subscriptionId, planCode: plan.code, interval: input.interval }
+  return { subscriptionId, planCode: plan.code, interval: input.interval, invoiceNumber: invoice.number }
 }
 
 /**
@@ -194,6 +206,17 @@ export async function changeSubscriptionPlan(
   const periodKey = balance.rows[0]?.period_start
     ? new Date(balance.rows[0].period_start).toISOString()
     : 'unknown'
+  // The upgrade is charged as the price difference of the billing period.
+  const upgradeCents =
+    periodPriceCents(next, current.billing_interval) - periodPriceCents(active, current.billing_interval)
+  const invoice = upgradeCents > 0
+    ? await issueInvoice(client, {
+        organizationId: input.organizationId,
+        sourceType: 'subscription_upgrade',
+        sourceReference: `${current.id}:${periodKey}:${active.code}->${next.code}`,
+        lines: [{ description: `Upgrade ${active.name} -> ${next.name} (${current.billing_interval === 'annual' ? 'vjetor' : 'mujor'})`, quantity: 1, unitPriceCents: upgradeCents }],
+      })
+    : null
   const additionalCredits = next.monthly_credits - active.monthly_credits
   if (additionalCredits > 0)
     await grantAdditionalCredits(client, {
@@ -204,7 +227,7 @@ export async function changeSubscriptionPlan(
       referenceId: `${active.code}->${next.code}`,
       idempotencyKey: `credit-upgrade:${current.id}:${periodKey}:${active.code}->${next.code}`,
     })
-  return { change, planCode: next.code, pendingPlanCode: null }
+  return { change, planCode: next.code, pendingPlanCode: null, invoiceNumber: invoice?.number ?? null }
 }
 
 async function refreshSubscription(client: PoolClient, subscriptionId: string, now: Date) {
