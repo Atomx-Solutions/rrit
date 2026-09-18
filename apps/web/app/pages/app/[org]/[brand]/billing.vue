@@ -291,7 +291,7 @@ function usageValue(key: string, value: number) {
       :title="t('billing.catalogError')"
       :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
     />
-    <UCard :ui="{ body: 'p-0 sm:p-0' }"
+    <UCard id="plans" class="scroll-mt-4" :ui="{ body: 'p-0 sm:p-0' }"
       ><div class="divide-y divide-default">
         <article
           v-for="plan in paginated"
@@ -332,7 +332,7 @@ function usageValue(key: string, value: number) {
       </div>
       <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total"
     /></UCard>
-    <UCard id="plans" as="section" class="scroll-mt-4" :ui="{ body: 'p-0 sm:p-0', header: 'px-5 py-4' }">
+    <UCard id="invoices" as="section" :ui="{ body: 'p-0 sm:p-0', header: 'px-5 py-4' }">
       <template #header
         ><div class="flex items-center justify-between gap-3">
           <h2 class="text-sm font-semibold">{{ t('billing.yourInvoices') }}</h2>
