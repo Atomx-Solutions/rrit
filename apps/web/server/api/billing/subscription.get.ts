@@ -1,12 +1,12 @@
 import {
   CREDIT_TOP_UP_MAXIMUM,
   CREDIT_TOP_UP_MINIMUM,
-  CREDIT_TOP_UP_UNIT_PRICE_CENTS,
 } from '../../utils/credit-top-ups'
+import { creditPricing } from '../../utils/credits'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const subscription = await withBusinessTransaction(user.id, async (client, business) => {
+  const { subscription, pricing } = await withBusinessTransaction(user.id, async (client, business) => {
     const result = await client.query<{
       plan_code: string
       billing_interval: 'monthly' | 'annual'
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
         WHERE organization_id=$1 AND status IN ('trialing','active','past_due')`,
       [business.id],
     )
-    return result.rows[0] || null
+    return { subscription: result.rows[0] || null, pricing: await creditPricing(client) }
   })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
     creditTopUp: {
       minimum: CREDIT_TOP_UP_MINIMUM,
       maximum: CREDIT_TOP_UP_MAXIMUM,
-      unitPrice: CREDIT_TOP_UP_UNIT_PRICE_CENTS / 100,
+      unitPrice: pricing.creditPriceCents / 100,
     },
     subscription: subscription && {
       planCode: subscription.plan_code,

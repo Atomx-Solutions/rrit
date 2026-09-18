@@ -1,6 +1,5 @@
 import { createError } from 'h3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { creditWalletForCapability } from '../../server/utils/monthly-ai'
 import { remainingMonthlyPosts } from '../../server/utils/monthly-planner-domain'
 import { postsCountedForLimit, recordTrialPostUsage, trialStatus } from '../../server/utils/trials'
 
@@ -21,18 +20,6 @@ describe('monthly post allowance', () => {
     [60, 59, 1],
   ])('allows %i posts per month with %i created: %i remaining', (limit, created, remaining) => {
     expect(remainingMonthlyPosts(limit, created)).toBe(remaining)
-  })
-})
-
-describe('credit wallets', () => {
-  it('charges research and planning to the research wallet', () => {
-    expect(creditWalletForCapability('research')).toBe('research')
-    expect(creditWalletForCapability('planning')).toBe('research')
-  })
-
-  it('charges post generation to the generation wallet', () => {
-    expect(creditWalletForCapability('content')).toBe('generation')
-    expect(creditWalletForCapability('quality')).toBe('generation')
   })
 })
 

@@ -188,55 +188,36 @@ function usageValue(key: string, value: number) {
       :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refreshUsage() }]"
     />
     <template v-else-if="usage">
-      <div class="grid gap-4 sm:grid-cols-2">
-        <UCard :ui="{ body: 'p-4' }">
-          <div class="flex items-center justify-between gap-4">
-            <div class="flex min-w-0 items-center gap-3">
-              <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <UIcon name="i-lucide-search" class="size-4 text-primary" />
-              </div>
-              <div class="min-w-0">
-                <h2 class="text-sm font-semibold">{{ t('billing.researchCredits') }}</h2>
-                <p class="text-xs text-muted">{{ t('billing.researchCreditsDescription') }}</p>
-              </div>
+      <UCard :ui="{ body: 'p-4' }">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <UIcon name="i-lucide-sparkles" class="size-4 text-primary" />
             </div>
-            <p class="shrink-0 text-sm font-semibold tabular-nums">
-              {{ usage.credits.research.spendable }}
-              <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span>
-            </p>
-          </div>
-        </UCard>
-        <UCard :ui="{ body: 'p-4' }">
-          <div class="flex items-center justify-between gap-4">
-            <div class="flex min-w-0 items-center gap-3">
-              <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <UIcon name="i-lucide-sparkles" class="size-4 text-primary" />
-              </div>
-              <div class="min-w-0">
-                <h2 class="text-sm font-semibold">{{ t('billing.generationCredits') }}</h2>
-                <p class="text-xs text-muted">{{ t('billing.generationCreditsDescription') }}</p>
-              </div>
+            <div class="min-w-0">
+              <h2 class="text-sm font-semibold">{{ t('billing.credits') }}</h2>
+              <p class="text-xs text-muted">{{ t('billing.creditsDescription') }}</p>
             </div>
-            <p class="shrink-0 text-sm font-semibold tabular-nums">
-              {{ usage.credits.generation.spendable }}
-              <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span>
-            </p>
           </div>
-        </UCard>
-      </div>
+          <p class="shrink-0 text-sm font-semibold tabular-nums" data-testid="credit-balance">
+            {{ usage.credits.spendable }}
+            <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span>
+          </p>
+        </div>
+      </UCard>
       <UAlert
-        v-if="usage.credits.research.spendable === 0 || usage.credits.generation.spendable === 0"
+        v-if="usage.credits.spendable === 0"
         color="warning"
         variant="outline"
         icon="i-lucide-circle-alert"
-        :title="usage.credits.research.spendable === 0 ? t('billing.researchCreditsExhausted') : t('billing.generationCreditsExhausted')"
+        :title="t('billing.creditsExhausted')"
       />
       <UCard v-if="billing?.selfServiceEnabled && topUpConfig" as="section" :ui="{ body: 'p-4 sm:p-5' }">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div class="space-y-1">
             <h2 class="text-sm font-semibold">{{ t('billing.creditTopUpTitle') }}</h2>
             <p class="text-sm text-muted">{{ t('billing.creditTopUpDescription') }}</p>
-            <p class="text-xs text-muted">{{ t('billing.creditTopUpSplit') }}</p>
+            <p class="text-xs text-muted">{{ t('billing.creditTopUpExpiry') }}</p>
           </div>
           <div class="flex flex-col gap-2 sm:w-80">
             <UFormField name="credit-top-up" :label="t('billing.creditTopUpQuantity')">

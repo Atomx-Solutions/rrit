@@ -24,10 +24,8 @@ function claimClient(pageAlreadyUsed: boolean) {
       return {
         rows: [
           {
-            research_remaining_credits: 125,
-            research_reserved_credits: 0,
-            generation_remaining_credits: 125,
-            generation_reserved_credits: 0,
+            remaining_credits: 250,
+            reserved_credits: 0,
             period_start: null,
             period_end: null,
           },
