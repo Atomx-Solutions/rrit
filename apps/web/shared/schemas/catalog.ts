@@ -35,14 +35,24 @@ export const trialPolicySchema = z.object({
 export const planCatalogSchema = z.object({
   name: z.string().min(1),
   version: z.number().int().positive(),
-  monthlyCents: z.number().int().positive(),
+  monthlyCents: z.number().int().nonnegative(),
   currency: z.literal('EUR'),
   annualDiscount: z.number().int().min(0).max(100),
-  description: z.string().min(1),
-  displayFeatures: z.array(z.string().min(1)),
+  // Presentation copy is localized by the client. The catalog only carries
+  // configuration and entitlement data from the database.
+  description: z.string(),
+  displayFeatures: z.array(z.string()),
   entitlements: z.array(entitlementFeatureSchema),
   limits: planLimitsSchema,
   purchasable: z.boolean(),
 })
+export type PlanCatalogPlan = z.infer<typeof planCatalogSchema> & {
+  code: string
+  isTrial: boolean
+  monthlyCredits: number
+  styleFetchPostCount: number
+  price: number
+  features: string[]
+}
 export type PlanLimits = z.infer<typeof planLimitsSchema>
 export type EntitlementFeature = z.infer<typeof entitlementFeatureSchema>

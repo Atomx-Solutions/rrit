@@ -37,6 +37,7 @@ async function syncChannel(
   channel: SocialChannel,
   pageId: string,
   instagramId: string | null,
+  brandId: string | null,
   token: string,
 ) {
   const instagram = channel === 'Instagram'
@@ -64,8 +65,8 @@ async function syncChannel(
       if (!post.id || !timestamp || !Number.isFinite(Date.parse(timestamp))) continue
       await db.query(
         `INSERT INTO social_posts
-          (business_id,channel,source_account_id,provider_id,caption,media_url,permalink,published_at,media_type)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          (business_id,brand_id,channel,source_account_id,provider_id,caption,media_url,permalink,published_at,media_type)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT (business_id,channel,source_account_id,provider_id) DO UPDATE SET
            caption=EXCLUDED.caption,
            media_url=EXCLUDED.media_url,
@@ -75,6 +76,7 @@ async function syncChannel(
            imported_at=now()`,
         [
           businessId,
+          brandId,
           channel,
           sourceAccountId,
           post.id,
@@ -116,6 +118,7 @@ export async function syncAllConnectedSocialPosts(
       channel,
       connection.page_id,
       connection.instagram_id,
+      connection.brand_id,
       token,
     )
   await db.query('UPDATE meta_connections SET last_sync_at=now(),updated_at=now() WHERE id=$1', [

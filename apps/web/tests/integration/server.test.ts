@@ -702,6 +702,29 @@ describe('trial transactions with PostgreSQL', () => {
     expect(plans.find((plan) => plan.name === 'Fillimi')?.limits.posts_per_month).toBe(12)
     expect(plans.find((plan) => plan.name === 'Përditë')?.entitlements).toContain('ai')
   })
+  it('seeds PRC-01 plans and grants an expiring common trial balance', async () => {
+    const plans = await pool.query(
+      'SELECT code,monthly_cents,posts_per_month,monthly_credits,style_fetch_post_count,is_trial FROM plans ORDER BY sort_order',
+    )
+    expect(plans.rows).toEqual([
+      { code: 'free-trial', monthly_cents: 0, posts_per_month: 3, monthly_credits: 250, style_fetch_post_count: 10, is_trial: true },
+      { code: 'pako-1', monthly_cents: 2499, posts_per_month: 14, monthly_credits: 1000, style_fetch_post_count: 10, is_trial: false },
+      { code: 'pako-2', monthly_cents: 4499, posts_per_month: 30, monthly_credits: 2250, style_fetch_post_count: 20, is_trial: false },
+      { code: 'pako-3', monthly_cents: 7999, posts_per_month: 60, monthly_credits: 4000, style_fetch_post_count: 30, is_trial: false },
+    ])
+    const item = await business()
+    await insertOrganizationWithOwner(item, 'credit-org', 'Credit organization')
+    await grant(item.id, item.email, randomUUID())
+    expect((await pool.query('SELECT plan_code,status FROM subscriptions WHERE organization_id=$1', [item.id])).rows).toEqual([
+      { plan_code: 'free-trial', status: 'trialing' },
+    ])
+    expect((await pool.query('SELECT remaining_credits,reserved_credits FROM credit_balances WHERE organization_id=$1', [item.id])).rows).toEqual([
+      { remaining_credits: 250, reserved_credits: 0 },
+    ])
+    expect((await pool.query("SELECT event_type,credit_delta FROM credit_ledger WHERE organization_id=$1", [item.id])).rows).toEqual([
+      { event_type: 'grant', credit_delta: 250 },
+    ])
+  })
 })
 describe('real photo decoding and validation', () => {
   it('rejects a fake JPEG and strips EXIF from a decoded image', async () => {

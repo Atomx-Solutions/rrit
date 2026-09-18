@@ -8,6 +8,7 @@ import {
   type EntitlementFeature,
   type PlanLimits,
 } from '../../shared/schemas/catalog'
+import { grantMonthlyCredits } from './credits'
 
 type IdentityKind = 'email' | 'device' | 'facebook_user' | 'facebook_page' | 'instagram_account'
 function trialKey() {
@@ -71,8 +72,8 @@ export async function grantTrial(
       if (existing.rows[0]?.business_id !== businessId) duplicate = true
     }
   }
-  await client.query(
-    'INSERT INTO trial_grants (business_id, expires_at, status, reason) VALUES ($1, now() + make_interval(hours => $2), $3, $4) ON CONFLICT (business_id) DO NOTHING',
+  const grant = await client.query<{ starts_at: Date; expires_at: Date; status: string }>(
+    'INSERT INTO trial_grants (business_id, expires_at, status, reason) VALUES ($1, now() + make_interval(hours => $2), $3, $4) ON CONFLICT (business_id) DO NOTHING RETURNING starts_at,expires_at,status',
     [
       businessId,
       policy.duration_hours,
@@ -80,6 +81,31 @@ export async function grantTrial(
       duplicate ? 'identity_previously_used' : null,
     ],
   )
+  const granted = grant.rows[0]
+  if (!granted || granted.status !== 'granted') return
+  // Legacy fixtures/records can still exist without the additive organization
+  // bridge. Preserve their established trial behavior; the commercial wallet
+  // starts once the organization aggregate exists.
+  const organization = await client.query('SELECT id FROM organizations WHERE id=$1', [businessId])
+  if (!organization.rowCount) return
+  const subscription = await client.query<{ id: string; monthly_credits: number }>(
+    `INSERT INTO subscriptions
+      (organization_id,plan_code,billing_interval,status,current_period_start,current_period_end)
+     SELECT $1,code,'monthly','trialing',$2,$3
+       FROM plans
+      WHERE code='free-trial' AND active=true
+     ON CONFLICT DO NOTHING
+     RETURNING id,(SELECT monthly_credits FROM plans WHERE code='free-trial') AS monthly_credits`,
+    [businessId, granted.starts_at, granted.expires_at],
+  )
+  if (!subscription.rows[0]?.id) return
+  await grantMonthlyCredits(client, {
+    organizationId: businessId,
+    subscriptionId: subscription.rows[0].id,
+    monthlyCredits: Number(subscription.rows[0].monthly_credits),
+    periodStart: granted.starts_at,
+    periodEnd: granted.expires_at,
+  })
 }
 export async function claimSocialTrialIdentities(
   client: PoolClient,

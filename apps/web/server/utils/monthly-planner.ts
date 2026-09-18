@@ -526,6 +526,32 @@ export async function loadPreviousPageStyle(
   db: Pool | PoolClient,
   businessId: string,
 ): Promise<PreviousPageStyle> {
+  const styleScope = await db.query<{
+    brand_id: string
+    connection_id: string | null
+    style_fetch_post_count: number
+  }>(
+    `SELECT brand.id AS brand_id,connection.id AS connection_id,plan.style_fetch_post_count
+       FROM brands brand
+       JOIN subscriptions subscription
+         ON subscription.organization_id=brand.organization_id
+        AND subscription.status IN ('trialing','active','past_due')
+        AND subscription.current_period_start<=now()
+        AND subscription.current_period_end>now()
+       JOIN plans plan ON plan.code=subscription.plan_code AND plan.active=true
+       LEFT JOIN meta_connections connection
+         ON connection.business_id=brand.organization_id
+        AND connection.brand_id=brand.id
+        AND connection.status='connected'
+      WHERE brand.organization_id=$1 AND brand.status='active'
+      ORDER BY brand.created_at,brand.id
+      LIMIT 1`,
+    [businessId],
+  )
+  const scope = styleScope.rows[0]
+  // A legacy tenant without a PRC-01 subscription keeps the current history
+  // behavior but does not receive a persisted snapshot until it is assigned a plan.
+  const fetchLimit = scope?.style_fetch_post_count
   try {
     // The planner must see the whole connected page history, including posts
     // that were never created or imported manually through this platform.
@@ -545,6 +571,7 @@ export async function loadPreviousPageStyle(
     `SELECT sp.provider_id,sp.channel,sp.caption,sp.media_url,sp.published_at,sp.media_type
        FROM social_posts sp
       WHERE sp.business_id=$1
+        AND ($2::uuid IS NULL OR sp.brand_id=$2)
         AND EXISTS (
           SELECT 1
           FROM meta_connections mc
@@ -553,8 +580,9 @@ export async function loadPreviousPageStyle(
             AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id)
               OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))
         )
-      ORDER BY sp.published_at DESC,sp.provider_id DESC`,
-    [businessId],
+      ORDER BY sp.published_at DESC,sp.provider_id DESC
+      LIMIT COALESCE($3::integer,2147483647)`,
+    [businessId, scope?.brand_id || null, fetchLimit || null],
   )
   const platformResult = await db.query<PublishedPlatformPostRow>(
     `SELECT DISTINCT ON (p.id)
@@ -728,6 +756,28 @@ export async function loadPreviousPageStyle(
     platformPublishedCount: platformResult.rows.length,
     importedSocialCount: socialRows.length,
     historySummary,
+  }
+  if (scope) {
+    await db.query(
+      `INSERT INTO style_snapshots
+        (organization_id,brand_id,source_connection_id,summary,source_post_count,source_revision,last_style_fetch_at)
+       VALUES($1,$2,$3,$4::jsonb,$5,$6,now())
+       ON CONFLICT (brand_id) DO UPDATE SET
+         source_connection_id=EXCLUDED.source_connection_id,
+         summary=EXCLUDED.summary,
+         source_post_count=EXCLUDED.source_post_count,
+         source_revision=EXCLUDED.source_revision,
+         last_style_fetch_at=EXCLUDED.last_style_fetch_at,
+         updated_at=now()`,
+      [
+        businessId,
+        scope.brand_id,
+        scope.connection_id,
+        JSON.stringify({ examples, references, history: historySummary }),
+        combinedRows.length,
+        revision,
+      ],
+    )
   }
   if (!referenceImages.length) {
     for (const bytes of localStyleAssets.map((asset) => asset.bytes)) bytes.fill(0)
