@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { creditPricing, grantAdditionalCredits } from '../../utils/credits'
+import { issueInvoice } from '../../utils/invoices'
 import {
   CREDIT_TOP_UP_MAXIMUM,
   CREDIT_TOP_UP_MINIMUM,
@@ -29,8 +30,9 @@ export default defineEventHandler(async (event) => {
       data: { code: 'INVALID_CREDIT_QUANTITY' },
     })
 
-  const { balance, priceCents } = await withBusinessTransaction(user.id, async (client, business) => {
-    const priceCents = creditTopUpPriceCents(input.data.credits, (await creditPricing(client)).creditPriceCents)
+  const { balance, priceCents, invoiceNumber } = await withBusinessTransaction(user.id, async (client, business) => {
+    const { creditPriceCents } = await creditPricing(client)
+    const priceCents = creditTopUpPriceCents(input.data.credits, creditPriceCents)
     const subscription = await client.query<{ id: string }>(
       `SELECT id FROM subscriptions
         WHERE organization_id=$1 AND status IN ('trialing','active','past_due')
@@ -53,9 +55,15 @@ export default defineEventHandler(async (event) => {
       idempotencyKey: `credit-purchase:${input.data.idempotencyKey}`,
       metadata: { priceCents, testMode: true },
     })
-    return { balance, priceCents }
+    const invoice = await issueInvoice(client, {
+      organizationId: business.id,
+      sourceType: 'credit_top_up',
+      sourceReference: input.data.idempotencyKey,
+      lines: [{ description: 'Kredite shtesë AI', quantity: input.data.credits, unitPriceCents: creditPriceCents }],
+    })
+    return { balance, priceCents, invoiceNumber: invoice.number }
   })
 
   setHeader(event, 'Cache-Control', 'private, no-store')
-  return { credits: input.data.credits, price: priceCents / 100, balance }
+  return { credits: input.data.credits, price: priceCents / 100, balance, invoiceNumber }
 })

@@ -20,6 +20,31 @@ const { plans, error: catalogError, refresh } = usePlanCatalog()
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', {
   key: 'billing-subscription',
 })
+const { data: invoiceData, refresh: refreshInvoices } = await useFetch('/api/billing/invoices', {
+  key: 'billing-invoices',
+})
+const detailsForm = reactive({ legalName: '', address: '', city: '', country: '', fiscalNumber: '' })
+watch(() => invoiceData.value?.details, (details) => {
+  if (details) Object.assign(detailsForm, details)
+}, { immediate: true })
+const savingDetails = ref(false)
+const detailsMessage = ref<{ ok: boolean; text: string } | null>(null)
+async function saveDetails() {
+  savingDetails.value = true
+  detailsMessage.value = null
+  try {
+    await $fetch('/api/billing/details', { method: 'PUT', body: { ...detailsForm } })
+    await refreshInvoices()
+    detailsMessage.value = { ok: true, text: t('billing.detailsSaved') }
+  } catch {
+    detailsMessage.value = { ok: false, text: t('billing.detailsFailed') }
+  } finally {
+    savingDetails.value = false
+  }
+}
+function formatInvoiceDate(iso: string) {
+  return new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeZone: 'Europe/Belgrade' }).format(new Date(iso))
+}
 const commercialPlans = computed(() => plans.value.filter(plan => !plan.isTrial))
 const annualDiscount = computed(() => Math.max(0, ...commercialPlans.value.map(plan => plan.annualDiscount)))
 const { page, pageSize, total, paginated } = usePagination(commercialPlans)
@@ -56,7 +81,7 @@ async function switchPlan() {
       body: { planCode: selectedPlan.value.code, interval: annual.value ? 'annual' : 'monthly' },
     })
     selected.value = ''
-    await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('trial')])
+    await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('trial'), refreshInvoices()])
   } catch {
     switchError.value = t('billing.activationFailed')
   } finally {
@@ -72,7 +97,7 @@ async function buyCreditTopUp() {
       method: 'POST',
       body: { credits: topUpCredits.value, idempotencyKey: crypto.randomUUID() },
     })
-    await Promise.all([refreshUsage(), refreshNuxtData('header-credit-balance')])
+    await Promise.all([refreshUsage(), refreshNuxtData('header-credit-balance'), refreshInvoices()])
   } catch {
     topUpError.value = t('billing.creditTopUpFailed')
   } finally {
@@ -339,12 +364,70 @@ function usageValue(key: string, value: number) {
           <span class="text-xs text-muted">{{ t('billing.currencyLabel') }}</span>
         </div></template
       >
+      <ul v-if="invoiceData?.invoices.length" class="divide-y divide-default" data-testid="invoice-list">
+        <li
+          v-for="invoice in invoiceData.invoices"
+          :key="invoice.id"
+          class="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+        >
+          <div class="min-w-0">
+            <p class="text-sm font-medium tabular-nums">
+              {{ invoice.number }}
+              <UBadge v-if="invoice.kind === 'credit_note'" size="sm" color="neutral" variant="subtle">{{ t('billing.creditNote') }}</UBadge>
+            </p>
+            <p class="text-xs text-muted truncate">
+              {{ formatInvoiceDate(invoice.issuedAt) }} · {{ invoice.lines.map(line => line.description).join(', ') }}
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-sm font-semibold tabular-nums">{{ formatMoney(invoice.total) }}</span>
+            <UButton
+              :to="`/api/billing/invoices/${invoice.id}/pdf`"
+              external
+              download
+              icon="i-lucide-download"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              :aria-label="t('billing.downloadInvoice', { number: invoice.number })"
+            >PDF</UButton>
+          </div>
+        </li>
+      </ul>
       <DashboardEmpty
+        v-else
         :title="t('billing.noInvoices')"
         :description="t('billing.noInvoicesDescription')"
         icon="i-lucide-receipt-text"
         class="border-0 rounded-none"
       />
+    </UCard>
+    <UCard id="billing-details" as="section" :ui="{ body: 'p-4 sm:p-5', header: 'px-5 py-4' }">
+      <template #header>
+        <h2 class="text-sm font-semibold">{{ t('billing.detailsTitle') }}</h2>
+        <p class="text-xs text-muted mt-1">{{ t('billing.detailsDescription') }}</p>
+      </template>
+      <UForm :state="detailsForm" class="grid gap-3 sm:grid-cols-2" @submit="saveDetails">
+        <UFormField name="legalName" :label="t('billing.detailsLegalName')" required>
+          <UInput v-model="detailsForm.legalName" class="w-full" maxlength="160" />
+        </UFormField>
+        <UFormField name="fiscalNumber" :label="t('billing.detailsFiscalNumber')" :hint="t('billing.detailsOptional')">
+          <UInput v-model="detailsForm.fiscalNumber" class="w-full" maxlength="40" />
+        </UFormField>
+        <UFormField name="address" :label="t('billing.detailsAddress')" class="sm:col-span-2">
+          <UInput v-model="detailsForm.address" class="w-full" maxlength="240" />
+        </UFormField>
+        <UFormField name="city" :label="t('billing.detailsCity')">
+          <UInput v-model="detailsForm.city" class="w-full" maxlength="120" />
+        </UFormField>
+        <UFormField name="country" :label="t('billing.detailsCountry')">
+          <UInput v-model="detailsForm.country" class="w-full" maxlength="120" />
+        </UFormField>
+        <div class="flex items-center gap-3 sm:col-span-2">
+          <UButton type="submit" :loading="savingDetails" icon="i-lucide-save">{{ t('billing.detailsSave') }}</UButton>
+          <span v-if="detailsMessage" role="status" class="text-xs" :class="detailsMessage.ok ? 'text-muted' : 'text-error'">{{ detailsMessage.text }}</span>
+        </div>
+      </UForm>
     </UCard>
     <UModal
       :open="!!selectedPlan"
