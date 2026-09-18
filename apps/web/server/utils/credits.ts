@@ -1,31 +1,27 @@
 import type { PoolClient } from 'pg'
 
+/** Which AI activity spent the credits; all activities share one balance. */
 export type CreditUsageKind = 'research' | 'generation'
-export type CreditWallet = CreditUsageKind
 export type CreditLedgerEvent = 'grant' | 'reserve' | 'release' | 'consume' | 'refund' | 'expire' | 'adjustment'
 
 type CreditBalanceRow = {
-  research_remaining_credits: number
-  research_reserved_credits: number
-  generation_remaining_credits: number
-  generation_reserved_credits: number
+  remaining_credits: number
+  reserved_credits: number
   period_start: Date | string | null
   period_end: Date | string | null
 }
 
-export type WalletBalance = { remaining: number; reserved: number; spendable: number }
 export type CreditBalance = {
-  research: WalletBalance
-  generation: WalletBalance
+  remaining: number
+  reserved: number
+  spendable: number
   periodStart: string | null
   periodEnd: string | null
 }
 export type CreditAllocation = { slot: number; credits: number }
+export type CreditPricing = { creditPriceCents: number; providerCostPerCreditMicroEur: number }
 
-const walletColumns: Record<CreditWallet, { remaining: string; reserved: string }> = {
-  research: { remaining: 'research_remaining_credits', reserved: 'research_reserved_credits' },
-  generation: { remaining: 'generation_remaining_credits', reserved: 'generation_reserved_credits' },
-}
+const balanceColumns = 'remaining_credits,reserved_credits,period_start,period_end'
 
 function nonNegativeInteger(value: number, name: string) {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${name} must be a non-negative integer`)
@@ -35,36 +31,40 @@ function positiveInteger(value: number, name: string) {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`)
   return value
 }
-function walletBalance(remaining: number, reserved: number): WalletBalance {
-  return { remaining: Number(remaining), reserved: Number(reserved), spendable: Number(remaining) - Number(reserved) }
-}
 function toBalance(row: CreditBalanceRow): CreditBalance {
+  const remaining = Number(row.remaining_credits)
+  const reserved = Number(row.reserved_credits)
   return {
-    research: walletBalance(row.research_remaining_credits, row.research_reserved_credits),
-    generation: walletBalance(row.generation_remaining_credits, row.generation_reserved_credits),
+    remaining,
+    reserved,
+    spendable: remaining - reserved,
     periodStart: row.period_start ? new Date(row.period_start).toISOString() : null,
     periodEnd: row.period_end ? new Date(row.period_end).toISOString() : null,
   }
 }
-export function splitCredits(credits: number) {
-  const research = Math.floor(credits / 2)
-  return { research, generation: credits - research }
-}
 
-/** One sold credit equals one billable AI token (input or output). */
-export function creditsForAiUsage(inputTokens: number, outputTokens: number) {
-  return nonNegativeInteger(inputTokens, 'inputTokens') + nonNegativeInteger(outputTokens, 'outputTokens')
+/**
+ * One credit is a fixed slice of provider cost (EUR 0.007) sold at a fixed
+ * price (EUR 0.02), so every AI action is charged by what it actually cost,
+ * whatever the model or input/output token mix. A paid call costs at least
+ * one credit.
+ */
+export function creditsForProviderCost(costMicroEur: number, providerCostPerCreditMicroEur: number) {
+  nonNegativeInteger(costMicroEur, 'costMicroEur')
+  positiveInteger(providerCostPerCreditMicroEur, 'providerCostPerCreditMicroEur')
+  return Math.max(1, Math.ceil(costMicroEur / providerCostPerCreditMicroEur))
 }
-export function creditsForProviderCost(costMicroEur: number, providerTokenCostMicroEur: number) {
-  positiveInteger(costMicroEur, 'costMicroEur')
-  positiveInteger(providerTokenCostMicroEur, 'providerTokenCostMicroEur')
-  return Math.ceil(costMicroEur / providerTokenCostMicroEur)
+export async function creditPricing(client: Pick<PoolClient, 'query'>): Promise<CreditPricing> {
+  const result = await client.query<{ credit_price_cents: number; provider_cost_per_credit_micro_eur: number }>(
+    'SELECT credit_price_cents,provider_cost_per_credit_micro_eur FROM credit_pricing WHERE singleton=true',
+  )
+  const creditPriceCents = Number(result.rows[0]?.credit_price_cents)
+  const providerCostPerCreditMicroEur = Number(result.rows[0]?.provider_cost_per_credit_micro_eur)
+  if (!creditPriceCents || !providerCostPerCreditMicroEur) throw new Error('Credit pricing is not configured.')
+  return { creditPriceCents, providerCostPerCreditMicroEur }
 }
-export async function creditsForImageProviderCost(client: PoolClient, costMicroEur: number) {
-  const result = await client.query<{ provider_token_cost_micro_eur: number }>('SELECT provider_token_cost_micro_eur FROM credit_pricing WHERE singleton=true')
-  const cost = Number(result.rows[0]?.provider_token_cost_micro_eur)
-  if (!cost) throw new Error('Credit pricing is not configured.')
-  return creditsForProviderCost(costMicroEur, cost)
+export async function creditsForCost(client: Pick<PoolClient, 'query'>, costMicroEur: number) {
+  return creditsForProviderCost(costMicroEur, (await creditPricing(client)).providerCostPerCreditMicroEur)
 }
 export function allocatePlanCredits(monthlyCredits: number, postCount: number): CreditAllocation[] {
   nonNegativeInteger(monthlyCredits, 'monthlyCredits')
@@ -78,42 +78,37 @@ export function allocatePlanCredits(monthlyCredits: number, postCount: number): 
 async function lockBalance(client: PoolClient, organizationId: string) {
   await client.query('INSERT INTO credit_balances(organization_id) VALUES($1) ON CONFLICT (organization_id) DO NOTHING', [organizationId])
   const result = await client.query<CreditBalanceRow>(
-    `SELECT research_remaining_credits,research_reserved_credits,generation_remaining_credits,generation_reserved_credits,period_start,period_end
-       FROM credit_balances WHERE organization_id=$1 FOR UPDATE`,
+    `SELECT ${balanceColumns} FROM credit_balances WHERE organization_id=$1 FOR UPDATE`,
     [organizationId],
   )
   if (!result.rows[0]) throw new Error('Credit balance could not be locked.')
   return result.rows[0]
 }
-export async function creditWalletSnapshot(client: PoolClient, organizationId: string) {
+export async function creditBalanceSnapshot(client: PoolClient, organizationId: string) {
   const result = await client.query<CreditBalanceRow>(
-    `SELECT research_remaining_credits,research_reserved_credits,generation_remaining_credits,generation_reserved_credits,period_start,period_end
-       FROM credit_balances WHERE organization_id=$1`,
+    `SELECT ${balanceColumns} FROM credit_balances WHERE organization_id=$1`,
     [organizationId],
   )
-  return result.rows[0] ? toBalance(result.rows[0]) : toBalance({ research_remaining_credits: 0, research_reserved_credits: 0, generation_remaining_credits: 0, generation_reserved_credits: 0, period_start: null, period_end: null })
+  return toBalance(result.rows[0] || { remaining_credits: 0, reserved_credits: 0, period_start: null, period_end: null })
 }
-async function writeLedger(client: PoolClient, input: { organizationId: string; subscriptionId?: string | null; eventType: CreditLedgerEvent; wallet: CreditWallet; creditDelta: number; referenceType?: string; referenceId?: string; idempotencyKey?: string; metadata?: Record<string, unknown> }) {
+async function writeLedger(client: PoolClient, input: { organizationId: string; subscriptionId?: string | null; eventType: CreditLedgerEvent; usageKind?: CreditUsageKind; creditDelta: number; referenceType?: string; referenceId?: string; idempotencyKey?: string; metadata?: Record<string, unknown> }) {
   return client.query<{ id: string }>(
-    `INSERT INTO credit_ledger(organization_id,subscription_id,event_type,usage_kind,wallet,credit_delta,reference_type,reference_id,idempotency_key,metadata)
-     VALUES($1,$2,$3,$4,$4,$5,$6,$7,$8,$9)
+    `INSERT INTO credit_ledger(organization_id,subscription_id,event_type,usage_kind,credit_delta,reference_type,reference_id,idempotency_key,metadata)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
      ON CONFLICT (organization_id,idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING RETURNING id`,
-    [input.organizationId, input.subscriptionId || null, input.eventType, input.wallet, input.creditDelta, input.referenceType || null, input.referenceId || null, input.idempotencyKey || null, JSON.stringify(input.metadata || {})],
+    [input.organizationId, input.subscriptionId || null, input.eventType, input.usageKind || null, input.creditDelta, input.referenceType || null, input.referenceId || null, input.idempotencyKey || null, JSON.stringify(input.metadata || {})],
   )
 }
-async function updateWallet(client: PoolClient, organizationId: string, wallet: CreditWallet, remainingDelta: number, reservedDelta: number, period?: { start: Date; end: Date }) {
-  const columns = walletColumns[wallet]
+async function updateBalance(client: PoolClient, organizationId: string, remainingDelta: number, reservedDelta: number) {
   const result = await client.query<CreditBalanceRow>(
-    `UPDATE credit_balances SET ${columns.remaining}=${columns.remaining}+$2,${columns.reserved}=${columns.reserved}+$3,
-       period_start=COALESCE($4,period_start),period_end=COALESCE($5,period_end),updated_at=now()
-     WHERE organization_id=$1
-     RETURNING research_remaining_credits,research_reserved_credits,generation_remaining_credits,generation_reserved_credits,period_start,period_end`,
-    [organizationId, remainingDelta, reservedDelta, period?.start || null, period?.end || null],
+    `UPDATE credit_balances SET remaining_credits=remaining_credits+$2,reserved_credits=reserved_credits+$3,updated_at=now()
+     WHERE organization_id=$1 RETURNING ${balanceColumns}`,
+    [organizationId, remainingDelta, reservedDelta],
   )
   return toBalance(result.rows[0]!)
 }
-function exhausted(wallet: CreditWallet) {
-  return createError({ statusCode: 402, data: { code: 'CREDIT_WALLET_EXHAUSTED', wallet }, message: 'Kreditet per kete veprim kane perfunduar.' })
+function exhausted() {
+  return createError({ statusCode: 402, data: { code: 'CREDITS_EXHAUSTED' }, message: 'Kreditet kane perfunduar.' })
 }
 
 export async function grantMonthlyCredits(client: PoolClient, input: { organizationId: string; subscriptionId: string; monthlyCredits: number; periodStart: Date; periodEnd: Date }) {
@@ -121,91 +116,77 @@ export async function grantMonthlyCredits(client: PoolClient, input: { organizat
   if (input.periodEnd <= input.periodStart) throw new Error('Credit period end must be after its start.')
   const balance = await lockBalance(client, input.organizationId)
   const periodKey = input.periodStart.toISOString()
-  const grant = await writeLedger(client, { organizationId: input.organizationId, subscriptionId: input.subscriptionId, eventType: 'grant', wallet: 'research', creditDelta: splitCredits(input.monthlyCredits).research, referenceType: 'subscription_period', referenceId: periodKey, idempotencyKey: `credit-grant:${input.subscriptionId}:${periodKey}:research` })
+  const grant = await writeLedger(client, { organizationId: input.organizationId, subscriptionId: input.subscriptionId, eventType: 'grant', creditDelta: input.monthlyCredits, referenceType: 'subscription_period', referenceId: periodKey, idempotencyKey: `credit-grant:${input.subscriptionId}:${periodKey}` })
   if (!grant.rows.length) return toBalance(balance)
-  const allocation = splitCredits(input.monthlyCredits)
-  await writeLedger(client, { organizationId: input.organizationId, subscriptionId: input.subscriptionId, eventType: 'grant', wallet: 'generation', creditDelta: allocation.generation, referenceType: 'subscription_period', referenceId: periodKey, idempotencyKey: `credit-grant:${input.subscriptionId}:${periodKey}:generation` })
-  for (const wallet of ['research', 'generation'] as const) {
-    const prior = walletBalance(balance[`${wallet}_remaining_credits`], balance[`${wallet}_reserved_credits`])
-    if (prior.remaining) await writeLedger(client, { organizationId: input.organizationId, subscriptionId: input.subscriptionId, eventType: 'expire', wallet, creditDelta: -prior.remaining, referenceType: 'subscription_period', referenceId: balance.period_start ? new Date(balance.period_start).toISOString() : undefined, idempotencyKey: `credit-expire:${input.organizationId}:${periodKey}:${wallet}` })
-  }
+  const prior = Number(balance.remaining_credits)
+  if (prior) await writeLedger(client, { organizationId: input.organizationId, subscriptionId: input.subscriptionId, eventType: 'expire', creditDelta: -prior, referenceType: 'subscription_period', referenceId: balance.period_start ? new Date(balance.period_start).toISOString() : undefined, idempotencyKey: `credit-expire:${input.organizationId}:${periodKey}` })
   const updated = await client.query<CreditBalanceRow>(
-    `UPDATE credit_balances SET research_remaining_credits=$2,research_reserved_credits=0,generation_remaining_credits=$3,generation_reserved_credits=0,remaining_credits=0,reserved_credits=0,period_start=$4,period_end=$5,updated_at=now()
-      WHERE organization_id=$1 RETURNING research_remaining_credits,research_reserved_credits,generation_remaining_credits,generation_reserved_credits,period_start,period_end`,
-    [input.organizationId, allocation.research, allocation.generation, input.periodStart, input.periodEnd],
+    `UPDATE credit_balances SET remaining_credits=$2,reserved_credits=0,period_start=$3,period_end=$4,updated_at=now()
+      WHERE organization_id=$1 RETURNING ${balanceColumns}`,
+    [input.organizationId, input.monthlyCredits, input.periodStart, input.periodEnd],
   )
   return toBalance(updated.rows[0]!)
 }
 export async function grantAdditionalCredits(client: PoolClient, input: { organizationId: string; subscriptionId: string; credits: number; referenceType: string; referenceId: string; idempotencyKey: string; metadata?: Record<string, unknown> }) {
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)
-  const allocation = splitCredits(input.credits)
-  const grant = await writeLedger(client, { ...input, eventType: 'grant', wallet: 'research', creditDelta: allocation.research, idempotencyKey: `${input.idempotencyKey}:research` })
+  const grant = await writeLedger(client, { ...input, eventType: 'grant', creditDelta: input.credits })
   if (!grant.rows.length) return toBalance(balance)
-  await writeLedger(client, { ...input, eventType: 'grant', wallet: 'generation', creditDelta: allocation.generation, idempotencyKey: `${input.idempotencyKey}:generation` })
-  await updateWallet(client, input.organizationId, 'research', allocation.research, 0)
-  return updateWallet(client, input.organizationId, 'generation', allocation.generation, 0)
+  return updateBalance(client, input.organizationId, input.credits, 0)
 }
 export async function expireRemainingCredits(client: PoolClient, input: { organizationId: string; subscriptionId: string; idempotencyKey: string }) {
   const balance = await lockBalance(client, input.organizationId)
-  for (const wallet of ['research', 'generation'] as const) {
-    const amount = balance[`${wallet}_remaining_credits`]
-    if (amount) await writeLedger(client, { ...input, eventType: 'expire', wallet, creditDelta: -Number(amount), referenceType: 'subscription', referenceId: input.subscriptionId, idempotencyKey: `${input.idempotencyKey}:${wallet}` })
-  }
+  const amount = Number(balance.remaining_credits)
+  if (amount) await writeLedger(client, { ...input, eventType: 'expire', creditDelta: -amount, referenceType: 'subscription', referenceId: input.subscriptionId })
   const updated = await client.query<CreditBalanceRow>(
-    `UPDATE credit_balances SET research_remaining_credits=0,research_reserved_credits=0,generation_remaining_credits=0,generation_reserved_credits=0,remaining_credits=0,reserved_credits=0,updated_at=now()
-      WHERE organization_id=$1 RETURNING research_remaining_credits,research_reserved_credits,generation_remaining_credits,generation_reserved_credits,period_start,period_end`, [input.organizationId],
+    `UPDATE credit_balances SET remaining_credits=0,reserved_credits=0,updated_at=now()
+      WHERE organization_id=$1 RETURNING ${balanceColumns}`, [input.organizationId],
   )
   return toBalance(updated.rows[0]!)
 }
 export async function reserveCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)
-  const columns = walletColumns[input.usageKind]
-  if (Number(balance[columns.remaining as keyof CreditBalanceRow]) - Number(balance[columns.reserved as keyof CreditBalanceRow]) < input.credits) throw exhausted(input.usageKind)
-  const ledger = await writeLedger(client, { ...input, eventType: 'reserve', wallet: input.usageKind, creditDelta: 0 })
+  if (toBalance(balance).spendable < input.credits) throw exhausted()
+  const ledger = await writeLedger(client, { ...input, eventType: 'reserve', creditDelta: 0 })
   if (!ledger.rows.length) return toBalance(balance)
-  return updateWallet(client, input.organizationId, input.usageKind, 0, input.credits)
+  return updateBalance(client, input.organizationId, 0, input.credits)
 }
 export async function releaseReservedCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)
-  const reserved = Number(balance[walletColumns[input.usageKind].reserved as keyof CreditBalanceRow])
-  if (reserved < input.credits) throw new Error('Cannot release more credits than reserved.')
-  const ledger = await writeLedger(client, { ...input, eventType: 'release', wallet: input.usageKind, creditDelta: 0 })
+  if (Number(balance.reserved_credits) < input.credits) throw new Error('Cannot release more credits than reserved.')
+  const ledger = await writeLedger(client, { ...input, eventType: 'release', creditDelta: 0 })
   if (!ledger.rows.length) return toBalance(balance)
-  return updateWallet(client, input.organizationId, input.usageKind, 0, -input.credits)
+  return updateBalance(client, input.organizationId, 0, -input.credits)
 }
 /**
  * Settles usage the provider has already charged, so it never fails: this
  * call's reservation is spent first, any overrun is taken from the free
- * balance, and the wallet is capped at zero instead of rejecting the result.
+ * balance, and the balance is capped at zero instead of rejecting the result.
  */
 export async function consumeReservedCredits(client: PoolClient, input: { organizationId: string; credits: number; reservedCredits?: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)
-  const columns = walletColumns[input.usageKind]
-  const remaining = Number(balance[columns.remaining as keyof CreditBalanceRow])
-  const reserved = Number(balance[columns.reserved as keyof CreditBalanceRow])
+  const remaining = Number(balance.remaining_credits)
+  const reserved = Number(balance.reserved_credits)
   const reservationUsed = Math.min(input.credits, input.reservedCredits ?? input.credits, reserved)
   const charged = Math.min(input.credits, remaining)
   const ledger = await writeLedger(client, {
     ...input,
-    // A zero charge (empty wallet) still needs an idempotent ledger entry.
+    // A zero charge (empty balance) still needs an idempotent ledger entry.
     eventType: charged > 0 ? 'consume' : 'release',
-    wallet: input.usageKind,
     creditDelta: charged > 0 ? -charged : 0,
     metadata: { requestedCredits: input.credits, chargedCredits: charged },
   })
   if (!ledger.rows.length) return toBalance(balance)
-  return updateWallet(client, input.organizationId, input.usageKind, -charged, -reservationUsed)
+  return updateBalance(client, input.organizationId, -charged, -reservationUsed)
 }
 export async function consumeCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)
-  const columns = walletColumns[input.usageKind]
-  if (Number(balance[columns.remaining as keyof CreditBalanceRow]) - Number(balance[columns.reserved as keyof CreditBalanceRow]) < input.credits) throw exhausted(input.usageKind)
-  const ledger = await writeLedger(client, { ...input, eventType: 'consume', wallet: input.usageKind, creditDelta: -input.credits })
+  if (toBalance(balance).spendable < input.credits) throw exhausted()
+  const ledger = await writeLedger(client, { ...input, eventType: 'consume', creditDelta: -input.credits })
   if (!ledger.rows.length) return toBalance(balance)
-  return updateWallet(client, input.organizationId, input.usageKind, -input.credits, 0)
+  return updateBalance(client, input.organizationId, -input.credits, 0)
 }

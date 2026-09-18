@@ -13,7 +13,7 @@ Object.assign(globalThis, {
     Object.assign(new Error(input.message), input),
 })
 
-const { reserveCredits, releaseReservedCredits, creditWalletSnapshot } = await import('../server/utils/credits.ts')
+const { reserveCredits, releaseReservedCredits, creditBalanceSnapshot } = await import('../server/utils/credits.ts')
 const pool = new pg.Pool({ connectionString })
 const referenceId = `concurrency-check-${crypto.randomUUID()}`
 const credits = 1125
@@ -23,9 +23,9 @@ let cleanupError: unknown
 try {
   const before = await pool.connect()
   try {
-    const snapshot = await creditWalletSnapshot(before, organizationId)
-    if (snapshot.generation.spendable !== credits)
-      throw new Error(`Expected ${credits} available generation credits, found ${snapshot.generation.spendable}.`)
+    const snapshot = await creditBalanceSnapshot(before, organizationId)
+    if (snapshot.spendable !== credits)
+      throw new Error(`Expected ${credits} available credits, found ${snapshot.spendable}.`)
   } finally {
     before.release()
   }
@@ -68,7 +68,7 @@ try {
     const result = await secondAttempt
     if (result.accepted || (result.error as { statusCode?: number } | undefined)?.statusCode !== 402)
       throw new Error('The second concurrent reservation was not rejected with 402.')
-    console.log('PASS: exactly one concurrent generation reservation was accepted.')
+    console.log('PASS: exactly one concurrent credit reservation was accepted.')
   } finally {
     await first.query('ROLLBACK').catch(() => undefined)
     first.release()

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { grantAdditionalCredits } from '../../utils/credits'
+import { creditPricing, grantAdditionalCredits } from '../../utils/credits'
 import {
   CREDIT_TOP_UP_MAXIMUM,
   CREDIT_TOP_UP_MINIMUM,
@@ -29,8 +29,8 @@ export default defineEventHandler(async (event) => {
       data: { code: 'INVALID_CREDIT_QUANTITY' },
     })
 
-  const priceCents = creditTopUpPriceCents(input.data.credits)
-  const balance = await withBusinessTransaction(user.id, async (client, business) => {
+  const { balance, priceCents } = await withBusinessTransaction(user.id, async (client, business) => {
+    const priceCents = creditTopUpPriceCents(input.data.credits, (await creditPricing(client)).creditPriceCents)
     const subscription = await client.query<{ id: string }>(
       `SELECT id FROM subscriptions
         WHERE organization_id=$1 AND status IN ('trialing','active','past_due')
@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
         message: 'Nuk ka abonim aktiv per blerjen e krediteve.',
         data: { code: 'NO_ACTIVE_SUBSCRIPTION' },
       })
-    return grantAdditionalCredits(client, {
+    const balance = await grantAdditionalCredits(client, {
       organizationId: business.id,
       subscriptionId,
       credits: input.data.credits,
@@ -53,6 +53,7 @@ export default defineEventHandler(async (event) => {
       idempotencyKey: `credit-purchase:${input.data.idempotencyKey}`,
       metadata: { priceCents, testMode: true },
     })
+    return { balance, priceCents }
   })
 
   setHeader(event, 'Cache-Control', 'private, no-store')

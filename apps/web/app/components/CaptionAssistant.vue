@@ -31,8 +31,8 @@ async function generate() {
     })
   } catch (problem) {
     const response = problem as { data?: { message?: string; data?: { code?: string } } }
-    error.value = response.data?.data?.code === 'CREDIT_WALLET_EXHAUSTED'
-      ? t('caption.generationCreditsExhausted')
+    error.value = response.data?.data?.code === 'CREDITS_EXHAUSTED'
+      ? t('caption.creditsExhausted')
       : response.data?.message || t('caption.generationError')
   } finally {
     busy.value = false

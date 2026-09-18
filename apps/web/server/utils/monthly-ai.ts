@@ -12,8 +12,7 @@ import { trialStatus } from './trials'
 import { setTenantContext, type TenantContext } from './database'
 import {
   consumeReservedCredits,
-  creditsForAiUsage,
-  creditsForImageProviderCost,
+  creditsForCost,
   releaseReservedCredits,
   reserveCredits,
 } from './credits'
@@ -367,16 +366,6 @@ const monthlyInstructionAddenda: Partial<Record<keyof typeof monthlyInstructions
     'The original photograph was deliberately uploaded to this business gallery by its owner and its usage rights were explicitly confirmed. Treat it as authorized first-party business media: missing visible signage is not a factuality failure and is never, by itself, a reason to BLOCK. Do still BLOCK material invention or replacement of products, people, furniture, architecture, signage or venue geometry. When the design remains faithful but needs subjective refinement, use WARN so it can reach human review. When previous-page style references are supplied, set styleConsistency=false and add concise styleReasons when the finished photo materially leaves the page scope in palette, contrast, typography, density, spacing, crop, lighting, photographic treatment or recurring brand elements. Set visualDistinctness=false and add concise distinctnessReasons if the first glance or fine details materially repeat an earlier post. Style mismatch and repetition are WARN findings, not factuality BLOCKs.',
 }
 
-/**
- * Research and monthly planning spend the research wallet; producing a post
- * (copy, image and quality review) spends the generation wallet.
- */
-export function creditWalletForCapability(
-  capability: keyof typeof monthlyInstructions,
-): 'research' | 'generation' {
-  return capability === 'research' || capability === 'planning' ? 'research' : 'generation'
-}
-
 // Each paid stage reserves money before dispatch and persists its response before
 // domain validation. Ambiguous calls are never re-sent. Explicit zero-result
 // failures can be retried only after the user explicitly resumes a blocked plan.
@@ -440,9 +429,11 @@ export async function monthlyProviderCall(
   const reserve =
     Math.ceil((inputBound * config.inputRate + args.maxOutput * config.outputRate) / 1000000) +
     searchUses * config.searchRate
-  const creditReserve = Math.ceil(inputBound / 4) + args.maxOutput
+  let creditReserve = 0
   const platformCost = args.capability === 'style'
-  const usageKind = creditWalletForCapability(args.capability)
+  // A ledger label only: every capability spends the same credit balance.
+  const usageKind =
+    args.capability === 'research' || args.capability === 'planning' ? 'research' : 'generation'
   const client = await db.connect()
   let runId: string
   try {
@@ -533,7 +524,8 @@ export async function monthlyProviderCall(
     runId = result.rows[0].id
     // The monthly page-style analysis is a platform cost, never charged to
     // the customer's credits; its provider cost stays in monthly_ai_runs.
-    if (!platformCost)
+    if (!platformCost) {
+      creditReserve = await creditsForCost(client, reserve)
       await reserveCredits(client, {
         organizationId: args.businessId,
         credits: creditReserve,
@@ -542,6 +534,7 @@ export async function monthlyProviderCall(
         referenceId: runId,
         idempotencyKey: `monthly-ai-credit-reserve:${runId}`,
       })
+    }
     await client.query('COMMIT')
   } catch (error) {
     try {
@@ -574,12 +567,13 @@ export async function monthlyProviderCall(
       connection.release()
     }
   }
-  async function persistCompletedRun(sql: string, values: unknown[], credits: number) {
+  async function persistCompletedRun(sql: string, values: unknown[], costMicroEur: number) {
     const connection = await db.connect()
     try {
       await connection.query('BEGIN')
       if (args.tenant) await setTenantContext(connection, args.tenant)
       if (!platformCost) {
+        const credits = await creditsForCost(connection, costMicroEur)
         await consumeReservedCredits(connection, {
           organizationId: args.businessId,
           credits,
@@ -666,7 +660,7 @@ export async function monthlyProviderCall(
     await persistCompletedRun(
       "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now() WHERE id=$4 AND status='reserved'",
       [JSON.stringify(raw), raw.id, cost, runId],
-      creditsForAiUsage(raw.usage.input_tokens, raw.usage.output_tokens),
+      cost,
     )
     if (cost > reserve) throw new PlannerFailure('BUDGET_ESTIMATE_EXCEEDED')
     return raw
@@ -829,7 +823,7 @@ export async function monthlyImageCall(
       throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
     }
     runId = result.rows[0].id
-    creditReserve = await creditsForImageProviderCost(client, reserve)
+    creditReserve = await creditsForCost(client, reserve)
     await reserveCredits(client, {
       organizationId: args.businessId,
       credits: creditReserve,
@@ -874,7 +868,7 @@ export async function monthlyImageCall(
     try {
       await connection.query('BEGIN')
       if (args.tenant) await setTenantContext(connection, args.tenant)
-      const credits = await creditsForImageProviderCost(connection, costMicroEur)
+      const credits = await creditsForCost(connection, costMicroEur)
       await consumeReservedCredits(connection, {
         organizationId: args.businessId,
         credits,

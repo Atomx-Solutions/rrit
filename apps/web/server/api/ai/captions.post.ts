@@ -4,7 +4,7 @@ import { aiCreditCycleStartSql } from '../../utils/ai-credits'
 import { aiCostConfiguration, aiCostConfigured, calculateAiCost } from '../../utils/ai-costs'
 import {
   consumeReservedCredits,
-  creditsForAiUsage,
+  creditsForCost,
   releaseReservedCredits,
   reserveCredits,
 } from '../../utils/credits'
@@ -135,7 +135,7 @@ export default defineEventHandler(async (event) => {
     )
     await reserveCredits(client, {
       organizationId: business.id,
-      credits: creditsForAiUsage(reservedInputTokens, reservedOutputTokens),
+      credits: await creditsForCost(client, reservedCost),
       usageKind: 'generation',
       referenceType: 'ai_generation',
       referenceId: input.data.requestId,
@@ -266,8 +266,9 @@ export default defineEventHandler(async (event) => {
         "UPDATE ai_generations SET status='completed',output=$1,completed_at=now() WHERE id=$2 AND business_id=$3 AND status='pending'",
         [JSON.stringify(output), input.data.requestId, business.id],
       )
-      const actualCredits = creditsForAiUsage(inputTokens, outputTokens)
-      const reservedCredits = creditsForAiUsage(4000, 2400)
+      const actualCost = calculateAiCost(inputTokens, outputTokens)
+      const actualCredits = await creditsForCost(settlement, actualCost)
+      const reservedCredits = await creditsForCost(settlement, calculateAiCost(4000, 2400))
       await consumeReservedCredits(settlement, {
         organizationId: business.id,
         credits: actualCredits,
@@ -291,7 +292,7 @@ export default defineEventHandler(async (event) => {
         [
           inputTokens,
           outputTokens,
-          calculateAiCost(inputTokens, outputTokens),
+          actualCost,
           input.data.requestId,
           business.id,
         ],
@@ -320,7 +321,7 @@ export default defineEventHandler(async (event) => {
       if (released.rowCount) {
         await releaseReservedCredits(release, {
           organizationId: business.id,
-          credits: creditsForAiUsage(4000, 2400),
+          credits: await creditsForCost(release, calculateAiCost(4000, 2400)),
           usageKind: 'generation',
           referenceType: 'ai_generation',
           referenceId: input.data.requestId,
