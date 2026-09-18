@@ -300,6 +300,7 @@ export async function connectedMeta(businessId: string, db: Pool | PoolClient = 
     throw createError({ statusCode: 409, message: 'Lidh ose rinovo llogarinë e rrjetit social.' })
   return result.rows[0] as {
     id: string
+    brand_id: string | null
     page_id: string
     page_name: string
     page_token_ciphertext: string

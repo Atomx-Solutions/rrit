@@ -10,6 +10,7 @@ import {
 } from '../../shared/schemas/monthly-plan'
 import { trialStatus } from './trials'
 import { setTenantContext, type TenantContext } from './database'
+import { consumeCredits, creditsForAiUsage, creditsForImageProviderCost } from './credits'
 import {
   aiProviderConfiguration,
   aiProviderJsonSchema,
@@ -535,6 +536,29 @@ export async function monthlyProviderCall(
       connection.release()
     }
   }
+  async function persistCompletedRun(sql: string, values: unknown[], credits: number) {
+    const connection = await db.connect()
+    try {
+      await connection.query('BEGIN')
+      if (args.tenant) await setTenantContext(connection, args.tenant)
+      await consumeCredits(connection, {
+        organizationId: args.businessId,
+        credits,
+        usageKind: args.capability === 'research' ? 'research' : 'generation',
+        referenceType: 'monthly_ai_run',
+        referenceId: runId,
+        idempotencyKey: `monthly-ai-token-charge:${runId}`,
+      })
+      const result = await connection.query(sql, values)
+      if (!result.rowCount) throw new PlannerFailure('PROVIDER_UNCERTAIN')
+      await connection.query('COMMIT')
+    } catch (error) {
+      await connection.query('ROLLBACK').catch(() => undefined)
+      throw error
+    } finally {
+      connection.release()
+    }
+  }
   try {
     const content: object[] = [{ type: 'input_text', text: serialized }]
     for (const image of args.images || [])
@@ -589,9 +613,10 @@ export async function monthlyProviderCall(
           1000000,
       ) +
       searches * config.searchRate
-    await persist(
+    await persistCompletedRun(
       "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now() WHERE id=$4 AND status='reserved'",
       [JSON.stringify(raw), raw.id, cost, runId],
+      creditsForAiUsage(raw.usage.input_tokens, raw.usage.output_tokens),
     )
     if (cost > reserve) throw new PlannerFailure('BUDGET_ESTIMATE_EXCEEDED')
     return raw
@@ -784,6 +809,29 @@ export async function monthlyImageCall(
       connection.release()
     }
   }
+  async function persistCompletedImage(sql: string, values: unknown[], costMicroEur: number) {
+    const connection = await db.connect()
+    try {
+      await connection.query('BEGIN')
+      if (args.tenant) await setTenantContext(connection, args.tenant)
+      await consumeCredits(connection, {
+        organizationId: args.businessId,
+        credits: await creditsForImageProviderCost(connection, costMicroEur),
+        usageKind: 'generation',
+        referenceType: 'monthly_ai_run',
+        referenceId: runId,
+        idempotencyKey: `monthly-image-token-charge:${runId}`,
+      })
+      const result = await connection.query(sql, values)
+      if (!result.rowCount) throw new PlannerFailure('PROVIDER_UNCERTAIN')
+      await connection.query('COMMIT')
+    } catch (error) {
+      await connection.query('ROLLBACK').catch(() => undefined)
+      throw error
+    } finally {
+      connection.release()
+    }
+  }
 
   try {
     let response: Response
@@ -862,9 +910,10 @@ export async function monthlyImageCall(
     const cost = raw.usage?.cost
       ? Math.max(1, Math.ceil(raw.usage.cost * config.usdMicroEur))
       : reserve
-    await persist(
+    await persistCompletedImage(
       "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now() WHERE id=$4 AND status='reserved'",
       [JSON.stringify(raw), `image:${raw.created || Date.now()}`, cost, runId],
+      cost,
     )
     if (cost > reserve) throw new PlannerFailure('BUDGET_ESTIMATE_EXCEEDED')
     return {

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { aiCreditCycleStartSql } from '../../utils/ai-credits'
 import { aiCostConfiguration, aiCostConfigured, calculateAiCost } from '../../utils/ai-costs'
+import { consumeCredits, creditsForAiUsage } from '../../utils/credits'
 import {
   aiProviderConfiguration,
   aiProviderModel,
@@ -236,6 +237,14 @@ export default defineEventHandler(async (event) => {
         "UPDATE ai_generations SET status='completed',output=$1,completed_at=now() WHERE id=$2 AND business_id=$3 AND status='pending'",
         [JSON.stringify(output), input.data.requestId, business.id],
       )
+      await consumeCredits(settlement, {
+        organizationId: business.id,
+        credits: creditsForAiUsage(inputTokens, outputTokens),
+        usageKind: 'generation',
+        referenceType: 'ai_generation',
+        referenceId: input.data.requestId,
+        idempotencyKey: `caption-token-charge:${input.data.requestId}`,
+      })
       await settlement.query(
         "UPDATE ai_cost_ledger SET status='committed',actual_input_tokens=$1,actual_output_tokens=$2,actual_cost_micro_eur=$3,settled_at=now() WHERE generation_id=$4 AND business_id=$5 AND status='reserved'",
         [

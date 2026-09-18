@@ -14,19 +14,26 @@ const {
   key: 'usage',
 })
 const { plans, error: catalogError, refresh } = usePlanCatalog()
-const { page, pageSize, total, paginated } = usePagination(plans)
+const commercialPlans = computed(() => plans.value.filter(plan => !plan.isTrial))
+const { page, pageSize, total, paginated } = usePagination(commercialPlans)
 const selected = ref('')
-const selectedPlan = computed(() => plans.value.find((plan) => plan.name === selected.value))
-const planTextKeys: Record<string, { name: string; description: string; features: string[] }> = {
-  Fillimi: { name: 'billing.planStart', description: 'billing.planStartDescription', features: ['billing.featureOneBusiness', 'billing.featureMeta', 'billing.feature12Drafts', 'billing.featurePhotos', 'billing.featureCalendar'] },
-  Përditë: { name: 'billing.planWeekly', description: 'billing.planWeeklyDescription', features: ['billing.featureOneBusiness', 'billing.featureMeta', 'billing.feature30Drafts', 'billing.featureAiText', 'billing.featureApprovalPlanning'] },
-  'Më shumë': { name: 'billing.planMore', description: 'billing.planMoreDescription', features: ['billing.featureOneBusiness', 'billing.featureMeta', 'billing.feature60Drafts', 'billing.featureAiText', 'billing.featurePriorityHelp'] },
+const selectedPlan = computed(() => commercialPlans.value.find((plan) => plan.name === selected.value))
+function packageName(plan: (typeof plans.value)[number]) {
+  const key = `billing.planPackage${plan.code.replace('pako-', '')}`
+  return plan.code.startsWith('pako-') ? t(key) : plan.name
 }
-function planName(name: string) { return planTextKeys[name] ? t(planTextKeys[name].name) : name }
-function planDescription(name: string, fallback: string) { return planTextKeys[name] ? t(planTextKeys[name].description) : fallback }
-function planFeature(name: string, index: number, fallback: string) {
-  const key = planTextKeys[name]?.features[index]
-  return key ? t(key) : fallback
+function packageDescription(plan: (typeof plans.value)[number]) {
+  return t('billing.planDescription', {
+    posts: plan.limits.posts_per_month,
+    credits: plan.monthlyCredits,
+  })
+}
+function packageFeatures(plan: (typeof plans.value)[number]) {
+  return [
+    t('billing.planPosts', { posts: plan.limits.posts_per_month }),
+    t('billing.planTokens', { credits: plan.monthlyCredits }),
+    t('billing.planStyleFetch', { count: plan.styleFetchPostCount }),
+  ]
 }
 const monthlyPrice = computed(
   () =>
@@ -186,13 +193,13 @@ function usageValue(key: string, value: number) {
       ><div class="divide-y divide-default">
         <article
           v-for="plan in paginated"
-          :key="plan.name"
+          :key="plan.code"
           class="flex flex-wrap items-center gap-4 p-5"
         >
           <div class="min-w-0 flex-1 basis-48 space-y-1.5">
-            <h2 class="text-base font-semibold">{{ planName(plan.name) }}</h2>
-            <p class="text-sm text-muted">{{ planDescription(plan.name, plan.description) }}</p>
-            <p class="text-xs text-muted">{{ planFeature(plan.name, 0, plan.features[0] ?? '') }} · {{ planFeature(plan.name, 2, plan.features[2] ?? '') }}</p>
+            <h2 class="text-base font-semibold">{{ packageName(plan) }}</h2>
+            <p class="text-sm text-muted">{{ packageDescription(plan) }}</p>
+            <p class="text-xs text-muted">{{ packageFeatures(plan)[0] }} · {{ packageFeatures(plan)[2] }}</p>
           </div>
           <div class="text-left sm:text-right">
             <p class="text-xl font-semibold tabular-nums">
@@ -210,9 +217,9 @@ function usageValue(key: string, value: number) {
           <UButton
             variant="outline"
             color="neutral"
-            :aria-label="`${t('trial.viewPlan')} ${planName(plan.name)}`"
+            :aria-label="t('billing.buyPlanNow', { plan: packageName(plan) })"
             @click="selected = plan.name"
-            >{{ t('trial.viewPlan') }}</UButton
+            >{{ t('billing.buyPlanNow', { plan: packageName(plan) }) }}</UButton
           >
         </article>
       </div>
@@ -234,7 +241,7 @@ function usageValue(key: string, value: number) {
     </UCard>
     <UModal
       :open="!!selectedPlan"
-      :title="`${t('billing.planTitle')} ${planName(selected)}`"
+      :title="selectedPlan ? `${t('billing.planTitle')} ${packageName(selectedPlan)}` : t('billing.planTitle')"
        :description="t('billing.planSummaryDescription')"
       @update:open="selected = $event ? selected : ''"
     >
@@ -252,11 +259,11 @@ function usageValue(key: string, value: number) {
           <USeparator />
           <ul class="space-y-3">
             <li
-              v-for="feature in selectedPlan.features"
+              v-for="feature in packageFeatures(selectedPlan)"
               :key="feature"
               class="flex items-center gap-3 text-sm"
             >
-              <UIcon name="i-lucide-check" class="size-4 text-primary shrink-0" />{{ planFeature(selectedPlan.name, selectedPlan.features.indexOf(feature), feature) }}
+              <UIcon name="i-lucide-check" class="size-4 text-primary shrink-0" />{{ feature }}
             </li>
           </ul>
           <UAlert
