@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
     async (client, business) => ({
       access: await trialStatus(business.id, client),
       usage: await usageSnapshot(business.id, client),
-      credits: await aiCreditSnapshot(business.id, client),
+      credits: await creditWalletSnapshot(client, business.id),
     }),
   )
   setHeader(event, 'Cache-Control', 'private, no-store')

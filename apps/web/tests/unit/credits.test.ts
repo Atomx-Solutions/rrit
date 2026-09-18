@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { allocatePlanCredits, creditsForAiUsage, creditsForProviderCost } from '../../server/utils/credits'
+import { allocatePlanCredits, creditsForAiUsage, creditsForProviderCost, splitCredits } from '../../server/utils/credits'
+
+describe('credit wallet allocation', () => {
+  it.each([
+    [1000, { research: 500, generation: 500 }],
+    [2250, { research: 1125, generation: 1125 }],
+    [4000, { research: 2000, generation: 2000 }],
+  ])('splits %i monthly credits equally', (credits, expected) => {
+    expect(splitCredits(credits)).toEqual(expected)
+  })
+})
 
 describe('plan credit allocation', () => {
   it.each([

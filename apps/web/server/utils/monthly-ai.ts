@@ -10,7 +10,13 @@ import {
 } from '../../shared/schemas/monthly-plan'
 import { trialStatus } from './trials'
 import { setTenantContext, type TenantContext } from './database'
-import { consumeCredits, creditsForAiUsage, creditsForImageProviderCost } from './credits'
+import {
+  consumeReservedCredits,
+  creditsForAiUsage,
+  creditsForImageProviderCost,
+  releaseReservedCredits,
+  reserveCredits,
+} from './credits'
 import {
   aiProviderConfiguration,
   aiProviderJsonSchema,
@@ -416,6 +422,7 @@ export async function monthlyProviderCall(
   const reserve =
     Math.ceil((inputBound * config.inputRate + args.maxOutput * config.outputRate) / 1000000) +
     searchUses * config.searchRate
+  const creditReserve = Math.ceil(inputBound / 4) + args.maxOutput
   const client = await db.connect()
   let runId: string
   try {
@@ -504,6 +511,14 @@ export async function monthlyProviderCall(
       throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
     }
     runId = result.rows[0].id
+    await reserveCredits(client, {
+      organizationId: args.businessId,
+      credits: creditReserve,
+      usageKind: args.capability === 'research' ? 'research' : 'generation',
+      referenceType: 'monthly_ai_run',
+      referenceId: runId,
+      idempotencyKey: `monthly-ai-credit-reserve:${runId}`,
+    })
     await client.query('COMMIT')
   } catch (error) {
     try {
@@ -541,14 +556,24 @@ export async function monthlyProviderCall(
     try {
       await connection.query('BEGIN')
       if (args.tenant) await setTenantContext(connection, args.tenant)
-      await consumeCredits(connection, {
+      const usageKind = args.capability === 'research' ? 'research' : 'generation'
+      await consumeReservedCredits(connection, {
         organizationId: args.businessId,
         credits,
-        usageKind: args.capability === 'research' ? 'research' : 'generation',
+        usageKind,
         referenceType: 'monthly_ai_run',
         referenceId: runId,
         idempotencyKey: `monthly-ai-token-charge:${runId}`,
       })
+      if (creditReserve > credits)
+        await releaseReservedCredits(connection, {
+          organizationId: args.businessId,
+          credits: creditReserve - credits,
+          usageKind,
+          referenceType: 'monthly_ai_run',
+          referenceId: runId,
+          idempotencyKey: `monthly-ai-credit-release:${runId}`,
+        })
       const result = await connection.query(sql, values)
       if (!result.rowCount) throw new PlannerFailure('PROVIDER_UNCERTAIN')
       await connection.query('COMMIT')
@@ -693,6 +718,7 @@ export async function monthlyImageCall(
   const reserve = config.imageReserve
   const client = await db.connect()
   let runId: string
+  let creditReserve = 0
   try {
     await client.query('BEGIN')
     if (args.tenant) await setTenantContext(client, args.tenant)
@@ -778,6 +804,15 @@ export async function monthlyImageCall(
       throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
     }
     runId = result.rows[0].id
+    creditReserve = await creditsForImageProviderCost(client, reserve)
+    await reserveCredits(client, {
+      organizationId: args.businessId,
+      credits: creditReserve,
+      usageKind: 'generation',
+      referenceType: 'monthly_ai_run',
+      referenceId: runId,
+      idempotencyKey: `monthly-image-credit-reserve:${runId}`,
+    })
     await client.query('COMMIT')
   } catch (error) {
     try {
@@ -814,14 +849,24 @@ export async function monthlyImageCall(
     try {
       await connection.query('BEGIN')
       if (args.tenant) await setTenantContext(connection, args.tenant)
-      await consumeCredits(connection, {
+      const credits = await creditsForImageProviderCost(connection, costMicroEur)
+      await consumeReservedCredits(connection, {
         organizationId: args.businessId,
-        credits: await creditsForImageProviderCost(connection, costMicroEur),
+        credits,
         usageKind: 'generation',
         referenceType: 'monthly_ai_run',
         referenceId: runId,
         idempotencyKey: `monthly-image-token-charge:${runId}`,
       })
+      if (creditReserve > credits)
+        await releaseReservedCredits(connection, {
+          organizationId: args.businessId,
+          credits: creditReserve - credits,
+          usageKind: 'generation',
+          referenceType: 'monthly_ai_run',
+          referenceId: runId,
+          idempotencyKey: `monthly-image-credit-release:${runId}`,
+        })
       const result = await connection.query(sql, values)
       if (!result.rowCount) throw new PlannerFailure('PROVIDER_UNCERTAIN')
       await connection.query('COMMIT')

@@ -702,7 +702,7 @@ describe('trial transactions with PostgreSQL', () => {
     expect(plans.find((plan) => plan.name === 'Fillimi')?.limits.posts_per_month).toBe(12)
     expect(plans.find((plan) => plan.name === 'Përditë')?.entitlements).toContain('ai')
   })
-  it('seeds PRC-01 plans and grants an expiring common trial balance', async () => {
+  it('seeds PRC-01 plans and grants an expiring split trial balance', async () => {
     const plans = await pool.query(
       'SELECT code,monthly_cents,posts_per_month,monthly_credits,style_fetch_post_count,annual_discount_percent,is_trial FROM plans ORDER BY sort_order',
     )
@@ -718,11 +718,12 @@ describe('trial transactions with PostgreSQL', () => {
     expect((await pool.query('SELECT plan_code,status FROM subscriptions WHERE organization_id=$1', [item.id])).rows).toEqual([
       { plan_code: 'free-trial', status: 'trialing' },
     ])
-    expect((await pool.query('SELECT remaining_credits,reserved_credits FROM credit_balances WHERE organization_id=$1', [item.id])).rows).toEqual([
-      { remaining_credits: 250, reserved_credits: 0 },
+    expect((await pool.query('SELECT research_remaining_credits,research_reserved_credits,generation_remaining_credits,generation_reserved_credits FROM credit_balances WHERE organization_id=$1', [item.id])).rows).toEqual([
+      { research_remaining_credits: 125, research_reserved_credits: 0, generation_remaining_credits: 125, generation_reserved_credits: 0 },
     ])
-    expect((await pool.query("SELECT event_type,credit_delta FROM credit_ledger WHERE organization_id=$1", [item.id])).rows).toEqual([
-      { event_type: 'grant', credit_delta: 250 },
+    expect((await pool.query("SELECT event_type,wallet,credit_delta FROM credit_ledger WHERE organization_id=$1 ORDER BY wallet", [item.id])).rows).toEqual([
+      { event_type: 'grant', wallet: 'generation', credit_delta: 125 },
+      { event_type: 'grant', wallet: 'research', credit_delta: 125 },
     ])
   })
 })

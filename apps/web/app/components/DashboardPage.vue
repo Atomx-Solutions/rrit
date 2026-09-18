@@ -10,7 +10,10 @@ const { t, locale } = useI18n()
 const { data: headerUsage, refresh: refreshHeaderUsage } = await useFetch('/api/usage', {
   key: 'header-credit-balance',
 })
-const credits = computed(() => headerUsage.value?.credits.available)
+const credits = computed(() => {
+  const balance = headerUsage.value?.credits
+  return balance ? balance.research.spendable + balance.generation.spendable : undefined
+})
 let creditTimer: ReturnType<typeof setInterval>
 onMounted(() => {
   creditTimer = setInterval(() => refreshHeaderUsage(), 30_000)
