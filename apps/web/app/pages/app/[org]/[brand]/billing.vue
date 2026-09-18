@@ -212,7 +212,7 @@ function usageValue(key: string, value: number) {
         icon="i-lucide-circle-alert"
         :title="t('billing.creditsExhausted')"
       />
-      <UCard v-if="billing?.selfServiceEnabled && topUpConfig" as="section" :ui="{ body: 'p-4 sm:p-5' }">
+      <UCard v-if="billing?.selfServiceEnabled && topUpConfig" id="credit-top-up-section" as="section" class="scroll-mt-4" :ui="{ body: 'p-4 sm:p-5' }">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div class="space-y-1">
             <h2 class="text-sm font-semibold">{{ t('billing.creditTopUpTitle') }}</h2>
@@ -332,7 +332,7 @@ function usageValue(key: string, value: number) {
       </div>
       <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total"
     /></UCard>
-    <UCard as="section" :ui="{ body: 'p-0 sm:p-0', header: 'px-5 py-4' }">
+    <UCard id="plans" as="section" class="scroll-mt-4" :ui="{ body: 'p-0 sm:p-0', header: 'px-5 py-4' }">
       <template #header
         ><div class="flex items-center justify-between gap-3">
           <h2 class="text-sm font-semibold">{{ t('billing.yourInvoices') }}</h2>
