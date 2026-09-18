@@ -32,6 +32,7 @@ export default defineEventHandler(async () => {
       monthlyCredits: row.monthly_credits,
       styleFetchPostCount: row.style_fetch_post_count,
       price: plan.data.monthlyCents / 100,
+      annualPrice: annualPriceCents(plan.data.monthlyCents, plan.data.annualDiscount) / 100,
       features: plan.data.displayFeatures,
     }
   })

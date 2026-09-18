@@ -183,6 +183,64 @@ export async function grantMonthlyCredits(
   return toBalance(updated.rows[0]!)
 }
 
+/** Adds credits to the current period without expiring the existing balance,
+ * for example the allowance difference of a mid-period package upgrade. */
+export async function grantAdditionalCredits(
+  client: PoolClient,
+  input: {
+    organizationId: string
+    subscriptionId: string
+    credits: number
+    referenceType: string
+    referenceId: string
+    idempotencyKey: string
+  },
+) {
+  positiveInteger(input.credits, 'credits')
+  const balance = await lockBalance(client, input.organizationId)
+  const grant = await writeLedger(client, {
+    ...input,
+    eventType: 'grant',
+    creditDelta: input.credits,
+  })
+  if (!grant.rows.length) return toBalance(balance)
+  const updated = await client.query<CreditBalanceRow>(
+    `UPDATE credit_balances SET remaining_credits=remaining_credits+$2,updated_at=now()
+      WHERE organization_id=$1
+      RETURNING remaining_credits,reserved_credits,period_start,period_end`,
+    [input.organizationId, input.credits],
+  )
+  return toBalance(updated.rows[0]!)
+}
+
+/** Expires every remaining credit, for example when a subscription ends. */
+export async function expireRemainingCredits(
+  client: PoolClient,
+  input: { organizationId: string; subscriptionId: string; idempotencyKey: string },
+) {
+  const balance = await lockBalance(client, input.organizationId)
+  const remaining = Number(balance.remaining_credits)
+  if (remaining > 0) {
+    const expired = await writeLedger(client, {
+      organizationId: input.organizationId,
+      subscriptionId: input.subscriptionId,
+      eventType: 'expire',
+      creditDelta: -remaining,
+      referenceType: 'subscription',
+      referenceId: input.subscriptionId,
+      idempotencyKey: input.idempotencyKey,
+    })
+    if (!expired.rows.length) return toBalance(balance)
+  }
+  const updated = await client.query<CreditBalanceRow>(
+    `UPDATE credit_balances SET remaining_credits=0,reserved_credits=0,updated_at=now()
+      WHERE organization_id=$1
+      RETURNING remaining_credits,reserved_credits,period_start,period_end`,
+    [input.organizationId],
+  )
+  return toBalance(updated.rows[0]!)
+}
+
 export async function reserveCredits(
   client: PoolClient,
   input: {

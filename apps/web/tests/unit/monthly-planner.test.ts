@@ -373,25 +373,33 @@ describe('monthly evidence and provider boundaries', () => {
     expect(planningMonth('Europe/Tirane', new Date('2026-08-31T22:30:00Z'))).toBe('2026-09')
   })
   it('resolves future access only from an entitlement covering the full month', async () => {
-    const query = vi.fn().mockResolvedValue({
-      rows: [
-        {
-          features: ['posts', 'ai'],
-          limits: {
-            posts_per_month: 30,
-            ai_requests_per_day: 30,
-            media_storage_bytes: 1073741824,
-            social_accounts: 2,
-            members: 1,
+    const query = vi.fn(async (sql: string) =>
+      sql.includes('FROM subscriptions')
+        ? { rows: [] }
+        : {
+            rows: [
+              {
+                features: ['posts', 'ai'],
+                limits: {
+                  posts_per_month: 30,
+                  ai_requests_per_day: 30,
+                  media_storage_bytes: 1073741824,
+                  social_accounts: 2,
+                  members: 1,
+                },
+                plan_name: 'Përditë',
+                plan_version: 1,
+                valid_until: new Date('2026-11-01T00:00:00.000Z'),
+              },
+            ],
           },
-          plan_name: 'Përditë',
-          plan_version: 1,
-          valid_until: new Date('2026-11-01T00:00:00.000Z'),
-        },
-      ],
-    })
+    )
     const access = await paidAccessForPlanningMonth(randomUUID(), '2026-10', { query } as never)
-    expect(query.mock.calls[0]![1].slice(1)).toEqual(['2026-10-01', '2026-11-01'])
+    const entitlementCall = query.mock.calls.find(([sql]) => sql.includes('FROM entitlements'))
+    expect((entitlementCall as unknown as [string, unknown[]])[1].slice(1)).toEqual([
+      '2026-10-01',
+      '2026-11-01',
+    ])
     expect(access).toMatchObject({
       paid: true,
       features: ['posts', 'ai'],

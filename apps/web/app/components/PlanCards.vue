@@ -83,7 +83,7 @@ const saving = (plan: CatalogPlan) => {
         color: i === 1 ? 'primary' : 'neutral',
         onClick: () => emit('select', plan.name),
       }"
-      :terms="annual ? t('landing.perYear', { price: formatMoney(monthlyPrice(plan.price, plan.annualDiscount) * 12) }) : directSignup ? t('landing.noCardNoAutoRenewal') : t('billing.paymentsInactive')"
+      :terms="annual ? t('landing.perYear', { price: formatMoney(plan.annualPrice) }) : directSignup ? t('landing.noCardNoAutoRenewal') : t('billing.paymentsInactive')"
       :ui="{
         price: 'text-3xl tracking-tight',
         root: directSignup ? 'rounded-xl p-0 lg:p-0 xl:p-0 gap-0' : 'rounded-xl',

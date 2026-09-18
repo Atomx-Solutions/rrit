@@ -14,10 +14,40 @@ const {
   key: 'usage',
 })
 const { plans, error: catalogError, refresh } = usePlanCatalog()
+const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', {
+  key: 'billing-subscription',
+})
 const commercialPlans = computed(() => plans.value.filter(plan => !plan.isTrial))
 const { page, pageSize, total, paginated } = usePagination(commercialPlans)
 const selected = ref('')
 const selectedPlan = computed(() => commercialPlans.value.find((plan) => plan.name === selected.value))
+const paidSubscription = computed(() =>
+  billing.value?.subscription && billing.value.subscription.status !== 'trialing'
+    ? billing.value.subscription
+    : null,
+)
+function planByCode(code: string | null | undefined) {
+  return commercialPlans.value.find((plan) => plan.code === code)
+}
+const switching = ref(false)
+const switchError = ref('')
+async function switchPlan() {
+  if (!selectedPlan.value) return
+  switching.value = true
+  switchError.value = ''
+  try {
+    await $fetch('/api/billing/subscription', {
+      method: 'POST',
+      body: { planCode: selectedPlan.value.code, interval: annual.value ? 'annual' : 'monthly' },
+    })
+    selected.value = ''
+    await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('trial')])
+  } catch {
+    switchError.value = t('billing.activationFailed')
+  } finally {
+    switching.value = false
+  }
+}
 function packageName(plan: (typeof plans.value)[number]) {
   const key = `billing.planPackage${plan.code.replace('pako-', '')}`
   return plan.code.startsWith('pako-') ? t(key) : plan.name
@@ -101,6 +131,12 @@ function usageValue(key: string, value: number) {
         </h2>
         <p class="text-sm text-muted leading-relaxed">
           {{ t('billing.serviceDescription') }}
+        </p>
+        <p v-if="planByCode(paidSubscription?.planCode)" class="text-sm font-medium">
+          {{ t('billing.currentPlan', { plan: packageName(planByCode(paidSubscription?.planCode)!) }) }}
+        </p>
+        <p v-if="planByCode(paidSubscription?.pendingPlanCode)" class="text-xs text-muted">
+          {{ t('billing.pendingDowngrade', { plan: packageName(planByCode(paidSubscription?.pendingPlanCode)!) }) }}
         </p>
       </div>
     </UCard>
@@ -197,7 +233,12 @@ function usageValue(key: string, value: number) {
           class="flex flex-wrap items-center gap-4 p-5"
         >
           <div class="min-w-0 flex-1 basis-48 space-y-1.5">
-            <h2 class="text-base font-semibold">{{ packageName(plan) }}</h2>
+            <h2 class="flex items-center gap-2 text-base font-semibold">
+              {{ packageName(plan)
+              }}<UBadge v-if="paidSubscription?.planCode === plan.code" size="sm" variant="subtle">{{
+                t('billing.currentPlanBadge')
+              }}</UBadge>
+            </h2>
             <p class="text-sm text-muted">{{ packageDescription(plan) }}</p>
             <p class="text-xs text-muted">{{ packageFeatures(plan)[0] }} · {{ packageFeatures(plan)[2] }}</p>
           </div>
@@ -209,7 +250,7 @@ function usageValue(key: string, value: number) {
             <p class="text-xs text-muted mt-1">
               {{
                 annual
-                  ? `${formatMoney(plan.price * (1 - plan.annualDiscount / 100) * 12)} ${t('billing.perYear')}`
+                  ? `${formatMoney(plan.annualPrice)} ${t('billing.perYear')}`
                   : t('billing.monthlyBilling')
               }}
             </p>
@@ -253,8 +294,9 @@ function usageValue(key: string, value: number) {
               }}<span class="text-sm font-normal text-muted"> / {{ t('billing.month') }}</span>
             </p>
             <p class="text-sm text-muted">
-              {{ annual ? `${formatMoney(monthlyPrice * 12)} ${t('billing.perYear')}` : t('billing.monthlyBilling') }} · {{ t('billing.illustrativePrice') }}
+              {{ annual ? `${formatMoney(selectedPlan.annualPrice)} ${t('billing.perYear')}` : t('billing.monthlyBilling') }}<template v-if="!billing?.selfServiceEnabled"> · {{ t('billing.illustrativePrice') }}</template>
             </p>
+            <p class="text-xs text-muted">{{ t('billing.creditsRefreshMonthly') }}</p>
           </div>
           <USeparator />
           <ul class="space-y-3">
@@ -267,18 +309,28 @@ function usageValue(key: string, value: number) {
             </li>
           </ul>
           <UAlert
+            v-if="!billing?.selfServiceEnabled"
             color="neutral"
             variant="outline"
             icon="i-lucide-info"
              :title="t('billing.paymentsInactive')"
              :description="t('billing.paymentsInactiveDescription')"
           />
+          <UAlert v-if="switchError" color="error" variant="outline" :title="switchError" />
         </div>
       </template>
       <template #footer
-        ><UButton color="neutral" variant="outline" class="ml-auto" @click="selected = ''"
-           >{{ t('billing.closeSummary') }}</UButton
-        ></template
+        ><div class="ml-auto flex gap-2">
+          <UButton color="neutral" variant="outline" @click="selected = ''"
+            >{{ t('billing.closeSummary') }}</UButton
+          >
+          <UButton
+            v-if="billing?.selfServiceEnabled && selectedPlan?.code !== paidSubscription?.planCode"
+            :loading="switching"
+            @click="switchPlan"
+            >{{ paidSubscription ? t('billing.changePlan') : t('billing.activatePlan') }}</UButton
+          >
+        </div></template
       >
     </UModal>
   </DashboardPage>

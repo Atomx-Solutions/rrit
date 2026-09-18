@@ -175,6 +175,41 @@ function paidEntitlementAccess(row: PaidEntitlementRow | undefined): PlanningAcc
   }
 }
 
+// A paid PRC-02 subscription is the source of truth for the package. Its post
+// allowance comes from the plan; the other operational limits stay shared.
+async function subscriptionAccess(
+  businessId: string,
+  coversFrom: Date,
+  coversUntil: Date,
+  db: Pool | PoolClient,
+): Promise<PlanningAccess | null> {
+  const result = await db.query<{
+    name: string
+    posts_per_month: number
+    current_period_end: Date
+  }>(
+    `SELECT plan.name,plan.posts_per_month,subscription.current_period_end
+       FROM subscriptions subscription
+       JOIN plans plan ON plan.code=subscription.plan_code
+      WHERE subscription.organization_id=$1
+        AND subscription.status IN ('active','past_due')
+        AND subscription.current_period_start<=$2
+        AND subscription.current_period_end>=$3
+      ORDER BY subscription.current_period_end DESC LIMIT 1`,
+    [businessId, coversFrom, coversUntil],
+  )
+  const row = result.rows[0]
+  if (!row) return null
+  const policy = await trialPolicy(db)
+  return {
+    paid: true,
+    features: [...entitlementFeatureSchema.options],
+    limits: { ...policy.limits, posts_per_month: Number(row.posts_per_month) },
+    plan: { name: row.name, version: 1 },
+    expiresAt: new Date(row.current_period_end).toISOString(),
+  }
+}
+
 // Future calendars use the entitlement that covers that complete billing
 // month, rather than today's trial/package. This prevents drafts beyond an
 // expiry date and snapshots the limits that actually govern the target month.
@@ -187,6 +222,8 @@ export async function paidAccessForPlanningMonth(
   const start = new Date(`${month}-01T00:00:00.000Z`)
   const end = new Date(start)
   end.setUTCMonth(end.getUTCMonth() + 1)
+  const subscription = await subscriptionAccess(businessId, start, end, db)
+  if (subscription) return subscription
   const paid = await db.query<PaidEntitlementRow>(
     `SELECT features,limits,plan_name,plan_version,valid_until
        FROM entitlements
@@ -220,7 +257,9 @@ export async function trialStatus(
         : 'expired'
       : row.status
     : 'unavailable'
-  const paidAccess = paidEntitlementAccess(paid.rows[0])
+  const now = new Date()
+  const paidAccess =
+    (await subscriptionAccess(businessId, now, now, db)) || paidEntitlementAccess(paid.rows[0])
   return {
     state,
     startsAt: row?.starts_at?.toISOString() || null,
