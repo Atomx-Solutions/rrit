@@ -12,7 +12,12 @@ import { postSchema } from '../../shared/schemas/workspace'
 import { factIsUsable, sameFactContent } from '../../shared/schemas/business-brain'
 import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
-import { paidAccessForPlanningMonth, trialStatus } from './trials'
+import {
+  paidAccessForPlanningMonth,
+  postsCountedForLimit,
+  recordTrialPostUsage,
+  trialStatus,
+} from './trials'
 import { setTenantContext } from './database'
 import { postContentSnapshot, postFingerprint } from './post-validation'
 import { normalizeQualityReview } from './post-quality-domain'
@@ -154,12 +159,9 @@ export async function ensureMonthlyPlan(
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
   const existing = await plannerStep('ensure.post_count', () =>
-    client.query(
-      'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
-      [businessId, `${month}-01`],
-    ),
+    postsCountedForLimit(client, businessId, month, access.paid),
   )
-  const target = remainingMonthlyPosts(access.limits.posts_per_month, existing.rows[0].count)
+  const target = remainingMonthlyPosts(access.limits.posts_per_month, existing)
   if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
   const photoSelection = {
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
@@ -266,11 +268,8 @@ export async function restartMonthlyPlan(
   const access = await plannerAccess(businessId, month, workspace.preferences.timezone, client)
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
-  const existing = await client.query(
-    'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
-    [businessId, `${month}-01`],
-  )
-  const target = remainingMonthlyPosts(access.limits.posts_per_month, existing.rows[0].count)
+  const existing = await postsCountedForLimit(client, businessId, month, access.paid)
+  const target = remainingMonthlyPosts(access.limits.posts_per_month, existing)
   if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
   if (resumePlanning || resumeContent) {
     await client.query(
@@ -975,11 +974,8 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
   if (plan.stage === 'content') {
-    const current = await db.query(
-      'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
-      [plan.business_id, `${plan.month_key}-01`],
-    )
-    if (!remainingMonthlyPosts(access.limits.posts_per_month, current.rows[0].count))
+    const current = await postsCountedForLimit(db, plan.business_id, plan.month_key, access.paid)
+    if (!remainingMonthlyPosts(access.limits.posts_per_month, current))
       throw new PlannerFailure('QUOTA_EXCEEDED')
   }
   const common = {
@@ -1433,15 +1429,19 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           )
           if (!rights.rowCount) throw new PlannerFailure('EVIDENCE_CHANGED')
         })
+        const countedPosts = await plannerStep('content.persist.post_usage', () =>
+          postsCountedForLimit(client, plan.business_id, plan.month_key, currentAccess.paid),
+        )
         const usage = await plannerStep('content.persist.usage', () =>
-          client.query(
-            'SELECT (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND quota_month=$2::date) AS posts,(SELECT COALESCE(sum(size_bytes),0)::bigint FROM assets WHERE business_id=$1) AS bytes',
-            [plan.business_id, `${plan.month_key}-01`],
+          client.query<{ bytes: number }>(
+            'SELECT COALESCE(sum(size_bytes),0)::bigint AS bytes FROM assets WHERE business_id=$1',
+            [plan.business_id],
           ),
         )
         if (
-          !remainingMonthlyPosts(currentAccess.limits.posts_per_month, usage.rows[0].posts) ||
-          Number(usage.rows[0].bytes) + creative.length > currentAccess.limits.media_storage_bytes
+          !remainingMonthlyPosts(currentAccess.limits.posts_per_month, countedPosts) ||
+          Number(usage.rows[0]?.bytes || 0) + creative.length >
+            currentAccess.limits.media_storage_bytes
         )
           throw new PlannerFailure('QUOTA_EXCEEDED')
         const postId = randomUUID()
@@ -1533,6 +1533,10 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ],
           ),
         )
+        if (!currentAccess.paid)
+          await plannerStep('content.persist.trial_usage', () =>
+            recordTrialPostUsage(client, plan.business_id),
+          )
         await plannerStep('content.persist.version_insert', () =>
           client.query(
             "INSERT INTO post_content_versions(post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES($1,$2,1,$3,$4,'monthly_planner',$5)",

@@ -78,12 +78,16 @@ export default defineEventHandler(async (event) => {
     const id =
       result.rows[0]?.id ||
       (await client.query('SELECT id FROM businesses WHERE owner_id = $1', [user.id])).rows[0].id
-    await client.query(
-      `INSERT INTO organizations (id, slug, name, created_by)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (id) DO NOTHING`,
-      [id, slug, parsed.data.name, user.id],
-    )
+    // INSERT ... ON CONFLICT also applies the organizations SELECT policy, which
+    // requires a membership the new owner does not have yet, so RLS rejects it.
+    // An existing organization is visible to its owner (repeated onboarding);
+    // otherwise a plain INSERT passes the policy's created_by check.
+    const existingOrganization = await client.query('SELECT 1 FROM organizations WHERE id=$1', [id])
+    if (!existingOrganization.rowCount)
+      await client.query(
+        'INSERT INTO organizations (id, slug, name, created_by) VALUES ($1, $2, $3, $4)',
+        [id, slug, parsed.data.name, user.id],
+      )
     await setTenantContext(client, { userId: user.id, organizationId: id })
     await client.query(
       `INSERT INTO organization_memberships (organization_id, user_id, role, brand_scope)

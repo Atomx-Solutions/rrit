@@ -15,6 +15,7 @@ import {
 } from '../../utils/asset-storage'
 import { setTenantContext, setUserContext } from '../../utils/database'
 import { BrainFailure, syncBusinessBrain } from '../../utils/business-brain'
+import { recordTrialPostUsage } from '../../utils/trials'
 
 const schema = workspaceSchema.extend({
   revision: z.number().int().min(1),
@@ -426,6 +427,7 @@ export default defineEventHandler(async (event) => {
       )
         await queuePublication(client, post, id.data, post.scheduledAt!)
     }
+    if (newPostCount) await recordTrialPostUsage(client, id.data, newPostCount)
     if (current.posts.some((p) => !input.posts.some((incoming) => incoming.id === p.id)))
       fail('Heqja e postimeve nuk mbështetet nga ky veprim.')
     const removedAssets = current.assets.filter(

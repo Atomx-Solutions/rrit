@@ -168,9 +168,13 @@ async function act(action: 'prepare' | 'restart' | 'reset' | 'pause' | 'enable')
       await initLive()
     }
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      t('monthly.changeNotSaved')
+    const failure = problem as { data?: { message?: string; data?: { code?: string } } }
+    // A trial that has used its 3 posts continues by choosing a package.
+    if (failure.data?.data?.code === 'QUOTA_EXCEEDED' && !planner.value?.paid) {
+      await navigateTo(`${unref(base)}/billing?reason=trial-limit`)
+      return
+    }
+    error.value = failure.data?.message || t('monthly.changeNotSaved')
   } finally {
     busy.value = false
   }
@@ -363,6 +367,13 @@ onBeforeUnmount(() => clearInterval(timer))
         </div>
 
         <div class="mt-5 flex flex-wrap gap-2">
+          <UButton
+            v-if="plan.errorCode === 'QUOTA_EXCEEDED' && !planner?.paid"
+            :to="`${base}/billing?reason=trial-limit`"
+            icon="i-lucide-credit-card"
+          >
+            {{ t('monthly.choosePackage') }}
+          </UButton>
           <UButton
             v-if="plan.restartable"
             icon="i-lucide-refresh-cw"
