@@ -2,7 +2,12 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { aiCreditCycleStartSql } from '../../utils/ai-credits'
 import { aiCostConfiguration, aiCostConfigured, calculateAiCost } from '../../utils/ai-costs'
-import { consumeCredits, creditsForAiUsage } from '../../utils/credits'
+import {
+  consumeReservedCredits,
+  creditsForAiUsage,
+  releaseReservedCredits,
+  reserveCredits,
+} from '../../utils/credits'
 import {
   aiProviderConfiguration,
   aiProviderModel,
@@ -127,6 +132,14 @@ export default defineEventHandler(async (event) => {
         reservedCost,
       ],
     )
+    await reserveCredits(client, {
+      organizationId: business.id,
+      credits: creditsForAiUsage(reservedInputTokens, reservedOutputTokens),
+      usageKind: 'generation',
+      referenceType: 'ai_generation',
+      referenceId: input.data.requestId,
+      idempotencyKey: `caption-credit-reserve:${input.data.requestId}`,
+    })
     await client.query('COMMIT')
   } catch (error) {
     await client.query('ROLLBACK')
@@ -237,14 +250,25 @@ export default defineEventHandler(async (event) => {
         "UPDATE ai_generations SET status='completed',output=$1,completed_at=now() WHERE id=$2 AND business_id=$3 AND status='pending'",
         [JSON.stringify(output), input.data.requestId, business.id],
       )
-      await consumeCredits(settlement, {
+      const actualCredits = creditsForAiUsage(inputTokens, outputTokens)
+      const reservedCredits = creditsForAiUsage(4000, 2400)
+      await consumeReservedCredits(settlement, {
         organizationId: business.id,
-        credits: creditsForAiUsage(inputTokens, outputTokens),
+        credits: actualCredits,
         usageKind: 'generation',
         referenceType: 'ai_generation',
         referenceId: input.data.requestId,
         idempotencyKey: `caption-token-charge:${input.data.requestId}`,
       })
+      if (reservedCredits > actualCredits)
+        await releaseReservedCredits(settlement, {
+          organizationId: business.id,
+          credits: reservedCredits - actualCredits,
+          usageKind: 'generation',
+          referenceType: 'ai_generation',
+          referenceId: input.data.requestId,
+          idempotencyKey: `caption-credit-release:${input.data.requestId}`,
+        })
       await settlement.query(
         "UPDATE ai_cost_ledger SET status='committed',actual_input_tokens=$1,actual_output_tokens=$2,actual_cost_micro_eur=$3,settled_at=now() WHERE generation_id=$4 AND business_id=$5 AND status='reserved'",
         [
@@ -277,6 +301,14 @@ export default defineEventHandler(async (event) => {
         [input.data.requestId, business.id],
       )
       if (released.rowCount) {
+        await releaseReservedCredits(release, {
+          organizationId: business.id,
+          credits: creditsForAiUsage(4000, 2400),
+          usageKind: 'generation',
+          referenceType: 'ai_generation',
+          referenceId: input.data.requestId,
+          idempotencyKey: `caption-credit-release:${input.data.requestId}`,
+        })
         await release.query(
           "DELETE FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date AND requests=1",
           [business.id],

@@ -30,8 +30,10 @@ async function generate() {
       timeout: 55000,
     })
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('caption.generationError')
+    const response = problem as { data?: { message?: string; data?: { code?: string } } }
+    error.value = response.data?.data?.code === 'CREDIT_WALLET_EXHAUSTED'
+      ? t('caption.generationCreditsExhausted')
+      : response.data?.message || t('caption.generationError')
   } finally {
     busy.value = false
   }

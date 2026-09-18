@@ -148,37 +148,42 @@ function usageValue(key: string, value: number) {
       :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refreshUsage() }]"
     />
     <template v-else-if="usage">
-      <UCard :ui="{ body: 'p-4' }">
-        <div class="flex items-center justify-between gap-4">
-          <div class="flex min-w-0 items-center gap-3">
-            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <UIcon name="i-lucide-coins" class="size-4 text-primary" />
+      <div class="grid gap-4 sm:grid-cols-2">
+        <UCard :ui="{ body: 'p-4' }">
+          <div class="flex items-center justify-between gap-4">
+            <div class="flex min-w-0 items-center gap-3">
+              <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <UIcon name="i-lucide-search" class="size-4 text-primary" />
+              </div>
+              <div class="min-w-0">
+                <h2 class="text-sm font-semibold">{{ t('billing.researchCredits') }}</h2>
+                <p class="text-xs text-muted">{{ t('billing.researchCreditsDescription') }}</p>
+              </div>
             </div>
-            <div class="min-w-0">
-          <h2 class="text-sm font-semibold">{{ t('billing.aiCredits') }}</h2>
-          <p class="text-xs text-muted">{{ t('billing.aiCreditsDescription') }}</p>
-            </div>
+            <p class="shrink-0 text-sm font-semibold tabular-nums">
+              {{ usage.credits.research.spendable }}
+              <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span>
+            </p>
           </div>
-          <p class="shrink-0 text-sm font-semibold tabular-nums">
-            {{ usage.credits.available }}
-            <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span>
-          </p>
-        </div>
-        <UProgress
-          class="mt-3"
-          size="xs"
-          :model-value="usage.credits.available"
-          :max="usage.credits.limit"
-          :color="
-            usage.credits.state === 'exhausted'
-              ? 'error'
-              : usage.credits.state === 'low'
-                ? 'warning'
-                : 'primary'
-          "
-          :aria-label="t('billing.remainingCredits')"
-        />
-      </UCard>
+        </UCard>
+        <UCard :ui="{ body: 'p-4' }">
+          <div class="flex items-center justify-between gap-4">
+            <div class="flex min-w-0 items-center gap-3">
+              <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <UIcon name="i-lucide-sparkles" class="size-4 text-primary" />
+              </div>
+              <div class="min-w-0">
+                <h2 class="text-sm font-semibold">{{ t('billing.generationCredits') }}</h2>
+                <p class="text-xs text-muted">{{ t('billing.generationCreditsDescription') }}</p>
+              </div>
+            </div>
+            <p class="shrink-0 text-sm font-semibold tabular-nums">
+              {{ usage.credits.generation.spendable }}
+              <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span>
+            </p>
+          </div>
+        </UCard>
+      </div>
       <UCard as="section" :ui="{ body: 'p-4' }">
         <div class="mb-5">
           <h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2>

@@ -1,3 +1,11 @@
+const appHost = (() => {
+  try {
+    return process.env.APP_URL ? new URL(process.env.APP_URL).hostname : undefined
+  } catch {
+    return undefined
+  }
+})()
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-05',
   // These overrides make it possible to verify a production bundle without
@@ -8,7 +16,7 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   vite: {
     server: {
-      allowedHosts: ['january-reviving-humbly.ngrok-free.dev'],
+      allowedHosts: appHost ? [appHost] : [],
     },
   },
   ui: { fonts: false },
