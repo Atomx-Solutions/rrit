@@ -2,7 +2,7 @@ import { createError } from 'h3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { creditWalletForCapability } from '../../server/utils/monthly-ai'
 import { remainingMonthlyPosts } from '../../server/utils/monthly-planner-domain'
-import { trialStatus } from '../../server/utils/trials'
+import { postsCountedForLimit, recordTrialPostUsage, trialStatus } from '../../server/utils/trials'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -37,6 +37,37 @@ describe('credit wallets', () => {
 })
 
 describe('trial post allowance', () => {
+  it('reads durable trial usage instead of surviving post rows', async () => {
+    const query = vi.fn(async () => ({ rows: [{ count: 3 }] }))
+    await expect(
+      postsCountedForLimit(
+        { query } as never,
+        '00000000-0000-4000-8000-000000000001',
+        '2026-09',
+        false,
+      ),
+    ).resolves.toBe(3)
+    expect(query.mock.calls[0]?.[0]).toContain('posts_used')
+  })
+
+  it('records positive trial usage atomically', async () => {
+    const query = vi.fn(async () => ({ rows: [{ posts_used: 3 }] }))
+    await expect(
+      recordTrialPostUsage(
+        { query } as never,
+        '00000000-0000-4000-8000-000000000001',
+        1,
+      ),
+    ).resolves.toBe(3)
+    await expect(
+      recordTrialPostUsage(
+        { query } as never,
+        '00000000-0000-4000-8000-000000000001',
+        0,
+      ),
+    ).rejects.toThrow('positive integer')
+  })
+
   it('follows the Free Trial package instead of the legacy trial setting', async () => {
     vi.stubGlobal('createError', createError)
     const query = vi.fn(async (sql: string) => {

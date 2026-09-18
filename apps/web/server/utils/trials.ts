@@ -8,7 +8,7 @@ import {
   type EntitlementFeature,
   type PlanLimits,
 } from '../../shared/schemas/catalog'
-import { grantMonthlyCredits } from './credits'
+import { expireRemainingCredits, grantMonthlyCredits } from './credits'
 
 type IdentityKind = 'email' | 'device' | 'facebook_user' | 'facebook_page' | 'instagram_account'
 function trialKey() {
@@ -112,6 +112,13 @@ export async function claimSocialTrialIdentities(
   businessId: string,
   identities: { kind: IdentityKind; value: string }[],
 ) {
+  // Only a tenant that actually received a trial may consume a Meta identity.
+  // Paid or previously blocked tenants must not burn a page's future trial.
+  const trial = await client.query<{ status: string }>(
+    'SELECT status FROM trial_grants WHERE business_id=$1 FOR UPDATE',
+    [businessId],
+  )
+  if (trial.rows[0]?.status !== 'granted') return
   let duplicate = false
   for (const identity of identities.sort((a, b) =>
     `${a.kind}:${a.value}`.localeCompare(`${b.kind}:${b.value}`),
@@ -129,11 +136,25 @@ export async function claimSocialTrialIdentities(
       if (existing.rows[0]?.business_id !== businessId) duplicate = true
     }
   }
-  if (duplicate)
-    await client.query(
-      "UPDATE trial_grants SET status = 'revoked', reason = 'social_identity_previously_used' WHERE business_id = $1 AND status = 'granted'",
-      [businessId],
-    )
+  if (!duplicate) return
+  // A Meta page or account that already used a trial never grants another:
+  // the trial, its subscription and its credits all stop here.
+  const revoked = await client.query(
+    "UPDATE trial_grants SET status = 'revoked', reason = 'social_identity_previously_used' WHERE business_id = $1 AND status = 'granted' RETURNING business_id",
+    [businessId],
+  )
+  if (!revoked.rowCount) return
+  const trialSubscription = await client.query<{ id: string }>(
+    "UPDATE subscriptions SET status='cancelled',updated_at=now() WHERE organization_id=$1 AND status='trialing' RETURNING id",
+    [businessId],
+  )
+  const subscriptionId = trialSubscription.rows[0]?.id
+  if (subscriptionId)
+    await expireRemainingCredits(client, {
+      organizationId: businessId,
+      subscriptionId,
+      idempotencyKey: `trial-revoked:${subscriptionId}`,
+    })
 }
 export interface TrialStatus {
   state: string
@@ -308,6 +329,44 @@ export async function requireEntitlement(
     })
 }
 
+/**
+ * Posts counted against the package allowance. A paid package renews every
+ * calendar month; the trial's 3 posts are a single allowance that never
+ * renews, so every post of the business counts, whatever its month.
+ */
+export async function postsCountedForLimit(
+  db: Pool | PoolClient,
+  businessId: string,
+  month: string,
+  paid: boolean,
+) {
+  const result = paid
+    ? await db.query<{ count: number }>(
+        'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
+        [businessId, `${month}-01`],
+      )
+    : await db.query<{ count: number }>(
+        'SELECT COALESCE(posts_used,0)::integer AS count FROM trial_grants WHERE business_id=$1',
+        [businessId],
+      )
+  return Number(result.rows[0]?.count || 0)
+}
+
+/** Records a generated/new post against the one-time trial allowance. */
+export async function recordTrialPostUsage(
+  db: Pool | PoolClient,
+  businessId: string,
+  increment = 1,
+) {
+  if (!Number.isInteger(increment) || increment < 1)
+    throw new Error('Trial post usage increment must be a positive integer.')
+  const result = await db.query<{ posts_used: number }>(
+    "UPDATE trial_grants SET posts_used=posts_used+$2 WHERE business_id=$1 AND status='granted' AND NOT EXISTS (SELECT 1 FROM subscriptions WHERE organization_id=$1 AND status IN ('active','past_due')) RETURNING posts_used",
+    [businessId, increment],
+  )
+  return Number(result.rows[0]?.posts_used || 0)
+}
+
 export async function usageSnapshot(
   businessId: string,
   db: Pool | PoolClient = database(),
@@ -317,6 +376,7 @@ export async function usageSnapshot(
     db.query(
       `SELECT
         (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS posts_per_month,
+        (SELECT COALESCE(posts_used,0)::integer FROM trial_grants WHERE business_id=$1) AS trial_posts_used,
         (SELECT COALESCE(sum(COALESCE(size_bytes, octet_length(bytes))),0)::bigint FROM assets WHERE business_id=$1) AS media_storage_bytes,
         (SELECT COALESCE(requests,0)::integer FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date) AS ai_requests_per_day,
         (SELECT CASE WHEN instagram_id IS NOT NULL THEN 2 ELSE 1 END FROM meta_connections WHERE business_id=$1 AND status='connected') AS social_accounts`,
@@ -325,7 +385,8 @@ export async function usageSnapshot(
   ])
   const row = counters.rows[0]
   const current: Record<QuotaKey, number> = {
-    posts_per_month: Number(row.posts_per_month || 0),
+    // Same rule as postsCountedForLimit: the trial allowance never renews.
+    posts_per_month: Number((access.paid ? row.posts_per_month : row.trial_posts_used) || 0),
     ai_requests_per_day: Number(row.ai_requests_per_day || 0),
     media_storage_bytes: Number(row.media_storage_bytes || 0),
     social_accounts: Number(row.social_accounts || 0),

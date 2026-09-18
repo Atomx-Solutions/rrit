@@ -5,6 +5,9 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const annual = ref(false)
 const { data: trial } = await useFetch('/api/trial', { key: 'trial' })
 const { t } = useI18n()
+const route = useRoute()
+// Arriving here after the trial's 3 posts are used (PRC-07).
+const trialLimitReached = computed(() => route.query.reason === 'trial-limit' && !trial.value?.paid)
 useSeoMeta({ title: () => `${t('nav.billing')} · Rrit` })
 const {
   data: usage,
@@ -144,6 +147,14 @@ function usageValue(key: string, value: number) {
         </div>
       </div>
     </template>
+    <UAlert
+      v-if="trialLimitReached"
+      color="primary"
+      variant="subtle"
+      icon="i-lucide-sparkles"
+      :title="t('billing.trialLimitTitle')"
+      :description="t('billing.trialLimitDescription')"
+    />
     <UCard :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
       <UIcon name="i-lucide-credit-card" class="size-5 text-muted shrink-0 mt-0.5" />
       <div class="space-y-1">

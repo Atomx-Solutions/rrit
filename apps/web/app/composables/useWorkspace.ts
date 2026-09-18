@@ -68,8 +68,22 @@ export function useWorkspace() {
       applyBusiness(result)
       return true
     } catch (error) {
-      const problem = error as { statusCode?: number; data?: { message?: string } }
+      const problem = error as {
+        statusCode?: number
+        data?: { message?: string; data?: { code?: string; quota?: string } }
+      }
       if (problem.statusCode === 409) conflict.value = true
+      if (
+        problem.statusCode === 402 &&
+        problem.data?.data?.code === 'QUOTA_EXCEEDED' &&
+        problem.data.data.quota === 'posts_per_month'
+      ) {
+        const trial = await $fetch<{ paid?: boolean }>('/api/trial', { retry: 0 }).catch(() => null)
+        if (trial && !trial.paid) {
+          await navigateTo(`${base.value}/billing?reason=trial-limit`)
+          return false
+        }
+      }
       storageError.value =
         problem.statusCode === 401
           ? t('workspace.sessionExpired')
