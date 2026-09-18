@@ -39,6 +39,7 @@ async function syncChannel(
   instagramId: string | null,
   brandId: string | null,
   token: string,
+  latestPosts?: number,
 ) {
   const instagram = channel === 'Instagram'
   const sourceAccountId = instagram ? instagramId : pageId
@@ -46,7 +47,10 @@ async function syncChannel(
 
   let after: string | undefined
 
-  for (let page = 0; page < maxPages; page += 1) {
+  // With latestPosts, Meta returns the newest posts first, so one bounded page
+  // is the complete result; the full-history walk is skipped entirely.
+  const pages = latestPosts ? 1 : maxPages
+  for (let page = 0; page < pages; page += 1) {
     const response = await graphRequest<MetaList<RemoteSocialPost>>(
       `${sourceAccountId}/${instagram ? 'media' : 'posts'}`,
       token,
@@ -54,7 +58,7 @@ async function syncChannel(
         fields: instagram
           ? 'id,caption,media_type,media_url,permalink,timestamp'
           : 'id,message,full_picture,permalink_url,created_time',
-        limit: pageSize,
+        limit: latestPosts ? String(Math.min(latestPosts, 100)) : pageSize,
         ...(after ? { after } : {}),
       },
     )
@@ -100,6 +104,30 @@ async function syncChannel(
   // legitimately omit older, visitor-created, permission-limited or expired
   // media from a later response. The connected page is reconciled explicitly
   // when the account changes; retention handles bounded storage separately.
+}
+
+/** Fetches only the newest posts of each connected channel (the monthly style fetch). */
+export async function fetchLatestSocialPosts(
+  db: Pool | PoolClient,
+  businessId: string,
+  latestPosts: number,
+) {
+  const connection = await connectedMeta(businessId, db)
+  const token = decryptMetaToken(connection.page_token_ciphertext, businessId)
+  for (const channel of channels)
+    await syncChannel(
+      db,
+      businessId,
+      channel,
+      connection.page_id,
+      connection.instagram_id,
+      connection.brand_id,
+      token,
+      latestPosts,
+    )
+  await db.query('UPDATE meta_connections SET last_sync_at=now(),updated_at=now() WHERE id=$1', [
+    connection.id,
+  ])
 }
 
 /** Refresh every post currently available from the connected Meta accounts. */

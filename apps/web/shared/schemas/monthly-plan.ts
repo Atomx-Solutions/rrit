@@ -88,6 +88,14 @@ export const editorialPlanSchema = z.object({
 export const editorialPlanGenerationSchema = editorialPlanSchema.extend({
   styleProfile: styleProfileGenerationSchema,
 })
+// Monthly AI analysis of the connected page (PRC-04): the visual profile plus
+// the caption text, post formats and hashtag habits of the fetched posts.
+export const pageStyleAnalysisSchema = styleProfileGenerationSchema.extend({
+  captionStyle: z.string().trim().max(500),
+  formats: z.string().trim().max(500),
+  hashtags: z.string().trim().max(500),
+})
+export type PageStyleAnalysis = z.infer<typeof pageStyleAnalysisSchema>
 export const creativeSchema = z.object({
   headline: z.string().trim().min(3).max(64),
   eyebrow: z.string().trim().min(2).max(48),
