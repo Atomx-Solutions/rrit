@@ -50,6 +50,7 @@ import {
   parsePersistedEditorialPlan,
   plannerEvidence,
   planningMonth,
+  remainingMonthlyPosts,
   validateEditorialPlan,
   type PlannerEvidence,
 } from './monthly-planner-domain'
@@ -158,7 +159,7 @@ export async function ensureMonthlyPlan(
       [businessId, `${month}-01`],
     ),
   )
-  const target = Math.min(access.limits.posts_per_month, 100) - existing.rows[0].count
+  const target = remainingMonthlyPosts(access.limits.posts_per_month, existing.rows[0].count)
   if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
   const photoSelection = {
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
@@ -269,7 +270,7 @@ export async function restartMonthlyPlan(
     'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
     [businessId, `${month}-01`],
   )
-  const target = Math.min(access.limits.posts_per_month, 100) - existing.rows[0].count
+  const target = remainingMonthlyPosts(access.limits.posts_per_month, existing.rows[0].count)
   if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
   if (resumePlanning || resumeContent) {
     await client.query(
@@ -456,6 +457,8 @@ export interface PageStyleEvidence {
 type StyleSnapshotSummary = Omit<PreviousPageStyle, 'revision' | 'contactSheet'> & {
   version: number
 }
+/** The cached monthly page style as stored in style_snapshots.summary. */
+export type CachedPageStyle = StyleSnapshotSummary
 
 export interface PlannerAsset {
   id: string
@@ -976,7 +979,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
       [plan.business_id, `${plan.month_key}-01`],
     )
-    if (current.rows[0].count >= access.limits.posts_per_month)
+    if (!remainingMonthlyPosts(access.limits.posts_per_month, current.rows[0].count))
       throw new PlannerFailure('QUOTA_EXCEEDED')
   }
   const common = {
@@ -1437,7 +1440,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           ),
         )
         if (
-          usage.rows[0].posts >= currentAccess.limits.posts_per_month ||
+          !remainingMonthlyPosts(currentAccess.limits.posts_per_month, usage.rows[0].posts) ||
           Number(usage.rows[0].bytes) + creative.length > currentAccess.limits.media_storage_bytes
         )
           throw new PlannerFailure('QUOTA_EXCEEDED')
