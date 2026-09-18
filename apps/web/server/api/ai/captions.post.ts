@@ -255,6 +255,7 @@ export default defineEventHandler(async (event) => {
       await consumeReservedCredits(settlement, {
         organizationId: business.id,
         credits: actualCredits,
+        reservedCredits,
         usageKind: 'generation',
         referenceType: 'ai_generation',
         referenceId: input.data.requestId,

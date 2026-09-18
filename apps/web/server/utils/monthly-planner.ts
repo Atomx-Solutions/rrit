@@ -4,7 +4,9 @@ import {
   generatedPostSchema,
   qualitySchema,
   editorialPlanGenerationSchema,
+  pageStyleAnalysisSchema,
   researchSchema,
+  type PageStyleAnalysis,
 } from '../../shared/schemas/monthly-plan'
 import { postSchema } from '../../shared/schemas/workspace'
 import { factIsUsable, sameFactContent } from '../../shared/schemas/business-brain'
@@ -23,7 +25,13 @@ import {
   removeAsset,
   uploadAsset,
 } from './asset-storage'
-import { syncAllConnectedSocialPosts } from './meta-social-history'
+import { fetchLatestSocialPosts, syncAllConnectedSocialPosts } from './meta-social-history'
+import {
+  newestStylePosts,
+  STYLE_SNAPSHOT_VERSION,
+  styleRevision,
+  styleSnapshotIsFresh,
+} from './style-snapshots'
 import {
   monthlyAiConfigured,
   monthlyAutomaticStageKey,
@@ -432,7 +440,21 @@ export interface PreviousPageStyle {
   platformPublishedCount: number
   importedSocialCount: number
   historySummary: PageStyleHistorySummary
+  // Monthly AI analysis of the page style, cached with the snapshot.
+  profile?: PageStyleAnalysis
   contactSheet?: Buffer
+}
+
+/** Input of the monthly AI page-style analysis. */
+export interface PageStyleEvidence {
+  revision: string
+  examples: PreviousPageStyle['examples']
+  historySummary: PageStyleHistorySummary
+  contactSheet?: Buffer
+}
+
+type StyleSnapshotSummary = Omit<PreviousPageStyle, 'revision' | 'contactSheet'> & {
+  version: number
 }
 
 export interface PlannerAsset {
@@ -496,6 +518,7 @@ export async function loadPlannerAssets(
 
 const MAX_STYLE_REFERENCES = 8
 const MAX_STYLE_REFERENCE_BYTES = 2097152
+const MAX_STYLE_CONTACT_SHEET_BYTES = 8388608
 
 function isoTimestamp(value: string) {
   const parsed = new Date(value)
@@ -522,16 +545,57 @@ function normalizeGeneratedHashtags(value: unknown) {
 
 // Imported page media is used only as visual style evidence. It is never saved
 // as a business asset and it is never treated as a source of business facts.
+async function cachedPageStyle(
+  summary: StyleSnapshotSummary,
+  revision: string,
+  contactSheetPath: string | null,
+): Promise<PreviousPageStyle> {
+  let contactSheet: Buffer | undefined
+  if (contactSheetPath) {
+    try {
+      contactSheet = await downloadAsset(contactSheetPath, MAX_STYLE_CONTACT_SHEET_BYTES)
+    } catch {
+      // The cached text summary and AI profile remain usable without the sheet.
+    }
+  }
+  return {
+    revision,
+    examples: summary.examples,
+    references: summary.references,
+    referenceCount: summary.referenceCount,
+    platformPublishedCount: summary.platformPublishedCount,
+    importedSocialCount: summary.importedSocialCount,
+    historySummary: summary.historySummary,
+    ...(summary.profile ? { profile: summary.profile } : {}),
+    ...(contactSheet ? { contactSheet } : {}),
+  }
+}
+
+// The Meta fetch and AI analysis run at most once a month per brand (PRC-04);
+// every generation in between reuses the cached style snapshot.
 export async function loadPreviousPageStyle(
   db: Pool | PoolClient,
   businessId: string,
+  options: {
+    analyze?: (evidence: PageStyleEvidence) => Promise<PageStyleAnalysis>
+    now?: Date
+  } = {},
 ): Promise<PreviousPageStyle> {
+  const now = options.now || new Date()
   const styleScope = await db.query<{
     brand_id: string
     connection_id: string | null
     style_fetch_post_count: number
+    is_trial: boolean
+    snapshot_summary: StyleSnapshotSummary | null
+    snapshot_revision: string | null
+    last_style_fetch_at: Date | null
+    contact_sheet_path: string | null
   }>(
-    `SELECT brand.id AS brand_id,connection.id AS connection_id,plan.style_fetch_post_count
+    `SELECT brand.id AS brand_id,connection.id AS connection_id,plan.style_fetch_post_count,
+            plan.is_trial,snapshot.summary AS snapshot_summary,
+            snapshot.source_revision AS snapshot_revision,snapshot.last_style_fetch_at,
+            snapshot.contact_sheet_path
        FROM brands brand
        JOIN subscriptions subscription
          ON subscription.organization_id=brand.organization_id
@@ -543,19 +607,30 @@ export async function loadPreviousPageStyle(
          ON connection.business_id=brand.organization_id
         AND connection.brand_id=brand.id
         AND connection.status='connected'
+       LEFT JOIN style_snapshots snapshot ON snapshot.brand_id=brand.id
       WHERE brand.organization_id=$1 AND brand.status='active'
       ORDER BY brand.created_at,brand.id
       LIMIT 1`,
     [businessId],
   )
   const scope = styleScope.rows[0]
-  // A legacy tenant without a PRC-01 subscription keeps the current history
-  // behavior but does not receive a persisted snapshot until it is assigned a plan.
+  if (
+    scope?.snapshot_summary &&
+    scope.snapshot_revision &&
+    styleSnapshotIsFresh({
+      lastFetchAt: scope.last_style_fetch_at,
+      summaryVersion: scope.snapshot_summary.version,
+      isTrial: scope.is_trial,
+      now,
+    })
+  )
+    return cachedPageStyle(scope.snapshot_summary, scope.snapshot_revision, scope.contact_sheet_path)
+  // A legacy tenant without a PRC-01 subscription keeps the full-history
+  // behavior but does not receive a cached snapshot until it is assigned a plan.
   const fetchLimit = scope?.style_fetch_post_count
   try {
-    // The planner must see the whole connected page history, including posts
-    // that were never created or imported manually through this platform.
-    await syncAllConnectedSocialPosts(db, businessId)
+    if (!scope) await syncAllConnectedSocialPosts(db, businessId)
+    else if (scope.connection_id) await fetchLatestSocialPosts(db, businessId, fetchLimit!)
   } catch (error) {
     // Cached social history remains usable when Meta is temporarily unavailable.
     console.warn('[monthly-planner] social history sync failed; using cached posts', {
@@ -614,7 +689,7 @@ export async function loadPreviousPageStyle(
       .filter((id): id is string => !!id),
   )
   const socialRows = socialResult.rows.filter((row) => !localProviderIds.has(row.provider_id))
-  const combinedRows = [
+  const combinedRows = newestStylePosts([
     ...socialRows.map((row) => ({
       source: row.channel === 'Facebook' ? ('facebook' as const) : ('instagram' as const),
       channel: row.channel,
@@ -639,10 +714,7 @@ export async function loadPreviousPageStyle(
       mediaType: 'POST',
       sortId: row.post_id,
     })),
-  ].sort((left, right) => {
-    const dateOrder = Date.parse(right.publishedAt) - Date.parse(left.publishedAt)
-    return dateOrder || right.sortId.localeCompare(left.sortId)
-  })
+  ], fetchLimit)
 
   const styleRows =
     combinedRows.length <= MAX_STYLE_REFERENCES
@@ -660,16 +732,7 @@ export async function loadPreviousPageStyle(
     publishedAt: row.publishedAt,
     mediaType: row.mediaType,
   }))
-  const revision = evidenceHash(
-    combinedRows.map((row) => [
-      row.source,
-      row.postId || null,
-      row.providerId || null,
-      row.assetId || null,
-      row.publishedAt,
-      row.mediaUrl,
-    ]),
-  )
+  const revision = styleRevision(combinedRows)
   const references = styleRows.map((row) => ({
     source: row.source,
     channel: row.channel,
@@ -753,43 +816,73 @@ export async function loadPreviousPageStyle(
     examples,
     references,
     referenceCount: combinedRows.length,
-    platformPublishedCount: platformResult.rows.length,
-    importedSocialCount: socialRows.length,
+    platformPublishedCount: combinedRows.filter((row) => row.source === 'platform').length,
+    importedSocialCount: combinedRows.filter((row) => row.source !== 'platform').length,
     historySummary,
   }
-  if (scope) {
-    await db.query(
-      `INSERT INTO style_snapshots
-        (organization_id,brand_id,source_connection_id,summary,source_post_count,source_revision,last_style_fetch_at)
-       VALUES($1,$2,$3,$4::jsonb,$5,$6,now())
-       ON CONFLICT (brand_id) DO UPDATE SET
-         source_connection_id=EXCLUDED.source_connection_id,
-         summary=EXCLUDED.summary,
-         source_post_count=EXCLUDED.source_post_count,
-         source_revision=EXCLUDED.source_revision,
-         last_style_fetch_at=EXCLUDED.last_style_fetch_at,
-         updated_at=now()`,
-      [
-        businessId,
-        scope.brand_id,
-        scope.connection_id,
-        JSON.stringify({ examples, references, history: historySummary }),
-        combinedRows.length,
-        revision,
-      ],
-    )
-  }
-  if (!referenceImages.length) {
-    for (const bytes of localStyleAssets.map((asset) => asset.bytes)) bytes.fill(0)
-    return baseResult
-  }
+  let contactSheet: Buffer | undefined
   try {
-    const contactSheet = await assetContactSheet(referenceImages)
-    return { ...baseResult, contactSheet }
+    if (referenceImages.length) contactSheet = await assetContactSheet(referenceImages)
   } finally {
     for (const image of referenceImages) image.bytes.fill(0)
     for (const bytes of localStyleAssets.map((asset) => asset.bytes)) bytes.fill(0)
   }
+  const withSheet = contactSheet ? { contactSheet } : {}
+  if (!scope || !options.analyze) return { ...baseResult, ...withSheet }
+
+  let profile: PageStyleAnalysis
+  try {
+    profile = await options.analyze({ revision, examples, historySummary, contactSheet })
+  } catch (error) {
+    contactSheet?.fill(0)
+    throw error
+  }
+  let contactSheetPath: string | null = null
+  if (contactSheet) {
+    contactSheetPath = `style-snapshots/${businessId}/${scope.brand_id}/${revision}-${now.getTime()}.jpg`
+    try {
+      await uploadAsset(contactSheetPath, contactSheet)
+    } catch {
+      contactSheetPath = null
+    }
+  }
+  const summary: StyleSnapshotSummary = {
+    version: STYLE_SNAPSHOT_VERSION,
+    examples,
+    references,
+    referenceCount: baseResult.referenceCount,
+    platformPublishedCount: baseResult.platformPublishedCount,
+    importedSocialCount: baseResult.importedSocialCount,
+    historySummary,
+    profile,
+  }
+  await db.query(
+    `INSERT INTO style_snapshots
+      (organization_id,brand_id,source_connection_id,summary,source_post_count,source_revision,
+       last_style_fetch_at,contact_sheet_path)
+     VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8)
+     ON CONFLICT (brand_id) DO UPDATE SET
+       source_connection_id=EXCLUDED.source_connection_id,
+       summary=EXCLUDED.summary,
+       source_post_count=EXCLUDED.source_post_count,
+       source_revision=EXCLUDED.source_revision,
+       last_style_fetch_at=EXCLUDED.last_style_fetch_at,
+       contact_sheet_path=EXCLUDED.contact_sheet_path,
+       updated_at=now()`,
+    [
+      businessId,
+      scope.brand_id,
+      scope.connection_id,
+      JSON.stringify(summary),
+      combinedRows.length,
+      revision,
+      now,
+      contactSheetPath,
+    ],
+  )
+  if (scope.contact_sheet_path && scope.contact_sheet_path !== contactSheetPath)
+    await removeAsset(scope.contact_sheet_path).catch(() => undefined)
+  return { ...baseResult, profile, ...withSheet }
 }
 
 async function transaction<T>(db: Pool, work: (client: PoolClient) => Promise<T>) {
@@ -895,6 +988,21 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     tenant: { userId: plan.owner_id, organizationId: plan.business_id },
     language: (workspace.preferences.locale === 'en-US' ? 'en' : 'sq') as 'en' | 'sq',
   }
+  // Runs only when the brand's monthly style snapshot is stale (PRC-04).
+  const analyzePageStyle = async (evidence: PageStyleEvidence) => {
+    const response = await monthlyProviderCall(db, {
+      ...common,
+      stageKey: monthlyAutomaticStageKey('style', evidence.revision),
+      capability: 'style',
+      maxOutput: 3000,
+      schema: pageStyleAnalysisSchema,
+      input: { examples: evidence.examples, historySummary: evidence.historySummary },
+      images: evidence.contactSheet
+        ? [`data:image/jpeg;base64,${evidence.contactSheet.toString('base64')}`]
+        : [],
+    })
+    return pageStyleAnalysisSchema.parse(JSON.parse(responseText(response)))
+  }
   if (plan.stage === 'research') {
     const response = await monthlyProviderCall(db, {
       ...common,
@@ -928,7 +1036,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     let previousPageStyle: PreviousPageStyle | undefined
     try {
       planningContactSheet = await assetContactSheet(planningAssets)
-      previousPageStyle = await loadPreviousPageStyle(db, plan.business_id)
+      previousPageStyle = await loadPreviousPageStyle(db, plan.business_id, {
+        analyze: analyzePageStyle,
+      })
       // Plan the complete month once. A stable key makes every later worker tick
       // reuse the same audited response instead of paying for another attempt.
       const response = await monthlyProviderCall(db, {
@@ -960,6 +1070,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             platformPublishedCount: previousPageStyle.platformPublishedCount,
             importedSocialCount: previousPageStyle.importedSocialCount,
             historySummary: previousPageStyle.historySummary,
+            ...(previousPageStyle.profile ? { profile: previousPageStyle.profile } : {}),
             styleDimensions: [
               'dominant color palette and saturation',
               'contrast, brightness and recurring color accents',
@@ -1026,7 +1137,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   let previousGeneratedContactSheet: Buffer | undefined
   try {
     contactSheet = await assetContactSheet(assets)
-    previousPageStyle = await loadPreviousPageStyle(db, plan.business_id)
+    previousPageStyle = await loadPreviousPageStyle(db, plan.business_id, {
+      analyze: analyzePageStyle,
+    })
     const earlier = await db.query<{
       caption: string
       title: string
@@ -1090,7 +1203,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           research: { sources: research.sources },
           previousPosts: earlier.rows,
           previousGeneratedPostCount: previousGeneratedAssets.length,
-          styleProfile: editorial.styleProfile,
+          styleProfile: previousPageStyle.profile || editorial.styleProfile,
           previousPageStyle: {
             examples: previousPageStyle.examples,
             historySummary: previousPageStyle.historySummary,
@@ -1168,7 +1281,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         brand: plan.evidence.brand,
         slot,
         creative: content.creative,
-        styleProfile: editorial.styleProfile,
+        styleProfile: previousPageStyle.profile || editorial.styleProfile,
         previousPageStyle: previousPageStyle.contactSheet
           ? {
               exampleCount: previousPageStyle.examples.length,
@@ -1223,7 +1336,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           content,
           previousPosts: earlier.rows,
           previousGeneratedPostCount: previousGeneratedAssets.length,
-          styleProfile: editorial.styleProfile,
+          styleProfile: previousPageStyle.profile || editorial.styleProfile,
           previousPageStyle: {
             examples: previousPageStyle.examples,
             referenceCount: previousPageStyle.referenceCount,

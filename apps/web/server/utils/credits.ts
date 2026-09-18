@@ -176,14 +176,29 @@ export async function releaseReservedCredits(client: PoolClient, input: { organi
   if (!ledger.rows.length) return toBalance(balance)
   return updateWallet(client, input.organizationId, input.usageKind, 0, -input.credits)
 }
-export async function consumeReservedCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
+/**
+ * Settles usage the provider has already charged, so it never fails: this
+ * call's reservation is spent first, any overrun is taken from the free
+ * balance, and the wallet is capped at zero instead of rejecting the result.
+ */
+export async function consumeReservedCredits(client: PoolClient, input: { organizationId: string; credits: number; reservedCredits?: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)
   const columns = walletColumns[input.usageKind]
-  if (Number(balance[columns.reserved as keyof CreditBalanceRow]) < input.credits || Number(balance[columns.remaining as keyof CreditBalanceRow]) < input.credits) throw exhausted(input.usageKind)
-  const ledger = await writeLedger(client, { ...input, eventType: 'consume', wallet: input.usageKind, creditDelta: -input.credits })
+  const remaining = Number(balance[columns.remaining as keyof CreditBalanceRow])
+  const reserved = Number(balance[columns.reserved as keyof CreditBalanceRow])
+  const reservationUsed = Math.min(input.credits, input.reservedCredits ?? input.credits, reserved)
+  const charged = Math.min(input.credits, remaining)
+  const ledger = await writeLedger(client, {
+    ...input,
+    // A zero charge (empty wallet) still needs an idempotent ledger entry.
+    eventType: charged > 0 ? 'consume' : 'release',
+    wallet: input.usageKind,
+    creditDelta: charged > 0 ? -charged : 0,
+    metadata: { requestedCredits: input.credits, chargedCredits: charged },
+  })
   if (!ledger.rows.length) return toBalance(balance)
-  return updateWallet(client, input.organizationId, input.usageKind, -input.credits, -input.credits)
+  return updateWallet(client, input.organizationId, input.usageKind, -charged, -reservationUsed)
 }
 export async function consumeCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
