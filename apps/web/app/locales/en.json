@@ -1618,4 +1618,10 @@
   ,"public.language": "Language"
   ,"public.albanian": "Albanian"
   ,"public.english": "English"
+  ,"lowCredit.title": "Only {{credits}} credits left"
+  ,"lowCredit.topUpDescription": "Your credits are running low. Buy extra credits so your AI work is not interrupted."
+  ,"lowCredit.choosePlanDescription": "Your credits are running low and you have no active package. Choose a package to keep working with AI."
+  ,"lowCredit.buyCredits": "Buy credits"
+  ,"lowCredit.choosePlan": "Choose a package"
+  ,"lowCredit.dismiss": "Dismiss reminder"
 }

@@ -66,6 +66,25 @@ export async function creditPricing(client: Pick<PoolClient, 'query'>): Promise<
 export async function creditsForCost(client: Pick<PoolClient, 'query'>, costMicroEur: number) {
   return creditsForProviderCost(costMicroEur, (await creditPricing(client)).providerCostPerCreditMicroEur)
 }
+/**
+ * What the low-credit reminder needs: the configured threshold and whether the
+ * organization has a package that can buy top-ups (the same subscriptions the
+ * top-up endpoint accepts), or must choose a package first.
+ */
+export async function lowCreditStatus(client: Pick<PoolClient, 'query'>, organizationId: string) {
+  const result = await client.query<{ low_credit_threshold: number; has_active_package: boolean }>(
+    `SELECT p.low_credit_threshold,
+            EXISTS (
+              SELECT 1 FROM subscriptions s
+               WHERE s.organization_id=$1 AND s.status IN ('trialing','active','past_due')
+                 AND s.current_period_end > now()
+            ) AS has_active_package
+       FROM credit_pricing p WHERE p.singleton=true`,
+    [organizationId],
+  )
+  const row = result.rows[0]
+  return { threshold: Number(row?.low_credit_threshold ?? 100), hasActivePackage: Boolean(row?.has_active_package) }
+}
 export function allocatePlanCredits(monthlyCredits: number, postCount: number): CreditAllocation[] {
   nonNegativeInteger(monthlyCredits, 'monthlyCredits')
   positiveInteger(postCount, 'postCount')

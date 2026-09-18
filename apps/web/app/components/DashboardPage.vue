@@ -117,6 +117,11 @@ onBeforeUnmount(() => clearInterval(creditTimer))
           :actions="[{ label: t('workspace.exportCopy'), onClick: exportData }]"
         />
         <TrialBanner :key="locale" />
+        <LowCreditBanner
+          :spendable="credits"
+          :threshold="headerUsage?.lowCredit.threshold"
+          :has-active-package="headerUsage?.lowCredit.hasActivePackage"
+        />
         <slot />
       </div>
     </template>

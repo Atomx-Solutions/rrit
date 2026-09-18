@@ -1,11 +1,12 @@
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const { access, usage, credits } = await withBusinessTransaction(
+  const { access, usage, credits, lowCredit } = await withBusinessTransaction(
     user.id,
     async (client, business) => ({
       access: await trialStatus(business.id, client),
       usage: await usageSnapshot(business.id, client),
       credits: await creditBalanceSnapshot(client, business.id),
+      lowCredit: await lowCreditStatus(client, business.id),
     }),
   )
   setHeader(event, 'Cache-Control', 'private, no-store')
@@ -13,6 +14,7 @@ export default defineEventHandler(async (event) => {
     plan: access.plan,
     state: access.state,
     credits,
+    lowCredit,
     usage: Object.entries(usage)
       .filter(([key]) => key !== 'ai_requests_per_day')
       .map(([key, value]) => ({

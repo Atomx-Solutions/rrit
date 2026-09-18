@@ -1618,4 +1618,10 @@
   ,"public.language": "Gjuha"
   ,"public.albanian": "Shqip"
   ,"public.english": "Anglisht"
+  ,"lowCredit.title": "Të kanë mbetur vetëm {{credits}} kredite"
+  ,"lowCredit.topUpDescription": "Kreditet po mbarojnë. Bli kredite shtesë që të mos të ndalet puna me AI."
+  ,"lowCredit.choosePlanDescription": "Kreditet po mbarojnë dhe nuk ke pako aktive. Zgjidh një pako për të vazhduar punën me AI."
+  ,"lowCredit.buyCredits": "Bli kredite"
+  ,"lowCredit.choosePlan": "Zgjidh pakon"
+  ,"lowCredit.dismiss": "Mbyll rikujtuesin"
 }
