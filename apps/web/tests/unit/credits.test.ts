@@ -6,6 +6,10 @@ import {
   creditsForProviderCost,
   splitCredits,
 } from '../../server/utils/credits'
+import {
+  creditTopUpPriceCents,
+  isCreditTopUpQuantity,
+} from '../../server/utils/credit-top-ups'
 
 function walletClient(remaining: number, reserved: number) {
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
@@ -79,6 +83,17 @@ describe('credit wallet allocation', () => {
     [4000, { research: 2000, generation: 2000 }],
   ])('splits %i monthly credits equally', (credits, expected) => {
     expect(splitCredits(credits)).toEqual(expected)
+  })
+})
+
+describe('credit top-up pricing', () => {
+  it('prices 500 credits at EUR 10.00', () => {
+    expect(creditTopUpPriceCents(500)).toBe(1000)
+  })
+
+  it.each([499, 1_000_001, 500.5])('rejects an invalid credit quantity: %s', (credits) => {
+    expect(isCreditTopUpQuantity(credits)).toBe(false)
+    expect(() => creditTopUpPriceCents(credits)).toThrow('credits must be an integer')
   })
 })
 

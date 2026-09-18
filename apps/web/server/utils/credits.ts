@@ -136,7 +136,7 @@ export async function grantMonthlyCredits(client: PoolClient, input: { organizat
   )
   return toBalance(updated.rows[0]!)
 }
-export async function grantAdditionalCredits(client: PoolClient, input: { organizationId: string; subscriptionId: string; credits: number; referenceType: string; referenceId: string; idempotencyKey: string }) {
+export async function grantAdditionalCredits(client: PoolClient, input: { organizationId: string; subscriptionId: string; credits: number; referenceType: string; referenceId: string; idempotencyKey: string; metadata?: Record<string, unknown> }) {
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)
   const allocation = splitCredits(input.credits)

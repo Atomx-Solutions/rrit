@@ -1,3 +1,9 @@
+import {
+  CREDIT_TOP_UP_MAXIMUM,
+  CREDIT_TOP_UP_MINIMUM,
+  CREDIT_TOP_UP_UNIT_PRICE_CENTS,
+} from '../../utils/credit-top-ups'
+
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const subscription = await withBusinessTransaction(user.id, async (client, business) => {
@@ -21,6 +27,11 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
     selfServiceEnabled: process.env.BILLING_SELF_SERVICE_ENABLED === 'true',
+    creditTopUp: {
+      minimum: CREDIT_TOP_UP_MINIMUM,
+      maximum: CREDIT_TOP_UP_MAXIMUM,
+      unitPrice: CREDIT_TOP_UP_UNIT_PRICE_CENTS / 100,
+    },
     subscription: subscription && {
       planCode: subscription.plan_code,
       interval: subscription.billing_interval,

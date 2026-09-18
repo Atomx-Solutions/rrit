@@ -31,6 +31,17 @@ function planByCode(code: string | null | undefined) {
 }
 const switching = ref(false)
 const switchError = ref('')
+const topUpCredits = ref(500)
+const topUpError = ref('')
+const toppingUp = ref(false)
+const topUpConfig = computed(() => billing.value?.creditTopUp)
+const topUpValid = computed(() =>
+  !!topUpConfig.value
+  && Number.isInteger(topUpCredits.value)
+  && topUpCredits.value >= topUpConfig.value.minimum
+  && topUpCredits.value <= topUpConfig.value.maximum,
+)
+const topUpPrice = computed(() => topUpValid.value ? topUpCredits.value * topUpConfig.value!.unitPrice : 0)
 async function switchPlan() {
   if (!selectedPlan.value) return
   switching.value = true
@@ -46,6 +57,22 @@ async function switchPlan() {
     switchError.value = t('billing.activationFailed')
   } finally {
     switching.value = false
+  }
+}
+async function buyCreditTopUp() {
+  if (!topUpValid.value) return
+  toppingUp.value = true
+  topUpError.value = ''
+  try {
+    await $fetch('/api/billing/credit-top-up', {
+      method: 'POST',
+      body: { credits: topUpCredits.value, idempotencyKey: crypto.randomUUID() },
+    })
+    await Promise.all([refreshUsage(), refreshNuxtData('header-credit-balance')])
+  } catch {
+    topUpError.value = t('billing.creditTopUpFailed')
+  } finally {
+    toppingUp.value = false
   }
 }
 function packageName(plan: (typeof plans.value)[number]) {
@@ -184,6 +211,37 @@ function usageValue(key: string, value: number) {
           </div>
         </UCard>
       </div>
+      <UCard v-if="billing?.selfServiceEnabled && topUpConfig" as="section" :ui="{ body: 'p-4 sm:p-5' }">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div class="space-y-1">
+            <h2 class="text-sm font-semibold">{{ t('billing.creditTopUpTitle') }}</h2>
+            <p class="text-sm text-muted">{{ t('billing.creditTopUpDescription') }}</p>
+            <p class="text-xs text-muted">{{ t('billing.creditTopUpSplit') }}</p>
+          </div>
+          <div class="flex flex-col gap-2 sm:w-80">
+            <UFormField name="credit-top-up" :label="t('billing.creditTopUpQuantity')">
+              <UInput
+                id="credit-top-up"
+                v-model.number="topUpCredits"
+                type="number"
+                :min="topUpConfig.minimum"
+                :max="topUpConfig.maximum"
+                :step="1"
+              />
+            </UFormField>
+            <p class="text-xs text-muted">
+              {{ t('billing.creditTopUpRange', { minimum: topUpConfig.minimum, maximum: topUpConfig.maximum }) }}
+            </p>
+            <p class="text-sm font-semibold tabular-nums">
+              {{ t('billing.creditTopUpPrice', { price: formatMoney(topUpPrice) }) }}
+            </p>
+            <UAlert v-if="topUpError" color="error" variant="outline" :title="topUpError" />
+            <UButton :disabled="!topUpValid" :loading="toppingUp" @click="buyCreditTopUp">
+              {{ t('billing.buyCreditTopUp') }}
+            </UButton>
+          </div>
+        </div>
+      </UCard>
       <UCard as="section" :ui="{ body: 'p-4' }">
         <div class="mb-5">
           <h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2>
