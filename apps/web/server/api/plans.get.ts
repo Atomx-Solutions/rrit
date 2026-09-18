@@ -2,7 +2,7 @@ import { planCatalogSchema } from '../../shared/schemas/catalog'
 
 export default defineEventHandler(async () => {
   const result = await database().query(
-    'SELECT code,name,monthly_cents,currency,posts_per_month,monthly_credits,style_fetch_post_count,is_trial FROM plans WHERE active=true ORDER BY sort_order',
+    'SELECT code,name,monthly_cents,currency,posts_per_month,monthly_credits,style_fetch_post_count,annual_discount_percent,is_trial FROM plans WHERE active=true ORDER BY sort_order',
   )
   return result.rows.map((row) => {
     const plan = planCatalogSchema.safeParse({
@@ -10,7 +10,7 @@ export default defineEventHandler(async () => {
       version: 1,
       monthlyCents: row.monthly_cents,
       currency: row.currency,
-      annualDiscount: 0,
+      annualDiscount: row.annual_discount_percent,
       description: '',
       displayFeatures: [],
       entitlements: ['posts', 'media', 'validation', 'social_import', 'publishing', 'ai'],
