@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { adminServiceClient } from './admin-supabase'
 
 export type AdminOverview = {
   organizations: { total: number, active: number, trialing: number, paused: number, cancelled: number }
@@ -7,19 +7,6 @@ export type AdminOverview = {
   ai: { cost_micro_eur_this_month: number, cost_micro_eur_total: number }
   users: { total: number }
   signups: { this_week: number, this_month: number }
-}
-
-let client: SupabaseClient | undefined
-
-function serviceRoleClient() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key)
-    throw createError({ statusCode: 503, message: 'Qasja administrative nuk është konfiguruar.' })
-
-  return (client ||= createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  }))
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -72,7 +59,7 @@ export function normalizeAdminOverview(value: unknown): AdminOverview {
 }
 
 export async function adminOverview() {
-  const { data, error } = await serviceRoleClient().rpc('admin_overview_kpis')
+  const { data, error } = await adminServiceClient().rpc('admin_overview_kpis')
   if (error) {
     console.error('Admin overview query failed.', { code: error.code, message: error.message })
     throw createError({ statusCode: 502, message: 'Statistikat administrative nuk u ngarkuan.' })
