@@ -83,6 +83,29 @@ const sections = computed(() => {
   ]
 })
 
+type AdminInvoice = { id: string; number: string; kind: 'invoice' | 'credit_note'; issuedAt: string; total: number; lines: Array<{ description: string }> }
+// Invoices load when an organization is opened, not with the whole list.
+const organizationId = computed(() => props.organization?.id)
+const { data: invoiceData, status: invoiceStatus, execute: loadInvoices } = useFetch<{ invoices: AdminInvoice[] }>(
+  () => `/api/admin/organizations/${organizationId.value}/invoices`,
+  { immediate: false, watch: false },
+)
+watch(organizationId, (id) => {
+  if (id) void loadInvoices()
+}, { immediate: true })
+const preview = ref<AdminInvoice | null>(null)
+const previewUrl = computed(() =>
+  preview.value ? `/api/admin/organizations/${organizationId.value}/invoices/${preview.value.id}/pdf?inline=1` : '',
+)
+function formatDay(value: string) {
+  return new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+}
+
+const invoiceColumns: TableColumn<AdminInvoice>[] = [
+  { accessorKey: 'number', header: '' },
+  { id: 'total', header: '', meta: { class: { td: 'text-end whitespace-nowrap' } } },
+  { id: 'pdf', header: '', meta: { class: { td: 'text-end whitespace-nowrap' } } },
+]
 const columns: TableColumn<Detail>[] = [
   { accessorKey: 'label', header: '' },
   { accessorKey: 'value', header: '' },
@@ -138,6 +161,64 @@ async function copyId() {
           }"
         />
       </UCard>
+      <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
+        <template #header>
+          <UButton
+            icon="i-lucide-receipt-text"
+            :label="`${t('admin.details.invoices')} (${invoiceData?.invoices.length ?? 0})`"
+            color="neutral"
+            variant="link"
+            class="p-0 font-semibold pointer-events-none"
+            tabindex="-1"
+          />
+        </template>
+        <UTable
+          :data="invoiceData?.invoices || []"
+          :columns="invoiceColumns"
+          :loading="invoiceStatus === 'pending'"
+          :empty="t('admin.details.noInvoices')"
+          :ui="{
+            thead: 'hidden',
+            td: 'px-4 py-2 text-sm border-b border-default',
+            tbody: '[&>tr]:last:[&>td]:border-b-0',
+            separator: 'h-0',
+          }"
+        >
+          <template #number-cell="{ row }">
+            <UUser
+              :name="row.original.number"
+              :description="`${formatDay(row.original.issuedAt)} · ${row.original.lines.map(line => line.description).join(', ')}`"
+              :ui="{ name: 'tabular-nums', description: 'line-clamp-1' }"
+            />
+          </template>
+          <template #total-cell="{ row }">
+            <UBadge v-if="row.original.kind === 'credit_note'" color="neutral" variant="subtle" :label="t('billing.creditNote')" class="me-2" />
+            <UBadge color="neutral" variant="soft" :label="formatMoney(row.original.total)" />
+          </template>
+          <template #pdf-cell="{ row }">
+            <UButton
+              icon="i-lucide-eye"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :label="t('admin.details.previewInvoice')"
+              class="me-1"
+              @click="preview = row.original"
+            />
+            <UButton
+              :to="`/api/admin/organizations/${organization?.id}/invoices/${row.original.id}/pdf`"
+              external
+              download
+              icon="i-lucide-download"
+              color="neutral"
+              variant="outline"
+              size="xs"
+              label="PDF"
+              :aria-label="t('billing.downloadInvoice', { number: row.original.number })"
+            />
+          </template>
+        </UTable>
+      </UCard>
     </template>
     <template #footer>
       <UButton
@@ -154,6 +235,29 @@ async function copyId() {
         :organization-name="organization.name"
         :subscription="organization.subscription"
         @changed="emit('changed')"
+      />
+    </template>
+  </UModal>
+  <UModal
+    :open="!!preview"
+    :title="preview?.number"
+    :description="organization?.name"
+    :ui="{ content: 'sm:max-w-4xl h-[90dvh]', body: 'p-0 sm:p-0 flex-1' }"
+    @update:open="(value: boolean) => { if (!value) preview = null }"
+  >
+    <template #body>
+      <iframe v-if="previewUrl" :src="previewUrl" :title="preview?.number" class="h-full min-h-[70dvh] w-full border-0" />
+    </template>
+    <template #footer>
+      <UButton
+        v-if="preview"
+        :to="previewUrl.replace('?inline=1', '')"
+        external
+        download
+        icon="i-lucide-download"
+        color="neutral"
+        variant="outline"
+        label="PDF"
       />
     </template>
   </UModal>

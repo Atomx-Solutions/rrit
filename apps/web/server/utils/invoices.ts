@@ -5,7 +5,7 @@ export type InvoiceLine = { description: string; quantity: number; unitPriceCent
 export type InvoiceParty = { name: string; address: string; city?: string; country?: string; fiscalNumber: string }
 export type BillingDetails = { legalName: string; address: string; city: string; country: string; fiscalNumber: string }
 
-type InvoiceRow = {
+export type InvoiceRow = {
   id: string
   number: string
   kind: 'invoice' | 'credit_note'
@@ -22,7 +22,7 @@ type InvoiceRow = {
   total_cents: number
 }
 
-const invoiceColumns = `id,number,kind,credited_invoice_id,status,issued_at,currency,seller,buyer,lines,
+export const invoiceColumns = `id,number,kind,credited_invoice_id,status,issued_at,currency,seller,buyer,lines,
   subtotal_cents,vat_rate_basis_points,vat_cents,total_cents`
 
 /** RRIT-2026-000123: prefix, year of issue and a gapless per-year sequence. */
@@ -43,7 +43,7 @@ export function splitVat(totalCents: number, vatRateBasisPoints: number) {
   return { subtotalCents, vatCents: totalCents - subtotalCents, totalCents }
 }
 
-function toInvoice(row: InvoiceRow) {
+export function toInvoice(row: InvoiceRow) {
   return {
     id: row.id,
     number: row.number,
