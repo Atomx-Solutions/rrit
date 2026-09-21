@@ -1,13 +1,11 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'superadmin' })
+definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 useSeoMeta({ title: 'Admin · Rrit', robots: 'noindex, nofollow' })
+const { t } = useI18n()
 const { data: admin } = await useFetch('/api/admin/me', { key: 'admin-me' })
 </script>
 <template>
-  <main class="mx-auto max-w-3xl p-6">
-    <UCard>
-      <h1 class="text-lg font-semibold">Superadmin</h1>
-      <p class="text-sm text-muted mt-1">{{ admin?.email }}</p>
-    </UCard>
-  </main>
+  <AdminPage :title="t('admin.nav.overview')">
+    <UCard :title="t('admin.overviewTitle')" :description="admin?.email" />
+  </AdminPage>
 </template>
