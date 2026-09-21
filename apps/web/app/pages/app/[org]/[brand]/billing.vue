@@ -55,6 +55,9 @@ const paidSubscription = computed(() =>
     ? billing.value.subscription
     : null,
 )
+function formatPeriodEnd(value: string) {
+  return new Intl.DateTimeFormat('sq-XK', { dateStyle: 'long', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+}
 function planByCode(code: string | null | undefined) {
   return commercialPlans.value.find((plan) => plan.code === code)
 }
@@ -199,6 +202,12 @@ function usageValue(key: string, value: number) {
         </p>
         <p v-if="planByCode(paidSubscription?.planCode)" class="text-sm font-medium">
           {{ t('billing.currentPlan', { plan: packageName(planByCode(paidSubscription?.planCode)!) }) }}
+        </p>
+        <p v-if="paidSubscription" class="text-xs text-muted" data-testid="subscription-period-end">
+          {{ t('billing.validUntil', {
+            date: formatPeriodEnd(paidSubscription.periodEnd),
+            interval: (paidSubscription.interval === 'annual' ? t('billing.annual') : t('billing.monthly')).toLowerCase(),
+          }) }}
         </p>
         <p v-if="planByCode(paidSubscription?.pendingPlanCode)" class="text-xs text-muted">
           {{ t('billing.pendingDowngrade', { plan: packageName(planByCode(paidSubscription?.pendingPlanCode)!) }) }}
