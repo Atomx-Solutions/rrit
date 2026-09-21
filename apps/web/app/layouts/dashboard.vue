@@ -20,7 +20,9 @@ async function signOut() {
   await navigateTo('/login')
 }
 const route = useRoute()
-const collapsed = useCookie('rrit-sidebar-collapsed', { default: () => false })
+// Use a new preference key so every existing workspace starts with the compact
+// icon rail, then retain the navigation width chosen by that user.
+const collapsed = useCookie('rrit-sidebar-collapsed-v2', { default: () => true })
 const sidebarOpen = ref(!collapsed.value)
 // A mobile drawer closing must not overwrite the desktop preference.
 watch(sidebarOpen, (open) => {
