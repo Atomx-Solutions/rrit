@@ -8,7 +8,7 @@ import {
 
 describe('admin plan changes', () => {
   it('accepts a partial change', () => {
-    expect(planChangesSchema.safeParse({ monthly_cents: 2999, active: false }).success).toBe(true)
+    expect(planChangesSchema.safeParse({ monthly_cents: 2999, annual_discount_percent: 15, active: false }).success).toBe(true)
   })
 
   it.each([
@@ -16,6 +16,8 @@ describe('admin plan changes', () => {
     [{ monthly_credits: -5 }],
     [{ posts_per_month: 1.5 }],
     [{ style_fetch_post_count: 0 }],
+    [{ annual_discount_percent: -1 }],
+    [{ annual_discount_percent: 101 }],
     [{}],
     [{ code: 'pako-9' }],
   ])('rejects %o', (body) => {

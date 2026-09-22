@@ -14,6 +14,7 @@ export const planChangesSchema = nonEmpty({
   monthly_cents: count.max(100_000_000).optional(),
   posts_per_month: count.max(100_000).optional(),
   monthly_credits: count.max(100_000_000).optional(),
+  annual_discount_percent: z.number().int().min(0).max(100).optional(),
   style_fetch_post_count: z.number().int().min(1).max(100).optional(),
   active: z.boolean().optional(),
   sort_order: count.max(10_000).optional(),
