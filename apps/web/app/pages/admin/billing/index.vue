@@ -52,6 +52,8 @@ const query = computed(() => ({
 }))
 
 const { data, status, error, refresh } = await useFetch<BillingResponse>('/api/admin/billing/invoices', {
+    // Open the page at once and show loading inside it, instead of blocking navigation.
+    lazy: true,
   key: 'admin-billing-invoices',
   query,
 })
@@ -80,7 +82,7 @@ const summaryTiles = computed(() => {
     { label: t('admin.billing.thisMonth'), value: formatCents(s.this_month_cents), icon: 'i-lucide-calendar' },
     { label: t('admin.billing.netRevenue'), value: formatCents(s.net_revenue_cents), icon: 'i-lucide-trending-up' },
     { label: t('admin.billing.totalRevenue'), value: formatCents(s.total_revenue_cents), icon: 'i-lucide-receipt' },
-    { label: t('admin.billing.creditNotes'), value: formatCents(s.total_credit_notes_cents), icon: 'i-lucide-receipt-x' },
+    { label: t('admin.billing.creditNotes'), value: formatCents(s.total_credit_notes_cents), icon: 'i-lucide-undo-2' },
   ]
 })
 
@@ -92,6 +94,7 @@ function clearFilters() {
   search.number = ''
 }
 
+const preview = ref<Invoice | null>(null)
 function pdfUrl(inv: Invoice, inline: boolean) {
   return `/api/admin/organizations/${inv.organization_id}/invoices/${inv.id}/pdf${inline ? '?inline=1' : ''}`
 }
@@ -131,7 +134,7 @@ const sourceLabel: Record<string, string> = {
   <AdminPage :title="t('admin.nav.billing')">
     <!-- Summary tiles -->
     <UCard v-if="summaryTiles.length" class="shrink-0" :ui="{ body: 'p-4 sm:p-5' }">
-      <UPageGrid class="grid-cols-2 gap-3 sm:grid-cols-4">
+      <UPageGrid class="grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <UCard
           v-for="tile in summaryTiles"
           :key="tile.label"
@@ -230,34 +233,52 @@ const sourceLabel: Record<string, string> = {
           </span>
         </template>
         <template #actions-cell="{ row }">
-          <div class="flex justify-end gap-1">
-            <UButton
-              icon="i-lucide-eye"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :to="pdfUrl(row.original, true)"
-              target="_blank"
-              :aria-label="`${t('admin.billing.preview')} ${row.original.number}`"
-            />
-            <a
-              :href="pdfUrl(row.original, false)"
-              :download="`${row.original.number}.pdf`"
-              class="inline-flex"
-            >
-              <UButton
-                icon="i-lucide-download"
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                :aria-label="`${t('admin.billing.download')} ${row.original.number}`"
-                as="span"
-              />
-            </a>
-          </div>
+          <UButton
+            icon="i-lucide-eye"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :aria-label="`${t('admin.billing.preview')} ${row.original.number}`"
+            @click="preview = row.original"
+          />
+          <UButton
+            :to="pdfUrl(row.original, false)"
+            external
+            download
+            icon="i-lucide-download"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :aria-label="`${t('admin.billing.download')} ${row.original.number}`"
+          />
         </template>
       </UTable>
     </UCard>
+
+    <!-- Same in-page preview as the organization details. -->
+    <UModal
+      :open="!!preview"
+      :title="preview?.number"
+      :description="preview?.organization_name"
+      :ui="{ content: 'sm:max-w-4xl h-[90dvh]', body: 'p-0 sm:p-0 flex-1' }"
+      @update:open="(value: boolean) => { if (!value) preview = null }"
+    >
+      <template #body>
+        <iframe v-if="preview" :src="pdfUrl(preview, true)" :title="preview.number" class="h-full min-h-[70dvh] w-full border-0" />
+      </template>
+      <template #footer>
+        <UButton
+          v-if="preview"
+          :to="pdfUrl(preview, false)"
+          external
+          download
+          icon="i-lucide-download"
+          color="neutral"
+          variant="outline"
+          label="PDF"
+        />
+      </template>
+    </UModal>
 
     <template #footer>
       <ListPagination

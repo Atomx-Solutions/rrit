@@ -20,7 +20,9 @@ const { data, error, refresh } = await useFetch<{
   plans: AdminPlan[]
   credit_pricing: CreditPricing
   invoice_settings: InvoiceSettings
-}>('/api/admin/plans', { key: 'admin-plans' })
+}>('/api/admin/plans', {
+    // Open the page at once and show loading inside it, instead of blocking navigation.
+    lazy: true, key: 'admin-plans' })
 const plans = computed(() => data.value?.plans || [])
 const editing = ref<AdminPlan | null>(null)
 
