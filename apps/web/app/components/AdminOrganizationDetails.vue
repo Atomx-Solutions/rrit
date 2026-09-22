@@ -20,6 +20,25 @@ const { t } = useI18n()
 const toast = useToast()
 
 type Detail = { label: string; value: string }
+type Member = { user_id: string; email: string | null; role: string; status: string; created_at: string }
+type Brand = { id: string; name: string; category: string; status: string }
+type Details = {
+  members: Member[]
+  brands: Brand[]
+  subscription: { current_period_start: string; current_period_end: string } | null
+}
+// Members, brands and the period start come from the details endpoint,
+// loaded when an organization is opened and again after an action.
+const detailsId = computed(() => props.organization?.id)
+const { data: details, status: detailsStatus, execute: loadDetails } = useFetch<Details>(
+  () => `/api/admin/organizations/${detailsId.value}`,
+  { immediate: false, watch: false },
+)
+watch(detailsId, (id) => {
+  if (id) void loadDetails()
+}, { immediate: true })
+const memberStatusColors: Record<string, 'success' | 'warning' | 'neutral'> = { active: 'success', suspended: 'warning' }
+const brandStatusColors: Record<string, 'success' | 'neutral'> = { active: 'success', archived: 'neutral' }
 const statusColors: Record<string, 'success' | 'info' | 'warning' | 'error' | 'neutral'> = {
   active: 'success',
   trialing: 'info',
@@ -57,7 +76,12 @@ const sections = computed(() => {
             { label: t('admin.details.plan'), value: `${subscription.plan_name} (${subscription.plan_code})` },
             { label: t('admin.details.status'), value: t(`admin.status.${subscription.status}`) },
             { label: t('admin.details.price'), value: subscription.price_cents == null ? '—' : formatMoney(subscription.price_cents / 100) },
-            { label: t('admin.details.periodEnd'), value: formatDateTime(subscription.current_period_end) },
+            {
+              label: t('admin.details.period'),
+              value: details.value?.subscription
+                ? `${formatDateTime(details.value.subscription.current_period_start)} – ${formatDateTime(subscription.current_period_end)}`
+                : formatDateTime(subscription.current_period_end),
+            },
           ]
         : [{ label: t('admin.details.plan'), value: t('admin.organizations.noSubscription') }],
     },
@@ -71,14 +95,6 @@ const sections = computed(() => {
             { label: t('admin.details.spendable'), value: String(balance.remaining_credits - balance.reserved_credits) },
           ]
         : [{ label: t('admin.details.remaining'), value: '—' }],
-    },
-    {
-      title: t('admin.details.usage'),
-      icon: 'i-lucide-users',
-      rows: [
-        { label: t('admin.details.brands'), value: String(organization.brand_count) },
-        { label: t('admin.details.members'), value: String(organization.member_count) },
-      ],
     },
   ]
 })
@@ -99,6 +115,33 @@ const previewUrl = computed(() =>
 )
 function formatDay(value: string) {
   return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+}
+
+// The ten most recent invoices; the full history is on the billing page.
+const latestInvoices = computed(() => (invoiceData.value?.invoices || []).slice(0, 10))
+const memberColumns = computed<TableColumn<Member>[]>(() => [
+  { accessorKey: 'email', header: t('admin.details.email') },
+  { id: 'role', header: t('admin.users.role') },
+  { id: 'status', header: t('admin.details.status') },
+  { id: 'joined', header: t('admin.details.joinedAt'), meta: { class: { td: 'text-end whitespace-nowrap', th: 'text-end' } } },
+])
+const brandColumns = computed<TableColumn<Brand>[]>(() => [
+  { accessorKey: 'name', header: t('admin.details.name') },
+  { accessorKey: 'category', header: t('admin.details.category') },
+  { id: 'status', header: t('admin.details.status'), meta: { class: { td: 'text-end', th: 'text-end' } } },
+])
+const listUi = {
+  thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
+  th: 'px-4 py-2 text-xs font-medium',
+  td: 'px-4 py-2 text-sm border-b border-default',
+  tbody: '[&>tr]:last:[&>td]:border-b-0',
+  separator: 'h-0',
+}
+// After an action the modal, its lists and the page behind it all refresh.
+function onSubscriptionChanged() {
+  void loadDetails()
+  void loadInvoices()
+  emit('changed')
 }
 
 const invoiceColumns: TableColumn<AdminInvoice>[] = [
@@ -164,8 +207,8 @@ async function copyId() {
       <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
         <template #header>
           <UButton
-            icon="i-lucide-receipt-text"
-            :label="`${t('admin.details.invoices')} (${invoiceData?.invoices.length ?? 0})`"
+            icon="i-lucide-users"
+            :label="`${t('admin.details.members')} (${details?.members.length ?? organization?.member_count ?? 0})`"
             color="neutral"
             variant="link"
             class="p-0 font-semibold pointer-events-none"
@@ -173,7 +216,58 @@ async function copyId() {
           />
         </template>
         <UTable
-          :data="invoiceData?.invoices || []"
+          :data="details?.members || []"
+          :columns="memberColumns"
+          :loading="detailsStatus === 'pending'"
+          :empty="t('admin.details.noMembers')"
+          :ui="listUi"
+        >
+          <template #email-cell="{ row }">
+            <UUser :name="row.original.email || row.original.user_id" :ui="{ name: 'truncate max-w-48 sm:max-w-64' }" />
+          </template>
+          <template #role-cell="{ row }">{{ t(`admin.users.roles.${row.original.role}`) }}</template>
+          <template #status-cell="{ row }">
+            <UBadge :color="memberStatusColors[row.original.status] || 'neutral'" variant="subtle" :label="t(`admin.details.memberStatus.${row.original.status}`)" />
+          </template>
+          <template #joined-cell="{ row }">{{ formatDay(row.original.created_at) }}</template>
+        </UTable>
+      </UCard>
+      <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
+        <template #header>
+          <UButton
+            icon="i-lucide-store"
+            :label="`${t('admin.details.brands')} (${details?.brands.length ?? organization?.brand_count ?? 0})`"
+            color="neutral"
+            variant="link"
+            class="p-0 font-semibold pointer-events-none"
+            tabindex="-1"
+          />
+        </template>
+        <UTable
+          :data="details?.brands || []"
+          :columns="brandColumns"
+          :loading="detailsStatus === 'pending'"
+          :empty="t('admin.details.noBrands')"
+          :ui="listUi"
+        >
+          <template #status-cell="{ row }">
+            <UBadge :color="brandStatusColors[row.original.status] || 'neutral'" variant="subtle" :label="t(`admin.details.brandStatus.${row.original.status}`)" />
+          </template>
+        </UTable>
+      </UCard>
+      <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
+        <template #header>
+          <UButton
+            icon="i-lucide-receipt-text"
+            :label="`${t('admin.details.latestInvoices')} (${latestInvoices.length})`"
+            color="neutral"
+            variant="link"
+            class="p-0 font-semibold pointer-events-none"
+            tabindex="-1"
+          />
+        </template>
+        <UTable
+          :data="latestInvoices"
           :columns="invoiceColumns"
           :loading="invoiceStatus === 'pending'"
           :empty="t('admin.details.noInvoices')"
@@ -222,6 +316,13 @@ async function copyId() {
     </template>
     <template #footer>
       <UButton
+        icon="i-lucide-arrow-left"
+        color="neutral"
+        variant="outline"
+        :label="t('admin.details.back')"
+        @click="emit('close')"
+      />
+      <UButton
         v-if="organization"
         icon="i-lucide-copy"
         color="neutral"
@@ -234,7 +335,7 @@ async function copyId() {
         :organization-id="organization.id"
         :organization-name="organization.name"
         :subscription="organization.subscription"
-        @changed="emit('changed')"
+        @changed="onSubscriptionChanged"
       />
     </template>
   </UModal>

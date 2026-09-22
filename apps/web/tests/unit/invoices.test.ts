@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { formatInvoiceMoney, invoicePdf } from '../../server/utils/invoice-pdf'
-import { formatInvoiceNumber, issueInvoice, splitVat } from '../../server/utils/invoices'
+import { addVat, formatInvoiceNumber, issueInvoice } from '../../server/utils/invoices'
 import { annualPriceCents } from '../../server/utils/subscriptions'
 
 const organizationId = '00000000-0000-4000-8000-000000000001'
@@ -80,9 +80,10 @@ describe('invoice amounts', () => {
     expect(invoice.lines[0]).toMatchObject({ quantity: 500, unitPriceCents: 2, totalCents: 1000 })
   })
 
-  it('keeps the paid total and splits VAT out of it when VAT applies', () => {
-    expect(splitVat(1000, 0)).toEqual({ subtotalCents: 1000, vatCents: 0, totalCents: 1000 })
-    expect(splitVat(1180, 1800)).toEqual({ subtotalCents: 1000, vatCents: 180, totalCents: 1180 })
+  it('adds VAT on top of the net price', () => {
+    expect(addVat(1000, 0)).toEqual({ subtotalCents: 1000, vatCents: 0, totalCents: 1000 })
+    expect(addVat(2499, 1800)).toEqual({ subtotalCents: 2499, vatCents: 450, totalCents: 2949 })
+    expect(addVat(-2499, 1800)).toEqual({ subtotalCents: -2499, vatCents: -450, totalCents: -2949 })
   })
 })
 
