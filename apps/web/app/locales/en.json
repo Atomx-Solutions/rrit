@@ -1804,7 +1804,7 @@
   ,"admin.ai.calls": "Calls"
   ,"admin.ai.callsShort": "calls"
   ,"admin.ai.dailyTitle": "Daily AI calls"
-  ,"admin.ai.dailyDescription": "Busiest day: {{max}} calls. Hover a bar for details."
+  ,"admin.ai.dailyDescription": "Busiest day: {{max}} calls. Hover or tap a bar for details."
   ,"admin.ai.showTable": "Table"
   ,"admin.ai.showChart": "Chart"
   ,"admin.ai.date": "Date"

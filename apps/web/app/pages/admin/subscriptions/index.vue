@@ -112,14 +112,23 @@ const tableMeta = {
     <!-- shrink-0: in the flex panel body the card would otherwise shrink and clip rows instead of scrolling. -->
     <UCard ref="listCard" class="shrink-0 scroll-mt-4" :ui="{ header: 'px-3 py-3 sm:px-4 space-y-3', body: 'p-0 sm:p-0' }">
       <template #header>
-        <!-- Status tabs; the list is filtered by the API. -->
+        <!-- Status tabs on wider screens; on phones the same choice is a select,
+             because six tabs do not fit and their labels get cut. -->
         <UTabs
           v-model="filters.status"
           :items="statusTabs"
           :content="false"
           variant="link"
           size="sm"
-          class="w-full overflow-x-auto"
+          class="hidden w-full md:block"
+          :ui="{ list: 'flex-wrap', trigger: 'grow-0' }"
+        />
+        <USelect
+          v-model="filters.status"
+          :items="statusTabs"
+          icon="i-lucide-filter"
+          :aria-label="t('admin.subscriptions.status')"
+          class="w-full md:hidden"
         />
         <UForm :state="filters" class="flex flex-wrap items-center gap-3">
           <USelect v-model="filters.plan" :items="planOptions" :aria-label="t('admin.subscriptions.plan')" class="w-full sm:w-48" />
