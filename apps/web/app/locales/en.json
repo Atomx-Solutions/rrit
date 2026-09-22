@@ -1924,4 +1924,7 @@
   ,"admin.details.brandStatus.active": "Active"
   ,"admin.details.brandStatus.archived": "Archived"
   ,"admin.subscription.confirmButton": "Confirm"
+  ,"admin.subscriptions.tabAll": "All"
+  ,"admin.subscriptions.period": "Period"
+  ,"admin.subscriptions.expiringWeek": "Expires within 7 days"
 }
