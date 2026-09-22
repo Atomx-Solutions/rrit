@@ -1804,7 +1804,7 @@
   ,"admin.ai.calls": "Thirrje"
   ,"admin.ai.callsShort": "thirrje"
   ,"admin.ai.dailyTitle": "Thirrjet ditore te AI-ja"
-  ,"admin.ai.dailyDescription": "Dita më e ngarkuar: {{max}} thirrje. Kalo mbi një shtyllë për detajet."
+  ,"admin.ai.dailyDescription": "Dita më e ngarkuar: {{max}} thirrje. Kalo mbi një shtyllë ose prek atë për detajet."
   ,"admin.ai.showTable": "Tabela"
   ,"admin.ai.showChart": "Grafiku"
   ,"admin.ai.date": "Data"

@@ -121,6 +121,11 @@ const usageTiles = computed(() => {
 
 const daily = computed(() => data.value?.daily || [])
 const maxDailyCalls = computed(() => Math.max(0, ...daily.value.map(d => d.calls)))
+// The day shown under the chart: the one hovered or tapped, else the busiest.
+const activeDate = ref<string | null>(null)
+const activeDay = computed(() =>
+  daily.value.find(day => day.date === activeDate.value)
+  || daily.value.reduce<Costs['daily'][number] | null>((busiest, day) => (!busiest || day.calls > busiest.calls ? day : busiest), null))
 function dayTooltip(day: Costs['daily'][number]) {
   return `${formatDay(day.date)}: ${number.format(day.calls)} ${t('admin.ai.callsShort')} · ${microEur(day.cost_micro_eur)}`
 }
@@ -244,31 +249,40 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
             :avatar="{ icon: 'i-lucide-chart-column', size: 'sm' }"
           />
         </template>
+        <!-- Plain bars sized by height, with no tooltip wrapper: on touch screens the
+             wrapper collapsed the bars to zero height after hydration. Hovering or
+             tapping a bar shows that day below the chart. -->
         <UFieldGroup :aria-label="t('admin.ai.dailyTitle')" class="flex h-44 w-full items-end gap-1 sm:gap-1.5">
-          <UTooltip
+          <UButton
             v-for="day in daily"
             :key="day.date"
-            :text="dayTooltip(day)"
-            :content="{ side: 'top' }"
-            :delay-duration="0"
+            color="neutral"
+            variant="ghost"
+            :aria-label="dayTooltip(day)"
+            :aria-pressed="activeDay?.date === day.date"
+            class="flex h-44 min-w-0 flex-1 items-end rounded-none p-0 hover:bg-elevated/60 focus-visible:ring-2"
+            @mouseenter="activeDate = day.date"
+            @focus="activeDate = day.date"
+            @click="activeDate = day.date"
           >
-            <UButton
-              color="neutral"
-              variant="ghost"
-              :aria-label="dayTooltip(day)"
-              class="h-full min-w-1 flex-1 rounded-none p-0 hover:bg-transparent focus-visible:ring-2"
-            >
-              <UProgress
-                :model-value="maxDailyCalls ? (day.calls / maxDailyCalls) * 100 : 0"
-                orientation="vertical"
-                inverted
-                color="primary"
-                class="pointer-events-none h-full w-full"
-                :ui="{ root: 'h-full w-full', base: 'h-full w-full rounded-none bg-transparent', indicator: 'rounded-t-sm rounded-b-none' }"
-              />
-            </UButton>
-          </UTooltip>
+            <UBadge
+              as="span"
+              :color="activeDay?.date === day.date ? 'primary' : 'neutral'"
+              variant="solid"
+              class="block w-full rounded-none rounded-t-sm p-0"
+              :class="activeDay?.date === day.date ? '' : 'bg-primary/70'"
+              :style="{ height: `${maxDailyCalls ? Math.max((day.calls / maxDailyCalls) * 100, day.calls ? 2 : 0) : 0}%` }"
+            />
+          </UButton>
         </UFieldGroup>
+        <UAlert
+          v-if="activeDay"
+          color="neutral"
+          variant="subtle"
+          icon="i-lucide-calendar-days"
+          class="mt-3"
+          :title="dayTooltip(activeDay)"
+        />
         <UFieldGroup v-if="daily.length" class="mt-2 flex w-full justify-between">
           <UBadge color="neutral" variant="soft" size="sm" :label="formatDay(daily[0]!.date)" />
           <UBadge color="neutral" variant="soft" size="sm" :label="formatDay(daily[daily.length - 1]!.date)" />
