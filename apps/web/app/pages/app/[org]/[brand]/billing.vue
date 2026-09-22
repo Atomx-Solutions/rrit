@@ -259,34 +259,49 @@ function usageValue(key: string, value: number) {
         icon="i-lucide-circle-alert"
         :title="t('billing.creditsExhausted')"
       />
-      <UCard v-if="billing?.selfServiceEnabled && topUpConfig" id="credit-top-up-section" as="section" class="scroll-mt-4" :ui="{ body: 'p-4 sm:p-5' }">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div class="space-y-1">
-            <h2 class="text-sm font-semibold">{{ t('billing.creditTopUpTitle') }}</h2>
-            <p class="text-sm text-muted">{{ t('billing.creditTopUpDescription') }}</p>
-            <p class="text-xs text-muted">{{ t('billing.creditTopUpExpiry') }}</p>
+      <UCard
+        v-if="billing?.selfServiceEnabled && topUpConfig"
+        id="credit-top-up-section"
+        as="section"
+        class="scroll-mt-4"
+        :ui="{ body: 'p-0 sm:p-0' }"
+      >
+        <div class="grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
+          <div class="flex items-start gap-3 p-5 sm:p-6">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <UIcon name="i-lucide-circle-plus" class="size-4 text-primary" />
+            </div>
+            <div class="min-w-0 space-y-1.5">
+              <h2 class="text-base font-semibold">{{ t('billing.creditTopUpTitle') }}</h2>
+              <p class="text-sm text-muted leading-relaxed">{{ t('billing.creditTopUpDescription') }}</p>
+              <p class="text-xs text-muted leading-relaxed">{{ t('billing.creditTopUpExpiry') }}</p>
+            </div>
           </div>
-          <div class="flex flex-col gap-2 sm:w-80">
-            <UFormField name="credit-top-up" :label="t('billing.creditTopUpQuantity')">
-              <UInputNumber
-                id="credit-top-up"
-                v-model="topUpCredits"
-                :min="topUpConfig.minimum"
-                :max="topUpConfig.maximum"
-                :step="1"
-                @input="previewTopUpCredits"
-              />
-            </UFormField>
-            <p class="text-xs text-muted">
-              {{ t('billing.creditTopUpRange', { minimum: topUpConfig.minimum, maximum: topUpConfig.maximum }) }}
-            </p>
-            <p class="text-sm font-semibold tabular-nums">
-              {{ t('billing.creditTopUpPrice', { price: formatMoney(topUpPrice) }) }}
-            </p>
-            <UAlert v-if="topUpError" color="error" variant="outline" :title="topUpError" />
-            <UButton :disabled="!topUpValid" :loading="toppingUp" @click="buyCreditTopUp">
-              {{ t('billing.buyCreditTopUp') }}
-            </UButton>
+          <div class="border-t border-default bg-elevated/30 p-5 sm:p-6 lg:border-l lg:border-t-0">
+            <div class="space-y-3">
+              <UFormField name="credit-top-up" :label="t('billing.creditTopUpQuantity')">
+                <UInputNumber
+                  id="credit-top-up"
+                  v-model="topUpCredits"
+                  :min="topUpConfig.minimum"
+                  :max="topUpConfig.maximum"
+                  :step="1"
+                  class="w-full"
+                  @input="previewTopUpCredits"
+                />
+              </UFormField>
+              <p class="text-xs text-muted">
+                {{ t('billing.creditTopUpRange', { minimum: topUpConfig.minimum, maximum: topUpConfig.maximum }) }}
+              </p>
+              <div class="flex items-center justify-between gap-3 rounded-lg border border-default bg-default px-3 py-2.5">
+                <span class="text-xs font-medium text-muted">{{ t('billing.creditTopUpTotal') }}</span>
+                <span class="text-base font-semibold tabular-nums">{{ formatMoney(topUpPrice) }}</span>
+              </div>
+              <UAlert v-if="topUpError" color="error" variant="outline" :title="topUpError" />
+              <UButton block :disabled="!topUpValid" :loading="toppingUp" @click="buyCreditTopUp">
+                {{ t('billing.buyCreditTopUp') }}
+              </UButton>
+            </div>
           </div>
         </div>
       </UCard>

@@ -1,10 +1,14 @@
-import sq from '~/locales/sq.json'
-import en from '~/locales/en.json'
+import sq from '~/locales/client/sq.json'
+import en from '~/locales/client/en.json'
+import adminSq from '~/locales/admin/sq.json'
+import adminEn from '~/locales/admin/en.json'
 
 const attributes = ['aria-label', 'placeholder', 'title', 'alt']
+const sqDictionary = { ...sq, ...adminSq }
+const enDictionary = { ...en, ...adminEn }
 const maps = {
-  sqToEn: new Map(Object.entries(sq).map(([key, value]) => [value, en[key as keyof typeof en]])),
-  enToSq: new Map(Object.entries(en).map(([key, value]) => [value, sq[key as keyof typeof sq]])),
+  sqToEn: new Map(Object.entries(sqDictionary).map(([key, value]) => [value, enDictionary[key as keyof typeof enDictionary]])),
+  enToSq: new Map(Object.entries(enDictionary).map(([key, value]) => [value, sqDictionary[key as keyof typeof sqDictionary]])),
 }
 const normalizedMaps = {
   sqToEn: new Map([...maps.sqToEn].map(([key, value]) => [key.replace(/\s+/g, ' '), value])),

@@ -1,10 +1,17 @@
-import sq from '~/locales/sq.json'
-import en from '~/locales/en.json'
+import sq from '~/locales/client/sq.json'
+import en from '~/locales/client/en.json'
+import adminSq from '~/locales/admin/sq.json'
+import adminEn from '~/locales/admin/en.json'
 
 export type AppLocale = 'sq-XK' | 'en-US'
 export type AppLanguage = 'sq' | 'en'
 
-const dictionaries = { sq, en } as const
+// Client/shared text and Superadmin text intentionally live in separate
+// dictionaries. Consumers still use one translation function.
+const dictionaries = {
+  sq: { ...sq, ...adminSq },
+  en: { ...en, ...adminEn },
+} as const
 
 export function languageForLocale(value: string | undefined): AppLanguage {
   return value?.toLowerCase().startsWith('en') ? 'en' : 'sq'
