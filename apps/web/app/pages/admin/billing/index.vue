@@ -26,8 +26,11 @@ type BillingResponse = {
   summary: {
     total_revenue_cents: number
     total_credit_notes_cents: number
+    gross_revenue_cents: number
     net_revenue_cents: number
+    vat_cents: number
     this_month_cents: number
+    this_month_net_cents: number
   }
   total: number
   page: number
@@ -35,7 +38,7 @@ type BillingResponse = {
 
 const today = new Date().toISOString().slice(0, 10)
 const page = ref(1)
-const pageSize = ref(50)
+const pageSize = ref(20)
 
 // Date filters go to the API
 const dateFilters = reactive({ from: '', to: '' })
@@ -71,17 +74,19 @@ const invoices = computed(() => {
 
 const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })
 const formatCents = (cents: number) => euro.format(cents / 100)
+// Invoices show the purchase time, to the second.
 const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+  new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
 
 const summary = computed(() => data.value?.summary)
 const summaryTiles = computed(() => {
   const s = summary.value
   if (!s) return []
   return [
-    { label: t('admin.billing.thisMonth'), value: formatCents(s.this_month_cents), icon: 'i-lucide-calendar' },
+    // All after credit notes: gross includes VAT, net excludes it.
+    { label: t('admin.billing.grossRevenue'), value: formatCents(s.gross_revenue_cents), icon: 'i-lucide-receipt' },
     { label: t('admin.billing.netRevenue'), value: formatCents(s.net_revenue_cents), icon: 'i-lucide-trending-up' },
-    { label: t('admin.billing.totalRevenue'), value: formatCents(s.total_revenue_cents), icon: 'i-lucide-receipt' },
+    { label: t('admin.billing.vat'), value: formatCents(s.vat_cents), icon: 'i-lucide-landmark' },
     { label: t('admin.billing.creditNotes'), value: formatCents(s.total_credit_notes_cents), icon: 'i-lucide-undo-2' },
   ]
 })

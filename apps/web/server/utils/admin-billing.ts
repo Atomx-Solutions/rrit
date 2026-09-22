@@ -51,8 +51,11 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
     summary: {
       total_revenue_cents: number
       total_credit_notes_cents: number
+      gross_revenue_cents: number
       net_revenue_cents: number
+      vat_cents: number
       this_month_cents: number
+      this_month_net_cents: number
     }
     total: number
     page: number

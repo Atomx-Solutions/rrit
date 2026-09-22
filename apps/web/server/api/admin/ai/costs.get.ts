@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     // Without a configured key no call can be attributed to the platform.
   }
   const [costs, providerAccount] = await Promise.all([
-    adminAiCosts(range, keyFingerprint, query.data.scope !== 'all'),
+    adminAiCosts(range, keyFingerprint),
     openRouterAccount(),
   ])
   return { ...costs, provider_account: providerAccount }

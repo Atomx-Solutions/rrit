@@ -11,7 +11,9 @@ export default defineEventHandler(async (event) => {
   )
   if (!invoice) throw createError({ statusCode: 404, message: 'Fatura nuk u gjet.' })
   setHeader(event, 'Content-Type', 'application/pdf')
-  setHeader(event, 'Content-Disposition', `attachment; filename="${invoice.number}.pdf"`)
+  // ?inline=1 shows the PDF in the browser (preview) instead of downloading it.
+  const disposition = getQuery(event).inline === '1' ? 'inline' : 'attachment'
+  setHeader(event, 'Content-Disposition', `${disposition}; filename="${invoice.number}.pdf"`)
   setHeader(event, 'Cache-Control', 'private, no-store')
   return invoicePdf(invoice)
 })

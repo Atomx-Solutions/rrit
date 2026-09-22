@@ -72,7 +72,7 @@ function clearFilters() {
 const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const formatCents = (value: number | null) => (value == null ? '—' : euro.format(value / 100))
 const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+  new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
 const intervalLabel = (value: string) =>
   value === 'annual' ? t('admin.subscriptions.intervalAnnual') : t('admin.subscriptions.intervalMonthly')
 

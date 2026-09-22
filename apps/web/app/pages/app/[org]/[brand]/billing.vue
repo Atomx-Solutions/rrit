@@ -42,8 +42,12 @@ async function saveDetails() {
     savingDetails.value = false
   }
 }
+// Numeric dates: some browsers lack Albanian month names and print "M09".
+type BillingInvoice = NonNullable<typeof invoiceData.value>['invoices'][number]
+const previewInvoice = ref<BillingInvoice | null>(null)
 function formatInvoiceDate(iso: string) {
-  return new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeZone: 'Europe/Belgrade' }).format(new Date(iso))
+  // The purchase time, to the second.
+  return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(iso))
 }
 const commercialPlans = computed(() => plans.value.filter(plan => !plan.isTrial))
 const annualDiscount = computed(() => Math.max(0, ...commercialPlans.value.map(plan => plan.annualDiscount)))
@@ -56,7 +60,7 @@ const paidSubscription = computed(() =>
     : null,
 )
 function formatPeriodEnd(value: string) {
-  return new Intl.DateTimeFormat('sq-XK', { dateStyle: 'long', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+  return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
 }
 function planByCode(code: string | null | undefined) {
   return commercialPlans.value.find((plan) => plan.code === code)
@@ -85,8 +89,10 @@ async function switchPlan() {
     })
     selected.value = ''
     await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('trial'), refreshInvoices()])
-  } catch {
-    switchError.value = t('billing.activationFailed')
+  } catch (error) {
+    // Show the server's reason when it gives one.
+    const reason = (error as { data?: { message?: string } }).data?.message
+    switchError.value = reason ? `${t('billing.activationFailed')} ${reason}` : t('billing.activationFailed')
   } finally {
     switching.value = false
   }
@@ -101,8 +107,10 @@ async function buyCreditTopUp() {
       body: { credits: topUpCredits.value, idempotencyKey: crypto.randomUUID() },
     })
     await Promise.all([refreshUsage(), refreshNuxtData('header-credit-balance'), refreshInvoices()])
-  } catch {
-    topUpError.value = t('billing.creditTopUpFailed')
+  } catch (error) {
+    // Show the server's reason (e.g. no active subscription) when it gives one.
+    const reason = (error as { data?: { message?: string } }).data?.message
+    topUpError.value = reason ? `${t('billing.creditTopUpFailed')} ${reason}` : t('billing.creditTopUpFailed')
   } finally {
     toppingUp.value = false
   }
@@ -391,6 +399,15 @@ function usageValue(key: string, value: number) {
           <div class="flex items-center gap-3">
             <span class="text-sm font-semibold tabular-nums">{{ formatMoney(invoice.total) }}</span>
             <UButton
+              icon="i-lucide-eye"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              :label="t('billing.viewInvoice')"
+              :aria-label="t('billing.viewInvoiceNumber', { number: invoice.number })"
+              @click="previewInvoice = invoice"
+            />
+            <UButton
               :to="`/api/billing/invoices/${invoice.id}/pdf`"
               external
               download
@@ -411,6 +428,34 @@ function usageValue(key: string, value: number) {
         class="border-0 rounded-none"
       />
     </UCard>
+    <!-- Same in-page preview as in the admin: the PDF opens without downloading. -->
+    <UModal
+      :open="!!previewInvoice"
+      :title="previewInvoice?.number"
+      :ui="{ content: 'sm:max-w-4xl h-[90dvh]', body: 'p-0 sm:p-0 flex-1' }"
+      @update:open="(value: boolean) => { if (!value) previewInvoice = null }"
+    >
+      <template #body>
+        <iframe
+          v-if="previewInvoice"
+          :src="`/api/billing/invoices/${previewInvoice.id}/pdf?inline=1`"
+          :title="previewInvoice.number"
+          class="h-full min-h-[70dvh] w-full border-0"
+        />
+      </template>
+      <template #footer>
+        <UButton
+          v-if="previewInvoice"
+          :to="`/api/billing/invoices/${previewInvoice.id}/pdf`"
+          external
+          download
+          icon="i-lucide-download"
+          color="neutral"
+          variant="outline"
+          label="PDF"
+        />
+      </template>
+    </UModal>
     <UCard id="billing-details" as="section" :ui="{ body: 'p-4 sm:p-5', header: 'px-5 py-4' }">
       <template #header>
         <h2 class="text-sm font-semibold">{{ t('billing.detailsTitle') }}</h2>

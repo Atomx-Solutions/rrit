@@ -91,10 +91,16 @@ export function formatInvoiceMoney(value: number) {
   const [whole, cents] = Math.abs(value).toFixed(2).split('.')
   return `${sign}${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${cents} €`
 }
+// Kosovo local date and time of the purchase, to the second: an invoice
+// issued just after midnight must not show the previous day.
 function formatDate(iso: string) {
-  const date = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(date.getUTCDate())}.${pad(date.getUTCMonth() + 1)}.${date.getUTCFullYear()}`
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    timeZone: 'Europe/Belgrade',
+  }).formatToParts(new Date(iso))
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? ''
+  return `${part('day')}.${part('month')}.${part('year')} ${part('hour')}:${part('minute')}:${part('second')}`
 }
 function truncate(value: string, max: number) {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value
@@ -130,7 +136,7 @@ export function invoicePdf(invoice: Invoice) {
 
   // --- Invoice meta ---
   text(50, 726, `Nr. ${invoice.number}`, 10, true)
-  text(50, 711, `Data / Date: ${formatDate(invoice.issuedAt)}`)
+  text(50, 711, `Data dhe ora / Date & time: ${formatDate(invoice.issuedAt)}`)
   const statusLabel = invoice.status === 'paid' ? 'E paguar / Paid' : invoice.status
   text(50, 696, `Statusi / Status: ${statusLabel}`)
 

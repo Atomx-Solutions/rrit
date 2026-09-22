@@ -5,7 +5,6 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => !Number.
 export const adminAiCostsQuerySchema = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
-  scope: z.enum(['current', 'all']).optional(),
 })
 
 const DAY = 24 * 60 * 60 * 1000

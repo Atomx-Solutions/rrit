@@ -17,7 +17,7 @@ const toast = useToast()
 type Detail = { label: string; value: string }
 function formatDateTime(value: string | null) {
   return value
-    ? new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+    ? new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
     : t('admin.users.never')
 }
 

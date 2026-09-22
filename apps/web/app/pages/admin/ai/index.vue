@@ -21,16 +21,24 @@ type Costs = {
 
 const today = new Date().toISOString().slice(0, 10)
 const monthStart = `${today.slice(0, 8)}01`
-const range = reactive({ from: monthStart, to: today, scope: 'current' as 'current' | 'all' })
-const scopeOptions = computed(() => [
-  { label: t('admin.ai.scopeCurrentKey'), value: 'current' },
-  { label: t('admin.ai.scopeAllStored'), value: 'all' },
-])
-const { data, status, error, refresh } = await useFetch<Costs>('/api/admin/ai/costs', {
+// Costs always cover the OpenRouter key configured in .env. The saved dates
+// live in the URL, so they survive a reload.
+const route = useRoute()
+const router = useRouter()
+const isDate = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+const range = reactive({
+  from: isDate(route.query.from) ? route.query.from : monthStart,
+  to: isDate(route.query.to) ? route.query.to : today,
+})
+// A changed date reloads the report at once and is kept in the URL.
+watch(range, () => {
+  router.replace({ query: { ...route.query, from: range.from, to: range.to } })
+})
+const { data, error, refresh } = await useFetch<Costs>('/api/admin/ai/costs', {
     // Open the page at once and show loading inside it, instead of blocking navigation.
     lazy: true,
   key: 'admin-ai-costs',
-  query: computed(() => ({ from: range.from, to: range.to, scope: range.scope })),
+  query: computed(() => ({ from: range.from, to: range.to })),
 })
 
 const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -39,7 +47,8 @@ const number = new Intl.NumberFormat('sq-XK')
 const microEur = (value: number) => euro.format(value / 1_000_000)
 
 function formatDay(value: string) {
-  return new Intl.DateTimeFormat('sq-XK', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+  // Numeric: some browsers lack Albanian month names and print "M09".
+  return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
 }
 
 const account = computed(() => data.value?.provider_account)
@@ -112,7 +121,6 @@ const usageTiles = computed(() => {
 
 const daily = computed(() => data.value?.daily || [])
 const maxDailyCalls = computed(() => Math.max(0, ...daily.value.map(d => d.calls)))
-const showDailyTable = ref(false)
 function dayTooltip(day: Costs['daily'][number]) {
   return `${formatDay(day.date)}: ${number.format(day.calls)} ${t('admin.ai.callsShort')} · ${microEur(day.cost_micro_eur)}`
 }
@@ -130,10 +138,6 @@ const organizationColumns = computed<TableColumn<Costs['by_organization'][number
   { accessorKey: 'organization_name', header: t('admin.organizations.organization') },
   { id: 'calls', header: t('admin.ai.calls'), meta: hideOnPhone },
   ...costColumn,
-])
-const dailyColumns = computed<TableColumn<Costs['daily'][number]>[]>(() => [
-  { accessorKey: 'date', header: t('admin.ai.date') },
-  { id: 'calls', header: t('admin.ai.calls'), meta: endAligned },
 ])
 const tableUi = {
   root: 'w-full',
@@ -217,17 +221,6 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
         <UFormField name="to" :label="t('admin.ai.to')">
           <UInput v-model="range.to" type="date" :min="range.from" :max="today" class="w-full" />
         </UFormField>
-        <UFormField name="scope" :label="t('admin.ai.scope')">
-          <USelect v-model="range.scope" :items="scopeOptions" class="w-52" />
-        </UFormField>
-        <UButton
-          icon="i-lucide-refresh-cw"
-          color="neutral"
-          variant="outline"
-          :loading="status === 'pending'"
-          :label="t('admin.ai.refresh')"
-          @click="refresh()"
-        />
       </UForm>
       <UPageGrid v-if="data" class="grid-cols-2 gap-3">
         <UCard v-for="tile in usageTiles" :key="tile.label" variant="subtle" :ui="{ body: 'p-3 sm:p-4' }">
@@ -242,30 +235,16 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
     </UCard>
 
     <template v-if="data">
-      <!-- Grafiku ditor -->
+      <!-- Calls per day: hover (or focus) a bar for the date, calls and cost. -->
       <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }">
         <template #header>
-          <UFieldGroup class="flex w-full items-center justify-between gap-2">
-            <UUser
-              :name="t('admin.ai.dailyTitle')"
-              :description="t('admin.ai.dailyDescription', { max: number.format(maxDailyCalls) })"
-              :avatar="{ icon: 'i-lucide-chart-column', size: 'sm' }"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              :icon="showDailyTable ? 'i-lucide-chart-column' : 'i-lucide-table'"
-              :label="showDailyTable ? t('admin.ai.showChart') : t('admin.ai.showTable')"
-              @click="showDailyTable = !showDailyTable"
-            />
-          </UFieldGroup>
+          <UUser
+            :name="t('admin.ai.dailyTitle')"
+            :description="t('admin.ai.dailyDescription', { max: number.format(maxDailyCalls) })"
+            :avatar="{ icon: 'i-lucide-chart-column', size: 'sm' }"
+          />
         </template>
-        <UTable v-if="showDailyTable" :data="daily" :columns="dailyColumns" :ui="tableUi">
-          <template #date-cell="{ row }">{{ formatDay(row.original.date) }}</template>
-          <template #calls-cell="{ row }">{{ number.format(row.original.calls) }}</template>
-        </UTable>
-        <UFieldGroup v-else :aria-label="t('admin.ai.dailyTitle')" class="flex h-44 w-full items-end gap-px sm:gap-0.5">
+        <UFieldGroup :aria-label="t('admin.ai.dailyTitle')" class="flex h-44 w-full items-end gap-1 sm:gap-1.5">
           <UTooltip
             v-for="day in daily"
             :key="day.date"
@@ -285,12 +264,12 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
                 inverted
                 color="primary"
                 class="pointer-events-none h-full w-full"
-                :ui="{ root: 'h-full w-full', base: 'h-full w-full rounded-t-sm rounded-b-none bg-elevated/40', indicator: 'rounded-t-sm rounded-b-none' }"
+                :ui="{ root: 'h-full w-full', base: 'h-full w-full rounded-none bg-transparent', indicator: 'rounded-t-sm rounded-b-none' }"
               />
             </UButton>
           </UTooltip>
         </UFieldGroup>
-        <UFieldGroup v-if="!showDailyTable && daily.length" class="mt-2 flex w-full justify-between">
+        <UFieldGroup v-if="daily.length" class="mt-2 flex w-full justify-between">
           <UBadge color="neutral" variant="soft" size="sm" :label="formatDay(daily[0]!.date)" />
           <UBadge color="neutral" variant="soft" size="sm" :label="formatDay(daily[daily.length - 1]!.date)" />
         </UFieldGroup>

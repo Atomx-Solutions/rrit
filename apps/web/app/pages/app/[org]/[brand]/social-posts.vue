@@ -127,7 +127,9 @@ async function sync(more = false) {
               {{ post.channel }} ·
               {{
                 new Intl.DateTimeFormat('sq', {
-                  dateStyle: 'medium',
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
                   timeZone: data.preferences.timezone,
                 }).format(new Date(post.publishedAt))
               }}

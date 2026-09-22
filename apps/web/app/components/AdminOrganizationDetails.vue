@@ -29,7 +29,7 @@ const statusColors: Record<string, 'success' | 'info' | 'warning' | 'error' | 'n
   expired: 'neutral',
 }
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+  return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
 }
 
 const sections = computed(() => {
@@ -98,7 +98,7 @@ const previewUrl = computed(() =>
   preview.value ? `/api/admin/organizations/${organizationId.value}/invoices/${preview.value.id}/pdf?inline=1` : '',
 )
 function formatDay(value: string) {
-  return new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+  return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
 }
 
 const invoiceColumns: TableColumn<AdminInvoice>[] = [
