@@ -23,6 +23,8 @@ watch([q, pageSize], () => {
 })
 
 const { data, status: loading, error, refresh } = await useFetch<{ items: User[]; total: number }>('/api/admin/users', {
+    // Open the page at once and show loading inside it, instead of blocking navigation.
+    lazy: true,
   key: 'admin-users',
   query: computed(() => ({
     page: page.value,

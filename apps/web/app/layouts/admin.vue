@@ -6,7 +6,7 @@ import { adminDashboardKey } from '~/utils/dashboard'
 const { t } = useI18n()
 const toast = useToast()
 const route = useRoute()
-const { data: admin } = await useFetch('/api/admin/me', { key: 'admin-me' })
+const { data: admin } = await useFetch('/api/admin/me', { key: 'admin-me', lazy: true })
 
 // Same sidebar behavior as the customer dashboard, with its own preference.
 const collapsed = useCookie('rrit-admin-sidebar-collapsed', { default: () => false })
@@ -55,6 +55,7 @@ async function signOut() {
     return
   }
   clearNuxtData()
+  useState<number>('superadmin-verified-at').value = 0
   await navigateTo('/admin/login', { replace: true })
 }
 const profileMenu = computed(() => [

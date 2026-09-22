@@ -12,4 +12,5 @@ export default defineEventHandler(async (event) => {
       message: 'Nuk ke akses.',
       data: { code: 'SUPERADMIN_REQUIRED' },
     })
+  event.context.superadmin = user
 })

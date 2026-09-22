@@ -27,6 +27,8 @@ const { plans } = usePlanCatalog()
 const { data, status: loading, error, refresh } = await useFetch<{ items: Organization[]; total: number }>(
   '/api/admin/organizations',
   {
+    // Open the page at once and show loading inside it, instead of blocking navigation.
+    lazy: true,
     key: 'admin-organizations',
     query: computed(() => ({
       page: page.value,

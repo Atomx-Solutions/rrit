@@ -52,3 +52,59 @@ export async function changeAdminSubscription(input: {
   }
   return data as Record<string, unknown>
 }
+
+export const adminSubscriptionsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  per_page: z.coerce.number().int().min(1).max(100).optional(),
+  status: z.enum(['trialing', 'active', 'paused', 'cancelled', 'expired']).optional(),
+  plan: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/).optional(),
+  expiring_days: z.coerce.number().int().min(1).max(365).optional(),
+})
+
+export type AdminSubscriptionsQuery = z.infer<typeof adminSubscriptionsQuerySchema>
+
+export type AdminSubscriptionRow = {
+  id: string
+  organization_id: string
+  organization_name: string
+  plan_code: string
+  plan_name: string
+  billing_interval: 'monthly' | 'annual'
+  status: string
+  current_period_start: string
+  current_period_end: string
+  price_cents: number | null
+  cancel_at_period_end: boolean
+  paused_at: string | null
+  paused_by: string | null
+  days_until_expiry: number
+}
+
+/** Keeps the documented shape even when the function returns partial data. */
+export function normalizeAdminSubscriptions(value: unknown, query: AdminSubscriptionsQuery) {
+  const data = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
+  const total = Number(data.total) || 0
+  const perPage = Number(data.per_page) || query.per_page || 50
+  return {
+    items: Array.isArray(data.items) ? (data.items as AdminSubscriptionRow[]) : [],
+    total,
+    page: Number(data.page) || query.page || 1,
+    per_page: perPage,
+    total_pages: Math.ceil(total / perPage),
+  }
+}
+
+export async function adminListSubscriptions(query: AdminSubscriptionsQuery) {
+  const { data, error } = await adminServiceClient().rpc('admin_list_subscriptions', {
+    p_page: query.page ?? 1,
+    p_per_page: query.per_page ?? 50,
+    p_status: query.status ?? null,
+    p_plan: query.plan ?? null,
+    p_expiring_days: query.expiring_days ?? null,
+  })
+  if (error) {
+    console.error('Admin subscriptions query failed.', { code: error.code, message: error.message })
+    throw createError({ statusCode: 502, message: 'Abonimet nuk u ngarkuan.' })
+  }
+  return normalizeAdminSubscriptions(data, query)
+}

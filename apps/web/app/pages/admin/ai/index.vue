@@ -27,6 +27,8 @@ const scopeOptions = computed(() => [
   { label: t('admin.ai.scopeAllStored'), value: 'all' },
 ])
 const { data, status, error, refresh } = await useFetch<Costs>('/api/admin/ai/costs', {
+    // Open the page at once and show loading inside it, instead of blocking navigation.
+    lazy: true,
   key: 'admin-ai-costs',
   query: computed(() => ({ from: range.from, to: range.to, scope: range.scope })),
 })
