@@ -44,7 +44,6 @@ function svgToPdf(d: string, xOff: number, yBase: number, s: number): string {
 
 // Approximates a circle as 4 cubic beziers in PDF coordinates.
 function circlePdf(svgCx: number, svgCy: number, svgR: number, xOff: number, yBase: number, s: number): string {
-  const T = (x: number, y: number) => `${r(xOff + x * s)} ${r(yBase - y * s)}`
   const [cx, cy, rv] = [svgCx, svgCy, svgR * s]
   const pCx = xOff + cx * s, pCy = yBase - cy * s
   const k = rv * 0.5523
@@ -56,12 +55,11 @@ function circlePdf(svgCx: number, svgCy: number, svgR: number, xOff: number, yBa
     `${r(pCx + k)} ${r(pCy - rv)} ${r(pCx + rv)} ${r(pCy - k)} ${r(pCx + rv)} ${r(pCy)} c`,
     'h',
   ].join('\n')
-  void T // suppress unused warning
 }
 
 // Rrit logo SVG (viewBox 0 0 102 44, fill #17694d).
 // Returns PDF content stream operators for the logo at top-right of an A4 page.
-function logoPdfOps(pageWidth = 595, topMargin = 28, logoWidth = 110): string {
+function logoPdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110): string {
   const s = logoWidth / 102
   const xOff = pageWidth - topMargin - logoWidth
   const yBase = 842 - topMargin // SVG y=0 maps to this PDF y
@@ -120,28 +118,28 @@ export function invoicePdf(invoice: Invoice) {
   // --- Reset to black for all remaining content ---
   ops.push('0 0 0 rg 0 0 0 RG')
 
-  // --- Header band: thin green top border ---
+  // --- Document title (left, alongside logo) ---
+  const isCredit = invoice.kind === 'credit_note'
+  text(50, 775, isCredit ? 'Faturë kreditore' : 'Faturë', 22, true)
+  text(50, 753, isCredit ? 'Credit note' : 'Invoice', 11)
+
+  // --- Green divider below logo + title ---
   ops.push('0.09 0.41 0.30 RG')
-  hline(50, 545, 810, 1.5)
+  hline(50, 545, 742, 1.5)
   ops.push('0 0 0 RG')
 
-  // --- Document title (left) ---
-  const isCredit = invoice.kind === 'credit_note'
-  text(50, 780, isCredit ? 'Faturë kreditore' : 'Faturë', 22, true)
-  text(50, 758, isCredit ? 'Credit note' : 'Invoice', 11)
-
-  // --- Invoice meta (below title) ---
-  text(50, 735, `Nr. ${invoice.number}`, 10, true)
-  text(50, 720, `Data / Date: ${formatDate(invoice.issuedAt)}`)
+  // --- Invoice meta ---
+  text(50, 726, `Nr. ${invoice.number}`, 10, true)
+  text(50, 711, `Data / Date: ${formatDate(invoice.issuedAt)}`)
   const statusLabel = invoice.status === 'paid' ? 'E paguar / Paid' : invoice.status
-  text(50, 705, `Statusi / Status: ${statusLabel}`)
+  text(50, 696, `Statusi / Status: ${statusLabel}`)
 
-  // --- Divider ---
-  hline(50, 545, 693)
+  // --- Section divider ---
+  hline(50, 545, 684)
 
   // --- Parties ---
   const party = (x: number, label: string, value: Invoice['seller']) => {
-    let y = 675
+    let y = 666
     text(x, y, label, 8, true)
     ops.push('0.4 0.4 0.4 rg')
     for (const line of [
@@ -159,7 +157,7 @@ export function invoicePdf(invoice: Invoice) {
   party(310, 'BLERËSI / CUSTOMER', invoice.buyer)
 
   // --- Table header ---
-  let y = 590
+  let y = 580
   ops.push('0.09 0.41 0.30 rg')
   rect(50, y - 4, 495, 18)
   ops.push('1 1 1 rg')
