@@ -64,7 +64,8 @@ const { data, status: loading, error, refresh } = await useFetch<{ items: Organi
   {
     // Open the page at once and show loading inside it, instead of blocking navigation.
     lazy: true,
-    key: 'admin-organizations',
+    // No fixed key: each search keeps its own result, so clearing the search
+    // brings the full list back instead of the last filtered one.
     query: computed(() => ({
       page: page.value,
       per_page: pageSize.value,

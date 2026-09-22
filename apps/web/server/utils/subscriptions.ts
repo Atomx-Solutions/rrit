@@ -25,7 +25,7 @@ type SubscriptionRow = {
 }
 
 function planInvoiceLabel(plan: PlanRow, interval: BillingInterval) {
-  return `${plan.name} · ${interval === 'annual' ? 'abonim vjetor (12 muaj)' : 'abonim mujor'}`
+  return `${plan.name} · ${interval === 'annual' ? 'annual subscription (12 months)' : 'monthly subscription'}`
 }
 
 function billingError(statusCode: number, code: string, message: string) {
@@ -214,7 +214,7 @@ export async function changeSubscriptionPlan(
         organizationId: input.organizationId,
         sourceType: 'subscription_upgrade',
         sourceReference: `${current.id}:${periodKey}:${active.code}->${next.code}`,
-        lines: [{ description: `Upgrade ${active.name} -> ${next.name} (${current.billing_interval === 'annual' ? 'vjetor' : 'mujor'})`, quantity: 1, unitPriceCents: upgradeCents }],
+        lines: [{ description: `Upgrade ${active.name} -> ${next.name} (${current.billing_interval === 'annual' ? 'annual' : 'monthly'})`, quantity: 1, unitPriceCents: upgradeCents }],
       })
     : null
   const additionalCredits = next.monthly_credits - active.monthly_credits
