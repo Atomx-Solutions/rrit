@@ -32,15 +32,16 @@ export function formatInvoiceNumber(prefix: string, year: number, sequence: numb
 }
 
 /**
- * Prices are VAT-inclusive totals: the customer pays exactly the advertised
- * price and the VAT (if any) is the part of it above the net amount.
+ * Prices are net: VAT is added on top. A 24,99 € plan at 18% VAT is invoiced
+ * as 24,99 € + 4,50 € VAT = 29,49 €. Credit notes (negative amounts) round the
+ * same way as the invoice they reverse, so the two always cancel out exactly.
  */
-export function splitVat(totalCents: number, vatRateBasisPoints: number) {
-  if (!Number.isSafeInteger(totalCents)) throw new Error('totalCents must be an integer')
+export function addVat(subtotalCents: number, vatRateBasisPoints: number) {
+  if (!Number.isSafeInteger(subtotalCents)) throw new Error('subtotalCents must be an integer')
   if (!Number.isInteger(vatRateBasisPoints) || vatRateBasisPoints < 0 || vatRateBasisPoints > 10000)
     throw new Error('vatRateBasisPoints must be between 0 and 10000')
-  const subtotalCents = Math.round((totalCents * 10000) / (10000 + vatRateBasisPoints))
-  return { subtotalCents, vatCents: totalCents - subtotalCents, totalCents }
+  const vatCents = Math.sign(subtotalCents) * Math.round((Math.abs(subtotalCents) * vatRateBasisPoints) / 10000)
+  return { subtotalCents, vatCents, totalCents: subtotalCents + vatCents }
 }
 
 export function toInvoice(row: InvoiceRow) {
@@ -109,14 +110,14 @@ export async function issueInvoice(client: PoolClient, input: {
   )
   if (existing.rows[0]) return toInvoice(existing.rows[0])
   const lines: InvoiceLine[] = input.lines.map(line => ({ ...line, totalCents: line.quantity * line.unitPriceCents }))
-  const totalCents = lines.reduce((sum, line) => sum + line.totalCents, 0)
+  const subtotalCents = lines.reduce((sum, line) => sum + line.totalCents, 0)
   const settings = await client.query<{ number_prefix: string; seller_name: string; seller_address: string; seller_fiscal_number: string; vat_rate_basis_points: number }>(
     'SELECT number_prefix,seller_name,seller_address,seller_fiscal_number,vat_rate_basis_points FROM invoice_settings WHERE singleton=true',
   )
   const config = settings.rows[0]
   if (!config) throw new Error('Invoice settings are not configured.')
   const buyer = await billingDetails(client, input.organizationId)
-  const amounts = splitVat(totalCents, Number(config.vat_rate_basis_points))
+  const amounts = addVat(subtotalCents, Number(config.vat_rate_basis_points))
   const issuedAt = input.now || new Date()
   const year = issuedAt.getUTCFullYear()
   const sequence = await client.query<{ sequence: number }>('SELECT app.next_invoice_sequence($1) AS sequence', [year])

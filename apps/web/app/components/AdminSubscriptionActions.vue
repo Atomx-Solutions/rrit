@@ -10,15 +10,22 @@ const { plans } = usePlanCatalog()
 
 const current = computed(() => props.subscription?.status || '')
 const managed = computed(() => ['trialing', 'active', 'past_due', 'paused'].includes(current.value))
-const items = computed(() => [[
-  ...(current.value === 'paused'
-    ? [{ label: t('admin.subscription.resume'), icon: 'i-lucide-play', onSelect: () => open('resume') }]
-    : [{ label: t('admin.subscription.pause'), icon: 'i-lucide-pause', onSelect: () => open('pause') }]),
-  { label: t('admin.subscription.changePlan'), icon: 'i-lucide-package', onSelect: () => open('change_plan') },
-  { label: t('admin.subscription.extend'), icon: 'i-lucide-calendar-plus', onSelect: () => open('extend') },
-], [
-  { label: t('admin.subscription.cancel'), icon: 'i-lucide-ban', color: 'error' as const, onSelect: () => open('cancel') },
-]])
+// Only the actions that make sense for the current status:
+// active -> pause, change plan, extend, cancel · paused -> resume, cancel ·
+// trialing -> change plan, cancel. past_due is handled like active.
+const items = computed(() => {
+  const pause = { label: t('admin.subscription.pause'), icon: 'i-lucide-pause', onSelect: () => open('pause') }
+  const resume = { label: t('admin.subscription.resume'), icon: 'i-lucide-play', onSelect: () => open('resume') }
+  const changePlan = { label: t('admin.subscription.changePlan'), icon: 'i-lucide-package', onSelect: () => open('change_plan') }
+  const extend = { label: t('admin.subscription.extend'), icon: 'i-lucide-calendar-plus', onSelect: () => open('extend') }
+  const cancel = { label: t('admin.subscription.cancel'), icon: 'i-lucide-ban', color: 'error' as const, onSelect: () => open('cancel') }
+  const main = current.value === 'paused'
+    ? [resume]
+    : current.value === 'trialing'
+      ? [changePlan]
+      : [pause, changePlan, extend]
+  return [main, [cancel]]
+})
 
 const action = ref<Action | null>(null)
 const form = reactive({
@@ -111,7 +118,7 @@ async function submit() {
           type="submit"
           :loading="saving"
           :color="action === 'cancel' ? 'error' : 'primary'"
-          :label="action ? t(`admin.subscription.submit.${action}`) : ''"
+          :label="t('admin.subscription.confirmButton')"
           block
         />
       </UForm>
