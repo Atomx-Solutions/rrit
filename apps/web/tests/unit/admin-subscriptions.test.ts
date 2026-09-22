@@ -58,8 +58,8 @@ describe('admin subscriptions query schema', () => {
     expect(result.data.expiring_days).toBe(7)
   })
 
-  it('rejects invalid status', () => {
-    expect(adminSubscriptionsQuerySchema.safeParse({ status: 'past_due' }).success).toBe(false)
+  it('accepts past_due for the Past Due tab and rejects unknown statuses', () => {
+    expect(adminSubscriptionsQuerySchema.safeParse({ status: 'past_due' }).success).toBe(true)
     expect(adminSubscriptionsQuerySchema.safeParse({ status: 'unknown' }).success).toBe(false)
   })
 

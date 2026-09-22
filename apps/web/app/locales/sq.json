@@ -1924,4 +1924,7 @@
   ,"admin.details.brandStatus.active": "Aktiv"
   ,"admin.details.brandStatus.archived": "I arkivuar"
   ,"admin.subscription.confirmButton": "Konfirmo"
+  ,"admin.subscriptions.tabAll": "Të gjitha"
+  ,"admin.subscriptions.period": "Periudha"
+  ,"admin.subscriptions.expiringWeek": "Skadon brenda 7 ditëve"
 }

@@ -56,7 +56,7 @@ export async function changeAdminSubscription(input: {
 export const adminSubscriptionsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(100).optional(),
-  status: z.enum(['trialing', 'active', 'paused', 'cancelled', 'expired']).optional(),
+  status: z.enum(['trialing', 'active', 'paused', 'past_due', 'cancelled', 'expired']).optional(),
   plan: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/).optional(),
   expiring_days: z.coerce.number().int().min(1).max(365).optional(),
 })
