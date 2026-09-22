@@ -1903,4 +1903,5 @@
   ,"admin.billing.vat": "VAT collected"
   ,"billing.viewInvoice": "View"
   ,"billing.viewInvoiceNumber": "View invoice {{number}}"
+  ,"admin.users.role": "Role"
 }

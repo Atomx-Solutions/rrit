@@ -1903,4 +1903,5 @@
   ,"admin.billing.vat": "TVSH e mbledhur"
   ,"billing.viewInvoice": "Shiko"
   ,"billing.viewInvoiceNumber": "Shiko faturën {{number}}"
+  ,"admin.users.role": "Roli"
 }

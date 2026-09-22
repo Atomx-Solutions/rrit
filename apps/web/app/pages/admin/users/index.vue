@@ -49,12 +49,17 @@ function formatDay(value: string | null) {
 function roleLabel(role: string) {
   return t(`admin.users.roles.${role}`)
 }
+// One label per distinct membership role (e.g. "Pronar, Editor").
+function roles(user: User) {
+  return [...new Set(user.organizations.map(organization => roleLabel(organization.role)))].join(', ')
+}
 
 // Secondary columns appear from large screens; the phone view is a card list.
 const wide = { class: { th: 'hidden lg:table-cell', td: 'hidden lg:table-cell' } }
 const columns = computed<TableColumn<User>[]>(() => [
   { accessorKey: 'email', header: t('admin.users.user') },
   { id: 'organizations', header: t('admin.users.organizations') },
+  { id: 'role', header: t('admin.users.role') },
   { id: 'created', header: t('admin.users.createdAt'), meta: wide },
   { id: 'lastSignIn', header: t('admin.users.lastSignIn') },
 ])
@@ -107,15 +112,16 @@ const columns = computed<TableColumn<User>[]>(() => [
             />
           </UButton>
           <UFieldGroup class="flex flex-wrap gap-1.5">
-            <UBadge
+            <UButton
               v-for="organization in user.organizations"
               :key="organization.id"
+              :to="`/admin/organizations/${organization.id}`"
               color="neutral"
               variant="soft"
+              size="xs"
               icon="i-lucide-building-2"
               :label="`${organization.name} · ${roleLabel(organization.role)}`"
             />
-            <UBadge v-if="!user.organizations.length" color="neutral" variant="outline" :label="t('admin.users.noOrganization')" />
           </UFieldGroup>
         </UCard>
         <UEmpty
@@ -159,20 +165,20 @@ const columns = computed<TableColumn<User>[]>(() => [
           </template>
           <template #organizations-cell="{ row }">
             <UFieldGroup class="flex flex-wrap gap-1.5">
-              <UBadge
+              <!-- Each organization opens its details; a user without one leaves the cell empty. -->
+              <UButton
                 v-for="organization in row.original.organizations"
                 :key="organization.id"
+                :to="`/admin/organizations/${organization.id}`"
                 color="neutral"
                 variant="soft"
-                :label="`${organization.name} · ${roleLabel(organization.role)}`"
-              />
-              <UBadge
-                v-if="!row.original.organizations.length"
-                color="neutral"
-                variant="outline"
-                :label="t('admin.users.noOrganization')"
+                size="xs"
+                :label="organization.name"
               />
             </UFieldGroup>
+          </template>
+          <template #role-cell="{ row }">
+            {{ roles(row.original) }}
           </template>
           <template #created-cell="{ row }">
             {{ formatDay(row.original.created_at) }}
