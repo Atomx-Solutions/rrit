@@ -18,6 +18,9 @@ const rightsOpen = ref(false)
 const rightsBusy = ref(false)
 const rightsError = ref('')
 const selectedFiles = ref<File[]>([])
+function displayTag(tag: string) {
+  return tag === 'ngarkim' || tag === 'upload' ? t('gallery.uploadTag') : tag
+}
 function openDetail(asset: Asset) {
   detail.value = asset
   tags.value = asset.tags.join(', ')
@@ -115,7 +118,7 @@ async function upload(files: File[] | null | undefined) {
         id: crypto.randomUUID(),
         name: file.name,
         url,
-        tags: ['ngarkim'],
+        tags: ['upload'],
         rights: true,
         kind: 'photo',
         size: file.size,
@@ -235,7 +238,7 @@ async function saveMetadata() {
                 color="neutral"
                 variant="outline"
                 size="sm"
-                >{{ tag }}</UBadge
+                >{{ displayTag(tag) }}</UBadge
               >
             </div>
             <p class="text-xs text-muted mt-2 flex items-center gap-1.5">
