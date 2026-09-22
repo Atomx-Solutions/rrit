@@ -43,7 +43,7 @@ watch(page, () => {
 
 function formatDay(value: string | null) {
   return value
-    ? new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+    ? new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
     : t('admin.users.never')
 }
 function roleLabel(role: string) {

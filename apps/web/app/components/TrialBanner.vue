@@ -52,8 +52,11 @@ const remaining = computed(() => {
           {{ t('trial.endsAt') }}
           {{
             new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'sq-XK', {
-              dateStyle: 'medium',
-              timeStyle: 'short',
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
               hourCycle: 'h23',
               timeZone: 'Europe/Belgrade',
             }).format(new Date(trial.expiresAt))

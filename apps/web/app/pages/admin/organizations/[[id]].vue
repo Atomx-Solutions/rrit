@@ -80,9 +80,40 @@ const listCard = useTemplateRef<{ $el: HTMLElement }>('listCard')
 watch(page, () => {
   listCard.value?.$el.scrollIntoView({ block: 'start', behavior: 'smooth' })
 })
+// /admin/organizations/[id] opens that organization's details over the list,
+// so the details can be linked to (e.g. from the overview) and survive a reload.
+const selectedId = computed(() => (typeof route.params.id === 'string' && route.params.id) || null)
+function openOrganization(id: string) {
+  navigateTo({ path: `/admin/organizations/${id}`, query: route.query })
+}
+function closeOrganization() {
+  navigateTo({ path: '/admin/organizations', query: route.query })
+}
+// An organization that is not on the current list page is loaded on its own.
+const { data: linked, refresh: refreshLinked } = await useFetch<Organization & { brands?: unknown[]; members?: unknown[] }>(
+  () => `/api/admin/organizations/${selectedId.value}`,
+  { lazy: true, immediate: false, watch: false },
+)
+watch(
+  [selectedId, () => data.value],
+  ([id]) => {
+    if (id && !organizations.value.some(item => item.id === id)) refreshLinked()
+  },
+  { immediate: true },
+)
 // The details follow the refreshed list, so an action is reflected at once.
-const selectedId = ref<string | null>(null)
-const selected = computed(() => organizations.value.find(item => item.id === selectedId.value) || null)
+const selected = computed<Organization | null>(() => {
+  if (!selectedId.value) return null
+  const listed = organizations.value.find(item => item.id === selectedId.value)
+  if (listed) return listed
+  const details = linked.value
+  if (!details || details.id !== selectedId.value) return null
+  return { ...details, brand_count: details.brands?.length ?? 0, member_count: details.members?.length ?? 0 }
+})
+async function onChanged() {
+  await refresh()
+  if (selectedId.value && !organizations.value.some(item => item.id === selectedId.value)) await refreshLinked()
+}
 
 const statusOptions = computed(() => [
   { label: t('admin.organizations.allStatuses'), value: 'all' },
@@ -104,7 +135,7 @@ const statusColors: Record<string, 'success' | 'info' | 'warning' | 'error' | 'n
   expired: 'neutral',
 }
 function formatDay(value: string) {
-  return new Intl.DateTimeFormat('sq-XK', { dateStyle: 'medium', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+  return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
 }
 function credits(organization: Organization) {
   const balance = organization.credit_balance
@@ -172,7 +203,7 @@ const columns = computed<TableColumn<Organization>[]>(() => [
             variant="link"
             class="w-full p-0 text-left"
             :aria-label="t('admin.details.open', { name: organization.name })"
-            @click="selectedId = organization.id"
+            @click="openOrganization(organization.id)"
           >
             <UUser
               :name="organization.name"
@@ -239,7 +270,7 @@ const columns = computed<TableColumn<Organization>[]>(() => [
               variant="link"
               class="p-0 text-left"
               :aria-label="t('admin.details.open', { name: row.original.name })"
-              @click="selectedId = row.original.id"
+              @click="openOrganization(row.original.id)"
             >
               <UUser
                 :name="row.original.name"
@@ -289,7 +320,7 @@ const columns = computed<TableColumn<Organization>[]>(() => [
         </UTable>
       </template>
     </UCard>
-    <AdminOrganizationDetails :organization="selected" @close="selectedId = null" @changed="refresh()" />
+    <AdminOrganizationDetails :organization="selected" @close="closeOrganization" @changed="onChanged" />
     <!-- Pinned to the bottom of the panel so page numbers are always visible. -->
     <template #footer>
       <ListPagination
