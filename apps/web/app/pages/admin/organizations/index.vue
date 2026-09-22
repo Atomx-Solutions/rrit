@@ -1,16 +1,41 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
-import { formatMoney } from '~~/shared/utils/format'
 import type { AdminOrganizationRow as Organization } from '~/components/AdminOrganizationDetails.vue'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('admin.nav.organizations')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
-const page = ref(1)
-const pageSize = ref(20)
-const filters = reactive({ search: '', status: 'all', plan: 'all' })
-const q = ref('')
+const route = useRoute()
+const router = useRouter()
+const statuses = ['trialing', 'active', 'paused', 'cancelled', 'expired'] as const
+function routeString(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+function positiveInteger(value: unknown, fallback: number) {
+  const number = Number(routeString(value))
+  return Number.isInteger(number) && number > 0 ? number : fallback
+}
+const page = ref(positiveInteger(route.query.page, 1))
+const pageSize = ref(positiveInteger(route.query.per_page, 20))
+const filters = reactive({
+  search: routeString(route.query.q),
+  status: statuses.includes(routeString(route.query.status) as typeof statuses[number]) ? routeString(route.query.status) : 'all',
+  plan: routeString(route.query.plan) || 'all',
+})
+const q = ref(filters.search.trim())
+
+function syncUrl() {
+  void router.replace({
+    query: {
+      ...(q.value ? { q: q.value } : {}),
+      ...(filters.status !== 'all' ? { status: filters.status } : {}),
+      ...(filters.plan !== 'all' ? { plan: filters.plan } : {}),
+      ...(page.value > 1 ? { page: String(page.value) } : {}),
+      ...(pageSize.value !== 20 ? { per_page: String(pageSize.value) } : {}),
+    },
+  })
+}
 // Search as the admin types, without a request per keystroke.
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(() => filters.search, (value) => {
@@ -19,11 +44,21 @@ watch(() => filters.search, (value) => {
     q.value = value.trim()
   }, 300)
 })
-watch([q, () => filters.status, () => filters.plan, pageSize], () => {
+watch(q, () => {
   page.value = 1
+  syncUrl()
 })
+watch([() => filters.status, () => filters.plan, pageSize], () => {
+  page.value = 1
+  syncUrl()
+})
+watch(page, syncUrl)
 
-const { plans } = usePlanCatalog()
+type AdminPlan = { code: string, name: string }
+const { data: plansData } = await useFetch<{ plans: AdminPlan[] }>('/api/admin/plans', {
+  key: 'admin-organization-plan-filter',
+})
+const plans = computed(() => plansData.value?.plans || [])
 const { data, status: loading, error, refresh } = await useFetch<{ items: Organization[]; total: number }>(
   '/api/admin/organizations',
   {
@@ -86,10 +121,11 @@ function subscriptionLabel(organization: Organization) {
 const wide = { class: { th: 'hidden lg:table-cell', td: 'hidden lg:table-cell' } }
 const columns = computed<TableColumn<Organization>[]>(() => [
   { accessorKey: 'name', header: t('admin.organizations.organization') },
-  { id: 'subscription', header: t('admin.organizations.subscription') },
-  { id: 'period', header: t('admin.organizations.periodEnd'), meta: wide },
-  { id: 'credits', header: t('admin.organizations.credits') },
-  { id: 'usage', header: t('admin.organizations.brandsMembers'), meta: wide },
+  { id: 'subscription', header: t('admin.organizations.plan') },
+  { id: 'status', header: t('admin.organizations.status') },
+  { id: 'credits', header: t('admin.organizations.creditsRemaining') },
+  { id: 'brands', header: t('admin.organizations.brands'), meta: wide },
+  { id: 'created_at', header: t('admin.organizations.createdAt'), meta: wide },
   { id: 'actions', header: '' },
 ])
 </script>
@@ -215,16 +251,9 @@ const columns = computed<TableColumn<Organization>[]>(() => [
           </template>
           <template #subscription-cell="{ row }">
             <UBadge
-              :color="row.original.subscription ? statusColors[row.original.subscription.status] || 'neutral' : 'neutral'"
-              :variant="row.original.subscription ? 'subtle' : 'outline'"
-              :label="subscriptionLabel(row.original)"
-            />
-            <UBadge
-              v-if="row.original.subscription?.price_cents != null"
               color="neutral"
-              variant="soft"
-              class="ms-1"
-              :label="formatMoney(row.original.subscription.price_cents / 100)"
+              :variant="row.original.subscription ? 'subtle' : 'outline'"
+              :label="row.original.subscription?.plan_name || t('admin.organizations.noSubscription')"
             />
           </template>
           <template #period-cell="{ row }">
@@ -232,6 +261,19 @@ const columns = computed<TableColumn<Organization>[]>(() => [
           </template>
           <template #credits-cell="{ row }">
             {{ credits(row.original) }}
+          </template>
+          <template #status-cell="{ row }">
+            <UBadge
+              :color="row.original.subscription ? statusColors[row.original.subscription.status] || 'neutral' : 'neutral'"
+              :variant="row.original.subscription ? 'subtle' : 'outline'"
+              :label="row.original.subscription ? t(`admin.status.${row.original.subscription.status}`) : t('admin.organizations.noSubscription')"
+            />
+          </template>
+          <template #brands-cell="{ row }">
+            {{ row.original.brand_count }}
+          </template>
+          <template #created_at-cell="{ row }">
+            {{ formatDay(row.original.created_at) }}
           </template>
           <template #usage-cell="{ row }">
             {{ row.original.brand_count }} / {{ row.original.member_count }}
