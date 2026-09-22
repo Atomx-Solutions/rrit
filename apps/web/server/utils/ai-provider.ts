@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto'
 export type AiProviderName = 'openai' | 'openrouter'
 
 export type AiProviderConfiguration = {
   name: AiProviderName
   apiKey: string
+  keyFingerprint: string
   responsesUrl: string
   imagesUrl: string
   headers: Record<string, string>
@@ -32,6 +34,22 @@ function safeReferer(value: string | undefined) {
   return url.toString()
 }
 
+/**
+ * Identifies which API key made a call without storing the key: a truncated
+ * SHA-256. Calls from other environments sharing the database (another key)
+ * get a different fingerprint.
+ */
+export function providerKeyFingerprint(apiKey: string) {
+  return createHash('sha256').update(apiKey).digest('hex').slice(0, 16)
+}
+
+/** The provider's real charge in micro-EUR, or null when it reported none. */
+export function providerCostMicroEur(costUsd: unknown, usdMicroEur: number) {
+  if (typeof costUsd !== 'number' || !Number.isFinite(costUsd) || costUsd < 0) return null
+  if (!Number.isSafeInteger(usdMicroEur) || usdMicroEur <= 0) return null
+  return Math.ceil(costUsd * usdMicroEur)
+}
+
 export function aiProviderConfiguration(): AiProviderConfiguration {
   const name = providerName()
   const apiKey = (
@@ -53,6 +71,7 @@ export function aiProviderConfiguration(): AiProviderConfiguration {
   return {
     name,
     apiKey,
+    keyFingerprint: providerKeyFingerprint(apiKey),
     responsesUrl:
       name === 'openrouter'
         ? 'https://openrouter.ai/api/v1/responses'
