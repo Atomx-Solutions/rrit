@@ -71,13 +71,18 @@ const topUpCredits = ref(500)
 const topUpError = ref('')
 const toppingUp = ref(false)
 const topUpConfig = computed(() => billing.value?.creditTopUp)
+const topUpAmount = computed(() => topUpCredits.value)
 const topUpValid = computed(() =>
   !!topUpConfig.value
-  && Number.isInteger(topUpCredits.value)
-  && topUpCredits.value >= topUpConfig.value.minimum
-  && topUpCredits.value <= topUpConfig.value.maximum,
+  && Number.isInteger(topUpAmount.value)
+  && topUpAmount.value >= topUpConfig.value.minimum
+  && topUpAmount.value <= topUpConfig.value.maximum,
 )
-const topUpPrice = computed(() => topUpValid.value ? topUpCredits.value * topUpConfig.value!.unitPrice : 0)
+const topUpPrice = computed(() => topUpValid.value ? topUpAmount.value * topUpConfig.value!.unitPrice : 0)
+function previewTopUpCredits(event: Event) {
+  const value = Number((event.target as HTMLInputElement).value)
+  if (Number.isFinite(value)) topUpCredits.value = value
+}
 async function switchPlan() {
   if (!selectedPlan.value) return
   switching.value = true
@@ -104,7 +109,7 @@ async function buyCreditTopUp() {
   try {
     await $fetch('/api/billing/credit-top-up', {
       method: 'POST',
-      body: { credits: topUpCredits.value, idempotencyKey: crypto.randomUUID() },
+      body: { credits: topUpAmount.value, idempotencyKey: crypto.randomUUID() },
     })
     await Promise.all([refreshUsage(), refreshNuxtData('header-credit-balance'), refreshInvoices()])
   } catch (error) {
@@ -269,6 +274,7 @@ function usageValue(key: string, value: number) {
                 :min="topUpConfig.minimum"
                 :max="topUpConfig.maximum"
                 :step="1"
+                @input="previewTopUpCredits"
               />
             </UFormField>
             <p class="text-xs text-muted">
