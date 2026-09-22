@@ -37,7 +37,7 @@ const annualPackage1 = (client: ReturnType<typeof invoiceClient>, reference = 's
     organizationId,
     sourceType: 'subscription_activation',
     sourceReference: reference,
-    lines: [{ description: 'Pako 1 · abonim vjetor (12 muaj)', quantity: 1, unitPriceCents: annualPriceCents(2499, 15) }],
+    lines: [{ description: 'Pako 1 · annual subscription (12 months)', quantity: 1, unitPriceCents: annualPriceCents(2499, 15) }],
     now: new Date('2026-09-18T10:00:00Z'),
   })
 
@@ -74,7 +74,7 @@ describe('invoice amounts', () => {
       organizationId,
       sourceType: 'credit_top_up',
       sourceReference: 'purchase',
-      lines: [{ description: 'Kredite shtesë AI', quantity: 500, unitPriceCents: 2 }],
+      lines: [{ description: 'Additional AI credits', quantity: 500, unitPriceCents: 2 }],
     })
     expect(invoice.total).toBe(10)
     expect(invoice.lines[0]).toMatchObject({ quantity: 500, unitPriceCents: 2, totalCents: 1000 })
@@ -96,13 +96,13 @@ describe('invoice PDF', () => {
     expect(pdf).toContain('RRIT-2026-000123')
     expect(pdf).toContain('18.09.2026')
     // PDF strings escape parentheses.
-    expect(pdf).toContain(String.raw`Pako 1 · abonim vjetor \(12 muaj\)`)
-    expect(pdf).toContain('254,90 \x80')
+    expect(pdf).toContain(String.raw`Pako 1 · annual subscription \(12 months\)`)
+    expect(pdf).toContain('\x80254.90')
     expect(pdf).toContain('Hamza Rent a Car')
   })
 
   it('formats euro amounts the Albanian way', () => {
-    expect(formatInvoiceMoney(1234.5)).toBe('1.234,50 €')
-    expect(formatInvoiceMoney(-10)).toBe('-10,00 €')
+    expect(formatInvoiceMoney(1234.5)).toBe('€1,234.50')
+    expect(formatInvoiceMoney(-10)).toBe('-€10.00')
   })
 })
