@@ -22,6 +22,7 @@ import {
   aiProviderModel,
   aiProviderStructuredRouting,
   aiProviderWebSearch,
+  providerCostMicroEur,
 } from './ai-provider'
 
 function integer(name: string, max = Number.MAX_SAFE_INTEGER) {
@@ -75,10 +76,13 @@ export function monthlyPlannerReadiness(workerAlive: boolean) {
 }
 const responseSchema = z.object({
   id: z.string(),
+  model: z.string().optional(),
   status: z.string(),
   usage: z.object({
     input_tokens: z.number().int().nonnegative(),
     output_tokens: z.number().int().nonnegative(),
+    // OpenRouter reports what it actually charged, in USD.
+    cost: z.number().nonnegative().nullish(),
     server_tool_use: z
       .object({ web_search_requests: z.number().int().nonnegative().optional() })
       .passthrough()
@@ -651,15 +655,28 @@ export async function monthlyProviderCall(
       raw.output.filter((item) =>
         ['web_search_call', 'openrouter_web_search_call'].includes(item.type),
       ).length
+    // The provider's real charge (web search included) when it reports one;
+    // otherwise the configured rates. Customer credits follow the same cost.
     const cost =
+      providerCostMicroEur(raw.usage.cost, config.usdMicroEur) ??
       Math.ceil(
         (raw.usage.input_tokens * config.inputRate + raw.usage.output_tokens * config.outputRate) /
           1000000,
       ) +
-      searches * config.searchRate
+        searches * config.searchRate
     await persistCompletedRun(
-      "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now() WHERE id=$4 AND status='reserved'",
-      [JSON.stringify(raw), raw.id, cost, runId],
+      "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now(),provider_cost_usd=$5,provider_key_fingerprint=$6,provider_model=$7,provider_input_tokens=$8,provider_output_tokens=$9 WHERE id=$4 AND status='reserved'",
+      [
+        JSON.stringify(raw),
+        raw.id,
+        cost,
+        runId,
+        raw.usage.cost ?? null,
+        config.provider.keyFingerprint,
+        raw.model ?? config.model,
+        raw.usage.input_tokens,
+        raw.usage.output_tokens,
+      ],
       cost,
     )
     if (cost > reserve) throw new PlannerFailure('BUDGET_ESTIMATE_EXCEEDED')
@@ -976,8 +993,16 @@ export async function monthlyImageCall(
       ? Math.max(1, Math.ceil(raw.usage.cost * config.usdMicroEur))
       : reserve
     await persistCompletedImage(
-      "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now() WHERE id=$4 AND status='reserved'",
-      [JSON.stringify(raw), `image:${raw.created || Date.now()}`, cost, runId],
+      "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now(),provider_cost_usd=$5,provider_key_fingerprint=$6,provider_model=$7 WHERE id=$4 AND status='reserved'",
+      [
+        JSON.stringify(raw),
+        `image:${raw.created || Date.now()}`,
+        cost,
+        runId,
+        raw.usage?.cost ?? null,
+        config.provider.keyFingerprint,
+        config.imageModel,
+      ],
       cost,
     )
     if (cost > reserve) throw new PlannerFailure('BUDGET_ESTIMATE_EXCEEDED')

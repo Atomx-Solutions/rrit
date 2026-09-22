@@ -12,6 +12,7 @@ import {
   aiProviderConfiguration,
   aiProviderModel,
   aiProviderStructuredRouting,
+  providerCostMicroEur,
 } from '../../utils/ai-provider'
 import { getBusinessBrain } from '../../utils/business-brain'
 import { getBrandBySlug } from '../../utils/brands'
@@ -244,9 +245,11 @@ export default defineEventHandler(async (event) => {
     })
     if (!response.ok) throw new Error('AI provider rejected request')
     const result = (await response.json()) as {
+      id?: string
+      model?: string
       status: string
       output?: { type: string; content?: { type: string; text?: string }[] }[]
-      usage?: { input_tokens?: number; output_tokens?: number }
+      usage?: { input_tokens?: number; output_tokens?: number; cost?: number | null }
     }
     const text = result.output
       ?.filter((item) => item.type === 'message')
@@ -266,7 +269,10 @@ export default defineEventHandler(async (event) => {
         "UPDATE ai_generations SET status='completed',output=$1,completed_at=now() WHERE id=$2 AND business_id=$3 AND status='pending'",
         [JSON.stringify(output), input.data.requestId, business.id],
       )
-      const actualCost = calculateAiCost(inputTokens, outputTokens)
+      // The provider's real charge when it reports one; otherwise the configured rates.
+      const actualCost =
+        providerCostMicroEur(result.usage?.cost, Number(process.env.AI_USD_MICRO_EUR)) ??
+        calculateAiCost(inputTokens, outputTokens)
       const actualCredits = await creditsForCost(settlement, actualCost)
       const reservedCredits = await creditsForCost(settlement, calculateAiCost(4000, 2400))
       await consumeReservedCredits(settlement, {
@@ -288,13 +294,17 @@ export default defineEventHandler(async (event) => {
           idempotencyKey: `caption-credit-release:${input.data.requestId}`,
         })
       await settlement.query(
-        "UPDATE ai_cost_ledger SET status='committed',actual_input_tokens=$1,actual_output_tokens=$2,actual_cost_micro_eur=$3,settled_at=now() WHERE generation_id=$4 AND business_id=$5 AND status='reserved'",
+        "UPDATE ai_cost_ledger SET status='committed',actual_input_tokens=$1,actual_output_tokens=$2,actual_cost_micro_eur=$3,settled_at=now(),provider_cost_usd=$6,provider_key_fingerprint=$7,provider_response_id=$8,provider_model=$9,provider_input_tokens=$1,provider_output_tokens=$2 WHERE generation_id=$4 AND business_id=$5 AND status='reserved'",
         [
           inputTokens,
           outputTokens,
           actualCost,
           input.data.requestId,
           business.id,
+          result.usage?.cost ?? null,
+          aiProviderConfiguration().keyFingerprint,
+          result.id ?? null,
+          result.model ?? model,
         ],
       )
       await settlement.query('COMMIT')

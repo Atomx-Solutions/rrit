@@ -7,7 +7,7 @@
     "npm": "11.19.0"
   },
   "scripts": {
-    "dev": "nuxt dev --host 127.0.0.1 --dotenv ../../.env",
+    "dev": "node --env-file-if-exists=../../.env ../../node_modules/nuxt/bin/nuxt.mjs dev --host 127.0.0.1",
     "db:migrate": "node --env-file-if-exists=../../.env scripts/migrate.mjs",
     "db:configure-roles": "node --env-file-if-exists=../../.env scripts/configure-database-roles.mjs",
     "db:verify-runtime": "node --env-file-if-exists=../../.env scripts/verify-runtime-role.mjs",
