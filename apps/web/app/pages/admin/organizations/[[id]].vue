@@ -82,7 +82,6 @@ watch(page, () => {
 })
 // /admin/organizations/[id] opens that organization's details over the list,
 // so the details can be linked to (e.g. from the overview) and survive a reload.
-const route = useRoute()
 const selectedId = computed(() => (typeof route.params.id === 'string' && route.params.id) || null)
 function openOrganization(id: string) {
   navigateTo({ path: `/admin/organizations/${id}`, query: route.query })
