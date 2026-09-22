@@ -86,10 +86,11 @@ function pdfText(value: string) {
   return out
 }
 
+// Invoices are in English: EUR 1,234.50 style amounts.
 export function formatInvoiceMoney(value: number) {
   const sign = value < 0 ? '-' : ''
   const [whole, cents] = Math.abs(value).toFixed(2).split('.')
-  return `${sign}${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${cents} €`
+  return `${sign}€${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${cents}`
 }
 // Kosovo local date and time of the purchase, to the second: an invoice
 // issued just after midnight must not show the previous day.
@@ -126,8 +127,7 @@ export function invoicePdf(invoice: Invoice) {
 
   // --- Document title (left, alongside logo) ---
   const isCredit = invoice.kind === 'credit_note'
-  text(50, 775, isCredit ? 'Faturë kreditore' : 'Faturë', 22, true)
-  text(50, 753, isCredit ? 'Credit note' : 'Invoice', 11)
+  text(50, 765, isCredit ? 'Credit note' : 'Invoice', 22, true)
 
   // --- Green divider below logo + title ---
   ops.push('0.09 0.41 0.30 RG')
@@ -135,10 +135,10 @@ export function invoicePdf(invoice: Invoice) {
   ops.push('0 0 0 RG')
 
   // --- Invoice meta ---
-  text(50, 726, `Nr. ${invoice.number}`, 10, true)
-  text(50, 711, `Data dhe ora / Date & time: ${formatDate(invoice.issuedAt)}`)
-  const statusLabel = invoice.status === 'paid' ? 'E paguar / Paid' : invoice.status
-  text(50, 696, `Statusi / Status: ${statusLabel}`)
+  text(50, 726, `No. ${invoice.number}`, 10, true)
+  text(50, 711, `Date & time: ${formatDate(invoice.issuedAt)}`)
+  const statusLabel = invoice.status === 'paid' ? 'Paid' : invoice.status
+  text(50, 696, `Status: ${statusLabel}`)
 
   // --- Section divider ---
   hline(50, 545, 684)
@@ -152,25 +152,25 @@ export function invoicePdf(invoice: Invoice) {
       value.name,
       value.address,
       [value.city, value.country].filter(Boolean).join(', '),
-      value.fiscalNumber ? `Nr. fiskal: ${value.fiscalNumber}` : '',
+      value.fiscalNumber ? `Fiscal no.: ${value.fiscalNumber}` : '',
     ].filter(Boolean)) {
       y -= 14
       text(x, y, truncate(line!, 46), 9)
     }
     ops.push('0 0 0 rg')
   }
-  party(50, 'SHITËSI / SELLER', invoice.seller)
-  party(310, 'BLERËSI / CUSTOMER', invoice.buyer)
+  party(50, 'SELLER', invoice.seller)
+  party(310, 'CUSTOMER', invoice.buyer)
 
   // --- Table header ---
   let y = 580
   ops.push('0.09 0.41 0.30 rg')
   rect(50, y - 4, 495, 18)
   ops.push('1 1 1 rg')
-  text(55, y + 1, 'Përshkrimi / Description', 8, true)
-  text(340, y + 1, 'Sasia', 8, true)
-  text(395, y + 1, 'Çmimi / Price', 8, true)
-  text(490, y + 1, 'Totali', 8, true)
+  text(55, y + 1, 'Description', 8, true)
+  text(340, y + 1, 'Qty', 8, true)
+  text(395, y + 1, 'Unit price', 8, true)
+  text(490, y + 1, 'Amount', 8, true)
   ops.push('0 0 0 rg')
 
   // --- Table rows ---
@@ -195,13 +195,13 @@ export function invoicePdf(invoice: Invoice) {
   ops.push('0 0 0 rg')
 
   y -= 4
-  text(315, y, 'Nëntotali / Subtotal', 9)
+  text(315, y, 'Subtotal', 9)
   text(490, y, formatInvoiceMoney(invoice.subtotal), 9)
   y -= 16
-  text(315, y, `TVSH / VAT (${invoice.vatRate.toLocaleString('sq-AL')}%)`, 9)
+  text(315, y, `VAT (${invoice.vatRate.toLocaleString('en-US')}%)`, 9)
   text(490, y, formatInvoiceMoney(invoice.vat), 9)
   y -= 20
-  text(315, y, 'Totali / Total', 11, true)
+  text(315, y, 'Total', 11, true)
   text(490, y, formatInvoiceMoney(invoice.total), 11, true)
 
   // --- Footer ---
@@ -209,7 +209,7 @@ export function invoicePdf(invoice: Invoice) {
   hline(50, 545, 75, 0.5)
   ops.push('0 0 0 RG')
   ops.push('0.5 0.5 0.5 rg')
-  text(50, 60, 'Çmimet përfshijnë TVSH-në nëse aplikohet. / Prices include VAT where applicable.', 7.5)
+  text(50, 60, 'Prices are net; VAT is added where applicable.', 7.5)
   ops.push('0 0 0 rg')
 
   const stream = ops.join('\n')

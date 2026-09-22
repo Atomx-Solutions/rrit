@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
       organizationId: business.id,
       sourceType: 'credit_top_up',
       sourceReference: input.data.idempotencyKey,
-      lines: [{ description: 'Kredite shtesë AI', quantity: input.data.credits, unitPriceCents: creditPriceCents }],
+      lines: [{ description: 'Additional AI credits', quantity: input.data.credits, unitPriceCents: creditPriceCents }],
     })
     return { balance, priceCents, invoiceNumber: invoice.number }
   })
