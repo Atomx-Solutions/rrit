@@ -458,7 +458,7 @@ onBeforeUnmount(() => {
               class="size-full object-cover"
             />
           </div>
-          <div class="asset-picker">
+          <div v-if="!props.id" class="asset-picker">
             <UButton
               v-for="asset in selectableAssets"
               :key="asset.id"
@@ -467,10 +467,11 @@ onBeforeUnmount(() => {
               :disabled="!editable"
               :aria-label="t('content.choosePhoto', { name: asset.name })"
               :aria-pressed="form.image === asset.url"
+              class="size-16 p-0"
               :class="{ selected: form.image === asset.url }"
               @click="form.image = asset.url"
             >
-              <MediaImage :src="asset.url" :alt="asset.name" class="w-full aspect-square rounded" />
+              <MediaImage :src="asset.url" :alt="asset.name" class="size-full rounded" />
             </UButton>
           </div>
           <ULink :to="`${base}/gallery`" class="text-primary small"
