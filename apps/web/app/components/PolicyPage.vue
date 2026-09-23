@@ -1,7 +1,11 @@
 <script setup lang="ts">
 defineProps<{ kind: 'privacy' | 'terms' | 'security' }>()
-const { data: site } = await useFetch('/api/site')
+const { data: site, error: siteError } = await useFetch('/api/site')
 const { t } = useI18n()
+const { showError } = useFormFeedback()
+watch(siteError, (value) => {
+  if (value) showError(t('policy.operatorPendingDescription'), 'warning')
+}, { immediate: true })
 const titles = {
   privacy: 'policy.privacyTitle',
   terms: 'policy.termsTitle',

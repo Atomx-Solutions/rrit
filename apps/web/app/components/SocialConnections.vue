@@ -10,6 +10,11 @@ const {
 } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const busy = ref(false)
 const error = ref('')
+const { showError, watchError } = useFormFeedback()
+watchError(error)
+watch(statusError, (value) => {
+  if (value) showError(t('social.statusLoadError'))
+}, { immediate: true })
 const selecting = ref(false)
 const disconnecting = ref(false)
 const pages = ref<
@@ -101,15 +106,6 @@ onMounted(async () => {
 </script>
 <template>
   <div class="space-y-4">
-    <UAlert
-      v-if="statusError || error"
-      color="error"
-      variant="outline"
-      :title="error || t('social.statusLoadError')"
-      :actions="
-        statusError ? [{ label: t('common.tryAgain'), onClick: () => refresh(), variant: 'outline' }] : []
-      "
-    />
     <div :class="compact ? 'space-y-3' : 'grid sm:grid-cols-2 gap-4'">
       <UCard
         v-for="channel in ['Facebook', 'Instagram']"
@@ -180,7 +176,6 @@ onMounted(async () => {
     >
       <template #body
         ><div class="space-y-4">
-          <UAlert v-if="error" color="error" variant="outline" :title="error" />
           <DashboardEmpty
             v-if="!pages.length && !busy"
             :title="t('social.noPages')"

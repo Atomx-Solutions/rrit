@@ -177,6 +177,10 @@ const schedule = ref('')
 const scheduleError = ref('')
 const scheduleBusy = ref(false)
 const automatic = ref(false)
+const { onFormError, watchError } = useFormFeedback()
+watchError(error)
+watchError(localError, 'warning')
+watchError(scheduleError)
 const canPublish = computed(
   () =>
     !!capabilities.value?.publishing &&
@@ -376,8 +380,6 @@ onBeforeUnmount(() => {
     >
     <div class="editor-layout">
       <div class="stack">
-        <UAlert v-if="error" color="error" :title="error" />
-        <UAlert v-if="localError" color="warning" variant="outline" :title="localError" />
         <UCard as="div" :ui="{ body: 'p-5 sm:p-6 flex flex-col gap-5' }" class="">
           <div class="actions" style="justify-content: space-between">
             <h2>{{ t('content.contentDetails') }}</h2>
@@ -647,7 +649,6 @@ onBeforeUnmount(() => {
     >
       <template #body
         ><div class="space-y-5">
-          <UAlert v-if="error" color="error" variant="outline" :title="error" />
           <UAlert
             v-if="!canPublish"
             color="neutral"
@@ -685,11 +686,15 @@ onBeforeUnmount(() => {
       :title="t('content.addToCalendar')"
       :description="t('content.scheduleTimezone', { timezone: data.preferences.timezone })"
       ><template #body
-        ><UForm :state="{ schedule, automatic }" class="stack" @submit="schedulePost">
+        ><UForm
+          :state="{ schedule, automatic }"
+          class="stack"
+          @submit="schedulePost"
+          @error="onFormError"
+        >
           <UFormField :label="t('content.dateAndTime')" name="schedule" class="field"
             ><UInput v-model="schedule" class="w-full" type="datetime-local" required
           /></UFormField>
-          <p v-if="scheduleError" role="alert" class="field-error">{{ scheduleError }}</p>
           <UCheckbox
             v-model="automatic"
             :disabled="!canPublish || scheduleBusy"

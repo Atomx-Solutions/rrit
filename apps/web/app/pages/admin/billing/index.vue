@@ -3,6 +3,7 @@ import type { TableColumn } from '@nuxt/ui'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
+const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.billing')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
 type Invoice = {
@@ -60,6 +61,9 @@ const { data, status, error, refresh } = await useFetch<BillingResponse>('/api/a
   key: 'admin-billing-invoices',
   query,
 })
+watch(error, (value) => {
+  if (value) showError(t('admin.billing.loadError'))
+}, { immediate: true })
 
 // Client-side search on top of the API page
 const invoices = computed(() => {
@@ -192,16 +196,7 @@ const sourceLabel: Record<string, string> = {
         </div>
       </template>
 
-      <UAlert
-        v-if="error"
-        color="error"
-        variant="subtle"
-        class="m-4"
-        :title="t('admin.billing.loadError')"
-        :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-      />
       <UTable
-        v-else
         :data="invoices"
         :columns="columns"
         :loading="status === 'pending'"

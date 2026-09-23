@@ -4,6 +4,7 @@ import type { AdminUserRow as User } from '~/components/AdminUserDetails.vue'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
+const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.users')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
 const page = ref(1)
@@ -22,7 +23,7 @@ watch([q, pageSize], () => {
   page.value = 1
 })
 
-const { data, status: loading, error, refresh } = await useFetch<{ items: User[]; total: number }>('/api/admin/users', {
+const { data, status: loading, error } = await useFetch<{ items: User[]; total: number }>('/api/admin/users', {
     // Open the page at once and show loading inside it, instead of blocking navigation.
     lazy: true,
   key: 'admin-users',
@@ -32,6 +33,9 @@ const { data, status: loading, error, refresh } = await useFetch<{ items: User[]
     ...(q.value ? { q: q.value } : {}),
   })),
 })
+watch(error, (value) => {
+  if (value) showError(t('admin.users.loadError'))
+}, { immediate: true })
 const users = computed(() => data.value?.items || [])
 const selectedId = ref<string | null>(null)
 const selected = computed(() => users.value.find(user => user.id === selectedId.value) || null)
@@ -81,16 +85,7 @@ const columns = computed<TableColumn<User>[]>(() => [
         </UForm>
       </template>
 
-      <UAlert
-        v-if="error"
-        color="error"
-        variant="subtle"
-        class="m-4"
-        :title="t('admin.users.loadError')"
-        :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-      />
-      <template v-else>
-        <!-- Phones: one card per user. -->
+      <!-- Phones: one card per user. -->
         <UCard
           v-for="user in users"
           :key="user.id"
@@ -187,7 +182,6 @@ const columns = computed<TableColumn<User>[]>(() => [
             {{ formatDay(row.original.last_sign_in_at) }}
           </template>
         </UTable>
-      </template>
     </UCard>
     <AdminUserDetails :user="selected" @close="selectedId = null" />
     <!-- Pinned to the bottom of the panel so page numbers are always visible. -->

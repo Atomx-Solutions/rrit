@@ -5,6 +5,10 @@ const { data, status, error, refresh } = await useFetch('/api/business/brain-his
   immediate: false,
   server: false,
 })
+const { showError } = useFormFeedback()
+watch(error, (value) => {
+  if (value) showError(t('brain.historyLoadError'), 'warning')
+}, { immediate: true })
 async function show() {
   open.value = true
   await refresh()
@@ -24,12 +28,6 @@ async function show() {
       <p v-if="status === 'pending'" role="status" class="text-sm text-muted">
         {{ t('brain.historyLoading') }}
       </p>
-      <UAlert
-        v-else-if="error"
-        color="warning"
-        variant="outline"
-        :title="t('brain.historyLoadError')"
-      />
       <p v-else-if="!data?.versions.length" class="text-sm text-muted">
         {{ t('brain.historyEmpty') }}
       </p>

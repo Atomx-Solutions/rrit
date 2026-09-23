@@ -3,6 +3,7 @@ import type { TableColumn } from '@nuxt/ui'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
+const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.ai')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
 type Costs = {
@@ -34,12 +35,15 @@ const range = reactive({
 watch(range, () => {
   router.replace({ query: { ...route.query, from: range.from, to: range.to } })
 })
-const { data, error, refresh } = await useFetch<Costs>('/api/admin/ai/costs', {
+const { data, error } = await useFetch<Costs>('/api/admin/ai/costs', {
     // Open the page at once and show loading inside it, instead of blocking navigation.
     lazy: true,
   key: 'admin-ai-costs',
   query: computed(() => ({ from: range.from, to: range.to })),
 })
+watch(error, (value) => {
+  if (value) showError(t('admin.ai.providerUnavailable'))
+}, { immediate: true })
 
 const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -187,15 +191,7 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
         </div>
       </template>
 
-      <UAlert
-        v-if="error || !account || account.error"
-        color="neutral"
-        variant="subtle"
-        icon="i-lucide-circle-alert"
-        :title="t('admin.ai.providerUnavailable')"
-        :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-      />
-      <div v-else-if="capacityTiles.length" class="space-y-3">
+      <div v-if="capacityTiles.length" class="space-y-3">
         <UAlert
           color="neutral"
           variant="subtle"

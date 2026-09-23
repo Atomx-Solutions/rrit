@@ -5,6 +5,8 @@ const { t } = useI18n()
 const toast = useToast()
 const busy = ref(false)
 const error = ref('')
+const { onFormError, watchError } = useFormFeedback()
+watchError(error)
 const form = reactive({ currentPassword: '', newPassword: '', confirm: '' })
 const schema = z
   .object({
@@ -74,8 +76,13 @@ async function revokeOthers() {
         {{ t('legacy.passwordDescription') }}
       </p>
     </div>
-    <UAlert v-if="error" color="error" variant="outline" :title="error" />
-    <UForm :state="form" :schema="schema" class="space-y-5" @submit="changePassword">
+    <UForm
+      :state="form"
+      :schema="schema"
+      class="space-y-5"
+      @submit="changePassword"
+      @error="onFormError"
+    >
       <UFormField name="currentPassword" :label="t('security.currentPassword')" required
         ><UInput
           v-model="form.currentPassword"

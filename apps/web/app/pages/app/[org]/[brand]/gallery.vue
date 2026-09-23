@@ -11,12 +11,15 @@ const deleteOpen = ref(false)
 const uploading = ref(false)
 const progress = ref(0)
 const error = ref('')
+const { watchError } = useFormFeedback()
+watchError(error)
 const rights = ref(false)
 const uploadOpen = ref(false)
 const tags = ref('')
 const rightsOpen = ref(false)
 const rightsBusy = ref(false)
 const rightsError = ref('')
+watchError(rightsError)
 const selectedFiles = ref<File[]>([])
 function displayTag(tag: string) {
   return tag === 'ngarkim' || tag === 'upload' ? t('gallery.uploadTag') : tag
@@ -298,7 +301,6 @@ async function saveMetadata() {
             class="min-h-48"
             @update:model-value="upload"
           /><UProgress v-if="uploading" :model-value="progress" :aria-label="t('gallery.uploadProgress')" />
-          <p v-if="error" role="alert" class="field-error">{{ error }}</p>
           <UButton
             v-if="error && selectedFiles.length"
             variant="outline"
@@ -360,7 +362,6 @@ async function saveMetadata() {
     >
       <template #body>
         <div class="stack">
-          <UAlert v-if="rightsError" color="error" variant="outline" :title="rightsError" />
           <p class="text-sm text-muted">
             {{ t('gallery.pendingPublicationsNotice') }}
           </p>

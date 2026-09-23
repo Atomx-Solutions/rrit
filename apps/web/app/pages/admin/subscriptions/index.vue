@@ -3,6 +3,7 @@ import type { TableColumn } from '@nuxt/ui'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
+const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.subscriptions')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
 type Subscription = {
@@ -43,6 +44,9 @@ const { data, status, error, refresh } = await useFetch<{ items: Subscription[];
     ...(filters.expiringSoon ? { expiring_days: 7 } : {}),
   })),
 })
+watch(error, (value) => {
+  if (value) showError(t('admin.subscriptions.loadError'))
+}, { immediate: true })
 const subscriptions = computed(() => data.value?.items || [])
 // A new page starts at the top of the list, not where the previous one was scrolled.
 const listCard = useTemplateRef<{ $el: HTMLElement }>('listCard')
@@ -136,16 +140,7 @@ const tableMeta = {
         </UForm>
       </template>
 
-      <UAlert
-        v-if="error"
-        color="error"
-        variant="subtle"
-        class="m-4"
-        :title="t('admin.subscriptions.loadError')"
-        :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-      />
-      <template v-else>
-        <!-- Phones: one card per subscription. -->
+      <!-- Phones: one card per subscription. -->
         <UCard
           v-for="subscription in subscriptions"
           :key="subscription.id"
@@ -231,7 +226,6 @@ const tableMeta = {
             />
           </template>
         </UTable>
-      </template>
     </UCard>
 
     <!-- Pinned to the bottom of the panel so page numbers are always visible. -->

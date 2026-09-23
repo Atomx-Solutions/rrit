@@ -9,6 +9,8 @@ const open = ref(false)
 const busy = ref(false)
 const error = ref('')
 const aiInstruction = ref('')
+const { watchError } = useFormFeedback()
+watchError(error)
 
 watch(open, (value) => {
   if (value && props.post.aiProvenance) {
@@ -98,7 +100,6 @@ async function generateWithAi() {
           </p>
         </section>
 
-        <UAlert v-if="error" color="error" variant="outline" :title="error" />
       </div>
     </template>
   </UModal>

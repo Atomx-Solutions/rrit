@@ -12,6 +12,9 @@ const { form, clear, recovered, localError } = useDraft(
 const baseline = ref(JSON.stringify(form))
 const saved = ref(false)
 const formError = ref('')
+const { onFormError, watchError } = useFormFeedback()
+watchError(formError)
+watchError(localError, 'warning')
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
 const leaveOpen = ref(false)
 let resolveLeave: ((allow: boolean) => void) | undefined
@@ -140,10 +143,8 @@ function setPrice(fact: BrandFact, value: string | number) {
     :title="t('brand.title')"
     :description="t('brand.description')"
   >
-    <UAlert v-if="localError" color="warning" variant="outline" :title="localError" />
-    <UAlert v-else-if="formError" color="error" variant="outline" :title="formError" />
     <UAlert
-      v-else-if="recovered"
+      v-if="recovered"
       color="neutral"
       variant="outline"
       icon="i-lucide-history"
@@ -152,7 +153,12 @@ function setPrice(fact: BrandFact, value: string | number) {
     />
     <div class="grid xl:grid-cols-[minmax(0,1fr)_280px] gap-6 items-start max-w-6xl">
       <UCard :ui="{ body: 'p-5 sm:p-7' }"
-        ><UForm :schema="schema" :state="form" class="space-y-6" @submit="save"
+        ><UForm
+          :schema="schema"
+          :state="form"
+          class="space-y-6"
+          @submit="save"
+          @error="onFormError"
           ><div class="flex gap-3 items-center mb-2">
             <UAvatar icon="i-lucide-store" size="md" />
             <h2 class="text-base font-semibold">{{ t('brand.profile') }}</h2>

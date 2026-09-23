@@ -3,6 +3,7 @@ import type { TableColumn, TableRow } from '@nuxt/ui'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
+const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.overview')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
 type NewOrganization = { id: string; name: string; plan_name: string | null; created_at: string }
@@ -16,18 +17,24 @@ type Overview = {
   new_organizations: NewOrganization[]
 }
 
-const { data, status, error, refresh } = await useFetch<Overview>('/api/admin/overview', {
+const { data, status, error } = await useFetch<Overview>('/api/admin/overview', {
   // Open the page at once and show skeletons inside it, instead of blocking navigation.
   lazy: true,
   key: 'admin-overview',
 })
+watch(error, (value) => {
+  if (value) showError(t('admin.overview.loadError'))
+}, { immediate: true })
 
 // The provider balance, so a low balance is noticed here and not only on the
 // AI costs page. Clicking the notice goes there.
-const { data: balance } = await useFetch<{ balance_usd: number | null, level: 'ok' | 'warning' | 'critical', low_balance_usd: number, warn_balance_usd: number }>(
+const { data: balance, error: balanceError } = await useFetch<{ balance_usd: number | null, level: 'ok' | 'warning' | 'critical', low_balance_usd: number, warn_balance_usd: number }>(
   '/api/admin/ai/balance',
   { lazy: true },
 )
+watch(balanceError, (value) => {
+  if (value) showError(t('admin.overview.loadError'))
+}, { immediate: true })
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -85,15 +92,7 @@ function onSelect(_event: Event, row: TableRow<NewOrganization>) {
 
 <template>
   <AdminPage :title="t('admin.nav.overview')">
-    <UAlert
-      v-if="error"
-      color="error"
-      variant="subtle"
-      :title="t('admin.overview.loadError')"
-      :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-    />
-    <template v-else>
-      <!-- Red below the critical amount, amber while getting close. -->
+    <!-- Red below the critical amount, amber while getting close. -->
       <UAlert
         v-if="balance && balance.level !== 'ok'"
         :color="balance.level === 'critical' ? 'error' : 'warning'"
@@ -177,7 +176,6 @@ function onSelect(_event: Event, row: TableRow<NewOrganization>) {
         </UTable>
       </UCard>
       </UPageGrid>
-    </template>
 
   </AdminPage>
 </template>

@@ -31,6 +31,9 @@ const baseline = ref(JSON.stringify(form))
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
 const saved = ref(false)
 const formError = ref('')
+const { onFormError, watchError } = useFormFeedback()
+watchError(formError)
+watchError(localError, 'warning')
 const leaveOpen = ref(false)
 let resolveLeave: ((allow: boolean) => void) | undefined
 const schema = z.object({
@@ -104,14 +107,7 @@ async function saveAndLeave() {
       />
     </template>
     <UAlert
-      v-if="localError"
-      color="warning"
-      variant="outline"
-      :title="localError"
-      class="max-w-3xl"
-    />
-    <UAlert
-      v-else-if="recovered"
+      v-if="recovered"
       color="neutral"
       variant="outline"
       icon="i-lucide-history"
@@ -126,11 +122,8 @@ async function saveAndLeave() {
         :schema="schema"
         class="space-y-6"
         @submit="save"
-        @error="
-          formError = t('settings.formError')
-        "
+        @error="onFormError"
       >
-        <UAlert v-if="formError" color="error" variant="outline" :title="formError" />
         <template v-if="tab === 'profile'"
           ><div class="actions">
             <UAvatar :alt="form.name" size="xl" />

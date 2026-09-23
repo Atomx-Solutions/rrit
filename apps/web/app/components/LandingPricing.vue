@@ -1,7 +1,11 @@
 <script setup lang="ts">
 const { t } = useI18n()
 withDefaults(defineProps<{ showDetailsLink?: boolean }>(), { showDetailsLink: true })
-const { plans, error, status, refresh } = usePlanCatalog()
+const { plans, error, status } = usePlanCatalog()
+const { showError } = useFormFeedback()
+watch(error, (value) => {
+  if (value) showError(t('landing.pricingLoadErrorDescription'), 'warning')
+}, { immediate: true })
 const { capabilities } = useLandingOffer()
 const billing = ref('monthly')
 const annualDiscount = computed(() =>
@@ -23,16 +27,8 @@ const pendingServices = computed(() => [
 
 <template>
   <div class="landing-pricing">
-    <UAlert
-      v-if="error"
-      color="warning"
-      variant="outline"
-      :title="t('landing.pricingLoadErrorTitle')"
-      :description="t('landing.pricingLoadErrorDescription')"
-      :actions="[{ label: t('landing.retry'), variant: 'outline', onClick: () => refresh() }]"
-    />
     <div
-      v-else-if="status === 'pending'"
+      v-if="error || status === 'pending'"
       class="landing-plan-grid"
       role="status"
       :aria-label="t('landing.loadingPlans')"

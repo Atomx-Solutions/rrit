@@ -11,6 +11,8 @@ const open = ref(false),
   busy = ref(false),
   idea = ref(''),
   error = ref('')
+const { onFormError, watchError } = useFormFeedback()
+watchError(error)
 const result = ref<{ variants: { caption: string; note: string }[]; questions: string[] } | null>(
   null,
 )
@@ -61,7 +63,7 @@ function apply(caption: string) {
           :title="t('caption.unavailableTitle')"
           :description="t('caption.unavailableDescription')"
         />
-        <UForm v-else :state="{ idea }" class="space-y-4" @submit="generate"
+        <UForm v-else :state="{ idea }" class="space-y-4" @submit="generate" @error="onFormError"
           ><UFormField :label="t('caption.ideaLabel')" required
             ><UTextarea
               v-model="idea"
@@ -77,7 +79,6 @@ function apply(caption: string) {
             >{{ t('caption.prepareVariants') }}</UButton
           ></UForm
         >
-        <UAlert v-if="error" color="error" variant="outline" :title="error" />
         <template v-if="result"
           ><UCard v-for="(variant, index) in result.variants" :key="index"
             ><p class="text-sm whitespace-pre-wrap">{{ variant.caption }}</p>

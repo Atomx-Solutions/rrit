@@ -7,6 +7,8 @@ const open = ref(false)
 const rights = ref(false)
 const error = ref('')
 const busy = ref(false)
+const { watchError } = useFormFeedback()
+watchError(error)
 const file = ref<File | null>(null)
 async function upload(value: File | null | undefined) {
   if (!value || !rights.value || busy.value) return
@@ -88,12 +90,7 @@ function start() {
           class="min-h-40"
           :interactive="true"
           @update:model-value="upload"
-        /><UProgress v-if="busy" :aria-label="t('photo.saving')" /><UAlert
-          v-if="error"
-          color="error"
-          variant="outline"
-          :title="error"
-        /><UButton
+        /><UProgress v-if="busy" :aria-label="t('photo.saving')" /><UButton
           v-if="error && file"
           variant="outline"
           :loading="busy"

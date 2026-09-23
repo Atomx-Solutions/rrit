@@ -6,8 +6,12 @@ definePageMeta({ layout: 'public' })
 const landingRoot = ref<HTMLElement>()
 useLandingMotion(landingRoot)
 const { t } = useI18n()
-const { capabilities, trialDuration, trialLabel, canRegister, refresh } = useLandingOffer()
+const { capabilities, error: offerError, trialDuration, trialLabel, canRegister, refresh } = useLandingOffer()
 const { plans, error } = usePlanCatalog()
+const { showError } = useFormFeedback()
+watch(offerError, (value) => {
+  if (value) showError(t('landing.registrationUnavailable'), 'warning')
+}, { immediate: true })
 const startingPlan = computed(() =>
   error.value ? undefined : [...plans.value].sort((a, b) => a.price - b.price)[0],
 )
