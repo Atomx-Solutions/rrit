@@ -25,9 +25,6 @@ const schema = z.object({
     .default([]),
   timezone: ianaTimezoneSchema.default('Europe/Belgrade'),
   locale: z.enum(['sq-XK', 'en-US']).default('sq-XK'),
-  emailApprovals: z.boolean().default(true),
-  emailPublished: z.boolean().default(true),
-  emailTips: z.boolean().default(false),
 })
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -52,9 +49,6 @@ export default defineEventHandler(async (event) => {
   Object.assign(state.preferences, {
     timezone: parsed.data.timezone,
     locale: parsed.data.locale,
-    emailApprovals: parsed.data.emailApprovals,
-    emailPublished: parsed.data.emailPublished,
-    emailTips: parsed.data.emailTips,
   })
   state.onboarding = 1
   const { posts: _posts, assets: _assets, ...profile } = state
@@ -96,8 +90,8 @@ export default defineEventHandler(async (event) => {
       [id, user.id],
     )
     const initialBrand = await client.query<{ id: string }>(
-      `INSERT INTO brands (organization_id, slug, name, profile, settings, timezone, locale, category)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO brands (organization_id, slug, name, profile, timezone, locale, category)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (organization_id, slug) DO NOTHING
        RETURNING id`,
       [
@@ -105,11 +99,6 @@ export default defineEventHandler(async (event) => {
         slug,
         parsed.data.name,
         JSON.stringify(state.brand),
-        JSON.stringify({
-          emailApprovals: state.preferences.emailApprovals,
-          emailPublished: state.preferences.emailPublished,
-          emailTips: state.preferences.emailTips,
-        }),
         parsed.data.timezone,
         parsed.data.locale,
         parsed.data.industry.trim() || 'general',

@@ -21,9 +21,6 @@ const {
   instagramUrl: data.value.brand.instagramUrl,
   timezone: data.value.preferences.timezone,
   locale: data.value.preferences.locale,
-  emailApprovals: data.value.preferences.emailApprovals,
-  emailPublished: data.value.preferences.emailPublished,
-  emailTips: data.value.preferences.emailTips,
 })
 watch(
   () => form.locale,
@@ -96,9 +93,6 @@ async function next() {
               facts: form.facts,
               timezone: form.timezone,
               locale: form.locale,
-              emailApprovals: form.emailApprovals,
-              emailPublished: form.emailPublished,
-              emailTips: form.emailTips,
             },
             retry: 0,
           }),
@@ -118,9 +112,6 @@ async function next() {
           Object.assign(d.preferences, {
             timezone: form.timezone,
             locale: form.locale,
-            emailApprovals: form.emailApprovals,
-            emailPublished: form.emailPublished,
-            emailTips: form.emailTips,
           })
           d.onboarding = 1
         }))
@@ -312,22 +303,6 @@ async function next() {
             <UButton color="neutral" variant="outline" icon="i-lucide-plus" @click="addFact"
               >{{ t('onboarding.addFact') }}</UButton
             >
-          </div>
-        </UFormField>
-        <UFormField
-          :label="t('onboarding.notificationPreferences')"
-          :description="t('onboarding.notificationsDescription')"
-        >
-          <div class="space-y-3">
-            <UCheckbox
-              v-model="form.emailApprovals"
-              :label="t('onboarding.emailApprovals')"
-            />
-            <UCheckbox
-              v-model="form.emailPublished"
-              :label="t('onboarding.emailPublished')"
-            />
-            <UCheckbox v-model="form.emailTips" :label="t('onboarding.emailTips')" />
           </div>
         </UFormField>
       </template>

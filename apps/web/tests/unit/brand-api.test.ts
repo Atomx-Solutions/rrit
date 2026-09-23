@@ -14,7 +14,6 @@ const brand = {
     description: '', voice: '', audience: '', industry: 'cafe', city: 'Prishtinë', color: '#137d59',
     facebookUrl: '', instagramUrl: '', facts: [],
   },
-  settings: { emailApprovals: true, emailPublished: true, emailTips: false },
   timezone: 'Europe/Tirane',
   locale: 'sq-XK',
   category: 'cafe',

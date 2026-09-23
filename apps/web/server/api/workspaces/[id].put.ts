@@ -466,20 +466,15 @@ export default defineEventHandler(async (event) => {
       const { name: _name, status: _status, ...brandProfile } = input.brand
       const savedBrand = await client.query<{ revision: number }>(
         `UPDATE brands
-         SET name=$1, profile=$2, settings=$3, timezone=$4, locale=$5, category=$6,
-             status=$7,
-             archived_at=CASE WHEN $7='archived' THEN COALESCE(archived_at, now()) ELSE NULL END,
+         SET name=$1, profile=$2, timezone=$3, locale=$4, category=$5,
+             status=$6,
+             archived_at=CASE WHEN $6='archived' THEN COALESCE(archived_at, now()) ELSE NULL END,
              revision=revision+1, updated_at=now()
-         WHERE id=$8 AND organization_id=$9 AND revision=$10
+         WHERE id=$7 AND organization_id=$8 AND revision=$9
          RETURNING revision`,
         [
           input.brand.name,
           JSON.stringify(brandProfile),
-          JSON.stringify({
-            emailApprovals: input.preferences.emailApprovals,
-            emailPublished: input.preferences.emailPublished,
-            emailTips: input.preferences.emailTips,
-          }),
           input.preferences.timezone,
           input.preferences.locale,
           input.brand.industry.trim() || 'general',

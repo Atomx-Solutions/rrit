@@ -156,7 +156,6 @@ export function brandAuditMetadata(before: Brand, after: Brand): AuditMetadata {
     'instagramUrl',
     'facts',
   ].some((field) => differs(before.profile[field as keyof typeof before.profile], after.profile[field as keyof typeof after.profile]))
-  const settingsChanged = differs(before.settings, after.settings)
   return transitionMetadata(
     {
       name: [before.name, after.name],
@@ -168,10 +167,7 @@ export function brandAuditMetadata(before: Brand, after: Brand): AuditMetadata {
       timezone: [before.timezone, after.timezone],
       locale: [before.locale, after.locale],
     },
-    [
-      ...(profileContentChanged ? ['profile_content'] : []),
-      ...(settingsChanged ? ['notification_settings'] : []),
-    ],
+    profileContentChanged ? ['profile_content'] : [],
   )
 }
 
