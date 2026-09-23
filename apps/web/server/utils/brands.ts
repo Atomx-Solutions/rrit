@@ -106,6 +106,20 @@ export async function getBrandBySlug(client: PoolClient, organizationId: string,
   return result.rows[0] ? toBrand(result.rows[0]) : null
 }
 
+// Legacy workspaces use the business slug as their canonical brand slug. A
+// brand slug can be edited independently, so keep the one-brand legacy route
+// usable when that slug has drifted.
+export async function getBrandForBusiness(
+  client: PoolClient,
+  organizationId: string,
+  businessSlug: string,
+) {
+  const bySlug = await getBrandBySlug(client, organizationId, businessSlug)
+  if (bySlug) return bySlug
+  const brands = await listBrands(client, organizationId)
+  return brands.length === 1 ? brands[0] || null : null
+}
+
 export async function createBrand(client: PoolClient, organizationId: string, input: BrandCreate) {
   const result = await client.query<BrandRow>(
     `INSERT INTO brands (organization_id, slug, name, profile, settings, timezone, locale, category)

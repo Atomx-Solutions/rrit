@@ -3,7 +3,7 @@ import { emptyWorkspace } from '../../shared/utils/empty-workspace'
 import { ianaTimezoneSchema } from '../../shared/schemas/brand'
 import { recordAuditEvent, transitionMetadata } from '../utils/audit'
 import { setTenantContext, setUserContext } from '../utils/database'
-import { getBrandBySlug } from '../utils/brands'
+import { getBrandForBusiness } from '../utils/brands'
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
   city: z.string().trim().min(2).max(120),
@@ -116,6 +116,29 @@ export default defineEventHandler(async (event) => {
       ],
     )
     if (result.rows.length) {
+      const brandId = initialBrand.rows[0]?.id
+      if (brandId) {
+        for (const fact of parsed.data.facts) {
+          const text = fact.text.trim()
+          const source = fact.source.trim() || 'Plotësuar nga biznesi'
+          if (!text) continue
+          await client.query(
+            `INSERT INTO brand_facts
+              (organization_id, brand_id, kind, status, text, source, source_type, confidence, verified_at)
+             VALUES ($1,$2,'explicit',$3,$4,$5,'manual',1,CASE WHEN $3='verified' THEN now() ELSE NULL END)`,
+            [id, brandId, fact.verified ? 'verified' : 'proposed', text, source],
+          )
+        }
+        const voice = parsed.data.voice.trim()
+        if (voice) {
+          await client.query(
+            `INSERT INTO brand_voice_versions
+              (organization_id, brand_id, version, text, source, active)
+             VALUES ($1,$2,1,$3,$4,true)`,
+            [id, brandId, voice, 'Plotësuar nga biznesi'],
+          )
+        }
+      }
       await recordAuditEvent(client, {
         actorId: user.id,
         organizationId: id,
@@ -158,7 +181,7 @@ export default defineEventHandler(async (event) => {
       await grantTrial(client, id, user.email, device)
     }
     const business = await loadWorkspace(client, id, user.id)
-    const brand = await getBrandBySlug(client, id, business.slug)
+    const brand = await getBrandForBusiness(client, id, business.slug)
     if (brand) {
       business.workspace.brandRevision = brand.revision
       business.workspace.brand.status = brand.status

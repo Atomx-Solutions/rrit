@@ -1247,6 +1247,7 @@
   "photo.formats": "JPG, PNG ose WebP deri në 5 MB.",
   "photo.saving": "Po ruhet fotografia",
   "brain.loadError": "Business Brain nuk u ngarkua.",
+  "brain.brandUnavailable": "Brandi nuk u ngarkua. Rihyr në llogari dhe provo përsëri.",
   "brain.actionError": "Veprimi nuk u krye.",
   "brain.factSaved": "Fakti u ruajt.",
   "brain.factRequired": "Plotëso tekstin dhe burimin e faktit.",
