@@ -6,6 +6,7 @@ import clientEn from '../../app/locales/client/en.json'
 import clientSq from '../../app/locales/client/sq.json'
 
 const adminPage = readFileSync(new URL('../../app/components/AdminPage.vue', import.meta.url), 'utf8')
+const publicLayout = readFileSync(new URL('../../app/layouts/public.vue', import.meta.url), 'utf8')
 
 describe('admin locales', () => {
   it('keeps the same admin translation keys in Albanian and English', () => {
@@ -31,5 +32,14 @@ describe('admin locales', () => {
     expect(adminPage).toContain("base: 'ps-2.5 sm:ps-9'")
     expect(adminPage).toContain('class="w-40 sm:w-32"')
     expect(adminPage).not.toContain('languageModalOpen')
+  })
+
+  it('uses the same select control for the client language switcher', () => {
+    expect(publicLayout).toContain("const languageOptions = computed(() => [")
+    expect(publicLayout).toMatch(/<USelect\s+v-model="language"/)
+    expect(publicLayout).toContain(':items="languageOptions"')
+    expect(publicLayout).toContain('class="size-4 sm:hidden"')
+    expect(publicLayout).toContain('class="size-5 hidden sm:block"')
+    expect(publicLayout).not.toContain('marketing-language-switch')
   })
 })

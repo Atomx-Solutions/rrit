@@ -1,10 +1,16 @@
 <script setup lang="ts">
 const route = useRoute()
 const { t, locale, setLocale } = useI18n()
-const languages = computed(() => [
-  { code: 'sq-XK', flag: 'i-flag-al-4x3', label: t('public.albanian') },
-  { code: 'en-US', flag: 'i-flag-gb-4x3', label: t('public.english') },
+const languageOptions = computed(() => [
+  { label: `SQ ${t('public.albanian')}`, value: 'sq-XK' },
+  { label: `EN ${t('public.english')}`, value: 'en-US' },
 ])
+const languageLabel = computed(() => locale.value === 'en-US' ? t('public.english') : t('public.albanian'))
+const languageFlag = computed(() => locale.value === 'en-US' ? 'i-flag-gb-4x3' : 'i-flag-al-4x3')
+const language = computed({
+  get: () => locale.value,
+  set: (value: string) => setLocale(value),
+})
 const links = computed(() => [
   {
     label: t('public.whyRrit'),
@@ -47,20 +53,22 @@ const year = new Date().getFullYear()
             color="neutral"
             variant="ghost"
             class="marketing-theme-toggle"
-          /><div class="marketing-language-switch" role="group" :aria-label="t('public.language')">
-            <UButton
-              v-for="language in languages"
-              :key="language.code"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :class="{ 'is-active': locale === language.code }"
-              :aria-label="language.label"
-              :aria-pressed="locale === language.code"
-              @click="setLocale(language.code)"
-              ><UIcon :name="language.flag" class="marketing-language-flag" aria-hidden="true" /></UButton
-            >
-          </div><UButton to="/login" variant="ghost" color="neutral">{{ t('public.login') }}</UButton
+          /><USelect
+            v-model="language"
+            :items="languageOptions"
+            variant="ghost"
+            :aria-label="t('public.language')"
+            class="w-40 sm:w-32"
+            :ui="{ base: 'ps-2.5 sm:ps-9' }"
+          >
+            <template #leading><UIcon name="i-lucide-languages" class="size-5 hidden sm:block" /></template>
+            <template #default>
+              <span class="inline-flex items-center gap-1.5">
+                <UIcon :name="languageFlag" class="size-4 sm:hidden" />
+                {{ languageLabel }}
+              </span>
+            </template>
+          </USelect><UButton to="/login" variant="ghost" color="neutral">{{ t('public.login') }}</UButton
           ><UButton
             :to="canRegister ? '/signup' : '/help'"
             trailing-icon="i-lucide-arrow-up-right"
@@ -76,20 +84,22 @@ const year = new Date().getFullYear()
             color="neutral"
             variant="ghost"
             class="marketing-theme-toggle"
-          /><div class="marketing-language-switch" role="group" :aria-label="t('public.language')">
-            <UButton
-              v-for="language in languages"
-              :key="language.code"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :class="{ 'is-active': locale === language.code }"
-              :aria-label="language.label"
-              :aria-pressed="locale === language.code"
-              @click="setLocale(language.code)"
-              ><UIcon :name="language.flag" class="marketing-language-flag" aria-hidden="true" /></UButton
-            >
-          </div><UButton
+          /><USelect
+            v-model="language"
+            :items="languageOptions"
+            variant="ghost"
+            :aria-label="t('public.language')"
+            class="w-40 sm:w-32"
+            :ui="{ base: 'ps-2.5 sm:ps-9' }"
+          >
+            <template #leading><UIcon name="i-lucide-languages" class="size-5 hidden sm:block" /></template>
+            <template #default>
+              <span class="inline-flex items-center gap-1.5">
+                <UIcon :name="languageFlag" class="size-4 sm:hidden" />
+                {{ languageLabel }}
+              </span>
+            </template>
+          </USelect><UButton
             :to="canRegister ? '/signup' : '/help'"
             trailing-icon="i-lucide-arrow-up-right"
             size="lg"
@@ -158,31 +168,6 @@ const year = new Date().getFullYear()
 .marketing-mobile-tools {
   display: none;
 }
-.marketing-language-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  padding: 2px;
-  border: 1px solid var(--ui-border);
-  border-radius: 999px;
-}
-.marketing-language-switch :deep(button) {
-  min-width: 30px;
-  min-height: 30px;
-  padding-inline: 5px;
-  line-height: 1;
-}
-.marketing-language-flag {
-  display: block;
-  width: 20px;
-  height: 14px;
-  border-radius: 2px;
-  object-fit: cover;
-}
-.marketing-language-switch :deep(button.is-active) {
-  background: var(--ui-bg-elevated);
-  box-shadow: 0 1px 3px rgb(15 23 42 / 14%);
-}
 @media (max-width: 639px) {
   .marketing-header-desktop-tools {
     display: none;
@@ -200,7 +185,7 @@ const year = new Date().getFullYear()
     grid-column: 1 / -1;
     width: 100%;
   }
-  .marketing-mobile-tools .marketing-language-switch {
+  .marketing-mobile-tools :deep([data-slot='base']) {
     justify-self: end;
   }
 }
