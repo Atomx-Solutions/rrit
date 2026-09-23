@@ -6,7 +6,7 @@ const { t } = useI18n()
   <div class="auth-layout">
     <aside class="auth-story">
       <BrandLogo />
-      <div>
+      <div class="auth-story-content">
         <span class="eyebrow">{{ t('public.skipBusiness') }}</span>
         <h2 class="mt-5">{{ t('public.everyDay') }}<br />{{ t('public.growOpportunity') }}</h2>
         <p>{{ t('public.businessPosts') }}</p>
@@ -15,14 +15,7 @@ const { t } = useI18n()
           :alt="t('dashboard.coffeeAlt')"
           width="440"
           height="230"
-          class="mt-8"
-          style="
-            border-radius: 16px;
-            width: 100%;
-            max-width: 440px;
-            height: 220px;
-            object-fit: cover;
-          "
+          class="auth-story-image mt-8"
         />
       </div>
       <p class="small">{{ t('public.inAlbanian') }}</p>
