@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { BusinessBrain, BusinessBrainFact, CreateOffer } from '../../shared/schemas/business-brain'
+import { updateBrainSchema, type BusinessBrain, type BusinessBrainFact, type CreateOffer } from '../../shared/schemas/business-brain'
 
 const route = useRoute()
 const { t } = useI18n()
-const { data, canonicalBrand } = useWorkspace()
+const { data, canonicalBrand, ready } = useWorkspace()
 const brain = ref<BusinessBrain | null>(null)
 const loading = ref(false)
 const saving = ref(false)
@@ -36,7 +36,12 @@ function syncSettings(value: BusinessBrain) {
 }
 
 async function load() {
-  if (!organizationId.value || !brandId.value) return
+  if (!ready.value || !organizationId.value) return
+  if (!brandId.value) {
+    brain.value = null
+    error.value = t('brain.brandUnavailable')
+    return
+  }
   loading.value = true
   error.value = ''
   try {
@@ -80,8 +85,26 @@ async function transitionFact(factId: string, status: 'verified' | 'rejected') {
 
 async function saveSettings() {
   if (!settings.voice.text.trim()) { error.value = t('brain.voiceRequired'); return }
+  const body = {
+    revision: brain.value!.revision,
+    voice: {
+      text: settings.voice.text.trim(),
+      source: settings.voice.source.trim(),
+    },
+    audiences: settings.audiences
+      .filter((item) => item.name.trim())
+      .map((item) => ({ ...item, name: item.name.trim(), description: item.description.trim() })),
+    guardrails: settings.guardrails
+      .filter((item) => item.text.trim())
+      .map((item) => ({ ...item, text: item.text.trim(), source: item.source.trim() })),
+  }
+  const parsed = updateBrainSchema.safeParse(body)
+  if (!parsed.success) {
+    error.value = parsed.error.issues[0]?.message || t('brain.actionError')
+    return
+  }
   saving.value = true
-  try { await run(() => $fetch(apiRoot.value, { method: 'PUT', body: { revision: brain.value!.revision, voice: settings.voice, audiences: settings.audiences, guardrails: settings.guardrails } }), t('brain.saved')) }
+  try { await run(() => $fetch(apiRoot.value, { method: 'PUT', body: parsed.data }), t('brain.saved')) }
   finally { saving.value = false }
 }
 
@@ -100,7 +123,7 @@ async function activateOffer(offerId: string) {
   await run(() => $fetch(`${brandApiRoot.value}/offers/${offerId}/activate`, { method: 'POST', body: {} }), t('brain.offerActivated'))
 }
 
-watch(brandId, load, { immediate: true })
+watch([ready, organizationId, brandId], load, { immediate: true })
 </script>
 
 <template>

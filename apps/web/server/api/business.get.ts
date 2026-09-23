@@ -1,4 +1,4 @@
-import { getBrandBySlug } from '../utils/brands'
+import { getBrandForBusiness } from '../utils/brands'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     if (!result.rows[0]) return null
     await setTenantContext(client, { userId: user.id, organizationId: result.rows[0].id })
     const business = await loadWorkspace(client, result.rows[0].id, user.id)
-    const brand = await getBrandBySlug(client, result.rows[0].id, business.slug)
+    const brand = await getBrandForBusiness(client, result.rows[0].id, business.slug)
     if (brand) {
       business.workspace.brandRevision = brand.revision
       business.workspace.brand.status = brand.status

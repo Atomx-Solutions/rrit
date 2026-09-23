@@ -1247,6 +1247,7 @@
   "photo.formats": "JPG, PNG or WebP up to 5 MB.",
   "photo.saving": "Saving photo",
   "brain.loadError": "Business Brain could not be loaded.",
+  "brain.brandUnavailable": "The brand could not be loaded. Sign in again and try again.",
   "brain.actionError": "The action could not be completed.",
   "brain.factSaved": "Fact saved.",
   "brain.factRequired": "Complete the fact text and source.",
