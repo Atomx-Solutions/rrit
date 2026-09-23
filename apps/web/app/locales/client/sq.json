@@ -1628,5 +1628,8 @@
   "billing.detailsFailed": "Të dhënat nuk u ruajtën. Kontrollo emrin e biznesit dhe provo përsëri.",
   "billing.validUntil": "Vlen deri më {{date}} · faturim {{interval}}",
   "billing.viewInvoice": "Shiko",
+  "monthly.aiPhotoPreview": "Vetëm parapamje — AI do të zgjedhë",
+  "monthly.aiPhotoPreviewDescription": "Këto foto të ngarkuara shfaqen vetëm për shikim. AI zgjedh foton më të përshtatshme për secilin postim pasi të krijohet strategjia.",
+  "monthly.manualPhotoSelectionDescription": "Kliko mbi foto për t’i përfshirë në postimet e këtij muaji.",
   "billing.viewInvoiceNumber": "Shiko faturën {{number}}"
 }

@@ -34,6 +34,21 @@ const {
 )
 const savedId = ref(props.id)
 const post = computed(() => data.value.posts.find((p) => p.id === savedId.value))
+function localizedPolicyReason(
+  reason: string,
+  translate: (key: 'content.metaConfirmed') => string,
+) {
+  const normalizedReason = reason.trim()
+  if (
+    normalizedReason === 'Meta e konfirmoi publikimin.' ||
+    normalizedReason === 'Meta confirmed the publication.'
+  )
+    return translate('content.metaConfirmed')
+  return normalizedReason
+}
+const policyReason = computed(
+  () => localizedPolicyReason(post.value?.policyReason || '', t) || t('content.verifyDescription'),
+)
 const selectableAssets = computed(() => {
   const assets = data.value.assets.filter((asset) => asset.rights)
   if (!post.value) return assets
@@ -556,7 +571,7 @@ onBeforeUnmount(() => {
                   : t('coverage.manualReview')
             "
             :description="
-              post?.policyReason || t('content.verifyDescription')
+              policyReason
             "
           /><ULink :to="`${base}/brand`" class="text-primary small"
             >{{ t('content.businessFacts') }}</ULink

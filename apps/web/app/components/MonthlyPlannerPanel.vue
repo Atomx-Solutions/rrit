@@ -625,7 +625,23 @@ onBeforeUnmount(() => clearInterval(timer))
             </span>
           </UButton>
         </div>
-        <div v-if="photoMode === 'selected'" class="mt-4">
+        <div class="mt-4">
+          <div
+            v-if="photoMode === 'auto'"
+            class="mb-3 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-3"
+          >
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UIcon name="i-lucide-eye" class="size-4" />
+            </div>
+            <div class="min-w-0">
+              <UBadge color="primary" variant="subtle" size="sm">{{ t('monthly.aiPhotoPreview') }}</UBadge>
+              <p class="mt-1 text-xs leading-5 text-muted">{{ t('monthly.aiPhotoPreviewDescription') }}</p>
+            </div>
+          </div>
+          <div v-else class="mb-3 flex items-center gap-2 px-1 text-xs leading-5 text-muted">
+            <UIcon name="i-lucide-mouse-pointer-click" class="size-4 shrink-0 text-primary" />
+            {{ t('monthly.manualPhotoSelectionDescription') }}
+          </div>
           <div
             v-if="originalPhotos.length"
             class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"
@@ -636,23 +652,30 @@ onBeforeUnmount(() => clearInterval(timer))
               type="button"
               color="neutral"
               variant="outline"
-              class="group relative overflow-hidden rounded-xl border bg-elevated text-left transition"
+              class="group relative flex flex-col items-stretch overflow-hidden rounded-xl border bg-elevated p-0 text-left shadow-sm transition disabled:cursor-default disabled:opacity-100"
               :class="
-                selectedPhotoIds.includes(asset.id)
+                photoMode === 'selected' && selectedPhotoIds.includes(asset.id)
                   ? 'border-primary ring-2 ring-primary/20'
-                  : 'border-default hover:border-primary/30'
+                  : photoMode === 'selected'
+                    ? 'border-default hover:border-primary/30'
+                    : 'border-default'
               "
-              :aria-pressed="selectedPhotoIds.includes(asset.id)"
+              :disabled="photoMode === 'auto'"
+              :aria-pressed="photoMode === 'selected' && selectedPhotoIds.includes(asset.id)"
               @click="togglePhoto(asset.id)"
             >
               <MediaImage
                 :src="asset.url"
                 :alt="asset.name"
-                class="aspect-[4/5] w-full object-cover"
+                fit="cover"
+                class="flex-1 min-h-0 w-full"
               />
-              <span class="block truncate px-2.5 py-2 text-xs font-medium">{{ asset.name }}</span>
+              <span class="flex w-full items-center gap-1.5 px-2.5 py-2.5 text-left text-xs font-medium">
+                <UIcon name="i-lucide-image" class="size-3 shrink-0 text-muted" />
+                <span class="line-clamp-2">{{ asset.name }}</span>
+              </span>
               <span
-                v-if="selectedPhotoIds.includes(asset.id)"
+                v-if="photoMode === 'selected' && selectedPhotoIds.includes(asset.id)"
                 class="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-primary text-white shadow"
               >
                 <UIcon name="i-lucide-check" class="size-3.5" />
@@ -667,7 +690,7 @@ onBeforeUnmount(() => clearInterval(timer))
             :title="t('monthly.noOriginalPhotosTitle')"
             :description="t('monthly.noOriginalPhotosDescription')"
           />
-          <p v-if="selectedPhotoIds.length" class="mt-2 text-xs text-muted">
+          <p v-if="photoMode === 'selected' && selectedPhotoIds.length" class="mt-2 text-xs text-muted">
             {{ t('monthly.photosIncluded', { count: selectedPhotoIds.length }) }}
           </p>
         </div>
