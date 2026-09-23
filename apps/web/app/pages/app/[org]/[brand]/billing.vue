@@ -121,8 +121,8 @@ async function buyCreditTopUp() {
   }
 }
 function packageName(plan: (typeof plans.value)[number]) {
-  const key = `billing.planPackage${plan.code.replace('pako-', '')}`
-  return plan.code.startsWith('pako-') ? t(key) : plan.name
+  const key = `billing.planPackage${plan.code.replace('package-', '')}`
+  return plan.code.startsWith('package-') ? t(key) : plan.name
 }
 function packageDescription(plan: (typeof plans.value)[number]) {
   return t('billing.planDescription', {

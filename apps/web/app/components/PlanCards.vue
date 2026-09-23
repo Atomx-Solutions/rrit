@@ -8,9 +8,9 @@ const { canRegister } = useLandingOffer()
 const emit = defineEmits<{ select: [name: string] }>()
 
 const planNameKeys: Record<string, string> = {
-  'pako-1': 'billing.planPackage1',
-  'pako-2': 'billing.planPackage2',
-  'pako-3': 'billing.planPackage3',
+  'package-1': 'billing.planPackage1',
+  'package-2': 'billing.planPackage2',
+  'package-3': 'billing.planPackage3',
 }
 type CatalogPlan = (typeof plans.value)[number]
 
