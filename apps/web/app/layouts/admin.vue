@@ -37,6 +37,7 @@ const menu = computed<NavigationMenuItem[]>(() =>
     { to: '/admin/billing', label: t('admin.nav.billing'), icon: 'i-lucide-receipt-text' },
     { to: '/admin/ai', label: t('admin.nav.ai'), icon: 'i-lucide-cpu' },
     { to: '/admin/audit', label: t('admin.nav.audit'), icon: 'i-lucide-scroll-text' },
+    { to: '/admin/settings', label: t('admin.nav.settings'), icon: 'i-lucide-settings' },
   ].map(link => ({
     ...link,
     tooltip: { text: link.label },

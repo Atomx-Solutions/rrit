@@ -6,7 +6,7 @@ export type AdminOverview = {
   organizations: { total: number, active: number, trialing: number, paused: number, cancelled: number }
   subscriptions: { mrr_cents: number, active: number, trialing: number }
   revenue: { total_cents: number, this_month_cents: number }
-  sales: { plans_total_cents: number, plans_this_month_cents: number, credits_total_cents: number, credits_this_month_cents: number }
+  sales: { plans_total_cents: number, plans_this_month_cents: number, credits_total_cents: number, credits_this_month_cents: number, vat_total_cents: number, vat_this_month_cents: number }
   ai: { cost_micro_eur_this_month: number, cost_micro_eur_total: number, margin_cents_this_month: number }
   users: { total: number }
   signups: { this_week: number, this_month: number }
@@ -56,6 +56,8 @@ export function normalizeAdminOverview(value: unknown): AdminOverview {
       plans_this_month_cents: number(sales.plans_this_month_cents),
       credits_total_cents: number(sales.credits_total_cents),
       credits_this_month_cents: number(sales.credits_this_month_cents),
+      vat_total_cents: number(sales.vat_total_cents),
+      vat_this_month_cents: number(sales.vat_this_month_cents),
     },
     ai: {
       cost_micro_eur_this_month: number(ai.cost_micro_eur_this_month),
@@ -105,13 +107,15 @@ export async function adminOverview() {
   // provider charged. Credits included in plans are paid for by the plan price,
   // so valuing them at the credit price would count money never collected.
   const creditSalesCents = number(record(sales.data).credits_this_month_cents)
-  // Monthly revenue is everything invoiced this month: plans (an annual plan
-  // counts in full in its purchase month) plus credit top-ups, net of credit
-  // notes. It can never exceed total revenue, and unbilled subscriptions do not count.
+  // Every revenue figure here is net of VAT: VAT is collected for the state,
+  // not earned. Monthly revenue is what was invoiced this month (an annual plan
+  // counts in full in its purchase month), net of credit notes.
   const monthSalesCents = number(record(sales.data).plans_this_month_cents) + number(record(sales.data).credits_this_month_cents)
+  const totalSalesCents = number(record(sales.data).plans_total_cents) + number(record(sales.data).credits_total_cents)
   return normalizeAdminOverview({
     ...overview,
     subscriptions: { ...record(overview.subscriptions), mrr_cents: monthSalesCents },
+    revenue: { ...record(overview.revenue), total_cents: totalSalesCents, this_month_cents: monthSalesCents },
     sales: sales.data,
     ai: {
       ...record(overview.ai),

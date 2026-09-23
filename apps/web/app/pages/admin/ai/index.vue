@@ -61,10 +61,15 @@ function usdWithEur(value: number) {
 }
 
 // Provider top-up URL (opens in new tab, user never leaves the admin page)
-const topUpUrl = 'https://openrouter.ai/workspaces/default'
+// Where "Add credit" goes is a platform setting, because the provider has no
+// card-payment API we could call from here.
+const { data: platformSettings } = await useFetch<{ ai_top_up_url: string, ai_low_balance_usd: number, ai_warn_balance_usd: number }>('/api/admin/settings', { lazy: true })
+const topUpUrl = computed(() => platformSettings.value?.ai_top_up_url || 'https://openrouter.ai/settings/credits')
 
 const account_balance = computed(() => account.value?.account?.balance_usd ?? null)
-const low_balance = computed(() => account_balance.value !== null && account_balance.value < 5)
+// The threshold comes from the admin settings page.
+const low_balance = computed(() =>
+  account_balance.value !== null && account_balance.value < (platformSettings.value?.ai_warn_balance_usd ?? 30))
 
 // Capacity tiles: only what matters for platform health
 const capacityTiles = computed(() => {

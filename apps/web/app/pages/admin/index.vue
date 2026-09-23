@@ -22,6 +22,14 @@ const { data, status, error, refresh } = await useFetch<Overview>('/api/admin/ov
   key: 'admin-overview',
 })
 
+// The provider balance, so a low balance is noticed here and not only on the
+// AI costs page. Clicking the notice goes there.
+const { data: balance } = await useFetch<{ balance_usd: number | null, level: 'ok' | 'warning' | 'critical', low_balance_usd: number, warn_balance_usd: number }>(
+  '/api/admin/ai/balance',
+  { lazy: true },
+)
+const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const count = new Intl.NumberFormat('sq-XK')
 const formatDate = (value: string) =>
@@ -85,6 +93,17 @@ function onSelect(_event: Event, row: TableRow<NewOrganization>) {
       :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
     />
     <template v-else>
+      <!-- Red below the critical amount, amber while getting close. -->
+      <UAlert
+        v-if="balance && balance.level !== 'ok'"
+        :color="balance.level === 'critical' ? 'error' : 'warning'"
+        variant="subtle"
+        :icon="balance.level === 'critical' ? 'i-lucide-battery-warning' : 'i-lucide-battery-low'"
+        class="shrink-0"
+        :title="t(balance.level === 'critical' ? 'admin.overview.lowBalance' : 'admin.overview.nearBalance', { balance: dollars.format(balance.balance_usd ?? 0) })"
+        :description="t(balance.level === 'critical' ? 'admin.overview.lowBalanceHint' : 'admin.overview.nearBalanceHint', { threshold: dollars.format(balance.level === 'critical' ? balance.low_balance_usd : balance.warn_balance_usd) })"
+        :actions="[{ label: t('admin.overview.openAiCosts'), color: balance.level === 'critical' ? 'error' : 'warning', variant: 'solid', to: '/admin/ai' }]"
+      />
       <!-- Two tiles per row on phones, three on tablets, all six in a row on wide screens. -->
       <UPageGrid class="shrink-0 grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
         <template v-if="status === 'pending' && !data">
