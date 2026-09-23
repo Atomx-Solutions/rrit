@@ -36,6 +36,8 @@ const form = reactive({
 })
 const saving = ref(false)
 const error = ref('')
+const { onFormError, watchError } = useFormFeedback()
+watchError(error)
 const planOptions = computed(() =>
   plans.value.filter(plan => !plan.isTrial).map(plan => ({ label: plan.name, value: plan.code })),
 )
@@ -85,7 +87,7 @@ async function submit() {
     @update:open="(value: boolean) => { if (!value) action = null }"
   >
     <template #body>
-      <UForm :state="form" class="space-y-4" @submit="submit">
+      <UForm :state="form" class="space-y-4" @submit="submit" @error="onFormError">
         <UFormField v-if="action === 'pause'" name="reason" :label="t('admin.subscription.reason')" :hint="t('admin.subscription.optional')">
           <UTextarea v-model="form.reason" :maxlength="300" :rows="3" class="w-full" />
         </UFormField>
@@ -113,7 +115,6 @@ async function submit() {
           variant="subtle"
           :title="t(`admin.subscription.confirm.${action}`)"
         />
-        <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
         <UButton
           type="submit"
           :loading="saving"

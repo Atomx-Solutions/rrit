@@ -5,8 +5,10 @@ const route = useRoute()
 const chrome = inject(dashboardKey)
 if (!chrome) throw new Error('DashboardPage requires the dashboard layout')
 const { sidebarOpen, notificationsOpen } = chrome
-const { base, storageError, exportData, syncing } = useWorkspace()
+const { base, storageError, syncing } = useWorkspace()
 const { t, locale } = useI18n()
+const { watchError } = useFormFeedback()
+watchError(storageError, 'error')
 const { data: headerUsage, refresh: refreshHeaderUsage } = await useFetch('/api/usage', {
   key: 'header-credit-balance',
 })
@@ -109,13 +111,6 @@ onBeforeUnmount(() => clearInterval(creditTimer))
     </template>
     <template #body>
       <div class="page dashboard-page-body space-y-4">
-        <UAlert
-          v-if="storageError"
-          color="error"
-          :title="storageError"
-          class="mb-5"
-          :actions="[{ label: t('workspace.exportCopy'), onClick: exportData }]"
-        />
         <TrialBanner :key="locale" />
         <LowCreditBanner
           :spendable="credits"

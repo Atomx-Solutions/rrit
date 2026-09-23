@@ -3,6 +3,7 @@ import type { TableColumn } from '@nuxt/ui'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
+const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.audit')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
 type AuditEvent = {
@@ -42,7 +43,7 @@ watch([() => filters.organization, actor, () => filters.action, () => filters.fr
   page.value = 1
 })
 
-const { data, status, error, refresh } = await useFetch<AuditPage>('/api/admin/audit', {
+const { data, status, error } = await useFetch<AuditPage>('/api/admin/audit', {
   // Open the page at once and show loading inside it, instead of blocking navigation.
   lazy: true,
   key: 'admin-audit',
@@ -56,6 +57,9 @@ const { data, status, error, refresh } = await useFetch<AuditPage>('/api/admin/a
     ...(filters.to ? { to: filters.to } : {}),
   })),
 })
+watch(error, (value) => {
+  if (value) showError(t('admin.audit.loadError'))
+}, { immediate: true })
 const events = computed(() => data.value?.items || [])
 // A new page starts at the top of the list, not where the previous one was scrolled.
 const listCard = useTemplateRef<{ $el: HTMLElement }>('listCard')
@@ -286,16 +290,7 @@ const tableUi = {
         </UForm>
       </template>
 
-      <UAlert
-        v-if="error"
-        color="error"
-        variant="subtle"
-        class="m-4"
-        :title="t('admin.audit.loadError')"
-        :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-      />
-      <template v-else>
-        <!-- Phones: one card per event. -->
+      <!-- Phones: one card per event. -->
         <UCard
           v-for="event in events"
           :key="event.id"
@@ -392,7 +387,6 @@ const tableUi = {
             />
           </template>
         </UTable>
-      </template>
     </UCard>
 
     <UModal

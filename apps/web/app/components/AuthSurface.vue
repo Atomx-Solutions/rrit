@@ -35,6 +35,15 @@ const error = ref('')
 const success = ref('')
 const showPassword = ref(false)
 const hydrated = ref(false)
+const { onFormError, showError, showSuccess, watchError } = useFormFeedback()
+watchError(error)
+watch(
+  () => route.query.error,
+  (value) => {
+    if (value) showError(t('auth.connectionUnavailableDescription'), 'warning')
+  },
+  { immediate: true },
+)
 const available = computed(() => {
   if (props.mode === 'signup') return capabilities.value?.registration
   if (props.mode === 'forgot' || props.mode === 'verify')
@@ -171,13 +180,17 @@ async function submit() {
       if (result.error) error.value = errorText(result.error)
       else
         success.value = t('auth.recoveryRequested')
+        showSuccess(success.value)
     } else if (props.mode === 'verify') {
       const result = await authClient.sendVerificationEmail({
         email: state.email.trim(),
         callbackURL: '/auth/callback?next=/onboarding',
       })
       if (result.error) error.value = errorText(result.error)
-      else success.value = t('auth.verificationRequested')
+      else {
+        success.value = t('auth.verificationRequested')
+        showSuccess(success.value)
+      }
     } else if (props.mode === 'reset') {
       const token = typeof route.query.token === 'string' ? route.query.token : ''
       if (!token) {
@@ -190,6 +203,7 @@ async function submit() {
         state.password = ''
         state.confirm = ''
         success.value = t('auth.passwordChanged')
+        showSuccess(success.value)
       }
     }
   } catch (caught) {
@@ -202,22 +216,13 @@ async function submit() {
 <template>
   <h1>{{ t(`auth.title.${mode}`) }}</h1>
   <p>{{ t(`auth.description.${mode}`) }}</p>
-  <UAlert v-if="error" color="error" variant="outline" :title="error" class="mb-5" />
-  <UAlert v-if="success" color="success" variant="outline" :title="success" class="mb-5" />
-  <UAlert
-    v-if="route.query.error"
-    color="warning"
-    variant="outline"
-    :title="t('auth.connectionUnavailableTitle')"
-    :description="t('auth.connectionUnavailableDescription')"
-    class="mb-5"
-  />
   <UForm
     v-if="mode !== 'callback' && !(mode === 'reset' && success)"
     :schema="schema"
     :state="state"
     class="space-y-5"
     @submit="submit"
+    @error="onFormError"
   >
     <UFormField v-if="mode === 'signup'" :label="t('settings.fullName')" name="name" required
       ><UInput

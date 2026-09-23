@@ -88,6 +88,13 @@ export function useWorkspace() {
         problem.statusCode === 401
           ? t('workspace.sessionExpired')
           : problem.data?.message || t('workspace.saveFailed')
+      toast?.add({
+        title: t('common.formError'),
+        description: storageError.value,
+        color: 'error',
+        icon: 'i-lucide-circle-alert',
+        duration: 7000,
+      })
       return false
     } finally {
       syncing.value = false

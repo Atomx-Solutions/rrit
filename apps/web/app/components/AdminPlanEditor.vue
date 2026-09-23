@@ -56,6 +56,8 @@ const changes = computed(() => {
 })
 const saving = ref(false)
 const error = ref('')
+const { onFormError, watchError } = useFormFeedback()
+watchError(error)
 
 async function save() {
   if (!props.plan || !Object.keys(changes.value).length) return
@@ -81,7 +83,12 @@ async function save() {
     @update:open="(value: boolean) => { if (!value) emit('close') }"
   >
     <template #body>
-      <UForm :state="form" class="grid gap-4 sm:grid-cols-2" @submit="save">
+      <UForm
+        :state="form"
+        class="grid gap-4 sm:grid-cols-2"
+        @submit="save"
+        @error="onFormError"
+      >
         <UFormField name="name" :label="t('admin.plans.name')" class="sm:col-span-2" required>
           <UInput v-model="form.name" maxlength="120" class="w-full" />
         </UFormField>
@@ -123,7 +130,6 @@ async function save() {
           icon="i-lucide-info"
           :title="t('admin.plans.subscriptionsUnchanged')"
         />
-        <UAlert v-if="error" class="sm:col-span-2" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
         <UButton
           type="submit"
           class="sm:col-span-2"

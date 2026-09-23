@@ -28,12 +28,16 @@ type PlanDraft = {
 
 const { t } = useI18n()
 const toast = useToast()
+const { onFormError, showError } = useFormFeedback()
 useSeoMeta({ title: () => t('admin.nav.plans'), robots: 'noindex, nofollow' })
 const { data, error, refresh } = await useFetch<{
   plans: AdminPlan[]
   credit_pricing: CreditPricing
   invoice_settings: InvoiceSettings
 }>('/api/admin/plans', { lazy: true, key: 'admin-plans' })
+watch(error, (value) => {
+  if (value) showError(t('admin.plans.loadError'))
+}, { immediate: true })
 
 const plans = computed(() => data.value?.plans || [])
 const drafts = reactive<Record<string, PlanDraft>>({})
@@ -167,9 +171,7 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
 
 <template>
   <AdminPage :title="t('admin.nav.plans')">
-    <UAlert v-if="error" color="error" variant="subtle" :title="t('admin.plans.loadError')" :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]" />
-    <template v-else>
-      <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-0 sm:p-0' }">
+    <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-0 sm:p-0' }">
         <template #header>
           <UUser :name="t('admin.plans.packagesTitle')" :description="t('admin.plans.packagesDescription')" :avatar="{ icon: 'i-lucide-package', size: 'sm' }" />
         </template>
@@ -178,7 +180,7 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
             <p class="font-medium">{{ plan.code }}</p>
             <UBadge v-if="Object.keys(planChanges(plan)).length" color="warning" variant="subtle" :label="t('admin.plans.unsaved')" />
           </div>
-          <UForm :state="draft(plan)" class="grid gap-3 sm:grid-cols-2" @submit="savePlan(plan)">
+          <UForm :state="draft(plan)" class="grid gap-3 sm:grid-cols-2" @submit="savePlan(plan)" @error="onFormError">
             <UFormField name="name" :label="t('admin.plans.name')" class="sm:col-span-2"><UInput v-model="draft(plan).name" maxlength="120" class="w-full" /></UFormField>
             <UFormField name="monthly_price" :label="t('admin.plans.monthlyPrice')"><UFieldGroup class="w-full"><UButton type="button" icon="i-lucide-minus" color="neutral" variant="outline" :disabled="plan.is_trial" @click="adjustMonthlyPrice(plan, -0.10)" /><UInput v-model.number="draft(plan).monthly_price" type="number" :min="plan.is_trial ? 0 : 0.01" step="0.01" :disabled="plan.is_trial" class="w-full" /><UButton type="button" icon="i-lucide-plus" color="neutral" variant="outline" :disabled="plan.is_trial" @click="adjustMonthlyPrice(plan, 0.10)" /></UFieldGroup></UFormField>
             <UFormField name="annual_discount_percent" :label="t('admin.plans.annualDiscount')" :help="t('admin.plans.annualDiscountHelp')"><UInputNumber v-model="draft(plan).annual_discount_percent" :min="0" :max="100" :disabled="plan.is_trial" suffix="%" class="w-full" /><p class="mt-1 text-xs text-muted">{{ t('admin.plans.annualPriceHelp', { price: formatMoney(annualPrice(plan)) }) }}</p></UFormField>
@@ -203,7 +205,7 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
 
       <UCard class="shrink-0" :ui="cardUi">
         <template #header><UUser :name="t('admin.plans.pricingTitle')" :description="t('admin.plans.pricingDescription')" :avatar="{ icon: 'i-lucide-coins', size: 'sm' }" /></template>
-        <UForm :state="pricing" class="grid gap-4 sm:grid-cols-3" @submit="saveSettings('pricing')">
+        <UForm :state="pricing" class="grid gap-4 sm:grid-cols-3" @submit="saveSettings('pricing')" @error="onFormError">
           <UFormField name="credit_price" :label="t('admin.plans.creditPrice')" :help="t('admin.plans.creditPriceHelp')"><UInputNumber v-model="pricing.credit_price" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 4 }" class="w-full" /></UFormField>
           <UFormField name="provider_cost" :label="t('admin.plans.providerCost')" :help="t('admin.plans.providerCostHelp')"><UInputNumber v-model="pricing.provider_cost" :min="0.000001" :step="0.001" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 6 }" class="w-full" /></UFormField>
           <UFormField name="low_credit_threshold" :label="t('admin.plans.lowCreditThreshold')" :help="t('admin.plans.lowCreditThresholdHelp')"><UInputNumber v-model="pricing.low_credit_threshold" :min="0" class="w-full" /></UFormField>
@@ -214,7 +216,7 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
 
       <UCard class="shrink-0" :ui="cardUi">
         <template #header><UUser :name="t('admin.plans.invoiceTitle')" :description="t('admin.plans.invoiceDescription')" :avatar="{ icon: 'i-lucide-receipt-text', size: 'sm' }" /></template>
-        <UForm :state="invoice" class="grid gap-4 sm:grid-cols-2" @submit="saveSettings('invoice')">
+        <UForm :state="invoice" class="grid gap-4 sm:grid-cols-2" @submit="saveSettings('invoice')" @error="onFormError">
           <UFormField name="seller_name" :label="t('admin.plans.sellerName')" required><UInput v-model="invoice.seller_name" maxlength="160" class="w-full" /></UFormField>
           <UFormField name="seller_fiscal_number" :label="t('admin.plans.sellerFiscalNumber')"><UInput v-model="invoice.seller_fiscal_number" maxlength="40" class="w-full" /></UFormField>
           <UFormField name="seller_address" :label="t('admin.plans.sellerAddress')" class="sm:col-span-2"><UInput v-model="invoice.seller_address" maxlength="240" class="w-full" /></UFormField>
@@ -223,6 +225,5 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
           <UButton type="submit" class="sm:col-span-2 justify-self-start" :loading="saving.invoice" :disabled="!Object.keys(invoiceChanges).length || invoiceInvalid" :label="t('admin.plans.save')" />
         </UForm>
       </UCard>
-    </template>
   </AdminPage>
 </template>

@@ -4,6 +4,8 @@ const { setLocale, t } = useI18n()
 const step = ref(context.value ? Math.min(data.value.onboarding, 2) : 0)
 const busy = ref(false)
 const error = ref('')
+const { onFormError, watchError } = useFormFeedback()
+watchError(error)
 const {
   form,
   localError,
@@ -22,6 +24,7 @@ const {
   timezone: data.value.preferences.timezone,
   locale: data.value.preferences.locale,
 })
+watchError(localError, 'warning')
 watch(
   () => form.locale,
   (value) => {
@@ -193,9 +196,7 @@ async function next() {
       :aria-label="t('onboarding.businessSetup')"
     />
     <span role="status" class="sr-only">{{ t('onboarding.stepStatus', { step: step + 1 }) }}: {{ steps[step] }}</span>
-    <UAlert v-if="localError" color="warning" variant="outline" :title="localError" />
-    <UAlert v-if="error" color="error" variant="outline" :title="error" />
-    <UForm :state="form" class="space-y-5" @submit="next">
+    <UForm :state="form" class="space-y-5" @submit="next" @error="onFormError">
       <template v-if="step === 0">
         <UFormField :label="t('onboarding.businessName')" name="name" required
           ><UInput

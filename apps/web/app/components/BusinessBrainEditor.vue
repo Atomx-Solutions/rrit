@@ -8,7 +8,8 @@ const brain = ref<BusinessBrain | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
-const message = ref('')
+const { showSuccess, watchError } = useFormFeedback()
+watchError(error)
 const editingFact = ref<string | null>(null)
 const editFact = reactive({ text: '', source: '', confidence: 1 })
 const newFactOpen = ref(false)
@@ -27,12 +28,16 @@ function displaySource(source: string) {
     : source
 }
 
+function displayDefaultSource(source?: string) {
+  return !source || source === 'brain.defaultSource' ? t('brain.defaultSource') : source
+}
+
 function syncSettings(value: BusinessBrain) {
   const activeVoice = value.voiceVersions.find((item) => item.active)
   settings.voice.text = activeVoice?.text || data.value.brand.voice || ''
-  settings.voice.source = activeVoice?.source || t('brain.defaultSource')
+  settings.voice.source = displayDefaultSource(activeVoice?.source)
   settings.audiences = value.audiences.filter((item) => item.status === 'active').map((item) => ({ id: item.id, name: item.name, description: item.description }))
-  settings.guardrails = value.guardrails.filter((item) => item.status === 'active').map((item) => ({ id: item.id, text: item.text, source: item.source }))
+  settings.guardrails = value.guardrails.filter((item) => item.status === 'active').map((item) => ({ id: item.id, text: item.text, source: displayDefaultSource(item.source) }))
 }
 
 async function load() {
@@ -56,8 +61,7 @@ async function load() {
 
 async function run<T>(action: () => Promise<T>, success: string) {
   error.value = ''
-  message.value = ''
-  try { await action(); message.value = success; await load() }
+  try { await action(); showSuccess(success); await load() }
   catch (cause) { error.value = (cause as { data?: { message?: string } }).data?.message || t('brain.actionError') }
 }
 
@@ -134,8 +138,6 @@ watch([ready, organizationId, brandId], load, { immediate: true })
     </div>
     <div class="space-y-8 p-5 sm:p-7">
       <div class="space-y-3">
-        <UAlert v-if="error" color="error" variant="outline" :title="error" />
-        <UAlert v-if="message" color="success" variant="outline" :title="message" />
       </div>
       <div v-if="loading" role="status" class="text-sm text-muted">{{ t('brain.loading') }}</div>
       <template v-else-if="brain">
@@ -215,7 +217,7 @@ watch([ready, organizationId, brandId], load, { immediate: true })
             <div class="flex justify-end"><UButton type="button" size="sm" @click.prevent.stop="createOffer">{{ t('brain.saveDraft') }}</UButton></div>
           </div>
           <div v-for="item in brain.offers" :key="item.id" class="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-default p-4">
-            <div class="min-w-0"><p class="font-medium">{{ item.name }}</p><p class="text-sm text-muted">{{ item.description || t('brain.noDescription') }} · {{ item.currency }}{{ item.amount === null ? '' : ` ${item.amount}` }}</p><p class="text-xs text-muted">{{ item.validFrom }}{{ item.validUntil ? ` – ${item.validUntil}` : '' }} · {{ item.source }}</p></div>
+            <div class="min-w-0"><p class="font-medium">{{ item.name }}</p><p class="text-sm text-muted">{{ item.description || t('brain.noDescription') }} · {{ item.currency }}{{ item.amount === null ? '' : ` ${item.amount}` }}</p><p class="text-xs text-muted">{{ item.validFrom }}{{ item.validUntil ? ` – ${item.validUntil}` : '' }} · {{ displayDefaultSource(item.source) }}</p></div>
             <div class="flex items-center gap-2"><UBadge :color="item.status === 'active' ? 'success' : 'neutral'">{{ item.status === 'active' ? t('brain.active') : t('brain.draft') }}</UBadge><UButton v-if="item.status === 'draft'" type="button" size="xs" color="success" variant="outline" @click.prevent.stop="activateOffer(item.id)">{{ t('brain.activate') }}</UButton></div>
           </div>
           <p v-if="!brain.offers.length" class="rounded-lg border border-dashed border-default p-4 text-sm text-muted">{{ t('brain.noOffers') }}</p>

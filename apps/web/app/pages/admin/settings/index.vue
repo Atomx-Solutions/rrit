@@ -1,11 +1,15 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t, locale, setLocale } = useI18n()
+const { onFormError, showError, watchError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.settings')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
 type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number }
 const toast = useToast()
 const { data, status, error, refresh } = await useFetch<Settings>('/api/admin/settings', { lazy: true })
+watch(error, (value) => {
+  if (value) showError(t('admin.settings.loadError'))
+}, { immediate: true })
 
 const form = reactive({ ai_top_up_url: '', ai_warn_balance_usd: 30, ai_low_balance_usd: 10 })
 watch(data, (value) => {
@@ -18,6 +22,7 @@ const changed = computed(() =>
 
 const saving = ref(false)
 const saveError = ref('')
+watchError(saveError)
 async function save() {
   if (!changed.value) return
   saving.value = true
@@ -53,15 +58,7 @@ const language = computed({
 
 <template>
   <AdminPage :title="t('admin.nav.settings')">
-    <UAlert
-      v-if="error"
-      color="error"
-      variant="subtle"
-      :title="t('admin.settings.loadError')"
-      :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-    />
-    <template v-else>
-      <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }">
+    <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }">
         <template #header>
           <UUser
             :name="t('admin.settings.language')"
@@ -80,7 +77,7 @@ const language = computed({
             :avatar="{ icon: 'i-lucide-wallet', size: 'sm' }"
           />
         </template>
-        <UForm :state="form" class="space-y-4" @submit="save">
+        <UForm :state="form" class="space-y-4" @submit="save" @error="onFormError">
           <UFormField name="ai_top_up_url" :label="t('admin.settings.topUpUrl')" :hint="t('admin.settings.topUpUrlHint')">
             <UInput
               v-model="form.ai_top_up_url"
@@ -97,7 +94,6 @@ const language = computed({
           <UFormField name="ai_low_balance_usd" :label="t('admin.settings.lowBalance')" :hint="t('admin.settings.lowBalanceHint')">
             <UInputNumber v-model="form.ai_low_balance_usd" :min="0" :max="100000" :step="1" class="w-full sm:w-48" />
           </UFormField>
-          <UAlert v-if="saveError" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="saveError" />
           <UFieldGroup class="flex flex-wrap items-center gap-2">
             <UButton type="submit" :loading="saving" :disabled="!changed" :label="t('admin.settings.save')" />
             <UButton
@@ -113,6 +109,5 @@ const language = computed({
           </UFieldGroup>
         </UForm>
       </UCard>
-    </template>
   </AdminPage>
 </template>

@@ -12,6 +12,8 @@ useSeoMeta({ title: () => `${t('admin.login.title')} · Rrit`, robots: 'noindex,
 // Arriving here signed in without the superadmin role (from the page guard).
 const error = ref(route.query.denied ? t('admin.login.denied') : '')
 const loading = ref(false)
+const { onFormError, watchError } = useFormFeedback()
+watchError(error)
 
 const schema = z.object({
   email: z.email(t('auth.validationEmail')),
@@ -65,17 +67,8 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
         :loading="loading"
         :submit="{ label: t('admin.login.submit'), block: true }"
         @submit="onSubmit"
+        @error="onFormError"
       >
-        <template #validation>
-          <UAlert
-            v-if="error"
-            color="error"
-            variant="subtle"
-            icon="i-lucide-circle-alert"
-            :title="error"
-            data-testid="admin-login-error"
-          />
-        </template>
       </UAuthForm>
     </UCard>
     <UButton to="/" color="neutral" variant="link" size="sm" icon="i-lucide-arrow-left" :label="t('admin.login.back')" />

@@ -27,6 +27,11 @@ const cursor = ref<string | undefined>()
 const hasMore = ref(false)
 const message = ref('')
 const error = ref('')
+const { showError, showSuccess, watchError } = useFormFeedback()
+watchError(error)
+watch(loadError, (value) => {
+  if (value) showError(t('social.loadError'))
+}, { immediate: true })
 watch([channel, search, pageSize], () => {
   page.value = 1
 })
@@ -51,6 +56,7 @@ async function sync(more = false) {
     cursor.value = response.nextCursor || undefined
     hasMore.value = !!cursor.value
     message.value = t('social.importedMessage', { count: response.imported, channel: importChannel.value })
+    showSuccess(message.value)
     await refresh()
     await refreshNuxtData('meta-status')
   } catch (problem) {
@@ -86,14 +92,6 @@ async function sync(more = false) {
         >{{ t('social.loadOlder') }}</UButton
       >
     </div>
-    <UAlert
-      v-if="error || loadError"
-      class="mt-4"
-      color="error"
-      variant="outline"
-      :title="error || t('social.loadError')"
-    />
-    <p v-if="message" role="status" class="text-sm text-muted mt-4">{{ message }}</p>
     <div class="flex flex-wrap gap-3 justify-between my-5">
       <UInput
         v-model="search"

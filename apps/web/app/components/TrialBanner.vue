@@ -2,6 +2,10 @@
 const { t, language } = useI18n()
 const { base } = useWorkspace()
 const { data: trial, refresh, error } = await useFetch('/api/trial', { key: 'trial' })
+const { showError } = useFormFeedback()
+watch(error, (value) => {
+  if (value) showError(t('trial.loadError'), 'warning')
+}, { immediate: true })
 let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   timer = setInterval(() => refresh(), 60000)
@@ -15,15 +19,8 @@ const remaining = computed(() => {
 })
 </script>
 <template>
-  <UAlert
-    v-if="error"
-    color="warning"
-    variant="outline"
-    :title="t('trial.loadError')"
-    :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-  />
   <div
-    v-else-if="trial && !trial.paid"
+    v-if="trial && !trial.paid"
     class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default px-4 py-3"
   >
     <div class="flex items-start gap-3">

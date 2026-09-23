@@ -6,6 +6,7 @@ const annual = ref(false)
 const { data: trial } = await useFetch('/api/trial', { key: 'trial' })
 const { t } = useI18n()
 const route = useRoute()
+const { showError, showSuccess, onFormError, watchError } = useFormFeedback()
 // Arriving here after the trial's 3 posts are used (PRC-07).
 const trialLimitReached = computed(() => route.query.reason === 'trial-limit' && !trial.value?.paid)
 useSeoMeta({ title: () => `${t('nav.billing')} · Rrit` })
@@ -16,7 +17,7 @@ const {
 } = await useFetch('/api/usage', {
   key: 'usage',
 })
-const { plans, error: catalogError, refresh } = usePlanCatalog()
+const { plans, error: catalogError } = usePlanCatalog()
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', {
   key: 'billing-subscription',
 })
@@ -70,6 +71,19 @@ const switchError = ref('')
 const topUpCredits = ref(500)
 const topUpError = ref('')
 const toppingUp = ref(false)
+watchError(switchError)
+watchError(topUpError)
+watch(usageError, (value) => {
+  if (value) showError(t('billing.usageLoadError'), 'warning')
+}, { immediate: true })
+watch(catalogError, (value) => {
+  if (value) showError(t('billing.catalogError'), 'warning')
+}, { immediate: true })
+watch(detailsMessage, (value) => {
+  if (!value) return
+  if (value.ok) showSuccess(value.text)
+  else showError(value.text)
+})
 const topUpConfig = computed(() => billing.value?.creditTopUp)
 const topUpAmount = computed(() => topUpCredits.value)
 const topUpValid = computed(() =>
@@ -92,6 +106,7 @@ async function switchPlan() {
       method: 'POST',
       body: { planCode: selectedPlan.value.code, interval: annual.value ? 'annual' : 'monthly' },
     })
+    showSuccess(t('billing.activationSuccess'))
     selected.value = ''
     await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('trial'), refreshInvoices()])
   } catch (error) {
@@ -111,6 +126,7 @@ async function buyCreditTopUp() {
       method: 'POST',
       body: { credits: topUpAmount.value, idempotencyKey: crypto.randomUUID() },
     })
+    showSuccess(t('billing.creditTopUpSuccess', { credits: topUpAmount.value }))
     await Promise.all([refreshUsage(), refreshNuxtData('header-credit-balance'), refreshInvoices()])
   } catch (error) {
     // Show the server's reason (e.g. no active subscription) when it gives one.
@@ -227,14 +243,7 @@ function usageValue(key: string, value: number) {
         </p>
       </div>
     </UCard>
-    <UAlert
-      v-if="usageError"
-      color="warning"
-      variant="outline"
-      :title="t('billing.usageLoadError')"
-      :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refreshUsage() }]"
-    />
-    <template v-else-if="usage">
+    <template v-if="usage">
       <UCard :ui="{ body: 'p-4' }">
         <div class="flex items-center justify-between gap-4">
           <div class="flex min-w-0 items-center gap-3">
@@ -297,8 +306,7 @@ function usageValue(key: string, value: number) {
                 <span class="text-xs font-medium text-muted">{{ t('billing.creditTopUpTotal') }}</span>
                 <span class="text-base font-semibold tabular-nums">{{ formatMoney(topUpPrice) }}</span>
               </div>
-              <UAlert v-if="topUpError" color="error" variant="outline" :title="topUpError" />
-              <UButton block :disabled="!topUpValid" :loading="toppingUp" @click="buyCreditTopUp">
+               <UButton block :disabled="!topUpValid" :loading="toppingUp" @click="buyCreditTopUp">
                 {{ t('billing.buyCreditTopUp') }}
               </UButton>
             </div>
@@ -347,13 +355,6 @@ function usageValue(key: string, value: number) {
         </div>
       </UCard>
     </template>
-    <UAlert
-      v-if="catalogError"
-      color="warning"
-      variant="outline"
-      :title="t('billing.catalogError')"
-      :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-    />
     <UCard id="plans" class="scroll-mt-4" :ui="{ body: 'p-0 sm:p-0' }"
       ><div class="divide-y divide-default">
         <article
@@ -482,7 +483,12 @@ function usageValue(key: string, value: number) {
         <h2 class="text-sm font-semibold">{{ t('billing.detailsTitle') }}</h2>
         <p class="text-xs text-muted mt-1">{{ t('billing.detailsDescription') }}</p>
       </template>
-      <UForm :state="detailsForm" class="grid gap-3 sm:grid-cols-2" @submit="saveDetails">
+      <UForm
+        :state="detailsForm"
+        class="grid gap-3 sm:grid-cols-2"
+        @submit="saveDetails"
+        @error="onFormError"
+      >
         <UFormField name="legalName" :label="t('billing.detailsLegalName')" required>
           <UInput v-model="detailsForm.legalName" class="w-full" maxlength="160" />
         </UFormField>
@@ -500,7 +506,6 @@ function usageValue(key: string, value: number) {
         </UFormField>
         <div class="flex items-center gap-3 sm:col-span-2">
           <UButton type="submit" :loading="savingDetails" icon="i-lucide-save">{{ t('billing.detailsSave') }}</UButton>
-          <span v-if="detailsMessage" role="status" class="text-xs" :class="detailsMessage.ok ? 'text-muted' : 'text-error'">{{ detailsMessage.text }}</span>
         </div>
       </UForm>
     </UCard>
@@ -540,7 +545,6 @@ function usageValue(key: string, value: number) {
              :title="t('billing.paymentsInactive')"
              :description="t('billing.paymentsInactiveDescription')"
           />
-          <UAlert v-if="switchError" color="error" variant="outline" :title="switchError" />
         </div>
       </template>
       <template #footer

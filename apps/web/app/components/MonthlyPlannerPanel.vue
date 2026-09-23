@@ -13,6 +13,11 @@ const {
 
 const busy = ref(false)
 const error = ref('')
+const { showError, watchError } = useFormFeedback()
+watchError(error)
+watch(loadError, (value) => {
+  if (value) showError(t('monthly.serverUnavailableDescription'), 'warning')
+}, { immediate: true })
 const researchOpen = ref(false)
 const resetOpen = ref(false)
 const photoMode = ref<'auto' | 'selected'>(planner.value?.photoPreference?.mode || 'auto')
@@ -247,17 +252,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
     </div>
 
-    <div v-if="loadError" class="border-t border-default p-4">
-      <UAlert
-        color="warning"
-        variant="subtle"
-        icon="i-lucide-wifi-off"
-        :title="t('monthly.serverUnavailableTitle')"
-        :description="t('monthly.serverUnavailableDescription')"
-      />
-    </div>
-
-    <div v-else-if="!planner" class="border-t border-default p-4">
+    <div v-if="!planner" class="border-t border-default p-4">
       <div class="flex items-center gap-3 text-sm text-muted" role="status">
         <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
         {{ t('legacy.monthlyChecking') }}
@@ -691,10 +686,6 @@ onBeforeUnmount(() => clearInterval(timer))
           {{ t('legacy.prepareMonth') }}
         </UButton>
       </div>
-    </div>
-
-    <div v-if="error" class="border-t border-default p-4">
-      <UAlert color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
     </div>
 
     <UModal

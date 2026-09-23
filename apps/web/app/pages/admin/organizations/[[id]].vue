@@ -4,6 +4,7 @@ import type { AdminOrganizationRow as Organization } from '~/components/AdminOrg
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
+const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.organizations')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
 const route = useRoute()
@@ -75,6 +76,9 @@ const { data, status: loading, error, refresh } = await useFetch<{ items: Organi
     })),
   },
 )
+watch(error, (value) => {
+  if (value) showError(t('admin.organizations.loadError'))
+}, { immediate: true })
 const organizations = computed(() => data.value?.items || [])
 // A new page starts at the top of the list, not where the previous one was scrolled.
 const listCard = useTemplateRef<{ $el: HTMLElement }>('listCard')
@@ -183,16 +187,7 @@ const columns = computed<TableColumn<Organization>[]>(() => [
         </UForm>
       </template>
 
-      <UAlert
-        v-if="error"
-        color="error"
-        variant="subtle"
-        class="m-4"
-        :title="t('admin.organizations.loadError')"
-        :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-      />
-      <template v-else>
-        <!-- Phones: one card per organization. -->
+      <!-- Phones: one card per organization. -->
         <UCard
           v-for="organization in organizations"
           :key="organization.id"
@@ -319,7 +314,6 @@ const columns = computed<TableColumn<Organization>[]>(() => [
             />
           </template>
         </UTable>
-      </template>
     </UCard>
     <AdminOrganizationDetails :organization="selected" @close="closeOrganization" @changed="onChanged" />
     <!-- Pinned to the bottom of the panel so page numbers are always visible. -->

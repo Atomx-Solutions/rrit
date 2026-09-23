@@ -16,6 +16,7 @@ import {
 import { setTenantContext, setUserContext } from '../../utils/database'
 import { BrainFailure, syncBusinessBrain } from '../../utils/business-brain'
 import { recordTrialPostUsage } from '../../utils/trials'
+import { getBrandForBusiness } from '../../utils/brands'
 
 const schema = workspaceSchema.extend({
   revision: z.number().int().min(1),
@@ -503,6 +504,8 @@ export default defineEventHandler(async (event) => {
       })
     const result = await loadWorkspace(client, id.data, user.id)
     result.workspace.brandRevision = savedBrandRevision
+    const brand = await getBrandForBusiness(client, id.data, result.slug)
+    if (brand) result.workspace.brand.status = brand.status
     await client.query('COMMIT')
     for (const storagePath of removedStoragePaths) {
       try {
@@ -511,7 +514,7 @@ export default defineEventHandler(async (event) => {
         console.error('Failed to remove deleted asset from storage', { storagePath, error })
       }
     }
-    return result
+    return { ...result, brand }
   } catch (error) {
     await client.query('ROLLBACK')
     for (const storagePath of uploadedStoragePaths) {

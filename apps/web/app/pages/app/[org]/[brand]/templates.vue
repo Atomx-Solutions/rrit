@@ -2,12 +2,15 @@
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { base } = useWorkspace()
 const { t } = useI18n()
+const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('templates.title')} · Rrit` })
 const {
   data: catalog,
   error: catalogError,
-  refresh,
 } = await useFetch('/api/templates', { key: 'post-templates' })
+watch(catalogError, (value) => {
+  if (value) showError(t('templates.loadError'), 'warning')
+}, { immediate: true })
 const available = computed(() => catalog.value || [])
 const templateTextKeys: Record<string, { name: string; goal: string; industry: string }> = {
   'introduce-product': {
@@ -62,13 +65,6 @@ watch(query, () => {
         >
       </div>
     </template>
-    <UAlert
-      v-if="catalogError"
-      color="warning"
-      variant="outline"
-      :title="t('templates.loadError')"
-      :actions="[{ label: t('common.retry'), variant: 'outline', onClick: () => refresh() }]"
-    />
     <UCard v-if="templates.length" :ui="{ body: 'p-0 sm:p-0' }">
       <div class="divide-y divide-default">
         <article v-for="template in paginated" :key="template.id" class="flex items-center gap-4 p-4 sm:p-5">

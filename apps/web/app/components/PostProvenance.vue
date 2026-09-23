@@ -11,6 +11,8 @@ const loadingLatest = ref(false)
 const problem = ref('')
 const latest = ref<z.infer<typeof qualitySchema> | null>(null)
 const latestAt = ref<string | null>(null)
+const { watchError } = useFormFeedback()
+watchError(problem, 'warning')
 const reasoningItems = computed(() => {
   const reasoning = props.post.aiProvenance?.reasoning
   if (!reasoning) return []
@@ -154,7 +156,6 @@ async function review() {
             >
           </div>
           <div class="space-y-2">
-            <UAlert v-if="problem" color="warning" variant="outline" :title="problem" />
             <UAlert
               v-if="latest"
               :color="latest.decision === 'BLOCK' ? 'error' : 'neutral'"
