@@ -52,7 +52,7 @@ watch(page, () => {
 
 const statusTabs = computed(() => [
   { label: t('admin.subscriptions.tabAll'), value: 'all' },
-  ...['active', 'trialing', 'paused', 'past_due', 'expired'].map(value => ({ label: t(`admin.status.${value}`), value })),
+  ...['active', 'trialing', 'paused', 'past_due', 'cancelled', 'expired'].map(value => ({ label: t(`admin.status.${value}`), value })),
 ])
 const planOptions = computed(() => [
   { label: t('admin.organizations.allPlans'), value: 'all' },

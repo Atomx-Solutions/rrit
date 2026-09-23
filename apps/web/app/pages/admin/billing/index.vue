@@ -87,7 +87,6 @@ const summaryTiles = computed(() => {
     { label: t('admin.billing.grossRevenue'), value: formatCents(s.gross_revenue_cents), icon: 'i-lucide-receipt' },
     { label: t('admin.billing.netRevenue'), value: formatCents(s.net_revenue_cents), icon: 'i-lucide-trending-up' },
     { label: t('admin.billing.vat'), value: formatCents(s.vat_cents), icon: 'i-lucide-landmark' },
-    { label: t('admin.billing.creditNotes'), value: formatCents(s.total_credit_notes_cents), icon: 'i-lucide-undo-2' },
   ]
 })
 
@@ -139,7 +138,7 @@ const sourceLabel: Record<string, string> = {
   <AdminPage :title="t('admin.nav.billing')">
     <!-- Summary tiles -->
     <UCard v-if="summaryTiles.length" class="shrink-0" :ui="{ body: 'p-4 sm:p-5' }">
-      <UPageGrid class="grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <UPageGrid class="grid-cols-1 gap-3 sm:grid-cols-3">
         <UCard
           v-for="tile in summaryTiles"
           :key="tile.label"
