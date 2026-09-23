@@ -3,7 +3,7 @@ import { adminDashboardKey } from '~/utils/dashboard'
 
 defineProps<{ title: string }>()
 const route = useRoute()
-const { t, locale, setLocale } = useI18n()
+const { t } = useI18n()
 const admin = inject(adminDashboardKey)
 if (!admin) throw new Error('AdminPage requires the admin layout')
 const { sidebarOpen } = admin
@@ -40,30 +40,6 @@ const { sidebarOpen } = admin
           />
         </template>
         <template #right>
-          <div class="flex items-center gap-1" role="group" :aria-label="t('public.language')">
-            <UButton
-              size="xs"
-              :color="locale === 'sq-XK' ? 'primary' : 'neutral'"
-              :variant="locale === 'sq-XK' ? 'soft' : 'ghost'"
-              :aria-pressed="locale === 'sq-XK'"
-              :aria-label="t('public.albanian')"
-              square
-              @click="setLocale('sq-XK')"
-            >
-              <UIcon name="i-flag-al-4x3" class="size-4" aria-hidden="true" />
-            </UButton>
-            <UButton
-              size="xs"
-              :color="locale === 'en-US' ? 'primary' : 'neutral'"
-              :variant="locale === 'en-US' ? 'soft' : 'ghost'"
-              :aria-pressed="locale === 'en-US'"
-              :aria-label="t('public.english')"
-              square
-              @click="setLocale('en-US')"
-            >
-              <UIcon name="i-flag-gb-4x3" class="size-4" aria-hidden="true" />
-            </UButton>
-          </div>
           <UColorModeButton :aria-label="t('dashboard.changeAppearance')" color="neutral" variant="ghost" />
         </template>
       </UDashboardNavbar>
