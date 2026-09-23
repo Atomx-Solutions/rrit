@@ -42,12 +42,6 @@ export const brandProfileSchema = z.object({
     .default([]),
 })
 
-export const brandSettingsSchema = z.object({
-  emailApprovals: z.boolean().default(true),
-  emailPublished: z.boolean().default(true),
-  emailTips: z.boolean().default(false),
-})
-
 export const brandCreateSchema = z.object({
   name: z.string().trim().min(2).max(120),
   slug: z
@@ -66,11 +60,6 @@ export const brandCreateSchema = z.object({
     instagramUrl: '',
     goals: [],
     facts: [],
-  }),
-  settings: brandSettingsSchema.default({
-    emailApprovals: true,
-    emailPublished: true,
-    emailTips: false,
   }),
   timezone: ianaTimezoneSchema,
   locale: z.string().trim().min(2).max(35),

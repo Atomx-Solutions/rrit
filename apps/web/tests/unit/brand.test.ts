@@ -10,10 +10,9 @@ const validBrand = {
 }
 
 describe('brand domain contract', () => {
-  it('accepts a complete active brand and supplies profile/settings defaults', () => {
+  it('accepts a complete active brand and supplies profile defaults', () => {
     const parsed = brandCreateSchema.parse(validBrand)
     expect(parsed.profile.voice).toBe('')
-    expect(parsed.settings.emailApprovals).toBe(true)
     expect(isIanaTimezone(parsed.timezone)).toBe(true)
   })
 

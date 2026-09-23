@@ -4,18 +4,8 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base, syncing, commit, notify, exportData } = useWorkspace()
 const { setLocale, t } = useI18n()
 useSeoMeta({ title: () => `${t('settings.title')} · Rrit` })
-const { data: capabilities } = await useFetch('/api/capabilities')
-const notificationDescription = computed(() => {
-  const recovery = capabilities.value?.passwordRecovery
-    ? t('settings.emailRecoveryActive')
-    : t('settings.emailRecoveryPending')
-  const verification = capabilities.value?.emailVerificationRequired
-    ? `${t('settings.emailVerificationActive')} `
-    : ''
-  return `${t('settings.preferencesSaved')} ${verification}${recovery} ${t('settings.emailPostNotificationsPending')}`
-})
 const route = useRoute()
-const tabNames = ['profile', 'preferences', 'notifications', 'security', 'organization']
+const tabNames = ['profile', 'preferences', 'security', 'organization']
 const tab = computed({
   get: () =>
     typeof route.query.tab === 'string' && tabNames.includes(route.query.tab)
@@ -103,7 +93,6 @@ async function saveAndLeave() {
         :items="[
           { id: 'profile', label: t('settings.profile') },
           { id: 'preferences', label: t('settings.preferences') },
-          { id: 'notifications', label: t('settings.notifications') },
           { id: 'security', label: t('settings.security') },
           { id: 'organization', label: t('settings.organization') },
         ]"
@@ -187,40 +176,6 @@ async function saveAndLeave() {
               :items="[{ label: t('settings.currencyEuro'), value: 'EUR' }]"
             /><small>{{ t('settings.currencyDescription') }}</small></UFormField
           ></template
-        ><template v-if="tab === 'notifications'"
-          ><h2>{{ t('settings.notificationsOnly') }}</h2>
-          <div
-            v-for="item in [
-              {
-                key: 'emailApprovals' as const,
-                label: t('settings.contentApproval'),
-                text: t('settings.contentApprovalDescription'),
-              },
-              {
-                key: 'emailPublished' as const,
-                label: t('settings.completedPublications'),
-                text: t('settings.completedPublicationsDescription'),
-              },
-              {
-                key: 'emailTips' as const,
-                label: t('settings.productIdeas'),
-                text: t('settings.productIdeasDescription'),
-              },
-            ]"
-            :key="item.key"
-            class="flex items-start justify-between gap-5 border-b border-default pb-5"
-          >
-            <div>
-              <h3>{{ item.label }}</h3>
-              <p class="small muted mt-2">{{ item.text }}</p>
-            </div>
-            <USwitch v-model="form[item.key]" :aria-label="item.label" class="shrink-0 mt-1" />
-          </div>
-          <UAlert
-            color="neutral"
-            variant="outline"
-            :title="t('settings.notificationPreferences')"
-            :description="notificationDescription" /></template
         ><template v-if="tab === 'organization'"
           ><h2>{{ t('settings.workspaceManagement') }}</h2>
           <div class="actions">
@@ -240,7 +195,7 @@ async function saveAndLeave() {
           >
         </template>
         <div
-          v-if="['profile', 'preferences', 'notifications'].includes(tab)"
+          v-if="['profile', 'preferences'].includes(tab)"
           class="flex flex-wrap items-center gap-4 border-t border-default pt-5"
         >
           <UButton

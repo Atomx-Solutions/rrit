@@ -14,7 +14,6 @@ type BrandRow = {
   slug: string
   name: string
   profile: Record<string, unknown>
-  settings: Record<string, unknown>
   timezone: string
   locale: string
   category: string
@@ -32,7 +31,6 @@ function toBrand(row: BrandRow): Brand {
     slug: row.slug,
     name: row.name,
     profile: row.profile,
-    settings: row.settings,
     timezone: row.timezone,
     locale: row.locale,
     category: row.category,
@@ -44,7 +42,7 @@ function toBrand(row: BrandRow): Brand {
 }
 
 const brandColumns =
-  'id, organization_id, revision, slug, name, profile, settings, timezone, locale, category, status, archived_at, created_at, updated_at'
+  'id, organization_id, revision, slug, name, profile, timezone, locale, category, status, archived_at, created_at, updated_at'
 
 export async function requireOrganizationMember(
   client: PoolClient,
@@ -122,14 +120,13 @@ export async function getBrandForBusiness(
 
 export async function createBrand(client: PoolClient, organizationId: string, input: BrandCreate) {
   const result = await client.query<BrandRow>(
-    `INSERT INTO brands (organization_id, slug, name, profile, settings, timezone, locale, category)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING ${brandColumns}`,
+    `INSERT INTO brands (organization_id, slug, name, profile, timezone, locale, category)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING ${brandColumns}`,
     [
       organizationId,
       input.slug,
       input.name,
       JSON.stringify(input.profile),
-      JSON.stringify(input.settings),
       input.timezone,
       input.locale,
       input.category,
@@ -152,7 +149,6 @@ export async function updateBrand(
     slug: input.slug ?? current.slug,
     name: input.name ?? current.name,
     profile: input.profile ?? current.profile,
-    settings: input.settings ?? current.settings,
     timezone: input.timezone ?? current.timezone,
     locale: input.locale ?? current.locale,
     category: input.category ?? current.category,
@@ -160,16 +156,15 @@ export async function updateBrand(
   }
   const result = await client.query<BrandRow>(
     `UPDATE brands
-     SET slug=$1, name=$2, profile=$3, settings=$4, timezone=$5, locale=$6, category=$7,
-         status=$8, archived_at=CASE WHEN $8='archived' THEN COALESCE(archived_at, now()) ELSE NULL END,
+     SET slug=$1, name=$2, profile=$3, timezone=$4, locale=$5, category=$6,
+         status=$7, archived_at=CASE WHEN $7='archived' THEN COALESCE(archived_at, now()) ELSE NULL END,
          revision=revision+1, updated_at=now()
-     WHERE id=$9 AND organization_id=$10 AND revision=$11
+     WHERE id=$8 AND organization_id=$9 AND revision=$10
      RETURNING ${brandColumns}`,
     [
       next.slug,
       next.name,
       JSON.stringify(next.profile),
-      JSON.stringify(next.settings),
       next.timezone,
       next.locale,
       next.category,
