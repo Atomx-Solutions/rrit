@@ -21,11 +21,21 @@ watch(loadError, (value) => {
 const researchOpen = ref(false)
 const resetOpen = ref(false)
 const photoMode = ref<'auto' | 'selected'>(planner.value?.photoPreference?.mode || 'auto')
+const originalPhotos = computed(() =>
+  workspace.value.assets
+    .filter((asset) => asset.kind === 'photo' && asset.rights && !asset.generated)
+    .slice(0, 40),
+)
 const selectedPhotoIds = ref<string[]>([
   ...(planner.value?.photoPreference?.selectedAssetIds || []),
-])
-const originalPhotos = computed(() =>
-  workspace.value.assets.filter((asset) => asset.rights && !asset.generated).slice(0, 40),
+].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
+watch(
+  originalPhotos,
+  (photos) => {
+    const allowed = new Set(photos.map((photo) => photo.id))
+    selectedPhotoIds.value = selectedPhotoIds.value.filter((id) => allowed.has(id))
+  },
+  { immediate: true },
 )
 
 function togglePhoto(id: string) {

@@ -168,6 +168,21 @@ async function next() {
     busy.value = false
   }
 }
+async function finishLater() {
+  if (busy.value || syncing.value || !context.value) return
+  error.value = ''
+  busy.value = true
+  try {
+    if (await commit((draft) => { draft.onboardingSkipped = true }))
+      await navigateTo(`${base.value}/overview`)
+  } catch (problem) {
+    error.value =
+      (problem as { data?: { message?: string } }).data?.message ||
+      t('onboarding.saveError')
+  } finally {
+    busy.value = false
+  }
+}
 </script>
 <template>
   <div class="space-y-6">
@@ -293,6 +308,7 @@ async function next() {
               <div class="flex items-center justify-between gap-3">
                 <UCheckbox v-model="fact.verified" :label="t('onboarding.factChecked')" />
                 <UButton
+                  type="button"
                   color="neutral"
                   variant="ghost"
                   icon="i-lucide-trash-2"
@@ -301,13 +317,14 @@ async function next() {
                 />
               </div>
             </UCard>
-            <UButton color="neutral" variant="outline" icon="i-lucide-plus" @click="addFact"
+            <UButton type="button" color="neutral" variant="outline" icon="i-lucide-plus" @click="addFact"
               >{{ t('onboarding.addFact') }}</UButton
             >
           </div>
         </UFormField>
       </template>
       <template v-else-if="step === 1">
+        <LogoUpload />
         <SocialConnections compact />
         <UFormField :label="t('onboarding.networkProfileInstagram')" name="instagramUrl"
           ><UInput
@@ -357,6 +374,7 @@ async function next() {
       <div class="flex gap-3">
         <UButton
           v-if="step > 0"
+          type="button"
           :disabled="busy"
           color="neutral"
           variant="outline"
@@ -374,7 +392,7 @@ async function next() {
           }}</UButton
         >
       </div>
-      <UButton v-if="context" :to="`${base}/overview`" variant="link" color="neutral" block
+      <UButton v-if="context" type="button" variant="link" color="neutral" block @click="finishLater"
         >{{ t('onboarding.finishLater') }}</UButton
       >
     </UForm>

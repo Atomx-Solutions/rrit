@@ -30,6 +30,7 @@ export function emptyWorkspace(name = '', email = ''): Workspace {
     campaigns: [],
     strategies: [],
     onboarding: 0,
+    onboardingSkipped: false,
     dismissed: [],
     notificationsRead: false,
   }

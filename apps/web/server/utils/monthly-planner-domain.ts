@@ -83,7 +83,7 @@ export function plannerPrerequisites(
           'Te i njëjti detaj, aktivizo “E kam kontrolluar këtë informacion” dhe ruaj identitetin.',
       })
   }
-  if (!workspace.assets.some((asset) => asset.rights && !asset.generated))
+  if (!workspace.assets.some((asset) => asset.kind === 'photo' && asset.rights && !asset.generated))
     missing.push({
       id: 'owned-photo',
       code: 'OWNED_PHOTOS_REQUIRED',
@@ -110,7 +110,9 @@ export function plannerEvidence(
     const day = fact.validFrom && fact.validFrom > earliest ? fact.validFrom : earliest
     return day <= end && factIsUsable(fact, day)
   })
-  const assets = workspace.assets.filter((asset) => asset.rights && !asset.generated)
+  const assets = workspace.assets.filter(
+    (asset) => asset.kind === 'photo' && asset.rights && !asset.generated,
+  )
   const missing = plannerPrerequisites(workspace, now, month)
   if (missing.length)
     throw new PlannerFailure(

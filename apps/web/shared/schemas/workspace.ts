@@ -92,6 +92,7 @@ export const workspaceSchema = z.object({
     currency: z.enum(['ALL', 'EUR']).transform(() => 'EUR' as const),
   }),
   onboarding: z.number().min(0).max(4),
+  onboardingSkipped: z.boolean().default(false),
   dismissed: z.array(z.string()),
   notificationsRead: z.boolean(),
 })

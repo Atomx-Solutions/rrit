@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { postSchema } from '../../../../shared/schemas/workspace'
 import { normalizeGeneratedCreative } from '../../../utils/image-processing'
 import { monthlyImageCall, postImageEditPrompt } from '../../../utils/monthly-ai'
+import { loadBrandLogo } from '../../../utils/brand-assets'
 import { evidenceHash, PlannerFailure, plannerMessages } from '../../../utils/monthly-planner-domain'
 import { postContentVersion, postContentSnapshot, postFingerprint } from '../../../utils/post-validation'
 import {
@@ -47,6 +48,7 @@ export default defineEventHandler(async (event) => {
       if (!source.rowCount)
         throw createError({ statusCode: 422, message: 'Fotografia aktuale nuk ka më të drejta të konfirmuara.' })
       const { workspace, slug } = await loadWorkspace(client, business.id, user.id)
+      const brandLogo = await loadBrandLogo(client, business.id)
       return {
         businessId: business.id,
         post,
@@ -57,6 +59,7 @@ export default defineEventHandler(async (event) => {
           ? await downloadAsset(source.rows[0].storage_path)
           : (source.rows[0].bytes as Buffer),
         sourceMime: source.rows[0].mime as string,
+        brandLogo,
       }
     })
     const prompt = postImageEditPrompt({
@@ -70,20 +73,31 @@ export default defineEventHandler(async (event) => {
         rationale: snapshot.post.aiProvenance!.rationale,
       },
       instruction: input.data.instruction,
+      logoAvailable: Boolean(snapshot.brandLogo),
     })
-    const generated = await monthlyImageCall(database(), {
-      planId: snapshot.post.aiProvenance!.planId,
-      businessId: snapshot.businessId,
-      stageKey: `user-image-edit:${snapshot.post.id}:${input.data.contentVersion}:${evidenceHash({ sourceAssetId: snapshot.sourceAssetId, instruction: input.data.instruction })}`,
-      prompt,
-      reference: snapshot.sourceBytes,
-      referenceMime: ['image/jpeg', 'image/png', 'image/webp'].includes(snapshot.sourceMime)
-        ? (snapshot.sourceMime as 'image/jpeg' | 'image/png' | 'image/webp')
-        : 'image/jpeg',
-      allowPaused: true,
-      tenant: { userId: user.id, organizationId: snapshot.businessId },
-    })
-    const bytes = await normalizeGeneratedCreative(generated.bytes)
+    const generatedAndBytes = await (async () => {
+      try {
+        const generated = await monthlyImageCall(database(), {
+          planId: snapshot.post.aiProvenance!.planId,
+          businessId: snapshot.businessId,
+          stageKey: `user-image-edit:${snapshot.post.id}:${input.data.contentVersion}:${evidenceHash({ sourceAssetId: snapshot.sourceAssetId, instruction: input.data.instruction })}`,
+          prompt,
+          reference: snapshot.sourceBytes,
+          referenceMime: ['image/jpeg', 'image/png', 'image/webp'].includes(snapshot.sourceMime)
+            ? (snapshot.sourceMime as 'image/jpeg' | 'image/png' | 'image/webp')
+            : 'image/jpeg',
+          allowPaused: true,
+          tenant: { userId: user.id, organizationId: snapshot.businessId },
+        })
+        return {
+          generated,
+          bytes: await normalizeGeneratedCreative(generated.bytes, snapshot.brandLogo?.bytes),
+        }
+      } finally {
+        snapshot.brandLogo?.bytes.fill(0)
+      }
+    })()
+    const { generated, bytes } = generatedAndBytes
     const assetId = randomUUID()
     const storagePath = assetStoragePath(
       assetStorageFolder(snapshot.workspaceSlug, snapshot.businessId),

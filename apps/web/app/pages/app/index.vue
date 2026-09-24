@@ -3,6 +3,8 @@ definePageMeta({ middleware: 'workspace' })
 const { base, context, data } = useWorkspace()
 const destination = !context.value
   ? '/onboarding'
+  : data.value.onboardingSkipped
+    ? `${base.value}/overview`
   : data.value.onboarding < 3
     ? '/onboarding'
     : data.value.onboarding === 3

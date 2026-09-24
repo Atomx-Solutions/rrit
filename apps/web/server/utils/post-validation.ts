@@ -66,6 +66,28 @@ export async function decodePhoto(bytes: Buffer) {
     })
   }
 }
+export async function decodeBrandLogo(bytes: Buffer) {
+  try {
+    const result = await sharp(bytes, {
+      limitInputPixels: 16000000,
+      failOn: 'warning',
+      animated: false,
+    })
+      .rotate()
+      .ensureAlpha()
+      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      .toBuffer({ resolveWithObject: true })
+    if (result.info.width < 100 || result.info.height < 100 || result.data.length > 2097152)
+      throw new Error('Logo dimensions or size')
+    return result
+  } catch {
+    throw createError({
+      statusCode: 422,
+      message:
+        'Logoja nuk mund të lexohet. Ngarko PNG, JPG ose WebP të vlefshëm, të paktën 100 × 100 pikselë dhe deri në 2 MB.',
+    })
+  }
+}
 export function postFingerprint(post: Post) {
   return createHash('sha256')
     .update(
