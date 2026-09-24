@@ -51,6 +51,7 @@ function creativeSaved(image: string) {
 const saving = ref(false)
 const savedAt = ref('')
 const error = ref('')
+const imagePreviewOpen = ref(false)
 const checking = ref(false)
 const confirmed = ref(false)
 const publishOpen = ref(false)
@@ -450,16 +451,25 @@ onBeforeUnmount(() => {
           </div>
           <div
             v-if="form.image"
-            class="size-16 shrink-0 overflow-hidden rounded-lg border-2 border-primary"
+            class="shrink-0"
           >
-            <MediaImage
-              :src="form.image"
-              :alt="t('photo.choosePhoto')"
-              fit="contain"
-              class="size-full bg-elevated"
-            />
+            <UButton
+              type="button"
+              variant="ghost"
+              color="neutral"
+              class="size-[68px] overflow-hidden rounded-lg border-2 border-primary bg-default p-0 transition hover:ring-2 hover:ring-primary/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              :aria-label="t('content.openPhotoPreview')"
+              @click="imagePreviewOpen = true"
+            >
+              <MediaImage
+                :src="form.image"
+                :alt="t('photo.choosePhoto')"
+                fit="contain"
+                class="size-full !bg-transparent"
+              />
+            </UButton>
           </div>
-          <div class="asset-picker">
+          <div v-if="!post && selectableAssets.length" class="asset-picker">
             <UButton
               v-for="asset in selectableAssets"
               :key="asset.id"
@@ -686,6 +696,22 @@ onBeforeUnmount(() => {
           >
         </div></template
       >
+    </UModal>
+    <UModal
+      v-model:open="imagePreviewOpen"
+      :title="t('content.photoPreviewTitle')"
+      :ui="{ content: 'sm:max-w-4xl' }"
+    >
+      <template #body>
+        <div class="flex h-[70vh] max-h-[70vh] items-center justify-center overflow-hidden rounded-lg bg-transparent p-0">
+          <MediaImage
+            :src="form.image"
+            :alt="t('photo.choosePhoto')"
+            fit="contain"
+            class="size-full !bg-transparent"
+          />
+        </div>
+      </template>
     </UModal>
     <UModal
       v-model:open="scheduleOpen"

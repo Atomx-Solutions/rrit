@@ -12,7 +12,21 @@ useSeoMeta({ title: () => `${t('nav.calendar')} · Rrit` })
 const today = computed(() => dayInZone(new Date(), data.value.preferences.timezone))
 const anchor = ref(today.value)
 const view = ref<CalendarView>('list')
-const period = computed(() => calendarPeriod(anchor.value, view.value))
+const monthNames = computed(() => [
+  t('calendar.months.january'),
+  t('calendar.months.february'),
+  t('calendar.months.march'),
+  t('calendar.months.april'),
+  t('calendar.months.may'),
+  t('calendar.months.june'),
+  t('calendar.months.july'),
+  t('calendar.months.august'),
+  t('calendar.months.september'),
+  t('calendar.months.october'),
+  t('calendar.months.november'),
+  t('calendar.months.december'),
+])
+const period = computed(() => calendarPeriod(anchor.value, view.value, monthNames.value))
 const posts = computed(() =>
   data.value.posts
     .map((p) => ({ ...p, scheduledAt: p.scheduledAt || p.proposedAt || null }))
@@ -39,10 +53,10 @@ function move(direction: number) {
     <template #actions
       ><div class="flex flex-wrap gap-2">
         <UButton :to="`${base}/monthly-planner`" variant="outline" icon="i-lucide-sparkles">
-          {{ t('monthly.action') }}
+          {{ t('monthly.pageTitle') }}
         </UButton>
         <UButton :to="`${base}/content/new`" color="neutral" variant="outline" icon="i-lucide-plus">
-          {{ t('content.create') }}
+          {{ t('content.createPost') }}
         </UButton>
       </div></template
     >
@@ -69,9 +83,9 @@ function move(direction: number) {
         <UTabs
           v-model="view"
           :items="[
-            { label: t('calendar.month'), value: 'month', icon: 'i-lucide-calendar-days' },
-            { label: t('calendar.week'), value: 'week', icon: 'i-lucide-calendar-range' },
             { label: t('calendar.list'), value: 'list', icon: 'i-lucide-list' },
+            { label: t('calendar.week'), value: 'week', icon: 'i-lucide-calendar-range' },
+            { label: t('calendar.month'), value: 'month', icon: 'i-lucide-calendar-days' },
           ]"
           :content="false"
           variant="link"
