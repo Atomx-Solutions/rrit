@@ -1,4 +1,4 @@
-import { months } from './format'
+import { months as defaultMonths } from './format'
 
 export type CalendarView = 'month' | 'week' | 'list'
 export function dayInZone(value: Date | string, timezone: string): string {
@@ -25,9 +25,10 @@ export function moveCalendar(anchor: string, view: CalendarView, direction: numb
   }
   return keyOf(date)
 }
-export function calendarPeriod(anchor: string, view: CalendarView) {
+export function calendarPeriod(anchor: string, view: CalendarView, monthNames: readonly string[] = defaultMonths) {
   const date = dateOf(anchor)
   const month = date.getUTCMonth()
+  const months = monthNames
   const start = dateOf(anchor)
   if (view !== 'week') start.setUTCDate(1)
   const periodStart = keyOf(start)

@@ -5,6 +5,22 @@ const props = defineProps<{ research: Research }>()
 const { t } = useI18n()
 type Part = { text: string; url?: string; title?: string }
 type Line = { kind: 'heading' | 'bullet' | 'paragraph'; parts: Part[] }
+const researchHeadingKeys: Record<string, string> = {
+  'përmbledhja ekzekutive': 'research.executiveSummary',
+  'executive summary': 'research.executiveSummary',
+  'tregu dhe audienca': 'research.marketAudience',
+  'market and audience': 'research.marketAudience',
+  'sjellja në instagram': 'research.instagramBehavior',
+  'instagram behavior': 'research.instagramBehavior',
+  'sjellja në facebook': 'research.facebookBehavior',
+  'facebook behavior': 'research.facebookBehavior',
+  'mundësitë e përmbajtjes': 'research.contentOpportunities',
+  'content opportunities': 'research.contentOpportunities',
+  'hipotezat e orarit': 'research.timingHypotheses',
+  'timing hypotheses': 'research.timingHypotheses',
+  'boshllëqet në të dhëna': 'research.dataGaps',
+  'data gaps': 'research.dataGaps',
+}
 
 function hostname(url: string) {
   try {
@@ -12,6 +28,10 @@ function hostname(url: string) {
   } catch {
     return url
   }
+}
+function translatedHeading(line: Line) {
+  const heading = line.parts.map((part) => part.text).join('').trim().toLocaleLowerCase('sq')
+  return t(researchHeadingKeys[heading] || heading)
 }
 function partsBetween(start: number, end: number): Part[] {
   const parts: Part[] = []
@@ -87,7 +107,9 @@ const lines = computed<Line[]>(() => {
             class="mt-1 size-4 shrink-0 text-primary"
           />
           <span>
+            <template v-if="line.kind === 'heading'">{{ translatedHeading(line) }}</template>
             <template v-for="(part, partIndex) in line.parts" :key="partIndex">
+              <template v-if="line.kind !== 'heading'">
               <ULink
                 v-if="part.url"
                 :to="part.url"
@@ -98,6 +120,7 @@ const lines = computed<Line[]>(() => {
                 >{{ part.text }}</ULink
               >
               <template v-else>{{ part.text }}</template>
+              </template>
             </template>
           </span>
         </component>
