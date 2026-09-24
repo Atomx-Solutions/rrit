@@ -3,6 +3,8 @@ import { workspaceSchema, validateTransition, type Post } from '../../../shared/
 import { recordAuditEvent, transitionMetadata, workspaceAuditMetadata } from '../../utils/audit'
 import {
   blockingPostChecks,
+  decodeBrandLogo,
+  decodePhoto,
   postContentSnapshot,
   postContentVersion,
   requireCurrentApproval,
@@ -65,11 +67,14 @@ export default defineEventHandler(async (event) => {
   const uploads = input.assets.filter((asset) => asset.url.startsWith('data:'))
   if (uploads.length) {
     for (const asset of uploads) {
-      if (!asset.rights || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(asset.url))
-        fail('Ngarko JPG dhe konfirmo të drejtat.')
+      const dataUrl = asset.kind === 'brand'
+        ? /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/
+        : /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/
+      if (!asset.rights || !dataUrl.test(asset.url))
+        fail(asset.kind === 'brand' ? 'Ngarko një logo të vlefshme dhe konfirmo të drejtat.' : 'Ngarko JPG dhe konfirmo të drejtat.')
       const bytes = Buffer.from(asset.url.split(',')[1]!, 'base64')
       if (bytes.length > 2097152) fail('Fotografia tejkalon 2 MB.')
-      decoded.set(asset.id, await decodePhoto(bytes))
+      decoded.set(asset.id, await (asset.kind === 'brand' ? decodeBrandLogo(bytes) : decodePhoto(bytes)))
     }
   }
   try {
@@ -100,6 +105,20 @@ export default defineEventHandler(async (event) => {
         message: 'Brandi ndryshoi nÃ« njÃ« pajisje tjetÃ«r. Ngarko versionin e fundit.',
       })
     input.brand = await syncBusinessBrain(client, id.data, user.id, input.brand, current.brand)
+    const organization = await client.query<{ name: string }>(
+      'SELECT name FROM organizations WHERE id=$1 FOR UPDATE',
+      [id.data],
+    )
+    const currentOrganizationName = organization.rows[0]?.name
+    const shouldSyncOrganizationName =
+      currentOrganizationName &&
+      currentOrganizationName !== input.brand.name &&
+      [current.brand.name, owner.slug].includes(currentOrganizationName)
+    if (shouldSyncOrganizationName)
+      await client.query(
+        'UPDATE organizations SET name=$1, updated_at=now() WHERE id=$2',
+        [input.brand.name, id.data],
+      )
     // Validations in this transaction must see the newly submitted facts too.
     await client.query(
       "UPDATE businesses SET state=jsonb_set(state,'{brand}',$2::jsonb) WHERE id=$1",
@@ -172,16 +191,22 @@ export default defineEventHandler(async (event) => {
         if (asset.url !== previous.url)
           fail('Fotografia ekzistuese nuk mund të zëvendësohet në këtë mënyrë.')
         await client.query(
-          'UPDATE assets SET name = $1, tags = $2, rights = $3 WHERE id = $4 AND business_id = $5',
-          [asset.name, JSON.stringify(asset.tags), asset.rights, asset.id, id.data],
+          'UPDATE assets SET name = $1, tags = $2, rights = $3, kind = $4 WHERE id = $5 AND business_id = $6',
+          [asset.name, JSON.stringify(asset.tags), asset.rights, asset.kind, asset.id, id.data],
         )
       } else {
-        if (!asset.rights || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(asset.url))
-          fail('Ngarko një fotografi JPG dhe konfirmo të drejtat.')
+        const dataUrl = asset.kind === 'brand'
+          ? /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/
+          : /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/
+        if (!asset.rights || !dataUrl.test(asset.url))
+          fail(asset.kind === 'brand' ? 'Ngarko një logo të vlefshme dhe konfirmo të drejtat.' : 'Ngarko një fotografi JPG dhe konfirmo të drejtat.')
         const photo = decoded.get(asset.id)
         if (!photo) fail('Fotografia nuk u verifikua.')
         const bytes = photo.data
-        if (
+        if (asset.kind === 'brand') {
+          if (bytes.length > 2097152 || bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80 || bytes[2] !== 78 || bytes[3] !== 71)
+            fail('Logoja nuk është një PNG e vlefshme deri në 2 MB.')
+        } else if (
           bytes.length > 2097152 ||
           bytes.length < 4 ||
           bytes[0] !== 255 ||
@@ -194,12 +219,14 @@ export default defineEventHandler(async (event) => {
         await uploadAsset(storagePath, bytes)
         uploadedStoragePaths.push(storagePath)
         await client.query(
-          "INSERT INTO assets (id, business_id, name, tags, rights, mime, bytes, storage_path, size_bytes, width, height) VALUES ($1,$2,$3,$4,true,'image/jpeg',NULL,$5,$6,$7,$8)",
+          "INSERT INTO assets (id, business_id, name, tags, rights, kind, mime, bytes, storage_path, size_bytes, width, height) VALUES ($1,$2,$3,$4,true,$5,$6,NULL,$7,$8,$9,$10)",
           [
             asset.id,
             id.data,
             asset.name,
             JSON.stringify(asset.tags),
+            asset.kind,
+            asset.kind === 'brand' ? 'image/png' : 'image/jpeg',
             storagePath,
             bytes.length,
             photo.info.width,

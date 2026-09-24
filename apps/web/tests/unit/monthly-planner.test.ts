@@ -21,7 +21,11 @@ import {
   postImageEditPrompt,
   type ProviderResponse,
 } from '../../server/utils/monthly-ai'
-import { assetContactSheet, normalizeGeneratedCreative } from '../../server/utils/image-processing'
+import {
+  assetContactSheet,
+  normalizeGeneratedCreative,
+  removeLogoBackground,
+} from '../../server/utils/image-processing'
 import { loadPlannerAssets } from '../../server/utils/monthly-planner'
 import { generatedPostSchema, editorialPlanSchema } from '../../shared/schemas/monthly-plan'
 import { paidAccessForPlanningMonth } from '../../server/utils/trials'
@@ -439,7 +443,7 @@ describe('AI creative generation', () => {
     })
     expect(monthly).toContain('complete, original, premium 4:5 social-media post')
     expect(monthly).toContain(creative.headline)
-    expect(monthly).toContain('no application template, overlay or hard-coded composition')
+    expect(monthly).toContain('no application template or hard-coded layout')
     expect(monthly).toContain('You are solely responsible for the final visual design')
     expect(monthly).toContain('center-cropped to the final Instagram/Facebook feed canvas')
     expect(monthly).toContain('central 88%')
@@ -484,6 +488,30 @@ describe('AI creative generation', () => {
       height: 1350,
       format: 'jpeg',
     })
+  })
+
+  it('removes a connected light logo background but keeps the logo artwork', async () => {
+    const logo = await sharp({
+      create: { width: 120, height: 60, channels: 3, background: '#ffffff' },
+    })
+      .composite([
+        {
+          input: {
+            create: { width: 60, height: 24, channels: 3, background: '#57210f' },
+          },
+          left: 30,
+          top: 18,
+        },
+      ])
+      .png()
+      .toBuffer()
+    const transparent = await removeLogoBackground(logo)
+    const { data, info } = await sharp(transparent)
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    expect(info.channels).toBe(4)
+    expect(data[3]).toBe(0)
+    expect(data[(30 * info.width + 45) * info.channels + 3]).toBe(255)
   })
 })
 

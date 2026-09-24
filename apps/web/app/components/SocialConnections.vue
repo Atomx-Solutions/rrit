@@ -149,6 +149,7 @@ onMounted(async () => {
     </p>
     <div class="flex flex-wrap gap-2">
       <UButton
+        type="button"
         :loading="busy"
         :disabled="!status?.configured"
         color="neutral"
@@ -159,13 +160,14 @@ onMounted(async () => {
       >
       <UButton
         v-if="status?.connection?.status === 'pending'"
+        type="button"
         :loading="busy"
         variant="outline"
         color="neutral"
         @click="loadPages()"
         >{{ t('social.choosePage') }}</UButton
       >
-      <UButton v-if="connected" color="neutral" variant="ghost" @click="disconnecting = true"
+      <UButton v-if="connected" type="button" color="neutral" variant="ghost" @click="disconnecting = true"
         >{{ t('social.disconnect') }}</UButton
       >
     </div>
@@ -200,6 +202,7 @@ onMounted(async () => {
               </p>
             </div>
             <UButton
+              type="button"
               variant="outline"
               color="neutral"
               :loading="busy"
@@ -210,12 +213,14 @@ onMounted(async () => {
           </div>
           <div class="flex justify-between">
             <UButton
+              type="button"
               variant="outline"
               color="neutral"
               :disabled="busy || cursorIndex === 0"
               @click="changePage(-1)"
               >{{ t('common.back') }}</UButton
             ><UButton
+              type="button"
               variant="outline"
               color="neutral"
               :disabled="busy || !cursor"
@@ -233,9 +238,9 @@ onMounted(async () => {
     >
       <template #body
         ><div class="flex gap-3">
-          <UButton variant="outline" color="error" :loading="busy" @click="disconnect"
+          <UButton type="button" variant="outline" color="error" :loading="busy" @click="disconnect"
             >{{ t('social.disconnectConfirm') }}</UButton
-          ><UButton variant="outline" color="neutral" @click="disconnecting = false">{{ t('common.cancel') }}</UButton>
+          ><UButton type="button" variant="outline" color="neutral" @click="disconnecting = false">{{ t('common.cancel') }}</UButton>
         </div></template
       >
     </UModal>

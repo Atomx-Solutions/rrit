@@ -12,6 +12,7 @@ import { postSchema } from '../../shared/schemas/workspace'
 import { factIsUsable, sameFactContent } from '../../shared/schemas/business-brain'
 import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
+import { loadBrandLogo, type BrandLogoAsset } from './brand-assets'
 import {
   paidAccessForPlanningMonth,
   postsCountedForLimit,
@@ -482,6 +483,7 @@ export async function loadPlannerAssets(
        FROM assets
       WHERE business_id=$1
         AND id=ANY($2::uuid[])
+        AND kind='photo'
         AND rights=true
         AND (bytes IS NOT NULL OR storage_path IS NOT NULL)
       ORDER BY id`,
@@ -932,7 +934,9 @@ async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
   if (
     selectedAssetIds.some(
       (id) =>
-        !workspace.assets.some((asset) => asset.id === id && asset.rights && !asset.generated),
+        !workspace.assets.some(
+          (asset) => asset.id === id && asset.kind === 'photo' && asset.rights && !asset.generated,
+        ),
     )
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
@@ -1134,8 +1138,10 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   let previousPageStyle: PreviousPageStyle | undefined
   let previousGeneratedAssets: PlannerAsset[] = []
   let previousGeneratedContactSheet: Buffer | undefined
+  let brandLogo: BrandLogoAsset | undefined
   try {
     contactSheet = await assetContactSheet(assets)
+    brandLogo = await plannerStep('content.logo', () => loadBrandLogo(db, plan.business_id))
     previousPageStyle = await loadPreviousPageStyle(db, plan.business_id, {
       analyze: analyzePageStyle,
     })
@@ -1280,6 +1286,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         brand: plan.evidence.brand,
         slot,
         creative: content.creative,
+        logoAvailable: Boolean(brandLogo),
         styleProfile: previousPageStyle.profile || editorial.styleProfile,
         previousPageStyle: previousPageStyle.contactSheet
           ? {
@@ -1316,9 +1323,10 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ? [{ bytes: previousGeneratedContactSheet }]
             : undefined,
       })
-      // The provider result is the complete design. Local processing is limited to
-      // format, dimensions and compression; it adds no template or visual element.
-      creative = await normalizeGeneratedCreative(imageGeneration.bytes)
+      // The provider result is the complete design. Local processing only
+      // normalizes the output and places the approved logo in a dynamically
+      // selected clear region; it does not apply a coded layout template.
+      creative = await normalizeGeneratedCreative(imageGeneration.bytes, brandLogo?.bytes)
       const qualityResponse = await monthlyProviderCall(db, {
         ...common,
         stageKey: monthlyAutomaticStageKey(
@@ -1347,6 +1355,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           imageOrder: [
             'Finished AI creative',
             'Original owned photograph',
+            ...(brandLogo ? ['Approved business logo reference'] : []),
             ...(previousPageStyle.contactSheet ? ['Previous page style references'] : []),
             ...(previousGeneratedContactSheet ? ['Earlier generated post references'] : []),
           ],
@@ -1354,6 +1363,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         images: [
           `data:image/jpeg;base64,${creative.toString('base64')}`,
           `data:image/jpeg;base64,${original.bytes.toString('base64')}`,
+          ...(brandLogo
+            ? [`data:${brandLogo.mime};base64,${brandLogo.bytes.toString('base64')}`]
+            : []),
           ...(previousPageStyle.contactSheet
             ? [`data:image/jpeg;base64,${previousPageStyle.contactSheet.toString('base64')}`]
             : []),
@@ -1588,6 +1600,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     previousGeneratedContactSheet?.fill(0)
     releasePlannerAssets(previousGeneratedAssets)
     releasePlannerAssets(assets)
+    brandLogo?.bytes.fill(0)
   }
 }
 

@@ -24,6 +24,9 @@ const selectedFiles = ref<File[]>([])
 function displayTag(tag: string) {
   return tag === 'ngarkim' || tag === 'upload' ? t('gallery.uploadTag') : tag
 }
+function visibleTags(asset: Asset) {
+  return asset.kind === 'brand' ? asset.tags.filter((tag) => tag !== 'logo') : asset.tags
+}
 function openDetail(asset: Asset) {
   detail.value = asset
   tags.value = asset.tags.join(', ')
@@ -171,11 +174,14 @@ async function saveMetadata() {
     :title="t('nav.gallery')"
     :description="t('gallery.description')"
   >
-    <template #actions
-      ><UButton variant="outline" icon="i-lucide-upload" @click="openUpload"
-        >{{ t('gallery.uploadPhotos') }}</UButton
-      ></template
-    >
+    <template #actions>
+      <div class="flex flex-wrap gap-2">
+        <LogoUpload compact />
+        <UButton variant="outline" icon="i-lucide-upload" @click="openUpload">
+          {{ t('gallery.uploadPhotos') }}
+        </UButton>
+      </div>
+    </template>
     <template #toolbar>
       <div class="flex w-full flex-wrap items-center justify-between gap-3">
         <UInput
@@ -227,6 +233,7 @@ async function saveMetadata() {
             <MediaImage
               :src="asset.url"
               :alt="asset.name"
+              :fit="asset.kind === 'brand' ? 'contain' : 'cover'"
               class="size-full"
               width="64"
               height="64"
@@ -235,8 +242,11 @@ async function saveMetadata() {
           <div class="min-w-0 flex-1">
             <h3 class="text-sm font-medium break-words">{{ asset.name }}</h3>
             <div v-if="asset.tags.length" class="flex flex-wrap gap-1.5 mt-2">
+              <UBadge v-if="asset.kind === 'brand'" color="success" variant="subtle" size="sm">
+                {{ t('gallery.logo') }}
+              </UBadge>
               <UBadge
-                v-for="tag in asset.tags"
+                v-for="tag in visibleTags(asset)"
                 :key="tag"
                 color="neutral"
                 variant="outline"
@@ -325,7 +335,8 @@ async function saveMetadata() {
           <MediaImage
             :src="detail.url"
             :alt="detail.name"
-            class="w-full aspect-[4/3] rounded-lg"
+            fit="natural"
+            class="w-full rounded-lg bg-elevated"
           /><UFormField :label="t('gallery.tags')" name="tags" class="field"
             ><UInput v-model="tags" class="w-full" /><small>{{ t('gallery.tagsHint') }}</small></UFormField
           >

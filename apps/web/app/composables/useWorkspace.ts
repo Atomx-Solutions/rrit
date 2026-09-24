@@ -6,6 +6,7 @@ import {
 } from '~~/shared/schemas/workspace'
 import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 import type { Brand } from '~~/shared/schemas/brand'
+import { authClient } from '~/utils/auth-client'
 
 export function useWorkspace() {
   const { t } = useI18n()
@@ -29,10 +30,25 @@ export function useWorkspace() {
     conflict.value = false
   }
   async function initLive() {
-    const result = await $fetch<{
+    const request = () => $fetch<{
       user: { name: string; email: string }
       business: { id: string; slug: string; workspace: Workspace; brand?: Brand | null } | null
     }>('/api/business')
+    let result
+    try {
+      result = await request()
+    } catch (error) {
+      const problem = error as { statusCode?: number; data?: { code?: string } }
+      if (
+        import.meta.client &&
+        problem.statusCode === 401 &&
+        problem.data?.code === 'AUTH_REQUIRED'
+      ) {
+        const refreshed = await authClient.refreshSession().catch(() => null)
+        if (!refreshed?.error && refreshed?.data.session) result = await request()
+        else throw error
+      } else throw error
+    }
     if (result.business) applyBusiness(result.business)
     else {
       data.value = emptyWorkspace(result.user.name, result.user.email)

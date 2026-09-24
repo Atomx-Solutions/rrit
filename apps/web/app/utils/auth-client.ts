@@ -59,6 +59,10 @@ export const authClient = {
     const result = await supabase().auth.getSession()
     return { data: result.data, ...errorResult(result.error) }
   },
+  async refreshSession() {
+    const result = await supabase().auth.refreshSession()
+    return { data: result.data, ...errorResult(result.error) }
+  },
   async signOut() {
     const result = await supabase().auth.signOut()
     return errorResult(result.error)
