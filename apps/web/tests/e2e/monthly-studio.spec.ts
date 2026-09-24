@@ -112,7 +112,6 @@ test('monthly drafts, visible research citations and creative editing', async ({
         secondsRemaining: 3600,
         limits: { posts_per_month: 30 },
       }
-    else if (path === '/api/templates') json = []
     else if (path === '/api/meta/status') json = { connection: null }
     else if (path === '/api/capabilities') json = { ai: false, publishing: false }
     else if (path === '/api/ai/monthly-plan')
@@ -270,7 +269,6 @@ test('the user can require a gallery photo before monthly generation starts', as
       return route.fulfill({
         json: { paid: true, state: 'active', limits: { posts_per_month: 12 } },
       })
-    if (path === '/api/templates') return route.fulfill({ json: [] })
     if (path === '/api/meta/status') return route.fulfill({ json: { connection: null } })
     if (path === '/api/capabilities')
       return route.fulfill({ json: { ai: true, publishing: false } })
@@ -329,7 +327,6 @@ test('a blocked quality review can restart, but existing drafts are preserved', 
       return route.fulfill({
         json: { paid: true, state: 'active', limits: { posts_per_month: 30 } },
       })
-    if (path === '/api/templates') return route.fulfill({ json: [] })
     if (path === '/api/meta/status') return route.fulfill({ json: { connection: null } })
     if (path === '/api/capabilities')
       return route.fulfill({ json: { ai: false, publishing: false } })

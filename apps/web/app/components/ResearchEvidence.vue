@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Research } from '~~/shared/schemas/monthly-plan'
+import { readableText } from '~/utils/readable-text'
 
 const props = defineProps<{ research: Research }>()
 const { t } = useI18n()
@@ -16,8 +17,10 @@ const researchHeadingKeys: Record<string, string> = {
   'facebook behavior': 'research.facebookBehavior',
   'mundësitë e përmbajtjes': 'research.contentOpportunities',
   'content opportunities': 'research.contentOpportunities',
-  'hipotezat e orarit': 'research.timingHypotheses',
-  'timing hypotheses': 'research.timingHypotheses',
+  'të dhënat e vëzhguara për orarin': 'research.observedTiming',
+  'observed timing data': 'research.observedTiming',
+  'hipotezat e orarit': 'research.observedTiming',
+  'timing hypotheses': 'research.observedTiming',
   'boshllëqet në të dhëna': 'research.dataGaps',
   'data gaps': 'research.dataGaps',
 }
@@ -30,13 +33,16 @@ function hostname(url: string) {
   }
 }
 function translatedHeading(line: Line) {
-  const heading = line.parts.map((part) => part.text).join('').trim().toLocaleLowerCase('sq')
+  const heading = readableText(line.parts.map((part) => part.text).join('')).toLocaleLowerCase('sq')
   return t(researchHeadingKeys[heading] || heading)
 }
 function partsBetween(start: number, end: number): Part[] {
   const parts: Part[] = []
   let offset = start
-  for (const citation of [...props.research.citations].sort((a, b) => a.start - b.start)) {
+  const approvedUrls = new Set(props.research.sources.map((source) => source.url))
+  for (const citation of [...props.research.citations]
+    .filter((item) => approvedUrls.has(item.url))
+    .sort((a, b) => a.start - b.start)) {
     const citationStart = Math.max(start, citation.start)
     const citationEnd = Math.min(end, citation.end)
     if (citationEnd <= citationStart || citationStart < offset) continue
@@ -86,7 +92,10 @@ const lines = computed<Line[]>(() => {
         </div>
         <div>
           <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('research.conclusions') }}</p>
-          <h3 class="mt-1 text-lg font-semibold text-highlighted">{{ t('research.whatFound') }}</h3>
+          <div class="mt-1 flex flex-wrap items-center gap-2">
+            <h3 class="text-lg font-semibold text-highlighted">{{ t('research.whatFound') }}</h3>
+            <UBadge color="success" variant="subtle" size="sm">{{ t('research.verifiedEvidence') }}</UBadge>
+          </div>
         </div>
       </div>
       <div class="mt-4 space-y-2.5">
@@ -117,9 +126,9 @@ const lines = computed<Line[]>(() => {
                 rel="noopener noreferrer"
                 class="font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
                 :title="part.title"
-                >{{ part.text }}</ULink
+                >{{ readableText(part.text) }}</ULink
               >
-              <template v-else>{{ part.text }}</template>
+              <template v-else>{{ readableText(part.text) }}</template>
               </template>
             </template>
           </span>

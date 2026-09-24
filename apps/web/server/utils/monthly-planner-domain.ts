@@ -25,6 +25,11 @@ export type PlannerPrerequisite = {
   label: string
   description: string
 }
+export type PlannerTimingSample = {
+  source: 'facebook' | 'instagram' | 'platform'
+  channel: 'Facebook' | 'Instagram'
+  publishedAt: string
+}
 export function plannerPrerequisites(
   workspace: Workspace,
   now = new Date(),
@@ -101,6 +106,7 @@ export function plannerEvidence(
     mode: 'auto',
     selectedAssetIds: [],
   },
+  timingSamples: PlannerTimingSample[] = [],
 ) {
   const start = `${month}-01`
   const end = `${month}-${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()}`
@@ -131,6 +137,16 @@ export function plannerEvidence(
     photoSelection.mode === 'selected'
       ? selectedAssetIds.map((id) => assetsById.get(id)!)
       : assets
+  const localTimingSamples = workspace.posts
+    .filter((post) => post.status === 'published' && post.publishedAt)
+    .map((post) => ({
+      source: 'platform' as const,
+      channel: post.channel,
+      publishedAt: post.publishedAt!,
+    }))
+  const observedTiming = [...timingSamples, ...localTimingSamples]
+    .filter((sample) => Number.isFinite(Date.parse(sample.publishedAt)))
+    .slice(0, 240)
   const evidence = {
     brand: { ...workspace.brand, facts },
     timezone: workspace.preferences.timezone,
@@ -145,6 +161,12 @@ export function plannerEvidence(
     recentPosts: workspace.posts
       .slice(0, 30)
       .map(({ title, caption, channel }) => ({ title, caption: caption.slice(0, 600), channel })),
+    timingEvidence: {
+      total: observedTiming.length,
+      socialHistory: observedTiming.filter((sample) => sample.source !== 'platform').length,
+      platformHistory: observedTiming.filter((sample) => sample.source === 'platform').length,
+      samples: observedTiming,
+    },
     capturedAt: now.toISOString(),
   }
   if (Buffer.byteLength(JSON.stringify(evidence)) > 48000)
@@ -206,7 +228,7 @@ export function parsePersistedEditorialPlan(value: unknown) {
         'Përshtate formatin dhe mesazhin me sjelljen e audiencës në kanal.',
       timingRationale:
         slot.timingRationale ||
-        'Kjo orë është hipotezë editoriale dhe duhet verifikuar me Insights.',
+        'Nuk ka të dhëna të vëzhguara për këtë orë; platforma nuk e paraqet si orar optimal.',
     })),
   })
 }
@@ -217,6 +239,22 @@ function normalizedIdea(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
+}
+
+function observedTimingHour(
+  sample: PlannerTimingSample,
+  timezone: string,
+) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      hour: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(sample.publishedAt))
+      .map((part) => [part.type, part.value]),
+  )
+  return parts.hour
 }
 
 // Provider output can contain a structurally valid but mistyped identifier or
@@ -260,6 +298,7 @@ export function normalizeEditorialPlanResponse(
           selectedAssets.has(slot.requiredAssetId)
             ? slot.requiredAssetId
             : null,
+        timingBasis: slot.timingBasis || 'no_data',
       }
     }),
   }
@@ -288,6 +327,11 @@ export function validateEditorialPlan(
   const requiredAssets = new Map<string, number>()
   const photoSelection = evidence.photoSelection || { mode: 'auto' as const, selectedAssetIds: [] }
   const selectedAssets = new Set(photoSelection.selectedAssetIds)
+  const timingEvidence = evidence.timingEvidence || {
+    samples: [],
+    socialHistory: 0,
+    platformHistory: 0,
+  }
   if (plan.slots.length !== count) throw new PlannerFailure('INVALID_SLOT_COUNT')
   for (const [index, slot] of plan.slots.entries()) {
     const key = `${slot.day}:${slot.time}:${slot.channel}`
@@ -320,6 +364,26 @@ export function validateEditorialPlan(
     )
       throw new PlannerFailure('UNGROUNDED_PLAN', [
         `Postimi ${index + 1}: requiredAssetId nuk përputhet me mënyrën e zgjedhjes së fotografive.`,
+      ])
+    const sourceSamples =
+      slot.timingBasis === 'social_history'
+        ? timingEvidence.samples.filter(
+            (sample) => sample.source !== 'platform' && sample.channel === slot.channel,
+          )
+        : slot.timingBasis === 'platform_history'
+          ? timingEvidence.samples.filter(
+              (sample) => sample.source === 'platform' && sample.channel === slot.channel,
+            )
+          : []
+    if (
+      slot.timingBasis !== 'no_data' &&
+      (!sourceSamples.length ||
+        !sourceSamples.some(
+          (sample) => observedTimingHour(sample, evidence.timezone) === slot.time.slice(0, 2),
+        ))
+    )
+      throw new PlannerFailure('UNGROUNDED_PLAN', [
+        `Postimi ${index + 1}: ora e deklaruar si e bazuar në të dhëna nuk përputhet me historikun real.`,
       ])
     const iso = zonedToIso(date, evidence.timezone)
     if (

@@ -59,9 +59,9 @@ function circlePdf(svgCx: number, svgCy: number, svgR: number, xOff: number, yBa
 
 // Rrit logo SVG (viewBox 0 0 102 44, fill #17694d).
 // Returns PDF content stream operators for the logo at top-right of an A4 page.
-function logoPdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110): string {
+export function logoPdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110, left?: number): string {
   const s = logoWidth / 102
-  const xOff = pageWidth - topMargin - logoWidth
+  const xOff = left ?? pageWidth - topMargin - logoWidth
   const yBase = 842 - topMargin // SVG y=0 maps to this PDF y
   const paths = [
     'M4 37V22C4 13 10 9 19 9h5v7h-5c-5 0-7 2-7 7v14Z',
@@ -75,7 +75,7 @@ function logoPdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110): string {
 }
 const winAnsiExtras: Record<string, number> = { '€': 0x80, '–': 0x96, '—': 0x97, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '…': 0x85 }
 
-function pdfText(value: string) {
+export function pdfText(value: string) {
   let out = ''
   for (const char of value.normalize('NFC')) {
     const code = winAnsiExtras[char] ?? char.codePointAt(0)!

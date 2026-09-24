@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SlotBrief } from '~~/shared/schemas/monthly-plan'
+import { readableText } from '~/utils/readable-text'
 
 const props = defineProps<{
   strategy: { objective: string; audience: string; rationale: string; slots: SlotBrief[] }
@@ -25,17 +26,27 @@ const goalLabels: Record<string, string> = {
   profile_actions: t('strategy.goal.profile_actions'),
   clicks: t('strategy.goal.clicks'),
 }
+const timingBasisLabels: Record<string, string> = {
+  social_history: t('strategy.timingBasis.socialHistory'),
+  platform_history: t('strategy.timingBasis.platformHistory'),
+  no_data: t('strategy.timingBasis.noData'),
+}
 const assetMap = computed(() => new Map(props.assets.map((asset) => [asset.id, asset])))
 const channels = computed(() => ({
   Instagram: props.strategy.slots.filter((slot) => slot.channel === 'Instagram').length,
   Facebook: props.strategy.slots.filter((slot) => slot.channel === 'Facebook').length,
 }))
 const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.intent)).size)
+const copy = (value: string) => readableText(value)
 </script>
 
 <template>
-  <div class="space-y-6">
-    <section class="overflow-hidden rounded-2xl border border-default bg-default">
+  <UContainer as="div" class="space-y-6 !max-w-none !p-0">
+    <UCard
+      as="section"
+      class="overflow-hidden rounded-2xl border border-default bg-default"
+      :ui="{ root: 'ring-0', body: 'p-0' }"
+    >
       <div class="border-b border-default bg-elevated/40 p-4">
         <div
           class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary"
@@ -43,14 +54,14 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
           <UIcon name="i-lucide-compass" class="size-4" /> {{ t('legacy.strategyMonth') }}
         </div>
         <h3 class="mt-2 max-w-4xl text-lg font-semibold text-highlighted">
-          {{ strategy.objective }}
+          {{ copy(strategy.objective) }}
         </h3>
-        <p class="mt-3 max-w-4xl text-sm leading-7 text-toned">{{ strategy.rationale }}</p>
+        <p class="mt-3 max-w-4xl text-sm leading-7 text-toned">{{ copy(strategy.rationale) }}</p>
       </div>
       <div class="grid gap-px bg-default sm:grid-cols-4">
         <div class="bg-default p-4">
           <span class="text-xs text-muted">{{ t('strategy.audience') }}</span>
-          <strong class="mt-1 block text-sm text-highlighted">{{ strategy.audience }}</strong>
+          <strong class="mt-1 block text-sm text-highlighted">{{ copy(strategy.audience) }}</strong>
         </div>
         <div class="bg-default p-4">
           <span class="text-xs text-muted">Instagram</span>
@@ -65,9 +76,9 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
           <strong class="mt-1 block text-lg text-highlighted">{{ intents }}</strong>
         </div>
       </div>
-    </section>
+    </UCard>
 
-    <section>
+    <UContainer as="section" class="!max-w-none !p-0">
       <div class="flex items-end justify-between gap-3">
         <div>
           <p class="text-xs font-medium uppercase tracking-wide text-muted">{{ t('strategy.editorialPlan') }}</p>
@@ -76,10 +87,12 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
         <UBadge color="neutral" variant="subtle">{{ strategy.slots.length }} {{ t('content.post') }}</UBadge>
       </div>
       <div class="mt-4 grid gap-4 lg:grid-cols-2">
-        <article
+        <UCard
           v-for="(slot, index) in strategy.slots"
           :key="`${slot.day}-${slot.time}-${slot.channel}`"
+          as="article"
           class="rounded-xl border border-default bg-default p-3.5"
+          :ui="{ root: 'ring-0', body: 'p-0' }"
         >
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3">
@@ -97,8 +110,14 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
                     {{ slot.channel }}
                   </UBadge>
                   <UBadge color="neutral" variant="outline">{{ intentLabels[slot.intent] }}</UBadge>
+                  <UBadge
+                    :color="slot.timingBasis === 'no_data' ? 'warning' : 'success'"
+                    variant="subtle"
+                  >
+                    {{ timingBasisLabels[slot.timingBasis] || timingBasisLabels.no_data }}
+                  </UBadge>
                 </div>
-                <h4 class="mt-2 font-semibold text-highlighted">{{ slot.topic }}</h4>
+                <h4 class="mt-2 font-semibold text-highlighted">{{ copy(slot.topic) }}</h4>
               </div>
             </div>
             <span class="shrink-0 text-xs text-muted">{{ t('strategy.day') }} {{ slot.day }} · {{ slot.time }}</span>
@@ -107,9 +126,9 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
           <blockquote
             class="mt-4 border-l-2 border-primary/50 pl-3 text-sm font-medium leading-6 text-toned"
           >
-            {{ slot.hook }}
+            {{ copy(slot.hook) }}
           </blockquote>
-          <p class="mt-3 text-sm leading-6 text-muted">{{ slot.purpose }}</p>
+          <p class="mt-3 text-sm leading-6 text-muted">{{ copy(slot.purpose) }}</p>
 
           <div class="mt-4 grid gap-2 text-xs sm:grid-cols-2">
             <div class="rounded-lg bg-elevated/50 p-3">
@@ -121,7 +140,7 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
             <div class="rounded-lg bg-elevated/50 p-3">
               <span class="text-muted">{{ t('strategy.visualDirection') }}</span>
               <strong class="mt-1 block capitalize text-highlighted">{{
-                slot.visualLayout
+                copy(slot.visualLayout)
               }}</strong>
             </div>
           </div>
@@ -150,13 +169,13 @@ const intents = computed(() => new Set(props.strategy.slots.map((slot) => slot.i
               {{ t('legacy.whyChannelTime') }}
             </summary>
             <div class="mt-3 space-y-2 text-xs leading-5 text-muted">
-              <p>{{ slot.platformRationale }}</p>
-              <p>{{ slot.timingRationale }}</p>
-              <p><strong class="text-toned">{{ t('strategy.photo') }}</strong> {{ slot.assetDirection }}</p>
+              <p>{{ copy(slot.platformRationale) }}</p>
+              <p>{{ copy(slot.timingRationale) }}</p>
+              <p><strong class="text-toned">{{ t('strategy.photo') }}</strong> {{ copy(slot.assetDirection) }}</p>
             </div>
           </details>
-        </article>
+        </UCard>
       </div>
-    </section>
-  </div>
+    </UContainer>
+  </UContainer>
 </template>

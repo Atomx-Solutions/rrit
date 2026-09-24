@@ -449,6 +449,9 @@ describe('AI creative generation', () => {
     expect(monthly).toContain('central 88%')
     expect(monthly).toContain('malformed hands or faces')
     expect(monthly).toContain('giant expressive typographic gesture')
+    expect(monthly).toContain('clean contemporary sans-serif')
+    expect(monthly).toContain('8-point spacing rhythm')
+    expect(monthly).toContain('correct Albanian diacritics')
 
     const edited = postImageEditPrompt({
       brand: {
@@ -472,6 +475,8 @@ describe('AI creative generation', () => {
     expect(edited).toContain('Shto dritë të ngrohtë')
     expect(edited).toContain('center-cropped to the final 1080x1350')
     expect(edited).toContain('Never duplicate, fuse, warp, replace or invent material objects')
+    expect(edited).toContain('typographic designer')
+    expect(edited).toContain('no more than two weights')
   })
 
   it('normalizes the AI result technically without applying a design preset', async () => {

@@ -9,11 +9,8 @@ function validationMessage(check: { key: string; message: string }) {
     ? t('validation.aiQualityReview')
     : check.message
 }
-const route = useRoute()
-const { data: catalog } = await useFetch('/api/templates', { key: 'post-templates' })
 const { data: capabilities } = await useFetch('/api/capabilities')
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
-const chosenTemplate = (catalog.value || []).find((p) => p.id === route.query.template)
 const existing = computed(() => data.value.posts.find((p) => p.id === props.id))
 if (props.id && !existing.value)
   throw createError({ statusCode: 404, statusMessage: t('content.postNotFound') })
@@ -22,14 +19,14 @@ const {
   localError,
   clear: clearRecovery,
 } = useDraft(
-  `${base.value}:content:${props.id || (chosenTemplate ? `new:${chosenTemplate.id}` : 'new')}`,
+  `${base.value}:content:${props.id || 'new'}`,
   {
-    title: existing.value?.title || chosenTemplate?.title || '',
-    caption: existing.value?.caption || chosenTemplate?.caption || '',
-    channel: existing.value?.channel || chosenTemplate?.channel || ('Instagram' as Post['channel']),
+    title: existing.value?.title || '',
+    caption: existing.value?.caption || '',
+    channel: existing.value?.channel || ('Instagram' as Post['channel']),
     format: existing.value?.format || ('static' as Post['format']),
-    image: existing.value?.image || chosenTemplate?.image || '',
-    pillar: existing.value?.pillar || chosenTemplate?.topic || 'Produkti',
+    image: existing.value?.image || '',
+    pillar: existing.value?.pillar || 'Produkti',
   },
 )
 const savedId = ref(props.id)
@@ -40,9 +37,7 @@ const selectableAssets = computed(() => {
   const currentImage = form.image || post.value.image
   return assets.filter((asset) => asset.url === currentImage)
 })
-const baseline = ref(
-  JSON.stringify(chosenTemplate && !props.id ? { ...form, title: '', caption: '' } : form),
-)
+const baseline = ref(JSON.stringify(form))
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
 function creativeSaved(image: string) {
   form.image = image

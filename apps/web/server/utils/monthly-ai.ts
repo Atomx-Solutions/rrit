@@ -370,6 +370,19 @@ const monthlyInstructionAddenda: Partial<Record<keyof typeof monthlyInstructions
     'The original photograph was deliberately uploaded to this business gallery by its owner and its usage rights were explicitly confirmed. Treat it as authorized first-party business media: missing visible signage is not a factuality failure and is never, by itself, a reason to BLOCK. Do still BLOCK material invention or replacement of products, people, furniture, architecture, signage or venue geometry. When the design remains faithful but needs subjective refinement, use WARN so it can reach human review. When previous-page style references are supplied, set styleConsistency=false and add concise styleReasons when the finished photo materially leaves the page scope in palette, contrast, typography, density, spacing, crop, lighting, photographic treatment or recurring brand elements. Set visualDistinctness=false and add concise distinctnessReasons if the first glance or fine details materially repeat an earlier post. Style mismatch and repetition are WARN findings, not factuality BLOCKs.',
 }
 
+const evidenceFirstInstruction = {
+  research:
+    'Evidence-first rule: every market, audience, platform or seasonal statement must be supported by a source returned by live search. For timing, use only the supplied timingEvidence timestamps. If timingEvidence is empty, state that there is no observed timing data and do not recommend or imply an optimal hour. Never write a timing hypothesis or present a generic best-practice time as evidence.',
+  planning:
+    'Evidence-first rule: strategy must be grounded in verified factIds, exact research sourceUrls and the supplied timingEvidence. Set timingBasis to social_history only when the chosen hour is present in real connected social history, platform_history only when it is present in real published platform history, and no_data when no observed timestamp supports the hour. With no_data, explain the data gap plainly; never call the chosen time optimal, proven or a hypothesis. Do not invent audience behavior, competitor facts, performance numbers or account insights.',
+  content:
+    'Evidence-first rule: use only the verified factIds and the exact strategy slot. Research sources explain market context, never new facts about the business. Never turn an unverified timing choice, market assumption or generated visual detail into a factual business claim.',
+  quality:
+    'Evidence-first rule: block factual inventions and unsupported business claims. Treat the uploaded photo as the source of truth for real products, people, spaces, signage and material objects; AI may improve quality and composition but may not fabricate evidence.',
+  style:
+    'Evidence-first rule: describe only recurring visual and caption patterns that are visible in the supplied page history. Do not infer business facts or audience performance from appearance alone.',
+} as const
+
 // Each paid stage reserves money before dispatch and persists its response before
 // domain validation. Ambiguous calls are never re-sent. Explicit zero-result
 // failures can be retried only after the user explicitly resumes a blocked plan.
@@ -407,12 +420,18 @@ export async function monthlyProviderCall(
     args.capability === 'content' || args.capability === 'quality'
       ? 'When the original business photograph clearly contains a vehicle or other primary product, preserve it as a sharp, recognizable and sufficiently prominent subject. Do not reduce it to a blurred background or decorative prop. For quality review, set sourceFidelity=false with concise sourceFidelityReasons when that happens; this is a WARN finding, not an automatic BLOCK.'
       : ''
+  const typographyAndDesignInstruction =
+    args.capability === 'content' || args.capability === 'quality'
+      ? 'Modern SMM design contract: use a clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans, no more than two weights, with exact copy and correct Albanian diacritics. Prioritize one focal subject, a clear three-level hierarchy, an 8-point spacing rhythm, consistent alignment, generous whitespace, strong mobile contrast and safe margins. Reject decorative or mixed fonts, fake text, arbitrary stickers, random shapes, noisy gradients, excessive shadows, cluttered layouts and design choices that feel unrelated to the actual business, industry, audience or photograph.'
+      : ''
   const instructions = [
     localizedLanguageInstruction,
     previousPageStyleInstruction,
     sourceFidelityInstruction,
+    typographyAndDesignInstruction,
     monthlyInstructions[args.capability],
     monthlyInstructionAddenda[args.capability],
+    evidenceFirstInstruction[args.capability],
   ]
     .filter(Boolean)
     .join('\n')
@@ -421,6 +440,16 @@ export async function monthlyProviderCall(
     .replace(/Albanian copywriter/g, `${language === 'en' ? 'English' : 'Albanian'} copywriter`)
     .replace(/Format the Albanian research/g, `Format the ${language === 'en' ? 'English' : 'Albanian'} research`)
     .replace(/in Albanian that the user can use/g, `in ${language === 'en' ? 'English' : 'Albanian'} that the user can use`)
+    .replace(
+      /There is no universal best posting time: if account-level activity data is absent, label every timing choice as a testable hypothesis instead of inventing certainty\./g,
+      'Use only observed timingEvidence timestamps. If no timingEvidence exists, report that no observed timing data is available and do not recommend an optimal hour.',
+    )
+    .replace(
+      /Treat timing without account Insights as a hypothesis to test\./g,
+      'Use only observed timingEvidence timestamps, or declare no_data when no observed timestamp supports the chosen hour.',
+    )
+    .replace(/Hipotezat e orarit/g, 'Të dhënat e vëzhguara për orarin')
+    .replace(/Timing hypotheses/g, 'Observed timing data')
   const serialized = JSON.stringify(args.input)
   if (Buffer.byteLength(serialized) > 110000) throw new PlannerFailure('EVIDENCE_TOO_LARGE')
   const search = args.capability === 'research'
@@ -1117,6 +1146,8 @@ export function monthlyImagePrompt(input: {
     slot.channel === 'Instagram'
       ? 'For Instagram, make the focal idea readable in the first glance: use a strong subject, mobile-first hierarchy, controlled depth and an editorial 4:5 feed composition worth saving. The result must still feel like authentic premium photography, not an ad-template collage.'
       : 'For Facebook, make the story and business context understandable in the first glance: use an accessible type scale, recognizable subject and a natural 4:5 feed composition worth sharing. Avoid engagement bait and an over-designed ad-template appearance.'
+  const modernSmmDesignInstruction =
+    'Act as a senior commercial photographer, art director and typographic designer. Apply a disciplined modern SMM design system: one dominant focal subject, one clear reading path, a strong 3-level hierarchy, an 8-point spacing rhythm, generous breathing room, consistent alignment and a purposeful crop. Use one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans (or the closest legible equivalent), with no more than two weights; never use decorative, script, condensed, novelty or mixed unrelated fonts. Render only the exact approved copy, with correct Albanian diacritics and no extra words, fake glyphs or pseudo-text. Keep type large enough for a phone, inside safe margins, away from faces and the product, with strong accessible contrast and no text touching the edges. Use brand color as a deliberate accent, not an automatic full-canvas overlay. Prefer restraint, whitespace and hierarchy over stickers, badges, random shapes, heavy shadows, gradients, emojis or decorative clutter. Every visual choice must feel native to this exact business, industry, audience, location and real photograph; never introduce unrelated stock props, generic lifestyle scenes or a design trend that conflicts with the brand.'
   return [
     'Edit the supplied customer-owned photograph into one complete, original, premium 4:5 social-media post. You are solely responsible for the final visual design; no application template or hard-coded layout will be added afterward. The approved logo, if available, is the only deterministic post-processing element and will be placed dynamically in a clear region.',
     `Business: ${brand.name}. Industry: ${brand.industry}. Audience: ${brand.audience}.`,
@@ -1152,6 +1183,8 @@ export function monthlyImagePrompt(input: {
       ? [`Mandatory corrections from the independent quality review: ${revisionFeedback.join(' ')}`]
       : []),
     platformDirection,
+    modernSmmDesignInstruction,
+    'The uploaded photograph is the source reference, not the final deliverable and not a limitation to preserve. If it is blurry, noisy, compressed, poorly exposed, badly framed or low-resolution, use it to preserve the real subject and business identity while reconstructing a sharper, plausible, high-end commercial photograph. Generate only plausible missing detail; never invent a product, person, venue feature, sign, offer or factual business claim. Apply modern social-media design principles: one clear focal point, strong hierarchy, readable type scale, disciplined spacing, intentional contrast, accessible mobile-safe placement, coherent color and a clean 4:5 composition adapted to this business.',
     'First restore the source photograph into a credible high-end commercial photograph. Correct exposure, highlight and shadow detail, white balance, lens distortion, perspective, noise, blur and compression only as far as the source plausibly supports. Remove sensor dust and minor temporary visual clutter when safe. Keep skin, food, fabric, wood, glass and metal textures natural: no waxy smoothing, crunchy sharpening, HDR halos, fake bokeh or synthetic-looking surfaces.',
     'Preserve the identity and factual truth of the source: real people, anatomy, product count and shape, food, tableware, furniture, doors, windows, columns, roof lines, architecture, signage, logo shapes and brand colors. Never duplicate, fuse, warp, replace, relocate, redesign or invent a material object. Lighting direction, shadows, reflections and depth must remain physically coherent. Do not fabricate unreadable source text; remove or crop it instead.',
     'Build an original composition around the actual photographic subject and this exact intent. Follow the supplied unique visual direction. When that direction calls for bold energy, one short approved phrase may become a giant expressive typographic gesture integrated with depth around the subject; when it calls for restraint, use a quiet editorial hierarchy. Bold is intentional, not automatically huge. When the source contains a vehicle or other primary product, keep it sharp, recognizable and visually prominent enough to remain the focal subject; never turn it into a blurred background or decorative prop. Do not use a recognizable reusable template, generic header/footer band, standard frame, oversized empty panel, stock decoration, arbitrary arrow or the same composition used for another post.',
@@ -1180,6 +1213,8 @@ export function postImageEditPrompt(input: {
     post.channel === 'Instagram'
       ? 'Optimize for an Instagram feed: an immediate visual hook, premium mobile-first hierarchy, strong focal subject and an authentic editorial 4:5 result worth saving.'
       : 'Optimize for a Facebook feed: an instantly understandable story, accessible hierarchy, strong contextual subject and a natural 4:5 result worth sharing without engagement bait.'
+  const modernSmmDesignInstruction =
+    'Redesign as a senior commercial art director and typographic designer: use one dominant focal subject, one clear reading path, a disciplined 3-level hierarchy, an 8-point spacing rhythm, generous whitespace, consistent alignment and an intentional crop. Use one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans (or the closest legible equivalent), no more than two weights, and never decorative, script, condensed or mixed unrelated fonts. Render only the exact approved copy with correct Albanian diacritics; no extra words, fake glyphs or pseudo-text. Keep type phone-readable, inside safe margins, away from faces and product details, with strong accessible contrast. Use brand color as a deliberate accent, not an automatic full-canvas overlay. Remove arbitrary stickers, badges, emojis, random shapes, heavy shadows, noisy gradients and generic template decoration. Keep every decision inside the actual business, industry, audience, location and source photograph context.'
   return [
     'Edit the supplied current post image into a new finished social-media creative. This is an image edit, not a request to pick a static layout preset.',
     `Authorized user edit: ${JSON.stringify(instruction)}.`,
@@ -1189,6 +1224,8 @@ export function postImageEditPrompt(input: {
       ? 'An approved original business logo will be composited by the application after generation. Do not render, redraw, redesign, replace, recolor, invent or add any logo or watermark inside the generated image. Keep a calm protected area near the top-right for the later exact logo overlay.'
       : 'No approved business logo is supplied. Do not invent, redraw or add a logo or watermark.',
     platformDirection,
+    modernSmmDesignInstruction,
+    'Treat the current image as an editable source reference, not as something whose blur or low resolution must be preserved. Reconstruct plausible sharp detail and clean the photograph where needed, but preserve the identity and factual truth of real people, products, spaces and material objects. Use modern SMM principles: one focal hierarchy, readable mobile type, deliberate spacing, clear contrast, restrained visual noise and a clean platform-native 4:5 composition.',
     'Professionally restore the current photograph before redesigning it: correct exposure, highlights and shadows, white balance, lens distortion, perspective, noise, blur and compression only where plausible. Keep skin, food and material textures natural; avoid waxy smoothing, HDR halos, fake bokeh and over-sharpening.',
     input.logoAvailable
       ? `Preserve or cleanly re-render only this approved copy when it remains relevant to the requested edit: eyebrow "${post.creative.eyebrow}"; headline "${post.creative.headline}"; call to action "${post.creative.cta}". Never add the business name separately or invent additional words; the approved logo is the only business identity mark and will be added by the application.`

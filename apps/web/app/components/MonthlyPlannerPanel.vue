@@ -44,6 +44,12 @@ function togglePhoto(id: string) {
     : [...selectedPhotoIds.value, id]
 }
 
+function openReport(type: 'research' | 'strategy') {
+  if (!import.meta.client) return
+  const url = `${base.value}/monthly-report?month=${encodeURIComponent(props.month)}&type=${type}`
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 const phases = [
   { key: 'research', label: t('monthly.phaseResearch'), description: t('monthly.phaseResearchDescription') },
   { key: 'planning', label: t('monthly.phaseStrategy'), description: t('monthly.phaseStrategyDescription') },
@@ -803,6 +809,32 @@ onBeforeUnmount(() => clearInterval(timer))
     >
       <template #body>
         <div class="mx-auto w-full max-w-6xl space-y-8 py-2 sm:py-6">
+          <div class="flex flex-col justify-between gap-4 rounded-2xl border border-primary/15 bg-primary/5 p-4 sm:flex-row sm:items-center">
+            <div>
+              <p class="text-sm font-semibold text-highlighted">{{ t('monthly.reportTitle') }}</p>
+              <p class="mt-1 text-sm leading-6 text-muted">{{ t('monthly.reportDescription') }}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                v-if="plan?.research"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-file-text"
+                @click="openReport('research')"
+              >
+                {{ t('monthly.exportResearchPdf') }}
+              </UButton>
+              <UButton
+                v-if="plan?.strategy"
+                color="primary"
+                variant="solid"
+                icon="i-lucide-file-down"
+                @click="openReport('strategy')"
+              >
+                {{ t('monthly.exportStrategyPdf') }}
+              </UButton>
+            </div>
+          </div>
           <div class="grid gap-4 sm:grid-cols-3">
             <div class="rounded-xl border border-default bg-elevated/40 p-4">
               <span class="text-xs font-medium text-muted">{{ t('common.status') }}</span>
