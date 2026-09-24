@@ -214,9 +214,10 @@ watch(
             :collapsed="state === 'collapsed'"
             tooltip
             popover
+            highlight
             :aria-label="t('nav.main')"
             :ui="{
-              link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs',
+              link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs after:w-[3px]',
               linkLeadingIcon: 'size-3.5',
             }"
           />
@@ -229,10 +230,11 @@ watch(
             :collapsed="state === 'collapsed'"
             tooltip
             popover
+            highlight
             :aria-label="t('nav.settingsHelp')"
             class="mt-auto"
             :ui="{
-              link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs',
+              link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs after:w-[3px]',
               linkLeadingIcon: 'size-3.5',
             }"
           />
