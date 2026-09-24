@@ -85,6 +85,15 @@ const activityPath = computed(() => smoothPath(activity.value))
 const activityAreaPath = computed(() => `${activityPath.value} L 100 ${chartHeight} L 0 ${chartHeight} Z`)
 const activityPeak = computed(() => activity.value.reduce((peak, day) => (day.value > peak.value ? day : peak), activity.value[0]!))
 const activityTotal = computed(() => activity.value.reduce((total, day) => total + day.value, 0))
+// Hovering (or tapping) a day shows its own figure; without it the curve only
+// gives a shape. Falls back to the busiest day.
+const hoveredKey = ref<string | null>(null)
+const hoveredDay = computed(() => activity.value.find(day => day.key === hoveredKey.value) || activityPeak.value)
+// The readout sits just above its own point, kept inside the chart at the edges.
+const hoveredStyle = computed(() => ({
+  left: `${Math.min(92, Math.max(8, hoveredDay.value.x))}%`,
+  top: `${(hoveredDay.value.y / 44) * 100}%`,
+}))
 const summaries = computed(() => [
   {
     label: t('overview.allPosts'),
@@ -176,12 +185,33 @@ const summaries = computed(() => [
               :key="day.key"
               :cx="day.x"
               :cy="day.y"
-              r="0.85"
+              :r="day.key === hoveredDay.key ? 1.4 : 0.85"
               class="fill-primary stroke-default"
               stroke-width="0.18"
               vector-effect="non-scaling-stroke"
             />
           </svg>
+          <!-- One hit area per day, so every point can be read on mouse and on touch. -->
+          <div class="absolute inset-0 flex">
+            <UButton
+              v-for="day in activity"
+              :key="`hit-${day.key}`"
+              color="neutral"
+              variant="ghost"
+              class="h-full min-w-0 flex-1 rounded-none p-0 hover:bg-primary/5 focus-visible:ring-2"
+              :aria-label="t('overview.activityDay', { date: day.label, count: day.value })"
+              @mouseenter="hoveredKey = day.key"
+              @focus="hoveredKey = day.key"
+              @click="hoveredKey = day.key"
+            />
+          </div>
+          <UBadge
+            color="neutral"
+            variant="solid"
+            class="pointer-events-none absolute -translate-x-1/2 -translate-y-[150%] whitespace-nowrap shadow"
+            :style="hoveredStyle"
+            :label="t('overview.activityDay', { date: hoveredDay.label, count: hoveredDay.value })"
+          />
           <div class="pointer-events-none absolute inset-x-3 bottom-3 flex justify-between text-[11px] text-muted">
             <span>{{ activity[0]?.label }}</span>
             <span>{{ activity[Math.floor(chartDays / 2)]?.label }}</span>

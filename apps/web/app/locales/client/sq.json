@@ -818,6 +818,7 @@
   "overview.activityDescription": "Hapësira jote gjatë 14 ditëve të fundit",
   "overview.activityPosts": "{{count}} postime",
   "overview.activityPeak": "Dita më aktive: {{date}} · {{count}} postime",
+  "overview.activityDay": "{{date}} · {{count}} postime",
   "overview.activityEmpty": "Krijo një postim për ta parë aktivitetin këtu.",
   "overview.nextCalendarPost": "Postimi i radhës në kalendar",
   "overview.noUpcomingPost": "Pasi ta miratosh një postim, zgjidh ditën dhe orën.",
