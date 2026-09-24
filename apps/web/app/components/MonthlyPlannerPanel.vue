@@ -635,50 +635,120 @@ onBeforeUnmount(() => clearInterval(timer))
             </span>
           </UButton>
         </div>
-        <div v-if="photoMode === 'selected'" class="mt-4">
+        <div class="mt-4">
           <div
-            v-if="originalPhotos.length"
-            class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"
+            v-if="photoMode === 'auto'"
+            class="rounded-xl border border-primary/20 bg-primary/5 p-3.5"
           >
-            <UButton
-              v-for="asset in originalPhotos"
-              :key="asset.id"
-              type="button"
-              color="neutral"
-              variant="outline"
-              class="group relative overflow-hidden rounded-xl border bg-elevated text-left transition"
-              :class="
-                selectedPhotoIds.includes(asset.id)
-                  ? 'border-primary ring-2 ring-primary/20'
-                  : 'border-default hover:border-primary/30'
-              "
-              :aria-pressed="selectedPhotoIds.includes(asset.id)"
-              @click="togglePhoto(asset.id)"
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="flex min-w-0 items-start gap-2.5">
+                <UIcon name="i-lucide-eye" class="mt-0.5 size-4 shrink-0 text-primary" />
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-highlighted">
+                    {{ t('monthly.aiGalleryPreviewTitle') }}
+                  </p>
+                  <p class="mt-1 text-xs leading-5 text-muted">
+                    {{ t('monthly.aiGalleryPreviewDescription') }}
+                  </p>
+                </div>
+              </div>
+              <UBadge color="primary" variant="subtle" class="shrink-0">
+                {{ t('monthly.previewOnly') }}
+              </UBadge>
+            </div>
+            <div
+              v-if="originalPhotos.length"
+              class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
             >
-              <MediaImage
-                :src="asset.url"
-                :alt="asset.name"
-                fit="contain"
-                class="aspect-[4/5] w-full bg-elevated"
-              />
-              <span class="block truncate px-2.5 py-2 text-xs font-medium">{{ asset.name }}</span>
-              <span
-                v-if="selectedPhotoIds.includes(asset.id)"
-                class="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-primary text-white shadow"
+              <div
+                v-for="asset in originalPhotos"
+                :key="asset.id"
+                class="relative min-w-0 overflow-hidden rounded-xl border border-default bg-elevated text-left"
+                aria-disabled="true"
               >
-                <UIcon name="i-lucide-check" class="size-3.5" />
-              </span>
-            </UButton>
+                <MediaImage
+                  :src="asset.url"
+                  :alt="asset.name"
+                  fit="cover"
+                  class="aspect-[4/5] w-full bg-elevated"
+                />
+                <span class="block truncate px-3 py-2.5 text-xs font-medium">{{ asset.name }}</span>
+                <span
+                  class="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-default/90 text-muted shadow"
+                  :title="t('monthly.aiPhotoPreviewOnly')"
+                >
+                  <UIcon name="i-lucide-lock-keyhole" class="size-3.5" />
+                </span>
+              </div>
+            </div>
           </div>
+
+          <div v-else class="rounded-xl border border-default bg-elevated/30 p-3.5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="flex min-w-0 items-start gap-2.5">
+                <UIcon name="i-lucide-hand-pointer" class="mt-0.5 size-4 shrink-0 text-primary" />
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-highlighted">
+                    {{ t('monthly.chooseGalleryPhotosTitle') }}
+                  </p>
+                  <p class="mt-1 text-xs leading-5 text-muted">
+                    {{ t('monthly.chooseGalleryPhotosDescription') }}
+                  </p>
+                </div>
+              </div>
+              <UBadge color="neutral" variant="subtle" class="shrink-0">
+                {{ t('monthly.clickToSelect') }}
+              </UBadge>
+            </div>
+            <div
+              v-if="originalPhotos.length"
+              class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+            >
+              <UButton
+                v-for="asset in originalPhotos"
+                :key="asset.id"
+                type="button"
+                color="neutral"
+                variant="outline"
+                class="group relative !flex w-full min-w-0 !flex-col !items-stretch !justify-start overflow-hidden rounded-xl border bg-elevated !p-0 text-left transition"
+                :class="
+                  selectedPhotoIds.includes(asset.id)
+                    ? 'border-primary ring-2 ring-primary/20'
+                    : 'border-default hover:border-primary/40 hover:shadow-sm'
+                "
+                :aria-pressed="selectedPhotoIds.includes(asset.id)"
+                :aria-label="t('gallery.selectPhoto', { name: asset.name })"
+                @click="togglePhoto(asset.id)"
+              >
+                <MediaImage
+                  :src="asset.url"
+                  :alt="asset.name"
+                  fit="cover"
+                  class="aspect-[4/5] w-full bg-elevated"
+                />
+                <span class="block truncate px-3 py-2.5 text-xs font-medium">{{ asset.name }}</span>
+                <span
+                  class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition group-hover:opacity-100"
+                />
+                <span
+                  v-if="selectedPhotoIds.includes(asset.id)"
+                  class="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-primary text-white shadow-lg"
+                >
+                  <UIcon name="i-lucide-check" class="size-3.5" />
+                </span>
+              </UButton>
+            </div>
+          </div>
+
           <UAlert
-            v-else
+            v-if="!originalPhotos.length"
             class="mt-3"
             color="warning"
             variant="subtle"
             :title="t('monthly.noOriginalPhotosTitle')"
             :description="t('monthly.noOriginalPhotosDescription')"
           />
-          <p v-if="selectedPhotoIds.length" class="mt-2 text-xs text-muted">
+          <p v-if="photoMode === 'selected' && selectedPhotoIds.length" class="mt-2 text-xs text-muted">
             {{ t('monthly.photosIncluded', { count: selectedPhotoIds.length }) }}
           </p>
         </div>
