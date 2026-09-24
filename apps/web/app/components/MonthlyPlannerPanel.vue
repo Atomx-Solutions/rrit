@@ -648,7 +648,8 @@ onBeforeUnmount(() => clearInterval(timer))
               <MediaImage
                 :src="asset.url"
                 :alt="asset.name"
-                class="aspect-[4/5] w-full object-cover"
+                fit="contain"
+                class="aspect-[4/5] w-full bg-elevated"
               />
               <span class="block truncate px-2.5 py-2 text-xs font-medium">{{ asset.name }}</span>
               <span

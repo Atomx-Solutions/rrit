@@ -455,7 +455,8 @@ onBeforeUnmount(() => {
             <MediaImage
               :src="form.image"
               :alt="t('photo.choosePhoto')"
-              class="size-full object-cover"
+              fit="contain"
+              class="size-full bg-elevated"
             />
           </div>
           <div class="asset-picker">
@@ -470,7 +471,12 @@ onBeforeUnmount(() => {
               :class="{ selected: form.image === asset.url }"
               @click="form.image = asset.url"
             >
-              <MediaImage :src="asset.url" :alt="asset.name" class="w-full aspect-square rounded" />
+              <MediaImage
+                :src="asset.url"
+                :alt="asset.name"
+                fit="contain"
+                class="w-full aspect-square rounded bg-elevated"
+              />
             </UButton>
           </div>
           <ULink :to="`${base}/gallery`" class="text-primary small"
