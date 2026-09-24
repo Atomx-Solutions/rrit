@@ -664,7 +664,7 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
             <div
               v-if="originalPhotos.length"
-              class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+              class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
             >
               <div
                 v-for="asset in originalPhotos"
@@ -676,11 +676,11 @@ onBeforeUnmount(() => clearInterval(timer))
                   :src="asset.url"
                   :alt="asset.name"
                   fit="cover"
-                  class="aspect-[4/5] w-full bg-elevated"
+                  class="aspect-square w-full bg-elevated"
                 />
-                <span class="block truncate px-3 py-2.5 text-xs font-medium">{{ asset.name }}</span>
+                <span class="block truncate px-2 py-1.5 text-[11px] font-medium">{{ asset.name }}</span>
                 <span
-                  class="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-default/90 text-muted shadow"
+                  class="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-default/90 text-muted shadow"
                   :title="t('monthly.aiPhotoPreviewOnly')"
                 >
                   <UIcon name="i-lucide-lock-keyhole" class="size-3.5" />
@@ -708,7 +708,7 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
             <div
               v-if="originalPhotos.length"
-              class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+              class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
             >
               <UButton
                 v-for="asset in originalPhotos"
@@ -730,9 +730,9 @@ onBeforeUnmount(() => clearInterval(timer))
                   :src="asset.url"
                   :alt="asset.name"
                   fit="cover"
-                  class="aspect-[4/5] w-full bg-elevated"
+                  class="aspect-square w-full bg-elevated"
                 />
-                <span class="block truncate px-3 py-2.5 text-xs font-medium">{{ asset.name }}</span>
+                <span class="block truncate px-2 py-1.5 text-[11px] font-medium">{{ asset.name }}</span>
                 <span
                   class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition group-hover:opacity-100"
                 />

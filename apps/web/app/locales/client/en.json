@@ -818,6 +818,7 @@
   "overview.activityDescription": "Your workspace over the last 14 days",
   "overview.activityPosts": "{{count}} posts",
   "overview.activityPeak": "Busiest day: {{date}} · {{count}} posts",
+  "overview.activityDay": "{{date}} · {{count}} posts",
   "overview.activityEmpty": "Create a post to start seeing your activity here.",
   "overview.nextCalendarPost": "Next post on the calendar",
   "overview.noUpcomingPost": "After approving a post, choose the day and time.",
