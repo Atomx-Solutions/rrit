@@ -132,6 +132,14 @@ select {
   outline: 3px solid var(--rrit-color-focus);
   outline-offset: 4px;
 }
+/* Nuxt UI applies a second hard outline; inputs use one border and a soft halo. */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none !important;
+  box-shadow:
+    inset 0 0 0 1px var(--rrit-color-focus),
+    0 0 0 3px color-mix(in srgb, var(--rrit-color-focus) 18%, transparent) !important;
+}
 @layer base {
   h1 {
     font-size: clamp(25px, 2.4vw, 34px);
