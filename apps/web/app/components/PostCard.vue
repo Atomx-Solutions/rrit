@@ -23,10 +23,11 @@ const { t } = useI18n()
         ><MediaImage
           :src="post.image"
           :alt="post.title"
-          class="w-full aspect-[4/3] object-cover bg-elevated"
+          fit="contain"
+          class="w-full aspect-[4/5] bg-elevated"
           loading="lazy"
           width="500"
-          height="380"
+          height="625"
         /><UBadge
           :icon="post.channel === 'Instagram' ? 'i-lucide-instagram' : 'i-lucide-facebook'"
           color="neutral"

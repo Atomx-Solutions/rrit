@@ -12,7 +12,12 @@ watchError(storageError, 'error')
 const { data: headerUsage, refresh: refreshHeaderUsage } = await useFetch('/api/usage', {
   key: 'header-credit-balance',
 })
-const credits = computed(() => headerUsage.value?.credits?.spendable)
+// Show settled customer credits in the global header. `spendable` subtracts
+// temporary reservations and can rise again when a cheaper AI run settles,
+// which makes the balance look like credits were returned during generation.
+// The server still uses spendable for entitlement checks.
+const credits = computed(() => headerUsage.value?.credits?.remaining)
+const spendableCredits = computed(() => headerUsage.value?.credits?.spendable)
 let creditTimer: ReturnType<typeof setInterval>
 onMounted(() => {
   creditTimer = setInterval(() => refreshHeaderUsage(), 30_000)
@@ -113,7 +118,7 @@ onBeforeUnmount(() => clearInterval(creditTimer))
       <div class="page dashboard-page-body space-y-4">
         <TrialBanner :key="locale" />
         <LowCreditBanner
-          :spendable="credits"
+          :spendable="spendableCredits"
           :threshold="headerUsage?.lowCredit.threshold"
           :has-active-package="headerUsage?.lowCredit.hasActivePackage"
         />

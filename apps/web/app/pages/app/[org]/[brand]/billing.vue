@@ -256,7 +256,7 @@ function usageValue(key: string, value: number) {
             </div>
           </div>
           <p class="shrink-0 text-sm font-semibold tabular-nums" data-testid="credit-balance">
-            {{ usage.credits.spendable }}
+            {{ usage.credits.remaining }}
             <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span>
           </p>
         </div>
