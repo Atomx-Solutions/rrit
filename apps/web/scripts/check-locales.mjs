@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const localeDir = path.resolve('app/locales')
+const localeDir = path.resolve('app/locales/client')
 const localeFiles = ['sq.json', 'en.json']
 const parsed = new Map()
 

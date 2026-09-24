@@ -5,6 +5,7 @@ const { data, commit, notify, initLive } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Rrit` })
 const query = ref('')
+const assetFilter = ref<'all' | 'original' | 'generated'>('all')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
 const deleteOpen = ref(false)
@@ -21,6 +22,9 @@ const rightsBusy = ref(false)
 const rightsError = ref('')
 watchError(rightsError)
 const selectedFiles = ref<File[]>([])
+const viewerOpen = ref(false)
+const viewerIndex = ref(0)
+const downloading = ref(false)
 function displayTag(tag: string) {
   return tag === 'ngarkim' || tag === 'upload' ? t('gallery.uploadTag') : tag
 }
@@ -31,13 +35,61 @@ function openDetail(asset: Asset) {
   detail.value = asset
   tags.value = asset.tags.join(', ')
 }
-const assets = computed(() =>
+const allAssets = computed(() =>
   data.value.assets.filter((a) =>
     `${a.name} ${a.tags.join(' ')}`
       .toLocaleLowerCase('sq')
       .includes(query.value.trim().toLocaleLowerCase('sq')),
   ),
 )
+const assets = computed(() =>
+  allAssets.value.filter((asset) =>
+    assetFilter.value === 'generated' ? asset.generated : assetFilter.value === 'original' ? !asset.generated : true,
+  ),
+)
+const viewerAssets = computed(() => allAssets.value.filter((asset) => asset.kind === 'photo'))
+const viewerAsset = computed(() => viewerAssets.value[viewerIndex.value] || null)
+function openViewer(asset: Asset) {
+  const index = viewerAssets.value.findIndex((item) => item.id === asset.id)
+  if (index < 0) return
+  viewerIndex.value = index
+  viewerOpen.value = true
+}
+function moveViewer(offset: number) {
+  if (!viewerAssets.value.length) return
+  viewerIndex.value =
+    (viewerIndex.value + offset + viewerAssets.value.length) % viewerAssets.value.length
+}
+async function downloadViewerAsset() {
+  if (!viewerAsset.value || downloading.value) return
+  downloading.value = true
+  try {
+    const response = await fetch(viewerAsset.value.url, { credentials: 'include' })
+    if (!response.ok) throw new Error('download failed')
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = viewerAsset.value.name || 'rrit-photo.jpg'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  } finally {
+    downloading.value = false
+  }
+}
+function onViewerKeydown(event: KeyboardEvent) {
+  if (!viewerOpen.value) return
+  if (event.key === 'Escape') viewerOpen.value = false
+  if (event.key === 'ArrowLeft') moveViewer(-1)
+  if (event.key === 'ArrowRight') moveViewer(1)
+}
+onMounted(() => window.addEventListener('keydown', onViewerKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
+const filterTabs = computed(() => [
+  { label: t('gallery.allAssets'), value: 'all' },
+  { label: t('gallery.originalAssets'), value: 'original' },
+  { label: t('gallery.generatedAssets'), value: 'generated' },
+])
 const { page, pageSize, total, paginated } = usePagination(assets)
 watch(query, () => {
   page.value = 1
@@ -54,6 +106,10 @@ function toggle(id: string) {
 }
 watch(query, () => {
   selected.value = []
+})
+watch(assetFilter, () => {
+  selected.value = []
+  page.value = 1
 })
 function openUpload() {
   rights.value = false
@@ -191,7 +247,15 @@ async function saveMetadata() {
           icon="i-lucide-search"
           class="w-full sm:w-80"
         />
-        <div class="actions">
+        <div class="flex flex-wrap items-center gap-3">
+          <UTabs
+            v-model="assetFilter"
+            :items="filterTabs"
+            :content="false"
+            variant="link"
+            size="sm"
+            :aria-label="t('gallery.assetFilter')"
+          />
           <span role="status" class="text-sm text-muted">{{ assets.length }} {{ t('gallery.photos') }}</span
           ><UButton
             v-if="selected.length"
@@ -228,7 +292,7 @@ async function saveMetadata() {
             color="neutral"
             class="p-0 size-14 sm:size-16 shrink-0 overflow-hidden rounded-md"
             :aria-label="t('gallery.photoDetails', { name: asset.name })"
-            @click="openDetail(asset)"
+            @click="asset.kind === 'photo' ? openViewer(asset) : openDetail(asset)"
           >
             <MediaImage
               :src="asset.url"
@@ -241,18 +305,23 @@ async function saveMetadata() {
           </UButton>
           <div class="min-w-0 flex-1">
             <h3 class="text-sm font-medium break-words">{{ asset.name }}</h3>
-            <div v-if="asset.tags.length" class="flex flex-wrap gap-1.5 mt-2">
-              <UBadge v-if="asset.kind === 'brand'" color="success" variant="subtle" size="sm">
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <UBadge v-if="asset.generated" color="primary" variant="subtle" size="sm">
+                {{ t('gallery.generatedBadge') }}
+              </UBadge>
+              <UBadge v-else-if="asset.kind === 'brand'" color="success" variant="subtle" size="sm">
                 {{ t('gallery.logo') }}
               </UBadge>
-              <UBadge
-                v-for="tag in visibleTags(asset)"
-                :key="tag"
-                color="neutral"
-                variant="outline"
-                size="sm"
-                >{{ displayTag(tag) }}</UBadge
-              >
+              <template v-if="asset.tags.length">
+                <UBadge
+                  v-for="tag in visibleTags(asset)"
+                  :key="tag"
+                  color="neutral"
+                  variant="outline"
+                  size="sm"
+                  >{{ displayTag(tag) }}</UBadge
+                >
+              </template>
             </div>
             <p class="text-xs text-muted mt-2 flex items-center gap-1.5">
               <UIcon
@@ -286,7 +355,79 @@ async function saveMetadata() {
           ? [{ label: t('gallery.clearSearch'), onClick: () => (query = '') }]
           : [{ label: t('gallery.addPhoto'), onClick: openUpload }]
       "
-    />
+      />
+    <UModal
+      v-model:open="viewerOpen"
+      fullscreen
+      :title="viewerAsset?.name || t('gallery.photoViewer')"
+      :description="t('gallery.photoViewerDescription')"
+    >
+      <template #body>
+        <div v-if="viewerAsset" class="flex min-h-[75vh] flex-col gap-5">
+          <div class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8">
+            <MediaImage
+              :src="viewerAsset.url"
+              :alt="viewerAsset.name"
+              fit="natural"
+              class="max-h-[62vh] max-w-full rounded-xl object-contain"
+            />
+            <UButton
+              color="neutral"
+              variant="solid"
+              class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full sm:left-5"
+              icon="i-lucide-chevron-left"
+              :aria-label="t('gallery.previousPhoto')"
+              @click="moveViewer(-1)"
+            />
+            <UButton
+              color="neutral"
+              variant="solid"
+              class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full sm:right-5"
+              icon="i-lucide-chevron-right"
+              :aria-label="t('gallery.nextPhoto')"
+              @click="moveViewer(1)"
+            />
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <p class="min-w-0 truncate text-sm text-muted">
+              {{ viewerIndex + 1 }} / {{ viewerAssets.length }} · {{ viewerAsset.name }}
+            </p>
+            <div class="flex shrink-0 gap-2">
+              <UButton
+                color="primary"
+                icon="i-lucide-download"
+                :loading="downloading"
+                @click="downloadViewerAsset"
+              >
+                {{ t('common.download') }}
+              </UButton>
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-sliders-horizontal"
+                @click="detail = viewerAsset; tags = viewerAsset.tags.join(', '); viewerOpen = false"
+              >
+                {{ t('gallery.details') }}
+              </UButton>
+            </div>
+          </div>
+          <div class="flex gap-2 overflow-x-auto pb-1">
+            <UButton
+              v-for="(asset, index) in viewerAssets"
+              :key="asset.id"
+              color="neutral"
+              variant="ghost"
+              class="size-16 shrink-0 overflow-hidden rounded-lg p-0"
+              :class="index === viewerIndex ? 'ring-2 ring-primary ring-offset-2' : 'opacity-70 hover:opacity-100'"
+              :aria-label="asset.name"
+              @click="viewerIndex = index"
+            >
+              <MediaImage :src="asset.url" :alt="asset.name" class="size-full object-cover" width="64" height="64" />
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
     <UModal
       v-model:open="uploadOpen"
       :dismissible="!uploading"

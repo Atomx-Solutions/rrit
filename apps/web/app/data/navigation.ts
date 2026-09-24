@@ -18,12 +18,6 @@ export const navigation = [
     group: 'workspace',
   },
   { label: 'nav.calendar', path: 'calendar', icon: 'i-lucide-calendar-days', group: 'workspace' },
-  {
-    label: 'nav.templates',
-    path: 'templates',
-    icon: 'i-lucide-layout-template',
-    group: 'workspace',
-  },
   { label: 'nav.gallery', path: 'gallery', icon: 'i-lucide-images', group: 'workspace' },
   {
     label: 'nav.socialPosts',

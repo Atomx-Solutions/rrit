@@ -55,12 +55,6 @@ watch([search, filter, channel], () => {
     :description="t('content.yourPostsDescription')"
   >
     <template #actions
-      ><UButton
-        :to="`${base}/templates`"
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-layout-template"
-        >{{ t('nav.templates') }}</UButton
       ><UButton variant="outline" :to="`${base}/content/new`" icon="i-lucide-plus"
         >{{ t('content.createPost') }}</UButton
       ></template

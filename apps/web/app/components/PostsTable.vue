@@ -2,9 +2,40 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { Post } from '~~/shared/schemas/workspace'
 import { formatDate } from '~~/shared/utils/format'
-defineProps<{ posts: Post[] }>()
+const props = defineProps<{ posts: Post[] }>()
 const { base, data } = useWorkspace()
 const { t } = useI18n()
+const viewerOpen = ref(false)
+const viewerIndex = ref(0)
+const downloading = ref(false)
+const viewerPost = computed(() => props.posts[viewerIndex.value] || null)
+function openViewer(post: Post) {
+  const index = props.posts.findIndex((item) => item.id === post.id)
+  if (index < 0) return
+  viewerIndex.value = index
+  viewerOpen.value = true
+}
+function moveViewer(offset: number) {
+  if (!props.posts.length) return
+  viewerIndex.value = (viewerIndex.value + offset + props.posts.length) % props.posts.length
+}
+async function downloadViewerPost() {
+  if (!viewerPost.value || downloading.value) return
+  downloading.value = true
+  try {
+    const response = await fetch(viewerPost.value.image, { credentials: 'include' })
+    if (!response.ok) throw new Error('download failed')
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${viewerPost.value.title || 'rrit-post'}.jpg`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  } finally {
+    downloading.value = false
+  }
+}
 const columns = computed<TableColumn<Post>[]>(() => [
   { accessorKey: 'title', header: t('content.post') },
   { accessorKey: 'channel', header: t('content.network') },
@@ -21,13 +52,14 @@ const columns = computed<TableColumn<Post>[]>(() => [
       :to="`${base}/content/${post.id}`"
       class="flex gap-3 p-4 active:bg-elevated/50"
     >
-      <MediaImage
-        :src="post.image"
-        alt=""
+        <MediaImage
+          :src="post.image"
+          alt=""
         width="56"
         height="64"
-        loading="lazy"
-        class="w-14 h-16 shrink-0 object-cover rounded-md"
+          loading="lazy"
+          class="w-14 h-16 shrink-0 object-cover rounded-md"
+          @click.prevent.stop="openViewer(post)"
       />
       <div class="min-w-0 flex-1">
         <h3 class="text-sm font-medium text-highlighted line-clamp-2">{{ post.title }}</h3>
@@ -73,6 +105,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
           height="44"
           loading="lazy"
           class="size-11 shrink-0 rounded-md object-cover"
+          @click.prevent.stop="openViewer(row.original)"
         />
         <div class="min-w-0">
           <h3 class="text-sm font-medium text-highlighted truncate group-hover:text-primary">
@@ -110,4 +143,66 @@ const columns = computed<TableColumn<Post>[]>(() => [
         :aria-label="t('content.openPost', { title: row.original.title })"
     /></template>
   </UTable>
+  <UModal
+    v-model:open="viewerOpen"
+    fullscreen
+    :title="viewerPost?.title || t('content.postPhotoViewer')"
+    :description="t('content.postPhotoViewerDescription')"
+  >
+    <template #body>
+      <div v-if="viewerPost" class="flex min-h-[75vh] flex-col gap-5">
+        <div class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8">
+          <MediaImage
+            :src="viewerPost.image"
+            :alt="viewerPost.title"
+            fit="natural"
+            class="max-h-[65vh] max-w-full rounded-xl object-contain"
+          />
+          <UButton
+            color="neutral"
+            variant="solid"
+            class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full sm:left-5"
+            icon="i-lucide-chevron-left"
+            :aria-label="t('content.previousPostPhoto')"
+            @click="moveViewer(-1)"
+          />
+          <UButton
+            color="neutral"
+            variant="solid"
+            class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full sm:right-5"
+            icon="i-lucide-chevron-right"
+            :aria-label="t('content.nextPostPhoto')"
+            @click="moveViewer(1)"
+          />
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <p class="min-w-0 truncate text-sm text-muted">
+            {{ viewerIndex + 1 }} / {{ props.posts.length }} · {{ viewerPost.title }}
+          </p>
+          <UButton
+            color="primary"
+            icon="i-lucide-download"
+            :loading="downloading"
+            @click="downloadViewerPost"
+          >
+            {{ t('common.download') }}
+          </UButton>
+        </div>
+        <div class="flex gap-2 overflow-x-auto pb-1">
+          <UButton
+            v-for="(post, index) in props.posts"
+            :key="post.id"
+            color="neutral"
+            variant="ghost"
+            class="size-16 shrink-0 overflow-hidden rounded-lg p-0"
+            :class="index === viewerIndex ? 'ring-2 ring-primary ring-offset-2' : 'opacity-70 hover:opacity-100'"
+            :aria-label="post.title"
+            @click="viewerIndex = index"
+          >
+            <MediaImage :src="post.image" :alt="post.title" class="size-full object-cover" width="64" height="64" />
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
 </template>

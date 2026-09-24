@@ -5,17 +5,86 @@ const { data, base } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('overview.title')} · Rrit` })
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
-const filter = ref('review')
-const postsOpen = ref(false)
 const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
 const upcoming = computed(() =>
   data.value.posts
     .filter((p) => p.status === 'scheduled')
     .sort((a, b) => (a.scheduledAt || '').localeCompare(b.scheduledAt || '')),
 )
-const visible = computed(() =>
-  (filter.value === 'review' ? reviews.value : data.value.posts).slice(0, 6),
-)
+
+const chartDays = 14
+const chartHeight = 44
+const chartBaseline = 40
+
+function dateKey(value: Date | string, timezone: string) {
+  const date = typeof value === 'string' ? new Date(value) : value
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  )
+  return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+const activity = computed(() => {
+  const timezone = data.value.preferences.timezone
+  const today = new Date()
+  const days = Array.from({ length: chartDays }, (_, index) => {
+    const date = new Date(today)
+    date.setHours(12, 0, 0, 0)
+    date.setDate(date.getDate() - (chartDays - index - 1))
+    const key = dateKey(date, timezone)
+    const isToday = index === chartDays - 1
+    const value = data.value.posts.filter((post) => {
+      const source = post.proposedAt || post.publishedAt || post.scheduledAt
+      return source ? dateKey(source, timezone) === key : isToday
+    }).length
+
+    return {
+      key,
+      label: formatDate(`${key}T12:00:00.000Z`, timezone, true),
+      value,
+      x: (index / (chartDays - 1)) * 100,
+    }
+  })
+  const max = Math.max(1, ...days.map((day) => day.value))
+  return days.map((day) => ({
+    ...day,
+    y: chartBaseline - (day.value / max) * (chartBaseline - 8),
+  }))
+})
+
+function smoothPath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) return ''
+  if (points.length === 1) return `M ${points[0]!.x} ${points[0]!.y}`
+  let path = `M ${points[0]!.x} ${points[0]!.y}`
+  for (let index = 0; index < points.length - 1; index++) {
+    const previous = points[index - 1] || points[index]!
+    const current = points[index]!
+    const next = points[index + 1]!
+    const following = points[index + 2] || next
+    const controlOne = {
+      x: current.x + (next.x - previous.x) / 6,
+      y: current.y + (next.y - previous.y) / 6,
+    }
+    const controlTwo = {
+      x: next.x - (following.x - current.x) / 6,
+      y: next.y - (following.y - current.y) / 6,
+    }
+    path += ` C ${controlOne.x} ${controlOne.y}, ${controlTwo.x} ${controlTwo.y}, ${next.x} ${next.y}`
+  }
+  return path
+}
+
+const activityPath = computed(() => smoothPath(activity.value))
+const activityAreaPath = computed(() => `${activityPath.value} L 100 ${chartHeight} L 0 ${chartHeight} Z`)
+const activityPeak = computed(() => activity.value.reduce((peak, day) => (day.value > peak.value ? day : peak), activity.value[0]!))
+const activityTotal = computed(() => activity.value.reduce((total, day) => total + day.value, 0))
 const summaries = computed(() => [
   {
     label: t('overview.allPosts'),
@@ -69,76 +138,66 @@ const summaries = computed(() => [
       </UPageCard>
     </UPageGrid>
 
-    <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <UCollapsible v-model:open="postsOpen">
-        <UButton
-          color="neutral"
-          variant="ghost"
-          block
-          class="rounded-lg p-5 sm:p-6 text-left"
-          :ui="{ base: 'justify-start', label: 'flex-1' }"
-        >
-          <template #leading
-            ><UIcon name="i-lucide-file-check" class="size-5 text-muted shrink-0"
-          /></template>
-          <div class="flex-1 min-w-0">
-            <span class="block text-sm font-semibold">{{ t('overview.postsForReview') }}</span>
-            <p class="text-sm text-muted font-normal mt-1">
-              {{
-                reviews.length
-                  ? t('overview.reviewWaiting', { count: reviews.length })
-                  : t('overview.noReviewPosts')
-              }}
-            </p>
+    <UCard :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden">
+      <div class="flex flex-wrap items-start justify-between gap-4 px-5 pt-5 sm:px-6 sm:pt-6">
+        <div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-chart-spline" class="size-4 text-primary" />
+            <h2 class="text-sm font-semibold">{{ t('overview.activityTitle') }}</h2>
           </div>
-          <span class="text-xs sm:text-sm shrink-0">{{
-            postsOpen ? t('overview.closePosts') : t('nav.viewPosts')
-          }}</span>
-          <template #trailing
-            ><UIcon
-              :name="postsOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
-              class="size-4 shrink-0"
-          /></template>
-        </UButton>
-        <template #content>
-          <div class="border-t border-default">
-            <div class="flex flex-wrap justify-between items-center gap-3 px-4 sm:px-5 py-3">
-              <span class="text-xs text-muted"
-                >{{ t('overview.postCount', { visible: visible.length, total: filter === 'review' ? reviews.length : data.posts.length }) }}</span
-              ><UTabs
-                v-model="filter"
-                :items="[
-                  { label: t('overview.awaitingApproval'), value: 'review' },
-                  { label: t('overview.all'), value: 'all' },
-                ]"
-                :content="false"
-                variant="link"
-                size="sm"
-                :aria-label="t('overview.postsSummary')"
-              />
-            </div>
-            <PostsTable v-if="visible.length" :posts="visible" />
-            <UEmpty
-              v-else
-              variant="naked"
-              icon="i-lucide-check-check"
-              :title="t('overview.noReviewPostsTitle')"
-              :description="t('overview.noReviewPostsDescription')"
-              :actions="[{ label: t('content.createPost'), variant: 'outline', to: `${base}/content/new` }]"
+          <p class="mt-1 text-sm text-muted">{{ t('overview.activityDescription') }}</p>
+        </div>
+        <UBadge color="primary" variant="subtle" :label="t('overview.activityPosts', { count: activityTotal })" />
+      </div>
+
+      <div class="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+        <div class="relative h-56 overflow-hidden rounded-lg border border-default bg-elevated/20">
+          <svg
+            class="absolute inset-0 h-full w-full"
+            viewBox="0 0 100 44"
+            preserveAspectRatio="none"
+            role="img"
+            :aria-label="t('overview.activityDescription')"
+          >
+            <defs>
+              <linearGradient id="overview-activity-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" class="text-primary" stop-color="currentColor" stop-opacity="0.24" />
+                <stop offset="100%" class="text-primary" stop-color="currentColor" stop-opacity="0.02" />
+              </linearGradient>
+              <pattern id="overview-activity-grid" width="5" height="11" patternUnits="userSpaceOnUse">
+                <path d="M 5 0 L 0 0 0 11" fill="none" class="stroke-default" stroke-width="0.12" />
+              </pattern>
+            </defs>
+            <rect width="100" height="44" fill="url(#overview-activity-grid)" />
+            <path :d="activityAreaPath" fill="url(#overview-activity-fill)" class="text-primary" />
+            <path :d="activityPath" fill="none" class="stroke-primary" stroke-width="0.45" vector-effect="non-scaling-stroke" />
+            <circle
+              v-for="day in activity"
+              :key="day.key"
+              :cx="day.x"
+              :cy="day.y"
+              r="0.85"
+              class="fill-primary stroke-default"
+              stroke-width="0.18"
+              vector-effect="non-scaling-stroke"
             />
-            <div class="flex justify-end border-t border-default px-4 py-3">
-              <UButton
-                :to="`${base}/content${filter === 'review' ? '?status=review' : ''}`"
-                variant="link"
-                color="neutral"
-                size="sm"
-                trailing-icon="i-lucide-arrow-right"
-                >{{ t('overview.viewAllPosts') }}</UButton
-              >
-            </div>
+          </svg>
+          <div class="pointer-events-none absolute inset-x-3 bottom-3 flex justify-between text-[11px] text-muted">
+            <span>{{ activity[0]?.label }}</span>
+            <span>{{ activity[Math.floor(chartDays / 2)]?.label }}</span>
+            <span>{{ activity[chartDays - 1]?.label }}</span>
           </div>
-        </template>
-      </UCollapsible>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted">
+          <span>{{ t('overview.activityPeak', { date: activityPeak.label, count: activityPeak.value }) }}</span>
+          <ULink :to="`${base}/content`" class="inline-flex items-center gap-1 font-medium text-highlighted hover:text-primary">
+            {{ t('overview.viewAllPosts') }}
+            <UIcon name="i-lucide-arrow-right" class="size-3.5" />
+          </ULink>
+        </div>
+        <p v-if="!activityTotal" class="mt-3 text-sm text-muted">{{ t('overview.activityEmpty') }}</p>
+      </div>
     </UCard>
     <UPageGrid class="grid-cols-1 lg:grid-cols-2 gap-5">
       <UCard :ui="{ body: 'p-5 sm:p-6' }">

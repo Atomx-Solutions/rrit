@@ -59,6 +59,7 @@ import {
   remainingMonthlyPosts,
   validateEditorialPlan,
   type PlannerEvidence,
+  type PlannerTimingSample,
 } from './monthly-planner-domain'
 
 let workerPool: Pool | undefined
@@ -170,7 +171,8 @@ export async function ensureMonthlyPlan(
   }
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
-  const evidence = plannerEvidence(workspace, new Date(), month, photoSelection)
+  const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
+  const evidence = plannerEvidence(workspace, new Date(), month, photoSelection, timingSamples)
   const values = [
     businessId,
     `${month}-01`,
@@ -289,7 +291,8 @@ export async function restartMonthlyPlan(
   }
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
-  const evidence = plannerEvidence(workspace, new Date(), month, photoSelection)
+  const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
+  const evidence = plannerEvidence(workspace, new Date(), month, photoSelection, timingSamples)
   await client.query(
     `UPDATE monthly_plans
       SET status='queued',stage='research',target_count=$1,completed_count=0,evidence=$2,evidence_hash=$3,
@@ -527,6 +530,46 @@ const MAX_STYLE_CONTACT_SHEET_BYTES = 8388608
 function isoTimestamp(value: string) {
   const parsed = new Date(value)
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : value
+}
+
+async function loadPlannerTimingSamples(
+  db: Pool | PoolClient,
+  businessId: string,
+  workspace: Awaited<ReturnType<typeof loadWorkspace>>['workspace'],
+): Promise<PlannerTimingSample[]> {
+  const social = await db.query<{ channel: string; published_at: string | Date }>(
+    `SELECT channel,published_at
+       FROM social_posts
+      WHERE business_id=$1
+        AND EXISTS (
+          SELECT 1
+          FROM meta_connections mc
+          WHERE mc.business_id=social_posts.business_id
+            AND mc.status='connected'
+            AND ((social_posts.channel='Facebook' AND social_posts.source_account_id=mc.page_id)
+              OR (social_posts.channel='Instagram' AND social_posts.source_account_id=mc.instagram_id))
+        )
+      ORDER BY published_at DESC,id DESC
+      LIMIT 200`,
+    [businessId],
+  )
+  const imported = social.rows.flatMap((row) => {
+    const channel = row.channel === 'Instagram' || row.channel === 'Facebook' ? row.channel : null
+    if (!channel) return []
+    const publishedAt = isoTimestamp(String(row.published_at))
+    return Number.isFinite(Date.parse(publishedAt))
+      ? [{
+          source: channel === 'Instagram' ? ('instagram' as const) : ('facebook' as const),
+          channel: channel as 'Facebook' | 'Instagram',
+          publishedAt,
+        }]
+      : []
+  })
+  const platform = workspace.posts.flatMap((post) => {
+    if (post.status !== 'published' || !post.publishedAt) return []
+    return [{ source: 'platform' as const, channel: post.channel, publishedAt: post.publishedAt }]
+  })
+  return [...imported, ...platform].slice(0, 240)
 }
 
 function normalizeGeneratedHashtags(value: unknown) {

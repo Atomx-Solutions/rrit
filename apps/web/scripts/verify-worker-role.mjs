@@ -43,7 +43,6 @@ const requiredPolicies = [
 ]
 const operationalTables = [
   'schema_migrations',
-  'post_templates',
   'app_settings',
   'plan_catalog',
   'worker_heartbeats',

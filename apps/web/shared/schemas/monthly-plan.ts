@@ -31,7 +31,7 @@ export const contentIntentSchema = z.enum([
   'conversion',
 ])
 // Free-form art direction generated from the research and the actual source
-// photograph. It is intentionally not a list of application-owned templates.
+// photograph. It is intentionally unique to the post and business context.
 export const plannedCreativeLayoutSchema = z.string().trim().min(1).max(600)
 export const algorithmGoalSchema = z.enum([
   'watch_time',
@@ -41,6 +41,7 @@ export const algorithmGoalSchema = z.enum([
   'profile_actions',
   'clicks',
 ])
+export const timingBasisSchema = z.enum(['social_history', 'platform_history', 'no_data'])
 export const slotBriefSchema = z.object({
   day: z.number().int().min(1).max(31),
   time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
@@ -55,6 +56,7 @@ export const slotBriefSchema = z.object({
   algorithmGoal: algorithmGoalSchema,
   platformRationale: z.string().min(15).max(500),
   timingRationale: z.string().min(15).max(500),
+  timingBasis: timingBasisSchema.default('no_data'),
   factIds: z.array(z.string()).min(1).max(12),
   sourceUrls: z.array(researchSourceSchema.shape.url).min(1).max(5),
   requiredAssetId: z.uuid().nullable(),

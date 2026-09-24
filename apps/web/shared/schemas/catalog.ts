@@ -1,15 +1,4 @@
 import { z } from 'zod'
-export const templateSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  title: z.string(),
-  caption: z.string(),
-  goal: z.string(),
-  industry: z.string(),
-  image: z.string(),
-  channel: z.enum(['Instagram', 'Facebook']),
-  topic: z.string(),
-})
 
 export const entitlementFeatureSchema = z.enum([
   'posts',

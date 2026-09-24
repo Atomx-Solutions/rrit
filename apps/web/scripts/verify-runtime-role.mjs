@@ -17,7 +17,6 @@ try {
       role.rolbypassrls AS bypasses_rls,
       pg_has_role(current_user, 'app_runtime', 'MEMBER') AS is_runtime_member,
       has_table_privilege(current_user, 'schema_migrations', 'SELECT')
-        AND has_table_privilege(current_user, 'post_templates', 'SELECT')
         AND has_table_privilege(current_user, 'app_settings', 'SELECT')
         AND has_table_privilege(current_user, 'plan_catalog', 'SELECT')
         AND has_table_privilege(current_user, 'worker_heartbeats', 'SELECT')
