@@ -259,7 +259,15 @@ const tileUi = {
         </template>
         <!-- Plain bars sized by height, with no tooltip wrapper: on touch screens the
              wrapper collapsed the bars to zero height after hydration. Hovering or
-             tapping a bar shows that day below the chart. -->
+             tapping a bar shows that day below the chart.
+
+             The button theme gives every button a 44px touch target
+             (`pointer-coarse:min-w-11`), which on a phone made a month of bars far
+             wider than the card and pushed nearly all of them out of view. A bar is
+             not a tap target that needs its own width, so the minimum is dropped
+             here; each bar stays the full height of the chart to tap. A plain
+             `min-w-0` cannot do this, because the theme's rule lives in a media
+             query and wins over an unprefixed utility. -->
         <UFieldGroup :aria-label="t('admin.ai.dailyTitle')" class="flex h-44 w-full items-end gap-1 sm:gap-1.5">
           <UButton
             v-for="day in daily"
@@ -268,7 +276,7 @@ const tileUi = {
             variant="ghost"
             :aria-label="dayTooltip(day)"
             :aria-pressed="activeDay?.date === day.date"
-            class="flex h-44 min-w-0 flex-1 items-end rounded-none p-0 hover:bg-elevated/60 focus-visible:ring-2"
+            class="flex h-44 min-w-0 flex-1 items-end rounded-none p-0 pointer-coarse:min-h-0 pointer-coarse:min-w-0 hover:bg-elevated/60 focus-visible:ring-2"
             @mouseenter="activeDate = day.date"
             @focus="activeDate = day.date"
             @click="activeDate = day.date"
