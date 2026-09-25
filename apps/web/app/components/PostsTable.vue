@@ -150,13 +150,13 @@ const columns = computed<TableColumn<Post>[]>(() => [
     :description="t('content.postPhotoViewerDescription')"
   >
     <template #body>
-      <div v-if="viewerPost" class="flex min-h-[75vh] flex-col gap-5">
+      <div v-if="viewerPost" class="flex h-[calc(100dvh-12rem)] min-h-[36rem] flex-col gap-5">
         <div class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8">
           <MediaImage
             :src="viewerPost.image"
             :alt="viewerPost.title"
             fit="natural"
-            class="max-h-[65vh] max-w-full rounded-xl object-contain"
+            class="size-full rounded-xl"
           />
           <UButton
             color="neutral"

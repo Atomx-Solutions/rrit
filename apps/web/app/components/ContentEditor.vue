@@ -173,6 +173,22 @@ const schedule = ref('')
 const scheduleError = ref('')
 const scheduleBusy = ref(false)
 const automatic = ref(false)
+function proposedAtToLocalInput(value: string | null | undefined) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: data.value.preferences.timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || ''
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`
+}
 const { onFormError, watchError } = useFormFeedback()
 watchError(error)
 watchError(localError, 'warning')
@@ -190,6 +206,7 @@ watch(scheduleOpen, (open) => {
     automatic.value = false
     scheduleError.value = ''
     error.value = ''
+    schedule.value = proposedAtToLocalInput(post.value?.proposedAt)
   }
 })
 const versionOpen = ref(false)
@@ -566,9 +583,7 @@ onBeforeUnmount(() => {
                   ? t('coverage.technicalPassed')
                   : t('coverage.manualReview')
             "
-            :description="
-              post?.policyReason || t('content.verifyDescription')
-            "
+            :description="post?.policyReason || t('content.verifyDescription')"
           /><ULink :to="`${base}/brand`" class="text-primary small"
             >{{ t('content.businessFacts') }}</ULink
           >

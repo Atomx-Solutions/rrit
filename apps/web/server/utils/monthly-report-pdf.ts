@@ -50,9 +50,9 @@ const colors = {
   // Mirrors the palette used by the browser report preview.
   ink: '0.09 0.14 0.11',
   muted: '0.27 0.33 0.30',
-  green: '0.09 0.41 0.30',
-  greenLight: '0.79 0.92 0.84',
-  greenPale: '0.95 0.97 0.95',
+  green: '0.12 0.16 0.22',
+  greenLight: '0.75 0.85 0.98',
+  greenPale: '0.96 0.97 0.99',
   white: '1 1 1',
   line: '0.86 0.90 0.87',
   warning: '0.52 0.35 0.05',
@@ -252,7 +252,12 @@ function researchSections(research: Research, language: 'sq' | 'en') {
     const isHeading = /^#{1,4}\s+/.test(value) || /^\*\*.+\*\*$/.test(value)
     if (isHeading) {
       if (current.lines.length) sections.push(current)
-      current = { title: heading(value, language), lines: [] }
+      const parsedTitle = heading(value, language)
+      const genericTitle = parsedTitle.trim().toLocaleLowerCase('en')
+      current = {
+        title: genericTitle === 'explanation' || genericTitle === 'shpjegimi' ? '' : parsedTitle,
+        lines: [],
+      }
       continue
     }
     const bullet = /^(?:[-*•]|\d+[.)])\s+/.test(value)
@@ -260,6 +265,21 @@ function researchSections(research: Research, language: 'sq' | 'en') {
   }
   if (current.lines.length) sections.push(current)
   return sections
+}
+
+function localizedResearchSectionTitle(title: string, language: 'sq' | 'en') {
+  if (language === 'sq') return title
+  const key = title.trim().toLocaleLowerCase('sq')
+  const translations: Record<string, string> = {
+    'përmbledhja ekzekutive': 'Executive summary',
+    'kontekst sezonal': 'Seasonal context',
+    'sjellja në instagram': 'Instagram behavior',
+    'sjellja në facebook': 'Facebook behavior',
+    'mundësitë e përmbajtjes': 'Content opportunities',
+    'boshllëqet në të dhëna': 'Data gaps',
+    'transparency': 'Transparency',
+  }
+  return translations[key] || title
 }
 
 function legacyMonthlyReportPdf(input: ReportInput) {
@@ -816,7 +836,16 @@ export function monthlyReportPdf(input: ReportInput) {
           ? cardMetrics(first.text).height + 10
           : paragraphHeight(first.text) + 8
         : 48
-      if (section.title) drawSectionTitle(section.title, firstHeight)
+      // The research payload may include a generic "Explanation" heading even
+      // though the PDF page already has the localized findings heading. Avoid
+      // rendering that duplicate heading while preserving specific topic titles.
+      const sectionTitle = section.title
+        ? localizedResearchSectionTitle(section.title, input.language)
+        : ''
+      const normalizedSectionTitle = sectionTitle.trim().toLocaleLowerCase('en')
+      const duplicateExplanationHeading =
+        normalizedSectionTitle === 'explanation' || normalizedSectionTitle === 'shpjegimi'
+      if (sectionTitle && !duplicateExplanationHeading) drawSectionTitle(sectionTitle, firstHeight)
       for (const item of section.lines) {
         if (item.bullet) drawFindingCard(item.text)
         else {

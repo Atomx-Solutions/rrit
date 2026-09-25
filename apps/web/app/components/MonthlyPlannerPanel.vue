@@ -24,8 +24,14 @@ const photoMode = ref<'auto' | 'selected'>(planner.value?.photoPreference?.mode 
 const originalPhotos = computed(() =>
   workspace.value.assets
     .filter((asset) => asset.kind === 'photo' && asset.rights && !asset.generated)
-    .slice(0, 40),
 )
+const {
+  page: photoPage,
+  pageSize: photoPageSize,
+  total: photoTotal,
+  paginated: paginatedOriginalPhotos,
+} = usePagination(originalPhotos, 16)
+const photoPageCount = computed(() => Math.max(1, Math.ceil(photoTotal.value / photoPageSize.value)))
 const selectedPhotoIds = ref<string[]>([
   ...(planner.value?.photoPreference?.selectedAssetIds || []),
 ].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
@@ -667,7 +673,7 @@ onBeforeUnmount(() => clearInterval(timer))
               class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
             >
               <div
-                v-for="asset in originalPhotos"
+                v-for="asset in paginatedOriginalPhotos"
                 :key="asset.id"
                 class="relative min-w-0 overflow-hidden rounded-xl border border-default bg-elevated text-left"
                 aria-disabled="true"
@@ -686,6 +692,27 @@ onBeforeUnmount(() => clearInterval(timer))
                   <UIcon name="i-lucide-lock-keyhole" class="size-3.5" />
                 </span>
               </div>
+            </div>
+            <div
+              v-if="photoTotal > photoPageSize"
+              class="mt-3 flex items-center justify-end gap-2"
+            >
+              <UButton color="neutral" variant="outline" icon="i-lucide-chevron-left" :aria-label="t('common.previous')" :disabled="photoPage === 1" @click="photoPage--" />
+              <div class="flex flex-wrap items-center justify-center gap-1" :aria-label="t('monthly.photoPage')" role="navigation">
+                <UButton
+                  v-for="page in photoPageCount"
+                  :key="page"
+                  size="xs"
+                  :color="photoPage === page ? 'primary' : 'neutral'"
+                  :variant="photoPage === page ? 'solid' : 'outline'"
+                  :aria-current="photoPage === page ? 'page' : undefined"
+                  :aria-label="`${t('monthly.photoPage')} ${page}`"
+                  @click="photoPage = page"
+                >
+                  {{ page }}
+                </UButton>
+              </div>
+              <UButton color="neutral" variant="outline" icon="i-lucide-chevron-right" :aria-label="t('common.next')" :disabled="photoPage === photoPageCount" @click="photoPage++" />
             </div>
           </div>
 
@@ -711,7 +738,7 @@ onBeforeUnmount(() => clearInterval(timer))
               class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
             >
               <UButton
-                v-for="asset in originalPhotos"
+                v-for="asset in paginatedOriginalPhotos"
                 :key="asset.id"
                 type="button"
                 color="neutral"
@@ -743,6 +770,27 @@ onBeforeUnmount(() => clearInterval(timer))
                   <UIcon name="i-lucide-check" class="size-3.5" />
                 </span>
               </UButton>
+            </div>
+            <div
+              v-if="photoTotal > photoPageSize"
+              class="mt-3 flex items-center justify-end gap-2"
+            >
+              <UButton color="neutral" variant="outline" icon="i-lucide-chevron-left" :aria-label="t('common.previous')" :disabled="photoPage === 1" @click="photoPage--" />
+              <div class="flex flex-wrap items-center justify-center gap-1" :aria-label="t('monthly.photoPage')" role="navigation">
+                <UButton
+                  v-for="page in photoPageCount"
+                  :key="page"
+                  size="xs"
+                  :color="photoPage === page ? 'primary' : 'neutral'"
+                  :variant="photoPage === page ? 'solid' : 'outline'"
+                  :aria-current="photoPage === page ? 'page' : undefined"
+                  :aria-label="`${t('monthly.photoPage')} ${page}`"
+                  @click="photoPage = page"
+                >
+                  {{ page }}
+                </UButton>
+              </div>
+              <UButton color="neutral" variant="outline" icon="i-lucide-chevron-right" :aria-label="t('common.next')" :disabled="photoPage === photoPageCount" @click="photoPage++" />
             </div>
           </div>
 

@@ -55,11 +55,11 @@ function downloadPdf() {
 <template>
   <UContainer
     as="div"
-    class="report-page min-h-screen max-w-none bg-[#eef3ef] px-3 py-3 text-[#1f2b25] sm:px-6 sm:py-6 print:bg-white print:p-0"
+    class="report-page min-h-screen max-w-none bg-[#f8fafc] px-3 py-3 text-[#172033] sm:px-6 sm:py-6 print:bg-white print:p-0"
   >
     <UCard
       as="div"
-      class="report-sheet mx-auto max-w-[1180px] rounded-[26px] border border-[#dce6df] bg-white px-5 py-6 shadow-[0_24px_70px_-48px_rgba(23,105,77,0.55)] sm:px-10 sm:py-9 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+    class="report-sheet mx-auto max-w-[1180px] rounded-[26px] border border-[#e2e8f0] bg-white px-5 py-6 shadow-[0_24px_70px_-48px_rgba(15,23,42,0.12)] sm:px-10 sm:py-9 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
       :ui="{ root: 'ring-0', body: 'p-0' }"
     >
       <header
@@ -67,7 +67,7 @@ function downloadPdf() {
       >
         <div>
           <img src="/logo.svg" alt="Rrit" width="102" height="44" class="h-9 w-auto" />
-          <p class="mt-7 text-[10px] font-bold uppercase tracking-[0.24em] text-[#17694d]">
+          <p class="mt-7 text-[10px] font-bold uppercase tracking-[0.24em] text-[#2563eb]">
             {{ t('monthly.reportLabel') }}
           </p>
           <h1
@@ -79,7 +79,7 @@ function downloadPdf() {
         </div>
         <div class="flex flex-col items-start gap-3 sm:items-end">
           <div
-            class="rounded-full border border-[#cfe2d5] bg-[#f2f8f3] px-3 py-1.5 text-[11px] font-semibold text-[#17694d]"
+            class="rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-3 py-1.5 text-[11px] font-semibold text-[#1d4ed8]"
           >
             {{ workspace.brand.name }} · {{ month }}
           </div>
@@ -97,10 +97,10 @@ function downloadPdf() {
 
       <UMain v-if="plan" as="main" class="report-content pt-8 sm:pt-10" :ui="{ base: 'min-w-0' }">
         <section
-          class="report-intro mb-7 overflow-hidden rounded-[20px] bg-[#17694d] text-white shadow-[0_20px_55px_-34px_rgba(23,105,77,0.9)] print:break-inside-avoid print:shadow-none print:[-webkit-print-color-adjust:exact] print:[print-color-adjust:exact]"
+            class="report-intro mb-7 overflow-hidden rounded-[20px] bg-[#172033] text-white shadow-[0_20px_55px_-34px_rgba(15,23,42,0.4)] print:break-inside-avoid print:shadow-none print:[-webkit-print-color-adjust:exact] print:[print-color-adjust:exact]"
         >
           <div class="p-6 sm:p-8">
-            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c9ead6]">
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#bfdbfe]">
               {{ t('monthly.reportForBusiness') }}
             </p>
             <h2
@@ -108,12 +108,12 @@ function downloadPdf() {
             >
               {{ workspace.brand.name }}
             </h2>
-            <p class="mt-3 max-w-3xl text-sm leading-7 text-[#e3f2e8]">
+            <p class="mt-3 max-w-3xl text-sm leading-7 text-[#dbeafe]">
               {{ workspace.brand.description || t('monthly.reportBusinessFallback') }}
             </p>
           </div>
           <div
-            class="flex flex-wrap gap-2 border-t border-white/15 px-6 py-4 text-xs text-[#d5ebdc] sm:px-8"
+            class="flex flex-wrap gap-2 border-t border-white/15 px-6 py-4 text-xs text-[#cbd5e1] sm:px-8"
           >
             <span class="rounded-md border border-white/20 px-2.5 py-1.5">{{
               workspace.brand.industry
@@ -161,36 +161,3 @@ function downloadPdf() {
     </UCard>
   </UContainer>
 </template>
-
-<style>
-@page {
-  size: A4;
-  margin: 14mm 13mm 16mm;
-}
-
-@media print {
-  html,
-  body {
-    background: white !important;
-  }
-
-  .report-page,
-  .report-sheet {
-    width: auto !important;
-    min-height: 0 !important;
-  }
-
-  .report-header,
-  .report-intro,
-  .research-entry,
-  .report-footer {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .report-footer {
-    break-before: avoid;
-    page-break-before: avoid;
-  }
-}
-</style>

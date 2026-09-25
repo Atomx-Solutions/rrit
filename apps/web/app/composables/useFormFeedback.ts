@@ -11,12 +11,20 @@ type FormErrorEvent = {
 
 type FeedbackColor = 'error' | 'warning'
 
+let lastToastKey = ''
+let lastToastAt = 0
+
 export function useFormFeedback() {
   const { t } = useI18n()
   const toast = useToast()
 
   function showError(message: string, color: FeedbackColor = 'error') {
     if (!message) return
+    const key = `${color}:${message}`
+    const now = Date.now()
+    if (key === lastToastKey && now - lastToastAt < 750) return
+    lastToastKey = key
+    lastToastAt = now
     toast.add({
       title: t('common.formError'),
       description: message,

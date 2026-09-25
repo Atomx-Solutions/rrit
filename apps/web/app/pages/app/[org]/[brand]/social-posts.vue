@@ -60,8 +60,11 @@ async function sync(more = false) {
     await refresh()
     await refreshNuxtData('meta-status')
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('social.importError')
+    const details = problem as { data?: { code?: string; message?: string; data?: { code?: string } } }
+    const code = details.data?.code || details.data?.data?.code
+    error.value = code === 'PAGE_ALREADY_CONNECTED'
+      ? t('social.pageAlreadyConnected')
+      : t('social.importError')
   } finally {
     importing.value = false
   }

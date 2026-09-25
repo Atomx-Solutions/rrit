@@ -22,7 +22,7 @@ watch(
 <template>
   <div
     class="relative overflow-hidden bg-elevated"
-    :class="fit === 'natural' ? 'min-h-40' : ''"
+    :class="fit === 'natural' ? 'flex min-h-40 items-center justify-center' : ''"
   >
     <img
       v-if="src && !failed"
@@ -33,7 +33,7 @@ watch(
       :loading="loading"
       :class="
         fit === 'natural'
-          ? 'block w-full h-auto object-contain'
+          ? 'block size-auto max-h-full max-w-full object-contain'
           : fit === 'contain'
             ? 'size-full object-contain'
             : 'size-full object-cover'

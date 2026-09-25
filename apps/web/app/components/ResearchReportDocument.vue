@@ -7,13 +7,14 @@ const props = defineProps<{
   businessName: string
   month: string
 }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 type Part = { text: string; url?: string; title?: string }
 type Line = { kind: 'heading' | 'bullet' | 'paragraph'; parts: Part[] }
 type Section = { title: string; lines: Line[] }
 
 const headingKeys: Record<string, string> = {
+  'përmbledhja ekzekutive': 'research.executiveSummary',
   'pÃ«rmbledhja ekzekutive': 'research.executiveSummary',
   'executive summary': 'research.executiveSummary',
   'tregu dhe audienca': 'research.marketAudience',
@@ -44,7 +45,18 @@ function hostname(url: string) {
 
 function translatedHeading(line: Line) {
   const heading = readableText(line.parts.map((part) => part.text).join('')).toLocaleLowerCase('sq')
-  return t(headingKeys[heading] || heading)
+  const asciiHeading = heading.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const asciiKeys: Record<string, string> = {
+    'permbledhja ekzekutive': 'research.executiveSummary',
+    'tregu dhe audienca': 'research.marketAudience',
+    'sjellja ne instagram': 'research.instagramBehavior',
+    'sjellja ne facebook': 'research.facebookBehavior',
+    'mundesite e permbajtjes': 'research.contentOpportunities',
+    'te dhenat e vezhguara per orarin': 'research.observedTiming',
+    'hipotezat e orarit': 'research.observedTiming',
+    'boshllaqet ne te dhena': 'research.dataGaps',
+  }
+  return t(headingKeys[heading] || asciiKeys[asciiHeading] || heading)
 }
 
 function partsBetween(start: number, end: number): Part[] {
@@ -119,13 +131,13 @@ const entryText = computed(() => {
   <UContainer as="div" class="research-report-document !max-w-none !p-0 space-y-7">
     <UCard
       as="section"
-      class="research-entry overflow-hidden rounded-[20px] bg-[#17694d] text-white shadow-[0_18px_48px_-34px_rgba(23,105,77,0.85)] print:[-webkit-print-color-adjust:exact] print:[print-color-adjust:exact]"
+      class="research-entry overflow-hidden rounded-[20px] bg-[#172033] text-white shadow-[0_18px_48px_-34px_rgba(15,23,42,0.35)] print:[-webkit-print-color-adjust:exact] print:[print-color-adjust:exact]"
       :ui="{ root: 'ring-0', body: 'p-0' }"
     >
       <div class="p-6 sm:p-8">
         <div class="flex items-start justify-between gap-5">
           <div>
-            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c9ead6]">
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#bfdbfe]">
               {{ t('research.reportEntryLabel') }}
             </p>
             <h2
@@ -134,25 +146,25 @@ const entryText = computed(() => {
               {{ t('research.reportEntryTitle') }}
             </h2>
           </div>
-          <UIcon name="i-lucide-compass" class="size-7 shrink-0 text-[#c9ead6]" />
+          <UIcon name="i-lucide-compass" class="size-7 shrink-0 text-[#bfdbfe]" />
         </div>
-        <p class="mt-5 max-w-4xl text-sm leading-7 text-[#e3f2e8]">
+        <p class="mt-5 max-w-4xl text-sm leading-7 text-[#dbeafe]">
           {{ entryText || t('research.reportEntryFallback', { business: businessName, month }) }}
         </p>
       </div>
       <div class="grid gap-px border-t border-white/15 bg-white/15 sm:grid-cols-3">
-        <div class="bg-[#17694d] p-4 sm:px-6">
-          <span class="text-xs text-[#c9ead6]">{{ t('research.sources') }}</span>
+        <div class="bg-[#172033] p-4 sm:px-6">
+          <span class="text-xs text-[#bfdbfe]">{{ t('research.sources') }}</span>
           <strong class="mt-1 block text-lg">{{ research.sources.length }}</strong>
         </div>
-        <div class="bg-[#17694d] p-4 sm:px-6">
-          <span class="text-xs text-[#c9ead6]">{{ t('research.reportApprovedSources') }}</span>
+        <div class="bg-[#172033] p-4 sm:px-6">
+          <span class="text-xs text-[#bfdbfe]">{{ t('research.reportApprovedSources') }}</span>
           <strong class="mt-1 block text-lg">{{ approvedUrls.size }}</strong>
         </div>
-        <div class="bg-[#17694d] p-4 sm:px-6">
-          <span class="text-xs text-[#c9ead6]">{{ t('research.reportDate') }}</span>
+        <div class="bg-[#172033] p-4 sm:px-6">
+          <span class="text-xs text-[#bfdbfe]">{{ t('research.reportDate') }}</span>
           <strong class="mt-1 block text-sm">{{
-            new Date(research.researchedAt).toLocaleDateString('sq-AL')
+            new Date(research.researchedAt).toLocaleDateString(locale === 'en-US' ? 'en-US' : 'sq-AL')
           }}</strong>
         </div>
       </div>
@@ -164,13 +176,13 @@ const entryText = computed(() => {
       :ui="{ root: 'ring-0', body: 'p-0' }"
     >
       <div class="border-b border-[#e8eee9] pb-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[#17694d]">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[#2563eb]">
           {{ t('research.reportExplanationLabel') }}
         </p>
         <h2 class="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">
           {{ t('research.reportExplanationTitle') }}
         </h2>
-        <p class="mt-2 max-w-3xl text-sm leading-6 text-[#64736b]">
+        <p class="mt-2 max-w-3xl text-sm leading-6 text-[#475569]">
           {{ t('research.reportExplanationDescription') }}
         </p>
       </div>
@@ -301,3 +313,9 @@ const entryText = computed(() => {
   }
 }
 </style>
+  'tregu dhe audienca': 'research.marketAudience',
+  'sjellja në instagram': 'research.instagramBehavior',
+  'sjellja në facebook': 'research.facebookBehavior',
+  'mundësitë e përmbajtjes': 'research.contentOpportunities',
+  'të dhënat e vëzhguara për orarin': 'research.observedTiming',
+  'boshllëqet në të dhëna': 'research.dataGaps',
