@@ -110,7 +110,7 @@ const profileMenu = computed(() => [
           tooltip
           :aria-label="t('admin.nav.label')"
           :ui="{
-            link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs',
+            link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs after:absolute after:-start-1.5 after:inset-y-0.5 after:hidden after:w-[3px] after:rounded-full data-[active]:after:block data-[active]:after:bg-primary',
             linkLeadingIcon: 'size-3.5',
           }"
         />
