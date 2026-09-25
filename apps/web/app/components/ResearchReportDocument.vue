@@ -133,7 +133,7 @@ const entryText = computed(() => {
 
 <template>
   <UContainer as="div" class="research-report-document !max-w-none !p-0 space-y-7">
-    <section class="research-entry border-t-2 border-[#17694d] bg-white text-[#172033]">
+    <section class="border-t-2 border-[#17694d] bg-white text-[#172033] print:break-inside-avoid">
       <div class="p-6 sm:p-8">
         <div class="flex items-start justify-between gap-5">
           <div>
@@ -194,21 +194,23 @@ const entryText = computed(() => {
         >
           <h3
             v-if="section.title"
-            class="research-section-title text-base font-semibold tracking-tight text-[#17231d]"
+            class="text-base font-semibold tracking-tight text-[#17231d] print:break-after-avoid"
           >
             {{ section.title }}
           </h3>
-          <div class="mt-3 space-y-3">
+          <!-- A heading must not be the last thing on a printed page, so its
+               first line is pulled onto the same page as the heading. -->
+          <div class="mt-3 space-y-3 print:[&>*:first-child]:break-before-avoid">
             <component
               :is="line.kind === 'bullet' ? 'div' : 'p'"
               v-for="(line, lineIndex) in section.lines"
               :key="lineIndex"
               :class="
                 line.kind === 'bullet'
-                  ? 'research-line flex gap-3 border-l-2 border-[#17694d] px-4 py-2.5 text-sm leading-6 text-[#46554d]'
+                  ? 'print:break-inside-avoid flex gap-3 border-l-2 border-[#17694d] px-4 py-2.5 text-sm leading-6 text-[#46554d]'
                   : isTimingNotice(line)
-                    ? 'research-line border-l-2 border-[#17694d] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#334155]'
-                    : 'research-line text-sm leading-7 text-[#46554d]'
+                    ? 'print:break-inside-avoid border-l-2 border-[#17694d] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#334155]'
+                    : 'print:break-inside-avoid text-sm leading-7 text-[#46554d]'
               "
             >
               <UIcon
@@ -235,7 +237,7 @@ const entryText = computed(() => {
       </div>
     </section>
 
-    <section class="research-sources border-t-2 border-[#17694d] bg-white text-[#17231d]">
+    <section class="border-t-2 border-[#17694d] bg-white text-[#17231d] print:break-before-auto">
       <div
         class="flex flex-col gap-4 border-b border-[#e2e8f0] px-1 py-6 sm:flex-row sm:items-end sm:justify-between"
       >
@@ -264,7 +266,7 @@ const entryText = computed(() => {
           :to="source.url"
           target="_blank"
           rel="noopener noreferrer"
-          class="research-source group flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 py-4 text-left transition-colors hover:bg-[#f8fafc] sm:flex-nowrap sm:items-center"
+          class="group flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 py-4 text-left transition-colors hover:bg-[#f8fafc] sm:flex-nowrap sm:items-center print:break-inside-avoid"
         >
           <span
             class="flex size-7 shrink-0 items-center justify-center border border-[#cfe2d5] text-xs font-bold text-[#17694d]"
@@ -287,32 +289,3 @@ const entryText = computed(() => {
   </UContainer>
 </template>
 
-<style scoped>
-@media print {
-  .research-entry,
-  .research-line,
-  .research-source {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .research-section-title {
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-
-  .research-section-title + div > :first-child {
-    break-before: avoid;
-    page-break-before: avoid;
-  }
-
-  .research-sources {
-    break-before: auto;
-    page-break-before: auto;
-  }
-}
-</style>
-'tregu dhe audienca': 'research.marketAudience', 'sjellja në instagram':
-'research.instagramBehavior', 'sjellja në facebook': 'research.facebookBehavior', 'mundësitë e
-përmbajtjes': 'research.contentOpportunities', 'të dhënat e vëzhguara për orarin':
-'research.observedTiming', 'boshllëqet në të dhëna': 'research.dataGaps',
