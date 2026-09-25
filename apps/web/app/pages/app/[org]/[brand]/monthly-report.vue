@@ -59,7 +59,7 @@ function downloadPdf() {
   >
     <UCard
       as="div"
-    class="report-sheet mx-auto max-w-[1180px] rounded-[26px] border border-[#e2e8f0] bg-white px-5 py-6 shadow-[0_24px_70px_-48px_rgba(15,23,42,0.12)] sm:px-10 sm:py-9 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+      class="report-sheet mx-auto max-w-[1180px] rounded-[26px] border border-[#e2e8f0] bg-white px-5 py-6 shadow-[0_24px_70px_-48px_rgba(15,23,42,0.12)] sm:px-10 sm:py-9 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
       :ui="{ root: 'ring-0', body: 'p-0' }"
     >
       <header
@@ -67,7 +67,7 @@ function downloadPdf() {
       >
         <div>
           <img src="/logo.svg" alt="Rrit" width="102" height="44" class="h-9 w-auto" />
-          <p class="mt-7 text-[10px] font-bold uppercase tracking-[0.24em] text-[#2563eb]">
+          <p class="mt-7 text-[10px] font-bold uppercase tracking-[0.24em] text-[#17694d]">
             {{ t('monthly.reportLabel') }}
           </p>
           <h1
@@ -79,7 +79,7 @@ function downloadPdf() {
         </div>
         <div class="flex flex-col items-start gap-3 sm:items-end">
           <div
-            class="rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-3 py-1.5 text-[11px] font-semibold text-[#1d4ed8]"
+            class="rounded-full border border-[#cfe2d5] bg-[#f2f8f3] px-3 py-1.5 text-[11px] font-semibold text-[#17694d]"
           >
             {{ workspace.brand.name }} · {{ month }}
           </div>
@@ -96,37 +96,6 @@ function downloadPdf() {
       </header>
 
       <UMain v-if="plan" as="main" class="report-content pt-8 sm:pt-10" :ui="{ base: 'min-w-0' }">
-        <section
-            class="report-intro mb-7 overflow-hidden rounded-[20px] bg-[#172033] text-white shadow-[0_20px_55px_-34px_rgba(15,23,42,0.4)] print:break-inside-avoid print:shadow-none print:[-webkit-print-color-adjust:exact] print:[print-color-adjust:exact]"
-        >
-          <div class="p-6 sm:p-8">
-            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#bfdbfe]">
-              {{ t('monthly.reportForBusiness') }}
-            </p>
-            <h2
-              class="mt-3 text-[1.7rem] font-semibold leading-tight tracking-[-0.03em] sm:text-3xl"
-            >
-              {{ workspace.brand.name }}
-            </h2>
-            <p class="mt-3 max-w-3xl text-sm leading-7 text-[#dbeafe]">
-              {{ workspace.brand.description || t('monthly.reportBusinessFallback') }}
-            </p>
-          </div>
-          <div
-            class="flex flex-wrap gap-2 border-t border-white/15 px-6 py-4 text-xs text-[#cbd5e1] sm:px-8"
-          >
-            <span class="rounded-md border border-white/20 px-2.5 py-1.5">{{
-              workspace.brand.industry
-            }}</span>
-            <span
-              v-if="workspace.brand.city"
-              class="rounded-md border border-white/20 px-2.5 py-1.5"
-              >{{ workspace.brand.city }}</span
-            >
-            <span class="rounded-md border border-white/20 px-2.5 py-1.5">{{ month }}</span>
-          </div>
-        </section>
-
         <MonthlyStrategyView
           v-if="reportType === 'strategy' && plan.strategy"
           :strategy="plan.strategy"

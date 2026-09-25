@@ -58,6 +58,10 @@ function translatedHeading(line: Line) {
   }
   return t(headingKeys[heading] || asciiKeys[asciiHeading] || heading)
 }
+function isTimingNotice(line: Line) {
+  const text = readableText(line.parts.map((part) => part.text).join('')).toLocaleLowerCase('sq')
+  return text.includes('nuk ka të dhëna') || text.includes('nuk ka te dhena')
+}
 
 function partsBetween(start: number, end: number): Part[] {
   const parts: Part[] = []
@@ -129,15 +133,11 @@ const entryText = computed(() => {
 
 <template>
   <UContainer as="div" class="research-report-document !max-w-none !p-0 space-y-7">
-    <UCard
-      as="section"
-      class="research-entry overflow-hidden rounded-[20px] bg-[#172033] text-white shadow-[0_18px_48px_-34px_rgba(15,23,42,0.35)] print:[-webkit-print-color-adjust:exact] print:[print-color-adjust:exact]"
-      :ui="{ root: 'ring-0', body: 'p-0' }"
-    >
+    <section class="research-entry border-t-2 border-[#17694d] bg-white text-[#172033]">
       <div class="p-6 sm:p-8">
         <div class="flex items-start justify-between gap-5">
           <div>
-            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#bfdbfe]">
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#17694d]">
               {{ t('research.reportEntryLabel') }}
             </p>
             <h2
@@ -146,37 +146,36 @@ const entryText = computed(() => {
               {{ t('research.reportEntryTitle') }}
             </h2>
           </div>
-          <UIcon name="i-lucide-compass" class="size-7 shrink-0 text-[#bfdbfe]" />
         </div>
-        <p class="mt-5 max-w-4xl text-sm leading-7 text-[#dbeafe]">
+        <p class="mt-5 max-w-4xl text-sm leading-7 text-[#475569]">
           {{ entryText || t('research.reportEntryFallback', { business: businessName, month }) }}
         </p>
       </div>
-      <div class="grid gap-px border-t border-white/15 bg-white/15 sm:grid-cols-3">
-        <div class="bg-[#172033] p-4 sm:px-6">
-          <span class="text-xs text-[#bfdbfe]">{{ t('research.sources') }}</span>
-          <strong class="mt-1 block text-lg">{{ research.sources.length }}</strong>
+      <div class="grid border-y border-[#17694d] bg-[#17694d] sm:grid-cols-3">
+        <div class="p-4 sm:px-6">
+          <span class="text-xs text-[#c9ead6]">{{ t('research.sources') }}</span>
+          <strong class="mt-1 block text-lg text-white">{{ research.sources.length }}</strong>
         </div>
-        <div class="bg-[#172033] p-4 sm:px-6">
-          <span class="text-xs text-[#bfdbfe]">{{ t('research.reportApprovedSources') }}</span>
-          <strong class="mt-1 block text-lg">{{ approvedUrls.size }}</strong>
+        <div class="border-t border-white/20 p-4 sm:border-l sm:border-t-0 sm:px-6">
+          <span class="text-xs text-[#c9ead6]">{{ t('research.reportApprovedSources') }}</span>
+          <strong class="mt-1 block text-lg text-white">{{ approvedUrls.size }}</strong>
         </div>
-        <div class="bg-[#172033] p-4 sm:px-6">
-          <span class="text-xs text-[#bfdbfe]">{{ t('research.reportDate') }}</span>
-          <strong class="mt-1 block text-sm">{{
-            new Date(research.researchedAt).toLocaleDateString(locale === 'en-US' ? 'en-US' : 'sq-AL')
+        <div class="border-t border-white/20 p-4 sm:border-l sm:border-t-0 sm:px-6">
+          <span class="text-xs text-[#c9ead6]">{{ t('research.reportDate') }}</span>
+          <strong class="mt-1 block text-sm text-white">{{
+            new Date(research.researchedAt).toLocaleDateString(
+              locale === 'en-US' ? 'en-US' : 'sq-AL',
+            )
           }}</strong>
         </div>
       </div>
-    </UCard>
+    </section>
 
-    <UCard
-      as="section"
-      class="research-explanation rounded-[20px] border border-[#dce6df] bg-white p-6 sm:p-8 print:rounded-none print:border-0 print:p-0 print:[break-before:page]"
-      :ui="{ root: 'ring-0', body: 'p-0' }"
+    <section
+      class="research-explanation border-t-2 border-[#17694d] bg-white px-1 py-6 sm:py-8 print:border-0 print:p-0 print:[break-before:page]"
     >
       <div class="border-b border-[#e8eee9] pb-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[#2563eb]">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[#17694d]">
           {{ t('research.reportExplanationLabel') }}
         </p>
         <h2 class="mt-2 text-2xl font-semibold tracking-tight text-[#17231d]">
@@ -206,8 +205,10 @@ const entryText = computed(() => {
               :key="lineIndex"
               :class="
                 line.kind === 'bullet'
-                  ? 'research-line flex gap-3 rounded-xl bg-[#f3f7f3] px-4 py-3 text-sm leading-6 text-[#46554d]'
-                  : 'research-line text-sm leading-7 text-[#46554d]'
+                  ? 'research-line flex gap-3 border-l-2 border-[#17694d] px-4 py-2.5 text-sm leading-6 text-[#46554d]'
+                  : isTimingNotice(line)
+                    ? 'research-line border-l-2 border-[#17694d] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#334155]'
+                    : 'research-line text-sm leading-7 text-[#46554d]'
               "
             >
               <UIcon
@@ -232,13 +233,11 @@ const entryText = computed(() => {
           </div>
         </section>
       </div>
-    </UCard>
+    </section>
 
-    <section
-      class="research-sources overflow-hidden rounded-[20px] border border-[#dce6df] bg-white text-[#17231d] shadow-[0_18px_45px_-38px_rgba(23,105,77,0.45)]"
-    >
+    <section class="research-sources border-t-2 border-[#17694d] bg-white text-[#17231d]">
       <div
-        class="flex flex-col gap-4 border-b border-[#e4ebe6] bg-[#f7faf8] px-6 py-6 sm:flex-row sm:items-end sm:justify-between sm:px-8"
+        class="flex flex-col gap-4 border-b border-[#e2e8f0] px-1 py-6 sm:flex-row sm:items-end sm:justify-between"
       >
         <div>
           <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#17694d]">
@@ -252,23 +251,23 @@ const entryText = computed(() => {
           </p>
         </div>
         <span
-          class="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-[#cfe2d5] bg-white px-3 py-1.5 text-xs font-semibold text-[#17694d]"
+          class="inline-flex w-fit shrink-0 items-center gap-2 border border-[#cfe2d5] px-3 py-1.5 text-xs font-semibold text-[#17694d]"
         >
           <UIcon name="i-lucide-shield-check" class="size-3.5" />
           {{ approvedUrls.size }} {{ t('research.reportApprovedSources') }}
         </span>
       </div>
-      <div class="divide-y divide-[#e8eee9] px-6 sm:px-8">
+      <div class="divide-y divide-[#e2e8f0]">
         <ULink
           v-for="(source, index) in research.sources"
           :key="source.url"
           :to="source.url"
           target="_blank"
           rel="noopener noreferrer"
-          class="research-source group flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 py-4 text-left transition-colors hover:bg-[#f7faf8] sm:flex-nowrap sm:items-center"
+          class="research-source group flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 py-4 text-left transition-colors hover:bg-[#f8fafc] sm:flex-nowrap sm:items-center"
         >
           <span
-            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#e9f3eb] text-xs font-bold text-[#17694d]"
+            class="flex size-7 shrink-0 items-center justify-center border border-[#cfe2d5] text-xs font-bold text-[#17694d]"
             >{{ index + 1 }}</span
           >
           <span class="min-w-0 flex-1">
@@ -313,9 +312,7 @@ const entryText = computed(() => {
   }
 }
 </style>
-  'tregu dhe audienca': 'research.marketAudience',
-  'sjellja në instagram': 'research.instagramBehavior',
-  'sjellja në facebook': 'research.facebookBehavior',
-  'mundësitë e përmbajtjes': 'research.contentOpportunities',
-  'të dhënat e vëzhguara për orarin': 'research.observedTiming',
-  'boshllëqet në të dhëna': 'research.dataGaps',
+'tregu dhe audienca': 'research.marketAudience', 'sjellja në instagram':
+'research.instagramBehavior', 'sjellja në facebook': 'research.facebookBehavior', 'mundësitë e
+përmbajtjes': 'research.contentOpportunities', 'të dhënat e vëzhguara për orarin':
+'research.observedTiming', 'boshllëqet në të dhëna': 'research.dataGaps',

@@ -50,9 +50,11 @@ const colors = {
   // Mirrors the palette used by the browser report preview.
   ink: '0.09 0.14 0.11',
   muted: '0.27 0.33 0.30',
-  green: '0.12 0.16 0.22',
-  greenLight: '0.75 0.85 0.98',
-  greenPale: '0.96 0.97 0.99',
+  green: '0.09 0.41 0.30',
+  greenLight: '0.79 0.92 0.84',
+  // Preview uses flat white editorial rows; keep PDF cards effectively white
+  // so the same green accent line carries the hierarchy in both outputs.
+  greenPale: '0.99 0.99 0.99',
   white: '1 1 1',
   line: '0.86 0.90 0.87',
   warning: '0.52 0.35 0.05',
@@ -160,6 +162,7 @@ function clean(value: string) {
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/(`{1,3}|\*\*|__)/g, '')
     .replace(/^#{1,6}\s+/, '')
+    .replace(/<[^>]*>/g, '')
     .replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
@@ -277,7 +280,7 @@ function localizedResearchSectionTitle(title: string, language: 'sq' | 'en') {
     'sjellja në facebook': 'Facebook behavior',
     'mundësitë e përmbajtjes': 'Content opportunities',
     'boshllëqet në të dhëna': 'Data gaps',
-    'transparency': 'Transparency',
+    transparency: 'Transparency',
   }
   return translations[key] || title
 }
@@ -610,7 +613,6 @@ export function monthlyReportPdf(input: ReportInput) {
   const copy = reportCopy(input.language)
   const pageWidth = 595
   const marginX = 48
-  const contentWidth = pageWidth - marginX * 2
   const contentBottom = 58
   const pages: PdfPage[] = [[]]
   let page = 0
@@ -632,29 +634,6 @@ export function monthlyReportPdf(input: ReportInput) {
   const drawRect = (x: number, top: number, width: number, height: number, tone: string) => {
     setFill(tone)
     add(`${x} ${top - height} ${width} ${height} re f`)
-  }
-  const drawRoundedRect = (
-    x: number,
-    top: number,
-    width: number,
-    height: number,
-    radius: number,
-    tone: string,
-  ) => {
-    setFill(tone)
-    const bottom = top - height
-    const right = x + width
-    const r = Math.min(radius, width / 2, height / 2)
-    const k = 0.5522848
-    add(`${x + r} ${bottom} m`)
-    add(`${right - r} ${bottom} l`)
-    add(`${right - r + k * r} ${bottom} ${right} ${bottom + r - k * r} ${right} ${bottom + r} c`)
-    add(`${right} ${top - r} l`)
-    add(`${right} ${top - r + k * r} ${right - r + k * r} ${top} ${right - r} ${top} c`)
-    add(`${x + r} ${top} l`)
-    add(`${x + r - k * r} ${top} ${x} ${top - r + k * r} ${x} ${top - r} c`)
-    add(`${x} ${bottom + r} l`)
-    add(`${x} ${bottom + r - k * r} ${x + r - k * r} ${bottom} ${x + r} ${bottom} c h f`)
   }
   const drawRule = (baseline: number, tone = colors.line, width = 0.7) => {
     add(`${tone} RG`)
@@ -711,12 +690,10 @@ export function monthlyReportPdf(input: ReportInput) {
     const { rows, height } = cardMetrics(value)
     ensureSpace(height + 10)
     const top = y
-    drawRoundedRect(marginX, top, contentWidth, height, 7, colors.greenPale)
-    drawRect(marginX, top - 7, 4, height - 14, colors.green)
-    drawRoundedRect(marginX + 18, top - 19, 5, 5, 2.5, colors.green)
-    let baseline = top - 25
+    drawRect(marginX, top - 3, 3, height - 8, colors.green)
+    let baseline = top - 11
     for (const row of rows) {
-      drawText(marginX + 34, baseline, row, 9.5, false, colors.muted)
+      drawText(marginX + 16, baseline, row, 9.5, false, colors.muted)
       baseline -= 15
     }
     y -= height + 10
@@ -732,7 +709,7 @@ export function monthlyReportPdf(input: ReportInput) {
     y -= 18
   }
 
-  // Cover page: two contained panels and no orphaned content headings.
+  // Cover page: a calm editorial hierarchy without stacked card containers.
   add(logoPdfOps(pageWidth, 34, 72, marginX))
   drawText(
     pageWidth - marginX - 154,
@@ -753,30 +730,28 @@ export function monthlyReportPdf(input: ReportInput) {
   drawRule(coverSubtitleY - 5)
 
   const businessTop = coverSubtitleY - 34
-  const businessHeight = 156
-  drawRoundedRect(marginX, businessTop, contentWidth, businessHeight, 14, colors.green)
-  drawText(marginX + 24, businessTop - 25, copy.reportForBusiness, 8, true, colors.greenLight)
-  drawText(marginX + 24, businessTop - 53, input.businessName, 20, true, colors.white)
-  let businessY = businessTop - 77
+  drawText(marginX, businessTop, copy.reportForBusiness, 8, true, colors.green)
+  drawText(marginX, businessTop - 27, input.businessName, 20, true, colors.ink)
+  let businessY = businessTop - 51
   for (const row of wrap(input.businessDescription || copy.businessDescription, 86).slice(0, 3)) {
-    drawText(marginX + 24, businessY, row, 9, false, colors.greenLight)
+    drawText(marginX, businessY, row, 9, false, colors.muted)
     businessY -= 13
   }
-  const businessFooterY = businessTop - businessHeight + 28
-  add(`0.20 0.50 0.39 RG`)
+  const businessFooterY = businessTop - 100
+  add(`${colors.line} RG`)
   add(
-    `0.6 w ${marginX + 24} ${businessFooterY + 16} m ${pageWidth - marginX - 24} ${businessFooterY + 16} l S`,
+    `0.6 w ${marginX} ${businessFooterY + 16} m ${pageWidth - marginX} ${businessFooterY + 16} l S`,
   )
-  drawText(marginX + 24, businessFooterY, input.industry || copy.business, 8, true, colors.white)
+  drawText(marginX, businessFooterY, input.industry || copy.business, 8, true, colors.ink)
   drawText(
-    marginX + 205,
+    marginX + 181,
     businessFooterY,
     input.city || copy.locationFallback,
     8,
     false,
-    colors.greenLight,
+    colors.muted,
   )
-  drawText(pageWidth - marginX - 78, businessFooterY, input.month, 8, false, colors.greenLight)
+  drawText(pageWidth - marginX - 78, businessFooterY, input.month, 8, false, colors.muted)
 
   const coverText =
     input.type === 'research' && input.research
@@ -785,44 +760,40 @@ export function monthlyReportPdf(input: ReportInput) {
           .map((line) => line.text)
           .join(' ')
       : input.strategy?.objective || ''
-  const summaryTop = businessTop - businessHeight - 24
-  const summaryHeight = 224
-  drawRoundedRect(marginX, summaryTop, contentWidth, summaryHeight, 14, colors.green)
+  const summaryTop = businessFooterY - 46
   drawText(
-    marginX + 24,
-    summaryTop - 25,
+    marginX,
+    summaryTop,
     input.type === 'research' ? copy.researchEntry : copy.strategyEntry,
     8,
     true,
-    colors.greenLight,
+    colors.green,
   )
   drawText(
-    marginX + 24,
-    summaryTop - 52,
+    marginX,
+    summaryTop - 27,
     input.type === 'research' ? copy.researchEntryTitle : copy.strategyReport,
     17,
     true,
-    colors.white,
+    colors.ink,
   )
-  let summaryY = summaryTop - 79
+  let summaryY = summaryTop - 51
   for (const row of wrap(coverText, 88).slice(0, 5)) {
-    drawText(marginX + 24, summaryY, row, 8.5, false, colors.white)
+    drawText(marginX, summaryY, row, 8.5, false, colors.muted)
     summaryY -= 13
   }
   if (input.type === 'research' && input.research) {
-    const statsRuleY = summaryTop - summaryHeight + 58
-    add(`0.20 0.50 0.39 RG`)
-    add(
-      `0.6 w ${marginX + 24} ${statsRuleY + 18} m ${pageWidth - marginX - 24} ${statsRuleY + 18} l S`,
-    )
+    const statsRuleY = summaryTop - 137
+    add(`${colors.line} RG`)
+    add(`0.6 w ${marginX} ${statsRuleY + 18} m ${pageWidth - marginX} ${statsRuleY + 18} l S`)
     const researchDate = input.research.researchedAt?.slice(0, 10) || input.month
     for (const [x, label, value] of [
-      [marginX + 24, copy.sourcesConsulted, String(input.research.sources.length)],
-      [marginX + 194, copy.approvedSources, String(input.research.sources.length)],
-      [marginX + 364, copy.researchDate, researchDate],
+      [marginX, copy.sourcesConsulted, String(input.research.sources.length)],
+      [marginX + 170, copy.approvedSources, String(input.research.sources.length)],
+      [marginX + 340, copy.researchDate, researchDate],
     ] as Array<[number, string, string]>) {
-      drawText(x, statsRuleY, label, 6.5, false, colors.greenLight)
-      drawText(x, statsRuleY - 15, value, 9, true, colors.white)
+      drawText(x, statsRuleY, label, 6.5, false, colors.muted)
+      drawText(x, statsRuleY - 15, value, 9, true, colors.ink)
     }
   }
 
@@ -862,24 +833,23 @@ export function monthlyReportPdf(input: ReportInput) {
     drawParagraph(copy.approvedSourcesDescription, marginX, 90, 9, 14)
     y -= 10
     for (const [index, source] of input.research.sources.entries()) {
-      const titleRows = wrap(clean(source.title), 68)
+      const titleRows = wrap(clean(source.title) || host(source.url), 68)
       const urlRows = wrap(`${host(source.url)} - ${source.url}`, 84)
-      const height = Math.max(54, titleRows.length * 13 + urlRows.length * 11 + 20)
+      const height = Math.max(42, titleRows.length * 13 + urlRows.length * 11 + 13)
       ensureSpace(height + 9)
       const top = y
-      drawRoundedRect(marginX, top, contentWidth, height, 6, colors.greenPale)
-      drawRect(marginX, top - 6, 4, height - 12, colors.green)
-      drawRoundedRect(marginX + 14, top - 14, 22, 22, 6, colors.green)
-      drawText(marginX + 21, top - 29, String(index + 1), 8, true, colors.white)
-      let baseline = top - 20
+      drawText(marginX, top - 10, `${index + 1}.`, 8, true, colors.green)
+      let baseline = top - 10
       for (const row of titleRows) {
-        drawText(marginX + 46, baseline, row, 9, true, colors.ink)
+        drawText(marginX + 18, baseline, row, 9, true, colors.ink)
         baseline -= 13
       }
       for (const row of urlRows) {
-        drawText(marginX + 46, baseline - 1, row, 7.5, false, colors.muted)
+        drawText(marginX + 18, baseline - 1, row, 7.5, false, colors.muted)
         baseline -= 11
       }
+      add(`${colors.line} RG`)
+      add(`0.5 w ${marginX} ${top - height} m ${pageWidth - marginX} ${top - height} l S`)
       y -= height + 9
     }
   } else if (input.strategy) {
@@ -893,36 +863,47 @@ export function monthlyReportPdf(input: ReportInput) {
     for (const [index, slot] of input.strategy.slots.entries()) {
       const hookRows = wrap(slot.hook, 76)
       const purposeRows = wrap(slot.purpose, 76)
-      const height = Math.max(104, 58 + (hookRows.length + purposeRows.length) * 13)
+      const height = Math.max(76, 43 + (hookRows.length + purposeRows.length) * 13)
       ensureSpace(height + 10)
       const top = y
-      drawRoundedRect(marginX, top, contentWidth, height, 7, colors.greenPale)
-      drawText(marginX + 16, top - 21, `${index + 1}. ${clean(slot.topic)}`, 10.5, true, colors.ink)
+      drawText(marginX, top - 11, `${index + 1}. ${clean(slot.topic)}`, 10.5, true, colors.ink)
       drawText(
-        marginX + 16,
-        top - 39,
+        marginX,
+        top - 29,
         `${slot.channel} - ${copy.day} ${slot.day} - ${slot.time}`,
         8,
         true,
         colors.green,
       )
-      let baseline = top - 59
+      let baseline = top - 48
       for (const row of [...hookRows, ...purposeRows]) {
-        drawText(marginX + 16, baseline, row, 9, false, colors.muted)
+        drawText(marginX, baseline, row, 9, false, colors.muted)
         baseline -= 13
       }
+      add(`${colors.line} RG`)
+      add(`0.5 w ${marginX} ${top - height} m ${pageWidth - marginX} ${top - height} l S`)
       y -= height + 10
     }
     const approvedStrategySources = [
       ...new Set(input.strategy.slots.flatMap((slot) => slot.sourceUrls)),
     ].filter((url) => input.research?.sources.some((source) => source.url === url))
     if (approvedStrategySources.length) {
+      // Separate the sources from the final editorial item so the two sections
+      // never read as one continuous block.
+      y -= 20
       drawSectionTitle(copy.strategySources, 40)
       for (const [index, url] of approvedStrategySources.entries()) {
         const rows = wrap(`${index + 1}. ${host(url)} - ${url}`, 86)
         ensureSpace(rows.length * 14 + 8)
-        for (const row of rows) {
-          drawText(marginX, y, row, 8.5, false, colors.muted)
+        for (const [rowIndex, row] of rows.entries()) {
+          drawText(
+            marginX,
+            y,
+            row,
+            8.5,
+            rowIndex === 0,
+            rowIndex === 0 ? colors.green : colors.muted,
+          )
           y -= 14
         }
         y -= 5
