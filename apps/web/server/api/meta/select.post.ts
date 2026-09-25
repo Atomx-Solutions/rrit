@@ -59,6 +59,7 @@ export default defineEventHandler(async (event) => {
     )
       throw createError({
         statusCode: 409,
+        data: { code: 'PAGE_ALREADY_CONNECTED' },
         message:
           'Ka publikim aktiv ose publikimi që pret verifikim i përket faqes së mëparshme. Rilidhe atë faqe për ta kontrolluar pa rrezik dyfishimi.',
       })

@@ -59,8 +59,7 @@ async function connect() {
     })
     await navigateTo(result.url, { external: true })
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('social.connectError')
+    error.value = t('social.connectError')
   } finally {
     busy.value = false
   }
@@ -74,7 +73,11 @@ async function select(pageId: string) {
     await refresh()
     await refreshNuxtData('trial')
   } catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || t('social.pageSelectError')
+    const details = problem as { data?: { code?: string; message?: string; data?: { code?: string } } }
+    const code = details.data?.code || details.data?.data?.code
+    error.value = code === 'PAGE_ALREADY_CONNECTED'
+      ? t('social.pageAlreadyConnected')
+      : t('social.pageSelectError')
   } finally {
     busy.value = false
   }
@@ -89,8 +92,7 @@ async function disconnect() {
     await initLive()
     await refreshNuxtData('social-posts')
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('social.disconnectError')
+    error.value = t('social.disconnectError')
   } finally {
     busy.value = false
   }

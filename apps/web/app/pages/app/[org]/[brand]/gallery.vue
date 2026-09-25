@@ -5,7 +5,7 @@ const { data, commit, notify, initLive } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Rrit` })
 const query = ref('')
-const assetFilter = ref<'all' | 'original' | 'generated'>('all')
+const assetFilter = ref<'all' | 'original' | 'generated'>('generated')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
 const deleteOpen = ref(false)
@@ -86,9 +86,9 @@ function onViewerKeydown(event: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onViewerKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 const filterTabs = computed(() => [
-  { label: t('gallery.allAssets'), value: 'all' },
-  { label: t('gallery.originalAssets'), value: 'original' },
   { label: t('gallery.generatedAssets'), value: 'generated' },
+  { label: t('gallery.originalAssets'), value: 'original' },
+  { label: t('gallery.allAssets'), value: 'all' },
 ])
 const { page, pageSize, total, paginated } = usePagination(assets)
 watch(query, () => {
@@ -363,13 +363,13 @@ async function saveMetadata() {
       :description="t('gallery.photoViewerDescription')"
     >
       <template #body>
-        <div v-if="viewerAsset" class="flex min-h-[75vh] flex-col gap-5">
+        <div v-if="viewerAsset" class="flex h-[calc(100dvh-12rem)] min-h-[36rem] flex-col gap-5">
           <div class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8">
             <MediaImage
               :src="viewerAsset.url"
               :alt="viewerAsset.name"
               fit="natural"
-              class="max-h-[62vh] max-w-full rounded-xl object-contain"
+              class="size-full rounded-xl"
             />
             <UButton
               color="neutral"

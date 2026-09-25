@@ -28,7 +28,7 @@ describe('monthlyReportPdf', () => {
       research: {
         text: researchText,
         sources: Array.from({ length: 10 }, (_, index) => ({
-          title: `Approved source ${index + 1}`,
+          title: index === 2 ? '<visual_element id="e1">' : `Approved source ${index + 1}`,
           url: `https://example.com/research/source-${index + 1}`,
         })),
         citations: [],
@@ -44,5 +44,6 @@ describe('monthlyReportPdf', () => {
     expect(raw).toContain('(1 / ')
     expect(raw).toContain(`(${pageCount} / ${pageCount})`)
     expect(raw.indexOf('(Explanation of findings)')).toBeGreaterThan(raw.indexOf('endstream'))
+    expect(raw).not.toContain('visual_element')
   })
 })

@@ -23,7 +23,28 @@ export const formatMoney = (value: number, currency = 'EUR') =>
     minimumFractionDigits: Number.isInteger(Math.round(value * 100) / 100) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(value)
-export const formatDate = (value: string, timezone = 'Europe/Tirane', short = false) => {
+export const formatDate = (
+  value: string,
+  timezone = 'Europe/Tirane',
+  short = false,
+  locale = 'sq',
+) => {
+  const date = new Date(value)
+  if (locale.startsWith('en')) {
+    const dateLabel = new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      timeZone: timezone,
+    }).format(date)
+    if (short) return dateLabel
+    const timeLabel = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      timeZone: timezone,
+    }).format(date)
+    return `${dateLabel} · ${timeLabel}`
+  }
   const p = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
       day: 'numeric',
@@ -33,7 +54,7 @@ export const formatDate = (value: string, timezone = 'Europe/Tirane', short = fa
       hourCycle: 'h23',
       timeZone: timezone,
     })
-      .formatToParts(new Date(value))
+      .formatToParts(date)
       .map((p) => [p.type, p.value]),
   )
   return `${p.day} ${months[Number(p.month) - 1]!.slice(0, 3)}${short ? '' : ` · ${p.hour}:${p.minute}`}`
