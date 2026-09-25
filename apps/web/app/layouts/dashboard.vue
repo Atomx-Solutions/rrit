@@ -173,6 +173,7 @@ watch(
           >
             <UTooltip
               :text="data.brand.name"
+              :disabled="state !== 'collapsed' && data.brand.name.length <= 12"
               :content="{ side: 'bottom', align: 'start', sideOffset: 6 }"
               :ui="{ content: 'h-auto min-h-7 px-2.5 py-1.5 text-sm', text: 'font-medium' }"
             >
