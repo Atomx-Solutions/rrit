@@ -5,7 +5,7 @@ const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.socialPosts')} · Rrit` })
 const page = ref(1)
 const pageSize = ref(10)
-const channel = ref<'all' | 'Facebook' | 'Instagram'>('all')
+const channel = ref<'all' | 'Facebook' | 'Instagram'>('Facebook')
 const search = ref('')
 const query = computed(() => ({
   page: page.value,
@@ -108,9 +108,9 @@ async function sync(more = false) {
         :content="false"
         variant="link"
         :items="[
-          { label: t('common.all'), value: 'all' },
           { label: 'Facebook', value: 'Facebook' },
           { label: 'Instagram', value: 'Instagram' },
+          { label: t('common.all'), value: 'all' },
         ]"
         :aria-label="t('social.filterNetwork')"
       />

@@ -2,7 +2,7 @@
 import { formatDate } from '~~/shared/utils/format'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 useSeoMeta({ title: () => `${t('overview.title')} · Rrit` })
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
@@ -13,7 +13,6 @@ const upcoming = computed(() =>
 )
 
 const chartDays = 14
-const chartHeight = 44
 const chartBaseline = 40
 
 function dateKey(value: Date | string, timezone: string) {
@@ -29,6 +28,14 @@ function dateKey(value: Date | string, timezone: string) {
       .map((part) => [part.type, part.value]),
   )
   return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+function activityDateLabel(key: string, timezone: string) {
+  return new Intl.DateTimeFormat(locale.value === 'en-US' ? 'en-GB' : 'sq-AL', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: timezone,
+  }).format(new Date(`${key}T12:00:00.000Z`))
 }
 
 const activity = computed(() => {
@@ -47,7 +54,7 @@ const activity = computed(() => {
 
     return {
       key,
-      label: formatDate(`${key}T12:00:00.000Z`, timezone, true),
+      label: activityDateLabel(key, timezone),
       value,
       x: (index / (chartDays - 1)) * 100,
     }
@@ -61,7 +68,6 @@ const activity = computed(() => {
 
 function smoothPath(points: Array<{ x: number; y: number }>) {
   if (!points.length) return ''
-  if (points.length === 1) return `M ${points[0]!.x} ${points[0]!.y}`
   let path = `M ${points[0]!.x} ${points[0]!.y}`
   for (let index = 0; index < points.length - 1; index++) {
     const previous = points[index - 1] || points[index]!
@@ -82,13 +88,17 @@ function smoothPath(points: Array<{ x: number; y: number }>) {
 }
 
 const activityPath = computed(() => smoothPath(activity.value))
-const activityAreaPath = computed(() => `${activityPath.value} L 100 ${chartHeight} L 0 ${chartHeight} Z`)
-const activityPeak = computed(() => activity.value.reduce((peak, day) => (day.value > peak.value ? day : peak), activity.value[0]!))
+const activityAreaPath = computed(() => `${activityPath.value} L 100 44 L 0 44 Z`)
+const activityPeak = computed(() =>
+  activity.value.reduce((peak, day) => (day.value > peak.value ? day : peak), activity.value[0]!),
+)
 const activityTotal = computed(() => activity.value.reduce((total, day) => total + day.value, 0))
 // Hovering (or tapping) a day shows its own figure; without it the curve only
 // gives a shape. Falls back to the busiest day.
 const hoveredKey = ref<string | null>(null)
-const hoveredDay = computed(() => activity.value.find(day => day.key === hoveredKey.value) || activityPeak.value)
+const hoveredDay = computed(
+  () => activity.value.find((day) => day.key === hoveredKey.value) || activityPeak.value,
+)
 // The readout sits just above its own point, kept inside the chart at the edges.
 const hoveredStyle = computed(() => ({
   left: `${Math.min(92, Math.max(8, hoveredDay.value.x))}%`,
@@ -122,11 +132,14 @@ const summaries = computed(() => [
 ])
 </script>
 <template>
-  <DashboardPage :title="t('overview.title')" :description="`${data.brand.name} · ${data.brand.city}`">
+  <DashboardPage
+    :title="t('overview.title')"
+    :description="`${data.brand.name} · ${data.brand.city}`"
+  >
     <template #actions
-      ><UButton :to="`${base}/content/new`" variant="outline" icon="i-lucide-plus"
-        >{{ t('content.createPost') }}</UButton
-      ></template
+      ><UButton :to="`${base}/content/new`" variant="outline" icon="i-lucide-plus">{{
+        t('content.createPost')
+      }}</UButton></template
     >
     <UPageGrid class="grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-px">
       <UPageCard
@@ -156,7 +169,11 @@ const summaries = computed(() => [
           </div>
           <p class="mt-1 text-sm text-muted">{{ t('overview.activityDescription') }}</p>
         </div>
-        <UBadge color="primary" variant="subtle" :label="t('overview.activityPosts', { count: activityTotal })" />
+        <UBadge
+          color="primary"
+          variant="subtle"
+          :label="t('overview.activityPosts', { count: activityTotal })"
+        />
       </div>
 
       <div class="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
@@ -170,24 +187,42 @@ const summaries = computed(() => [
           >
             <defs>
               <linearGradient id="overview-activity-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" class="text-primary" stop-color="currentColor" stop-opacity="0.24" />
-                <stop offset="100%" class="text-primary" stop-color="currentColor" stop-opacity="0.02" />
+                <stop
+                  offset="0%"
+                  class="text-primary"
+                  stop-color="currentColor"
+                  stop-opacity="0.22"
+                />
+                <stop
+                  offset="100%"
+                  class="text-primary"
+                  stop-color="currentColor"
+                  stop-opacity="0.01"
+                />
               </linearGradient>
-              <pattern id="overview-activity-grid" width="5" height="11" patternUnits="userSpaceOnUse">
+              <pattern
+                id="overview-activity-grid"
+                width="5"
+                height="11"
+                patternUnits="userSpaceOnUse"
+              >
                 <path d="M 5 0 L 0 0 0 11" fill="none" class="stroke-default" stroke-width="0.12" />
               </pattern>
             </defs>
             <rect width="100" height="44" fill="url(#overview-activity-grid)" />
             <path :d="activityAreaPath" fill="url(#overview-activity-fill)" class="text-primary" />
-            <path :d="activityPath" fill="none" class="stroke-primary" stroke-width="0.45" vector-effect="non-scaling-stroke" />
-            <circle
-              v-for="day in activity"
-              :key="day.key"
-              :cx="day.x"
-              :cy="day.y"
-              :r="day.key === hoveredDay.key ? 1.4 : 0.85"
-              class="fill-primary stroke-default"
-              stroke-width="0.18"
+            <path
+              :d="activityPath"
+              fill="none"
+              class="stroke-primary opacity-20"
+              stroke-width="4"
+              vector-effect="non-scaling-stroke"
+            />
+            <path
+              :d="activityPath"
+              fill="none"
+              class="stroke-primary"
+              stroke-width="1.25"
               vector-effect="non-scaling-stroke"
             />
           </svg>
@@ -198,7 +233,7 @@ const summaries = computed(() => [
               :key="`hit-${day.key}`"
               color="neutral"
               variant="ghost"
-              class="h-full min-w-0 flex-1 rounded-none p-0 hover:bg-primary/5 focus-visible:ring-2"
+              class="h-full min-w-0 flex-1 rounded-none p-0 transition-colors duration-200 hover:bg-primary/5 focus-visible:ring-2"
               :aria-label="t('overview.activityDay', { date: day.label, count: day.value })"
               @mouseenter="hoveredKey = day.key"
               @focus="hoveredKey = day.key"
@@ -208,25 +243,36 @@ const summaries = computed(() => [
           <UBadge
             color="neutral"
             variant="solid"
-            class="pointer-events-none absolute -translate-x-1/2 -translate-y-[150%] whitespace-nowrap shadow"
+            class="pointer-events-none absolute -translate-x-1/2 -translate-y-[150%] whitespace-nowrap shadow transition-[left,top] duration-200 ease-out"
             :style="hoveredStyle"
             :label="t('overview.activityDay', { date: hoveredDay.label, count: hoveredDay.value })"
           />
-          <div class="pointer-events-none absolute inset-x-3 bottom-3 flex justify-between text-[11px] text-muted">
+          <div
+            class="pointer-events-none absolute inset-x-3 bottom-3 flex justify-between text-[11px] text-muted"
+          >
             <span>{{ activity[0]?.label }}</span>
             <span>{{ activity[Math.floor(chartDays / 2)]?.label }}</span>
             <span>{{ activity[chartDays - 1]?.label }}</span>
           </div>
         </div>
 
-        <div class="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted">
-          <span>{{ t('overview.activityPeak', { date: activityPeak.label, count: activityPeak.value }) }}</span>
-          <ULink :to="`${base}/content`" class="inline-flex items-center gap-1 font-medium text-highlighted hover:text-primary">
+        <div
+          class="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted"
+        >
+          <span>{{
+            t('overview.activityPeak', { date: activityPeak.label, count: activityPeak.value })
+          }}</span>
+          <ULink
+            :to="`${base}/content`"
+            class="inline-flex items-center gap-1 font-medium text-highlighted hover:text-primary"
+          >
             {{ t('overview.viewAllPosts') }}
             <UIcon name="i-lucide-arrow-right" class="size-3.5" />
           </ULink>
         </div>
-        <p v-if="!activityTotal" class="mt-3 text-sm text-muted">{{ t('overview.activityEmpty') }}</p>
+        <p v-if="!activityTotal" class="mt-3 text-sm text-muted">
+          {{ t('overview.activityEmpty') }}
+        </p>
       </div>
     </UCard>
     <UPageGrid class="grid-cols-1 lg:grid-cols-2 gap-5">
@@ -249,7 +295,7 @@ const summaries = computed(() => [
           />
           <div class="min-w-0 flex-1">
             <p class="text-xs text-muted mb-1.5">
-              {{ formatDate(upcoming[0].scheduledAt!, data.preferences.timezone) }} ·
+              {{ formatDate(upcoming[0].scheduledAt!, data.preferences.timezone, false, locale) }} ·
               {{ upcoming[0].channel }}
             </p>
             <h3 class="text-sm font-medium text-highlighted group-hover:text-primary">
@@ -273,17 +319,19 @@ const summaries = computed(() => [
         <div class="flex justify-between items-center gap-3 mb-4">
           <h2 class="text-sm font-semibold">{{ t('nav.meta') }}</h2>
           <UBadge color="neutral" variant="outline" size="sm">{{
-            meta?.connection?.status === 'connected' ? t('overview.connected') : t('overview.connectionRequired')
+            meta?.connection?.status === 'connected'
+              ? t('overview.connected')
+              : t('overview.connectionRequired')
           }}</UBadge>
         </div>
         <p class="text-sm text-muted leading-relaxed max-w-lg">
           {{
             meta?.connection?.status === 'connected'
               ? t('overview.connectedPage', { page: meta.connection.pageName || '' })
-              /* : 'Faqja e lidhur: ' +
+              : /* : 'Faqja e lidhur: ' +
                 meta.connection.pageName +
                 '. Përditëso postimet për të parë historikun e biznesit.' */
-              : t('overview.connectDescription')
+                t('overview.connectDescription')
           }}
         </p>
         <UButton

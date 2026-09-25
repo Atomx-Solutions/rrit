@@ -5,7 +5,7 @@ const { data, commit, notify, initLive } = useWorkspace()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Rrit` })
 const query = ref('')
-const assetFilter = ref<'all' | 'original' | 'generated'>('all')
+const assetFilter = ref<'all' | 'original' | 'generated'>('generated')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
 const deleteOpen = ref(false)
@@ -86,9 +86,9 @@ function onViewerKeydown(event: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onViewerKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 const filterTabs = computed(() => [
-  { label: t('gallery.allAssets'), value: 'all' },
-  { label: t('gallery.originalAssets'), value: 'original' },
   { label: t('gallery.generatedAssets'), value: 'generated' },
+  { label: t('gallery.originalAssets'), value: 'original' },
+  { label: t('gallery.allAssets'), value: 'all' },
 ])
 const { page, pageSize, total, paginated } = usePagination(assets)
 watch(query, () => {

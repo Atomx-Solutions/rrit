@@ -8,6 +8,7 @@ const error = ref('')
 const { onFormError, watchError } = useFormFeedback()
 watchError(error)
 const form = reactive({ currentPassword: '', newPassword: '', confirm: '' })
+const passwordVisible = reactive({ current: false, next: false, confirm: false })
 const schema = z
   .object({
     currentPassword: z.string().min(1, t('security.currentPasswordRequired')),
@@ -39,8 +40,7 @@ async function changePassword() {
       newPassword: form.newPassword,
       revokeOtherSessions: true,
     })
-    if (result.error)
-      error.value = t('security.passwordChangeError')
+    if (result.error) error.value = t('security.passwordChangeError')
     else {
       Object.assign(form, { currentPassword: '', newPassword: '', confirm: '' })
       toast.add({ title: t('security.passwordChanged'), color: 'success' })
@@ -86,38 +86,69 @@ async function revokeOthers() {
       <UFormField name="currentPassword" :label="t('security.currentPassword')" required
         ><UInput
           v-model="form.currentPassword"
-          type="password"
+          :type="passwordVisible.current ? 'text' : 'password'"
           autocomplete="current-password"
           class="w-full"
           :disabled="busy"
-      /></UFormField>
+          ><template #trailing
+            ><UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :icon="passwordVisible.current ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+              :aria-label="
+                passwordVisible.current ? t('auth.hidePassword') : t('auth.showPassword')
+              "
+              :disabled="busy"
+              @click="passwordVisible.current = !passwordVisible.current" /></template></UInput
+      ></UFormField>
       <UFormField name="newPassword" :label="t('security.newPassword')" required
         ><UInput
           v-model="form.newPassword"
-          type="password"
+          :type="passwordVisible.next ? 'text' : 'password'"
           autocomplete="new-password"
           class="w-full"
           :disabled="busy"
           maxlength="128"
-      /></UFormField>
+          ><template #trailing
+            ><UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :icon="passwordVisible.next ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+              :aria-label="passwordVisible.next ? t('auth.hidePassword') : t('auth.showPassword')"
+              :disabled="busy"
+              @click="passwordVisible.next = !passwordVisible.next" /></template></UInput
+      ></UFormField>
       <UFormField name="confirm" :label="t('security.confirmPassword')" required
         ><UInput
           v-model="form.confirm"
-          type="password"
+          :type="passwordVisible.confirm ? 'text' : 'password'"
           autocomplete="new-password"
           class="w-full"
           :disabled="busy"
-      /></UFormField>
-      <UButton type="submit" variant="outline" :loading="busy" icon="i-lucide-key-round"
-        >{{ t('legacy.changePassword') }}</UButton
-      >
+          ><template #trailing
+            ><UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :icon="passwordVisible.confirm ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+              :aria-label="
+                passwordVisible.confirm ? t('auth.hidePassword') : t('auth.showPassword')
+              "
+              :disabled="busy"
+              @click="passwordVisible.confirm = !passwordVisible.confirm" /></template></UInput
+      ></UFormField>
+      <UButton type="submit" variant="outline" :loading="busy" icon="i-lucide-key-round">{{
+        t('legacy.changePassword')
+      }}</UButton>
     </UForm>
     <USeparator />
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 class="text-sm font-semibold">{{ t('security.signedInDevices') }}</h2>
-      <UButton variant="outline" color="neutral" :loading="busy" @click="revokeOthers"
-        >{{ t('legacy.signOutOtherSessions') }}</UButton
-      >
+      <UButton variant="outline" color="neutral" :loading="busy" @click="revokeOthers">{{
+        t('legacy.signOutOtherSessions')
+      }}</UButton>
     </div>
     <USkeleton v-if="status === 'pending'" class="h-20 w-full" />
     <UAlert

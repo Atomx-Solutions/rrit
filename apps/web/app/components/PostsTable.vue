@@ -4,7 +4,7 @@ import type { Post } from '~~/shared/schemas/workspace'
 import { formatDate } from '~~/shared/utils/format'
 const props = defineProps<{ posts: Post[] }>()
 const { base, data } = useWorkspace()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const viewerOpen = ref(false)
 const viewerIndex = ref(0)
 const downloading = ref(false)
@@ -52,14 +52,14 @@ const columns = computed<TableColumn<Post>[]>(() => [
       :to="`${base}/content/${post.id}`"
       class="flex gap-3 p-4 active:bg-elevated/50"
     >
-        <MediaImage
-          :src="post.image"
-          alt=""
+      <MediaImage
+        :src="post.image"
+        alt=""
         width="56"
         height="64"
-          loading="lazy"
-          class="w-14 h-16 shrink-0 object-cover rounded-md"
-          @click.prevent.stop="openViewer(post)"
+        loading="lazy"
+        class="w-14 h-16 shrink-0 object-cover rounded-md"
+        @click.prevent.stop="openViewer(post)"
       />
       <div class="min-w-0 flex-1">
         <h3 class="text-sm font-medium text-highlighted line-clamp-2">{{ post.title }}</h3>
@@ -69,9 +69,11 @@ const columns = computed<TableColumn<Post>[]>(() => [
           }}</span>
         </div>
         <p v-if="post.scheduledAt" class="text-xs text-muted mt-2">
-          {{ formatDate(post.scheduledAt, data.preferences.timezone) }}
+          {{ formatDate(post.scheduledAt, data.preferences.timezone, false, locale) }}
           <span v-if="post.status === 'scheduled'" class="block mt-1">{{
-            post.publicationMode === 'automatic' ? t('content.automaticPublication') : t('content.calendarOnly')
+            post.publicationMode === 'automatic'
+              ? t('content.automaticPublication')
+              : t('content.calendarOnly')
           }}</span>
         </p>
       </div>
@@ -127,11 +129,13 @@ const columns = computed<TableColumn<Post>[]>(() => [
     <template #scheduledAt-cell="{ row }"
       ><span class="text-xs text-muted">{{
         row.original.scheduledAt
-          ? formatDate(row.original.scheduledAt, data.preferences.timezone)
+          ? formatDate(row.original.scheduledAt, data.preferences.timezone, false, locale)
           : t('content.noSchedule')
       }}</span
       ><span v-if="row.original.status === 'scheduled'" class="block text-xs text-muted mt-1">{{
-        row.original.publicationMode === 'automatic' ? t('content.automaticPublication') : t('content.calendarOnly')
+        row.original.publicationMode === 'automatic'
+          ? t('content.automaticPublication')
+          : t('content.calendarOnly')
       }}</span></template
     >
     <template #actions-cell="{ row }"
@@ -151,7 +155,9 @@ const columns = computed<TableColumn<Post>[]>(() => [
   >
     <template #body>
       <div v-if="viewerPost" class="flex h-[calc(100dvh-12rem)] min-h-[36rem] flex-col gap-5">
-        <div class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8">
+        <div
+          class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8"
+        >
           <MediaImage
             :src="viewerPost.image"
             :alt="viewerPost.title"
@@ -195,11 +201,21 @@ const columns = computed<TableColumn<Post>[]>(() => [
             color="neutral"
             variant="ghost"
             class="size-16 shrink-0 overflow-hidden rounded-lg p-0"
-            :class="index === viewerIndex ? 'ring-2 ring-primary ring-offset-2' : 'opacity-70 hover:opacity-100'"
+            :class="
+              index === viewerIndex
+                ? 'ring-2 ring-primary ring-offset-2'
+                : 'opacity-70 hover:opacity-100'
+            "
             :aria-label="post.title"
             @click="viewerIndex = index"
           >
-            <MediaImage :src="post.image" :alt="post.title" class="size-full object-cover" width="64" height="64" />
+            <MediaImage
+              :src="post.image"
+              :alt="post.title"
+              class="size-full object-cover"
+              width="64"
+              height="64"
+            />
           </UButton>
         </div>
       </div>
