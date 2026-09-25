@@ -171,23 +171,29 @@ watch(
             :content="{ align: 'start', collisionPadding: 12 }"
             :ui="{ content: 'w-(--reka-dropdown-menu-trigger-width) min-w-48' }"
           >
-            <UButton
-              color="neutral"
-              variant="ghost"
-              :square="state === 'collapsed'"
-              :label="state === 'collapsed' ? undefined : data.brand.name"
-              :trailing-icon="state === 'collapsed' ? undefined : 'i-lucide-chevrons-up-down'"
-              :aria-label="t('nav.businessAria', { name: data.brand.name })"
-              class="min-w-0 w-full data-[state=open]:bg-elevated overflow-hidden"
-              :ui="{
-                label: 'truncate flex-1 text-left font-semibold',
-                trailingIcon: 'text-dimmed ms-auto',
-              }"
+            <UTooltip
+              :text="data.brand.name"
+              :content="{ side: 'bottom', align: 'start', sideOffset: 6 }"
+              :ui="{ content: 'h-auto min-h-7 px-2.5 py-1.5 text-sm', text: 'font-medium' }"
             >
-              <template #leading
-                ><img src="/favicon.svg" alt="" width="26" height="26" class="shrink-0"
-              /></template>
-            </UButton>
+              <UButton
+                color="neutral"
+                variant="ghost"
+                :square="state === 'collapsed'"
+                :label="state === 'collapsed' ? undefined : data.brand.name"
+                :trailing-icon="state === 'collapsed' ? undefined : 'i-lucide-chevrons-up-down'"
+                :aria-label="t('nav.businessAria', { name: data.brand.name })"
+                class="min-w-0 w-full data-[state=open]:bg-elevated overflow-hidden"
+                :ui="{
+                  label: 'truncate flex-1 text-left font-semibold',
+                  trailingIcon: 'text-dimmed ms-auto',
+                }"
+              >
+                <template #leading
+                  ><img src="/favicon.svg" alt="" width="26" height="26" class="shrink-0"
+                /></template>
+              </UButton>
+            </UTooltip>
           </UDropdownMenu>
           <UButton
             icon="i-lucide-x"
