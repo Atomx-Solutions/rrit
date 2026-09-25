@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { z } from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
-import { authClient } from '~/utils/auth-client'
+import { adminAuthClient } from '~/utils/auth-client'
 import { safeRedirect } from '~~/shared/utils/format'
 
 definePageMeta({ layout: false })
@@ -30,7 +30,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   loading.value = true
   error.value = ''
   try {
-    const result = await authClient.signIn.email({
+    const result = await adminAuthClient.signIn.email({
       email: event.data.email.trim(),
       password: event.data.password,
     })
@@ -42,7 +42,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       await $fetch('/api/admin/me', { retry: 0 })
     } catch {
       // A valid customer account is not a platform owner: do not keep it signed in here.
-      await authClient.signOut()
+      await adminAuthClient.signOut()
       error.value = t('admin.login.denied')
       return
     }

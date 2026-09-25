@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
-import { authClient } from '~/utils/auth-client'
+import { adminAuthClient } from '~/utils/auth-client'
 import { adminDashboardKey } from '~/utils/dashboard'
 
 const { t } = useI18n()
@@ -49,7 +49,7 @@ const menu = computed<NavigationMenuItem[]>(() =>
 const signingOut = ref(false)
 async function signOut() {
   signingOut.value = true
-  const result = await authClient.signOut()
+  const result = await adminAuthClient.signOut()
   signingOut.value = false
   if (result.error) {
     toast.add({ title: t('admin.signOutFailed'), color: 'error' })
