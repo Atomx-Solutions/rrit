@@ -54,29 +54,44 @@ watch([search, filter, channel], () => {
     :title="t('content.yourPosts')"
     :description="t('content.yourPostsDescription')"
   >
-    <template #actions
-      ><UButton variant="outline" :to="`${base}/content/new`" icon="i-lucide-plus"
-        >{{ t('content.createPost') }}</UButton
-      ></template
-    >
+    <!-- Search, channel and the action share one row on a phone instead of
+         taking two. Only the button's label can give way: at 375px the three
+         full labels need more width than the screen has. `hidden` also takes
+         the text out of the accessibility tree, so the icon carries its name
+         through aria-label. -->
+    <!-- Goes to AI planning: a post starts by generating it there. -->
+    <template #actions>
+      <UButton
+        variant="outline"
+        :to="`${base}/monthly-planner`"
+        icon="i-lucide-plus"
+        :label="t('content.createPost')"
+        :aria-label="t('content.createPost')"
+        :ui="{ label: 'hidden sm:inline' }"
+      />
+    </template>
     <template #toolbar>
-      <div class="flex w-full flex-wrap items-center justify-between gap-3">
+      <div class="flex w-full items-center gap-2 sm:justify-between sm:gap-3">
         <UInput
           v-model="search"
           icon="i-lucide-search"
           :placeholder="t('content.searchPlaceholder')"
           :aria-label="t('content.searchPosts')"
-          class="w-full sm:w-72"
+          class="min-w-0 flex-1 sm:w-72 sm:flex-none"
         />
-        <div class="actions">
+        <div class="actions shrink-0">
           <USelect
             v-model="channel"
             :items="[{ label: t('content.allChannels'), value: 'all' }, 'Instagram', 'Facebook']"
             :aria-label="t('content.filterChannel')"
+            class="w-32 sm:w-auto"
           />
         </div>
       </div>
     </template>
+    <!-- Seven statuses wrap onto a second row on a phone and eat the space the
+         post list needs, so there they stay on one row and scroll sideways; the
+         next tab stays half visible to show there is more. -->
     <UTabs
       v-model="filter"
       :items="tabs"
@@ -84,7 +99,10 @@ watch([search, filter, channel], () => {
       :content="false"
       variant="link"
       class="border-b border-default"
-      :ui="{ list: 'flex-wrap gap-1', trigger: 'grow-0 px-3 min-h-10' }"
+      :ui="{
+        list: 'gap-1 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-x-visible',
+        trigger: 'grow-0 shrink-0 px-3 min-h-10',
+      }"
     />
     <div class="flex items-center justify-between gap-3">
       <p role="status" class="text-sm text-muted">

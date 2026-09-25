@@ -40,8 +40,61 @@ const visible = computed(() =>
     return day >= period.value.start && day <= period.value.end
   }),
 )
-const { page, pageSize, total, paginated } = usePagination(visible)
+// Grouped once instead of filtering every post for every cell of the grid.
+const postsByDay = computed(() => {
+  const days = new Map<string, typeof posts.value>()
+  for (const post of posts.value) {
+    const key = localDay(post.scheduledAt!)
+    const existing = days.get(key)
+    if (existing) existing.push(post)
+    else days.set(key, [post])
+  }
+  return days
+})
+const dayPosts = (key: string) => postsByDay.value.get(key) || []
+
+// A seven column grid of post cards needs about 45px per day on a phone, which
+// fits no title. The phone grid therefore shows each day as a number with a dot
+// per post, and the list underneath belongs to the day you tap.
+const pickedDay = ref<string | null>(null)
+const activeDay = computed(() => {
+  if (view.value === 'list') return null
+  if (pickedDay.value) return pickedDay.value
+  // Nothing tapped yet: today when the period holds it, else the first day with
+  // something on it, so the list below is never pointlessly empty.
+  if (today.value >= period.value.start && today.value <= period.value.end) return today.value
+  return period.value.days.find((day) => !day.outside && dayPosts(day.key).length)?.key
+    || period.value.start
+})
+const dayList = computed(() =>
+  view.value === 'list' || !activeDay.value ? visible.value : dayPosts(activeDay.value),
+)
+
+// Monday first, matching the grid. Intl is not used for these: not every
+// browser ships Albanian weekday and month names, which is why this page
+// already carries its own month names.
+const weekdayNames = computed(() => [
+  t('calendar.monday'),
+  t('calendar.tuesday'),
+  t('calendar.wednesday'),
+  t('calendar.thursday'),
+  t('calendar.friday'),
+  t('calendar.saturday'),
+  t('calendar.sunday'),
+])
+const weekdayNarrow = computed(() => weekdayNames.value.map((name) => name.slice(0, 1)))
+const activeDayLabel = computed(() => {
+  if (!activeDay.value) return ''
+  const [year, month, day] = activeDay.value.split('-').map(Number)
+  const weekday = (new Date(Date.UTC(year!, month! - 1, day!)).getUTCDay() + 6) % 7
+  return `${weekdayNames.value[weekday]}, ${day} ${monthNames.value[month! - 1]}`
+})
+
+const { page, pageSize, total, paginated } = usePagination(dayList)
 watch([anchor, view], () => {
+  pickedDay.value = null
+})
+watch([anchor, view, activeDay], () => {
   page.value = 1
 })
 function move(direction: number) {
@@ -107,7 +160,7 @@ function move(direction: number) {
       <div v-if="view !== 'list'" class="hidden md:block">
         <div class="grid grid-cols-7">
           <div
-            v-for="day in [t('calendar.monday'), t('calendar.tuesday'), t('calendar.wednesday'), t('calendar.thursday'), t('calendar.friday'), t('calendar.saturday'), t('calendar.sunday')]"
+            v-for="day in weekdayNames"
             :key="day"
             class="text-[11px] text-muted text-center py-2"
           >
@@ -159,13 +212,67 @@ function move(direction: number) {
           </div>
         </div>
       </div>
+      <!-- The phone grid: a day is a number and a dot per post, and tapping one
+           filters the list below to that day. -->
+      <div v-if="view !== 'list'" class="md:hidden">
+        <div class="grid grid-cols-7">
+          <div
+            v-for="(day, index) in weekdayNarrow"
+            :key="index"
+            class="py-1.5 text-center text-[10px] text-muted"
+            aria-hidden="true"
+          >
+            {{ day }}
+          </div>
+        </div>
+        <div class="grid grid-cols-7">
+          <UButton
+            v-for="day in period.days"
+            :key="day.key"
+            color="neutral"
+            variant="ghost"
+            :class="[
+              'flex min-h-12 flex-col items-center gap-1 rounded-none border-t border-default p-0 py-1.5',
+              day.outside ? 'text-muted' : '',
+              day.key === activeDay ? 'bg-elevated' : '',
+            ]"
+            :aria-pressed="day.key === activeDay"
+            :aria-label="`${day.day}: ${dayPosts(day.key).length} ${t('calendar.postsIn')}`"
+            :aria-current="day.key === today ? 'date' : undefined"
+            @click="pickedDay = day.key"
+          >
+            <span
+              class="inline-flex size-6 items-center justify-center rounded-md text-xs"
+              :class="day.key === today ? 'ring ring-primary font-semibold text-primary' : ''"
+              >{{ day.day }}</span
+            >
+            <span class="flex h-1.5 items-center gap-0.5">
+              <span
+                v-for="dot in Math.min(dayPosts(day.key).length, 3)"
+                :key="dot"
+                class="size-1 rounded-full bg-primary"
+              />
+            </span>
+          </UButton>
+        </div>
+        <p class="border-t border-default px-3 py-2 text-[11px] text-muted">
+          {{ activeDayLabel }}
+        </p>
+      </div>
       <div :class="view !== 'list' ? 'md:hidden' : ''">
-        <template v-if="visible.length"
+        <template v-if="dayList.length"
           ><PostsTable :posts="paginated" /><ListPagination
             v-model:page="page"
             v-model:page-size="pageSize"
             :total="total"
         /></template>
+        <!-- A quiet day inside a month that has posts is not an empty calendar. -->
+        <p
+          v-else-if="view !== 'list' && visible.length"
+          class="px-3 py-6 text-center text-sm text-muted"
+        >
+          {{ t('calendar.emptyDay') }}
+        </p>
         <DashboardEmpty
           v-else
           icon="i-lucide-calendar-days"

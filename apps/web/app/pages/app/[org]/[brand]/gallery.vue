@@ -373,16 +373,16 @@ async function saveMetadata() {
             />
             <UButton
               color="neutral"
-              variant="solid"
-              class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full sm:left-5"
+              variant="ghost"
+              class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white sm:left-5"
               icon="i-lucide-chevron-left"
               :aria-label="t('gallery.previousPhoto')"
               @click="moveViewer(-1)"
             />
             <UButton
               color="neutral"
-              variant="solid"
-              class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full sm:right-5"
+              variant="ghost"
+              class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white sm:right-5"
               icon="i-lucide-chevron-right"
               :aria-label="t('gallery.nextPhoto')"
               @click="moveViewer(1)"
@@ -411,7 +411,11 @@ async function saveMetadata() {
               </UButton>
             </div>
           </div>
-          <div class="flex gap-2 overflow-x-auto pb-1">
+          <!-- p-1/-m-1: the selected thumbnail draws its ring outside its box, and
+               a scroll container clips anything outside its padding box. The
+               padding gives the ring room, the negative margin keeps the strip
+               aligned with the rest. -->
+          <div class="flex gap-2 overflow-x-auto p-1 -m-1">
             <UButton
               v-for="(asset, index) in viewerAssets"
               :key="asset.id"

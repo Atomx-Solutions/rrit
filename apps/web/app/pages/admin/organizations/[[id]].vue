@@ -324,7 +324,6 @@ const columns = computed<TableColumn<Organization>[]>(() => [
         :total="data?.total || 0"
         :sibling-count="1"
         show-edges
-        compact-mobile
       />
     </template>
   </AdminPage>
