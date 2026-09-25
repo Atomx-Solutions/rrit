@@ -286,7 +286,6 @@ const sourceLabel: Record<string, string> = {
         :total="data?.total || 0"
         :sibling-count="1"
         show-edges
-        compact-mobile
       />
     </template>
   </AdminPage>

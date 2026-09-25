@@ -1,4 +1,5 @@
-import { authClient } from '~/utils/auth-client'
+import { authClientFor } from '~/utils/auth-client'
+import { authScopeForPath } from '~~/shared/utils/auth-scope'
 
 export default defineNuxtPlugin(() => {
   let refreshing = false
@@ -7,7 +8,7 @@ export default defineNuxtPlugin(() => {
     if (document.visibilityState !== 'visible' || refreshing) return
     refreshing = true
     try {
-      await authClient.refreshSession()
+      await authClientFor(authScopeForPath(window.location.pathname)).refreshSession()
     } finally {
       refreshing = false
     }

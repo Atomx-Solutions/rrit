@@ -50,31 +50,38 @@ const columns = computed<TableColumn<Post>[]>(() => [
       v-for="post in posts"
       :key="post.id"
       :to="`${base}/content/${post.id}`"
-      class="flex gap-3 p-4 active:bg-elevated/50"
+      class="flex items-center gap-3 px-4 py-3 active:bg-elevated/50"
     >
       <MediaImage
         :src="post.image"
         alt=""
-        width="56"
-        height="64"
+        width="48"
+        height="48"
         loading="lazy"
-        class="w-14 h-16 shrink-0 object-cover rounded-md"
+        class="size-12 shrink-0 object-cover rounded-md"
         @click.prevent.stop="openViewer(post)"
       />
       <div class="min-w-0 flex-1">
         <h3 class="text-sm font-medium text-highlighted line-clamp-2">{{ post.title }}</h3>
-        <div class="flex flex-wrap items-center gap-2 mt-2">
-          <StatusBadge :status="post.status" /><span class="text-xs text-muted">{{
-            post.channel
-          }}</span>
+        <!-- Status, channel and date share one line: as three stacked lines they
+             made every row taller than the phone needed for a list. -->
+        <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+          <StatusBadge :status="post.status" />
+          <span>{{ post.channel }}</span>
+          <template v-if="post.scheduledAt">
+            <span aria-hidden="true">·</span>
+            <span>{{ formatDate(post.scheduledAt, data.preferences.timezone, false, locale) }}</span>
+          </template>
         </div>
-        <p v-if="post.scheduledAt" class="text-xs text-muted mt-2">
-          {{ formatDate(post.scheduledAt, data.preferences.timezone, false, locale) }}
-          <span v-if="post.status === 'scheduled'" class="block mt-1">{{
+        <p
+          v-if="post.scheduledAt && post.status === 'scheduled'"
+          class="mt-1 text-xs text-muted"
+        >
+          {{
             post.publicationMode === 'automatic'
               ? t('content.automaticPublication')
               : t('content.calendarOnly')
-          }}</span>
+          }}
         </p>
       </div>
       <UIcon name="i-lucide-chevron-right" class="size-4 text-muted shrink-0 self-center" />
@@ -166,16 +173,16 @@ const columns = computed<TableColumn<Post>[]>(() => [
           />
           <UButton
             color="neutral"
-            variant="solid"
-            class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full sm:left-5"
+            variant="ghost"
+            class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white sm:left-5"
             icon="i-lucide-chevron-left"
             :aria-label="t('content.previousPostPhoto')"
             @click="moveViewer(-1)"
           />
           <UButton
             color="neutral"
-            variant="solid"
-            class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full sm:right-5"
+            variant="ghost"
+            class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white sm:right-5"
             icon="i-lucide-chevron-right"
             :aria-label="t('content.nextPostPhoto')"
             @click="moveViewer(1)"
@@ -194,7 +201,11 @@ const columns = computed<TableColumn<Post>[]>(() => [
             {{ t('common.download') }}
           </UButton>
         </div>
-        <div class="flex gap-2 overflow-x-auto pb-1">
+        <!-- p-1/-m-1: the selected thumbnail draws its ring outside its box, and
+             a scroll container clips anything outside its padding box. The
+             padding gives the ring room, the negative margin keeps the strip
+             aligned with the rest. -->
+        <div class="flex gap-2 overflow-x-auto p-1 -m-1">
           <UButton
             v-for="(post, index) in props.posts"
             :key="post.id"

@@ -18,6 +18,16 @@ const { data: headerUsage, refresh: refreshHeaderUsage } = await useFetch('/api/
 // The server still uses spendable for entitlement checks.
 const credits = computed(() => headerUsage.value?.credits?.remaining)
 const spendableCredits = computed(() => headerUsage.value?.credits?.spendable)
+// `basis` rather than `flex-1` on the description: the row has to decide to
+// wrap before it decides to squeeze. With flex-1 the editor's three actions
+// left the description about sixty pixels wide, one word per line and
+// overlapping the save status. A wide set of actions now drops to its own line
+// and the description keeps the row, while a single button still shares it.
+const toolbarUi = {
+  root: 'min-h-9 px-3 py-1 gap-2 flex-wrap',
+  left: 'min-w-0 grow basis-40',
+  right: 'shrink-0',
+}
 let creditTimer: ReturnType<typeof setInterval>
 onMounted(() => {
   creditTimer = setInterval(() => refreshHeaderUsage(), 30_000)
@@ -97,21 +107,23 @@ onBeforeUnmount(() => clearInterval(creditTimer))
           />
         </template>
       </UDashboardNavbar>
-      <div
-        v-if="$slots.actions"
-        class="xl:hidden flex flex-wrap items-center gap-1.5 px-3 sm:px-4 pb-2 border-b border-default"
-      >
-        <slot name="actions" />
-      </div>
+      <!-- Below xl the navbar has no room for the page actions. They share the
+           description's row rather than taking a band of their own, which on a
+           phone cost a third of the height above the content. -->
       <UDashboardToolbar
-        v-if="$slots.toolbar || description"
-        :ui="{ root: 'min-h-9 px-3 py-1 gap-2 flex-wrap', left: 'min-w-0 flex-1' }"
+        v-if="$slots.toolbar || description || $slots.actions"
+        :ui="toolbarUi"
       >
         <template #left
           ><slot name="toolbar"
             ><p class="text-xs text-muted leading-relaxed">{{ description }}</p></slot
           ></template
         >
+        <template v-if="$slots.actions" #right>
+          <div class="flex flex-wrap items-center justify-end gap-1.5 xl:hidden">
+            <slot name="actions" />
+          </div>
+        </template>
       </UDashboardToolbar>
     </template>
     <template #body>

@@ -163,7 +163,12 @@ const tableUi = {
   separator: 'h-0',
 }
 const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-0 sm:p-0' }
-const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate', description: 'text-xs' }
+const tileUi = {
+  root: 'gap-2.5',
+  wrapper: 'min-w-0',
+  name: 'text-base sm:text-lg xl:text-xl font-semibold tabular-nums leading-tight break-words',
+  description: 'text-xs',
+}
 </script>
 
 <template>
@@ -172,13 +177,15 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
     <!-- Kapaciteti i platformës + buton "Shto kredi" -->
     <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5 space-y-3' }">
       <template #header>
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
           <UUser
             :name="t('admin.ai.providerTitle')"
             :description="t('admin.ai.providerDescription')"
             :avatar="{ icon: 'i-lucide-server', size: 'sm' }"
+            :ui="{ root: 'min-w-0 flex-1', wrapper: 'min-w-0' }"
           />
           <UButton
+            class="shrink-0"
             icon="i-lucide-plus"
             color="primary"
             variant="solid"
@@ -198,7 +205,7 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
           icon="i-lucide-info"
           :title="t('admin.ai.providerCacheNote')"
         />
-        <UPageGrid class="grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <UPageGrid class="grid-cols-1 gap-3 min-[26rem]:grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
           <UCard v-for="tile in capacityTiles" :key="tile.label" variant="subtle" :ui="{ body: 'p-3 sm:p-4' }">
             <UUser
               :name="tile.value"
@@ -221,14 +228,14 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
         />
       </template>
       <UForm :state="range" class="flex flex-wrap items-end gap-3">
-        <UFormField name="from" :label="t('admin.ai.from')">
+        <UFormField name="from" :label="t('admin.ai.from')" class="min-w-36 flex-1">
           <UInput v-model="range.from" type="date" :max="range.to" class="w-full" />
         </UFormField>
-        <UFormField name="to" :label="t('admin.ai.to')">
+        <UFormField name="to" :label="t('admin.ai.to')" class="min-w-36 flex-1">
           <UInput v-model="range.to" type="date" :min="range.from" :max="today" class="w-full" />
         </UFormField>
       </UForm>
-      <UPageGrid v-if="data" class="grid-cols-2 gap-3">
+      <UPageGrid v-if="data" class="grid-cols-1 gap-3 min-[26rem]:grid-cols-2 sm:grid-cols-3">
         <UCard v-for="tile in usageTiles" :key="tile.label" variant="subtle" :ui="{ body: 'p-3 sm:p-4' }">
           <UUser
             :name="tile.value"
@@ -252,7 +259,15 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
         </template>
         <!-- Plain bars sized by height, with no tooltip wrapper: on touch screens the
              wrapper collapsed the bars to zero height after hydration. Hovering or
-             tapping a bar shows that day below the chart. -->
+             tapping a bar shows that day below the chart.
+
+             The button theme gives every button a 44px touch target
+             (`pointer-coarse:min-w-11`), which on a phone made a month of bars far
+             wider than the card and pushed nearly all of them out of view. A bar is
+             not a tap target that needs its own width, so the minimum is dropped
+             here; each bar stays the full height of the chart to tap. A plain
+             `min-w-0` cannot do this, because the theme's rule lives in a media
+             query and wins over an unprefixed utility. -->
         <UFieldGroup :aria-label="t('admin.ai.dailyTitle')" class="flex h-44 w-full items-end gap-1 sm:gap-1.5">
           <UButton
             v-for="day in daily"
@@ -261,7 +276,7 @@ const tileUi = { name: 'text-lg sm:text-xl font-semibold tabular-nums truncate',
             variant="ghost"
             :aria-label="dayTooltip(day)"
             :aria-pressed="activeDay?.date === day.date"
-            class="flex h-44 min-w-0 flex-1 items-end rounded-none p-0 hover:bg-elevated/60 focus-visible:ring-2"
+            class="flex h-44 min-w-0 flex-1 items-end rounded-none p-0 pointer-coarse:min-h-0 pointer-coarse:min-w-0 hover:bg-elevated/60 focus-visible:ring-2"
             @mouseenter="activeDate = day.date"
             @focus="activeDate = day.date"
             @click="activeDate = day.date"
