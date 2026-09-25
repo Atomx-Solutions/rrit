@@ -153,7 +153,7 @@ async function sync(more = false) {
       icon="i-lucide-images"
       :title="t('social.emptyTitle')"
       :description="t('social.emptyDescription')"
-      :actions="[{ label: t('content.createPost'), to: base + '/content/new' }]"
+      :actions="[{ label: t('content.createPost'), to: base + '/monthly-planner' }]"
     />
     <USlideover
       :open="!!selected"
