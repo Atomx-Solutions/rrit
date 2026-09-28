@@ -192,6 +192,23 @@ export function retryableProviderFailureCode(code: string | null | undefined) {
     'PROVIDER_RATE_LIMITED',
     'PROVIDER_TEMPORARY',
     'CONFIGURATION_REQUIRED',
+    // Retryable, but deliberately absent from the automatic list below: a
+    // truncated answer only becomes useful by paying for another call, so the
+    // customer decides when that happens.
+    'PROVIDER_INCOMPLETE',
+  ].includes(code || '')
+}
+
+// A provider response may be syntactically valid yet fail the application's
+// evidence/editorial checks. These failures can only be retried after an
+// explicit user resume; the worker never retries a blocked plan by itself.
+export function retryableMonthlyGenerationFailureCode(code: string | null | undefined) {
+  return [
+    'UNGROUNDED_PLAN',
+    'INVALID_SLOT_COUNT',
+    'INVALID_SLOT_DATE',
+    'REPETITIVE_PLAN',
+    'PHOTO_SELECTION_MISSING',
   ].includes(code || '')
 }
 
@@ -254,7 +271,8 @@ async function recoverPriorRun(priorRun: Record<string, unknown> | undefined) {
   if (priorRun.status === 'completed') return priorRun
   if (
     priorRun.status === 'failed' &&
-    retryableProviderFailureCode(String(priorRun.error_code || ''))
+    (retryableProviderFailureCode(String(priorRun.error_code || '')) ||
+      retryableMonthlyGenerationFailureCode(String(priorRun.error_code || '')))
   ) {
     const automaticFailure = ['PROVIDER_RATE_LIMITED', 'PROVIDER_TEMPORARY'].includes(
       String(priorRun.error_code || ''),
@@ -269,6 +287,48 @@ async function recoverPriorRun(priorRun: Record<string, unknown> | undefined) {
   // An ambiguous dispatch may already have been billed. Never create another
   // provider request for it automatically or by reusing a different stage key.
   throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
+}
+
+// A completed provider payload can still fail the evidence checks performed
+// immediately after it is read. Mark it unusable so an explicit resume does
+// not replay the same invalid strategy forever. Its provider cost is retained.
+export async function invalidateMonthlyGenerationRun(
+  db: Pool,
+  args: {
+    planId: string
+    businessId: string
+    stageKey: string
+    code: string
+    tenant?: TenantContext
+  },
+) {
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+    if (args.tenant) await setTenantContext(client, args.tenant)
+    await client.query(
+      `UPDATE monthly_ai_runs
+          SET status='failed',error_code=$1,completed_at=COALESCE(completed_at,now())
+        WHERE plan_id=$2 AND business_id=$3 AND stage_key=$4 AND status='completed'`,
+      [args.code, args.planId, args.businessId, args.stageKey],
+    )
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+// Older deployments could persist an OpenRouter response with a top-level
+// `incomplete` status as a completed ledger row. Never reuse that payload: it
+// has no safe result, and returning it would block every later resume on the
+// same idempotent stage key.
+function completedRunHasUsableProviderResult(run: Record<string, unknown>) {
+  if (run.status !== 'completed') return true
+  const parsed = responseSchema.safeParse(run.result)
+  return parsed.success && parsed.data.status === 'completed'
 }
 export function researchFromResponse(response: ProviderResponse, now = new Date()): Research {
   const text = responseText(response)
@@ -370,6 +430,21 @@ const monthlyInstructionAddenda: Partial<Record<keyof typeof monthlyInstructions
     'The original photograph was deliberately uploaded to this business gallery by its owner and its usage rights were explicitly confirmed. Treat it as authorized first-party business media: missing visible signage is not a factuality failure and is never, by itself, a reason to BLOCK. Do still BLOCK material invention or replacement of products, people, furniture, architecture, signage or venue geometry. When the design remains faithful but needs subjective refinement, use WARN so it can reach human review. When previous-page style references are supplied, set styleConsistency=false and add concise styleReasons when the finished photo materially leaves the page scope in palette, contrast, typography, density, spacing, crop, lighting, photographic treatment or recurring brand elements. Set visualDistinctness=false and add concise distinctnessReasons if the first glance or fine details materially repeat an earlier post. Style mismatch and repetition are WARN findings, not factuality BLOCKs.',
 }
 
+// Business Brain is the business's own declaration of who it serves, how it
+// speaks, what it is promoting and what it forbids. Every value inside it is
+// customer-authored text: it is data to obey, never instructions to follow, and
+// the application attaches no category or template of its own to it.
+const businessBrainInstruction: Partial<Record<keyof typeof monthlyInstructions, string>> = {
+  research:
+    'businessBrain carries this business\'s declared audiences, active offers, brand voice and guardrails. Use the audiences to aim the market research at the segments this business actually serves, and the offers to judge which local market context is relevant. It describes the business itself, so it is never evidence about the market: never cite it as a source, and never treat an offer as proof of demand or of a competitor practice.',
+  planning:
+    'businessBrain carries this business\'s declared audiences, active offers, brand voice and guardrails. Assign every slot the audienceId of the declared audience it speaks to. Assign an offerId only to a slot whose publication day falls inside that offer\'s own validFrom/validUntil window and whose topic genuinely presents that offer; leave offerId null for every other slot, and never spread one offer across the whole month. An active offer is something the business is promoting right now, not merely a reference value: when businessBrain supplies one, give each active offer a single slot dated inside its own window and build that slot\'s topic around the offer itself. Offers must not take more than a quarter of the month\'s slots. Write in the supplied brand voice. Guardrails are prohibitions that override topic, hook and art direction: never plan a slot that requires breaking one.',
+  content:
+    'businessBrain carries the brand voice, the guardrails and, for this slot only, the audience and offer that the monthly plan assigned. Write in that voice and for that audience. If an offer is supplied, you may state its exact name, amount and currency as given and nothing more: never restate a price, discount, duration or condition that businessBrain does not contain, never imply an offer when none is supplied, and never present an expired or upcoming offer as available now. Guardrails are absolute prohibitions that override the slot brief, the research and the page style; if following the brief would break one, follow the guardrail and adjust the copy.',
+  quality:
+    'businessBrain carries the brand voice, the guardrails and this slot\'s assigned audience and offer. Check the post against them: BLOCK when the copy or the image states a price, discount or condition that no supplied offer contains, when it presents an offer outside its declared window, or when it breaks any guardrail. Report each breach with the guardrail or offer it violates. A post that merely fits the audience or voice poorly is a WARN, not a BLOCK.',
+}
+
 const evidenceFirstInstruction = {
   research:
     'Evidence-first rule: every market, audience, platform or seasonal statement must be supported by a source returned by live search. For timing, use only the supplied timingEvidence timestamps. If timingEvidence is empty, state that there is no observed timing data and do not recommend or imply an optimal hour. Never write a timing hypothesis or present a generic best-practice time as evidence.',
@@ -431,6 +506,7 @@ export async function monthlyProviderCall(
     typographyAndDesignInstruction,
     monthlyInstructions[args.capability],
     monthlyInstructionAddenda[args.capability],
+    businessBrainInstruction[args.capability],
     evidenceFirstInstruction[args.capability],
   ]
     .filter(Boolean)
@@ -451,7 +527,18 @@ export async function monthlyProviderCall(
     .replace(/Hipotezat e orarit/g, 'Të dhënat e vëzhguara për orarin')
     .replace(/Timing hypotheses/g, 'Observed timing data')
   const serialized = JSON.stringify(args.input)
-  if (Buffer.byteLength(serialized) > 110000) throw new PlannerFailure('EVIDENCE_TOO_LARGE')
+  // Name the payload that overflowed. Without this the failure is identical
+  // for every stage and the only way to find the culprit is to guess.
+  if (Buffer.byteLength(serialized) > 110000)
+    throw new PlannerFailure('EVIDENCE_TOO_LARGE', [
+      `stage=${args.capability}`,
+      `bytes=${Buffer.byteLength(serialized)}`,
+      ...Object.entries(args.input as Record<string, unknown>)
+        .map(([key, value]) => [key, Buffer.byteLength(JSON.stringify(value) ?? '')] as const)
+        .sort((first, second) => second[1] - first[1])
+        .slice(0, 3)
+        .map(([key, bytes]) => `${key}=${bytes}`),
+    ])
   const search = args.capability === 'research'
   const searchUses = search ? 5 : 0
   const inputBound =
@@ -487,7 +574,16 @@ export async function monthlyProviderCall(
       'SELECT * FROM monthly_ai_runs WHERE plan_id=$1 AND stage_key=$2 AND business_id=$3',
       [args.planId, args.stageKey, args.businessId],
     )
-    const priorRun = await recoverPriorRun(prior.rows[0])
+    const storedRun = prior.rows[0]
+    if (storedRun && !completedRunHasUsableProviderResult(storedRun)) {
+      await client.query(
+        "UPDATE monthly_ai_runs SET status='failed',error_code='PROVIDER_INCOMPLETE',completed_at=COALESCE(completed_at,now()) WHERE id=$1 AND status='completed'",
+        [storedRun.id],
+      )
+      storedRun.status = 'failed'
+      storedRun.error_code = 'PROVIDER_INCOMPLETE'
+    }
+    const priorRun = await recoverPriorRun(storedRun)
     if (priorRun?.status === 'completed') {
       await client.query('COMMIT')
       if (
@@ -693,8 +789,15 @@ export async function monthlyProviderCall(
           1000000,
       ) +
         searches * config.searchRate
+    // A truncated answer is not a result. Storing it as completed would make
+    // the stage key return the same unusable text for the life of the plan,
+    // and no amount of resuming could ever get past it. It is recorded as a
+    // failure that keeps its real cost, so an explicit user retry can spend a
+    // new call while nothing retries automatically.
     await persistCompletedRun(
-      "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now(),provider_cost_usd=$5,provider_key_fingerprint=$6,provider_model=$7,provider_input_tokens=$8,provider_output_tokens=$9 WHERE id=$4 AND status='reserved'",
+      raw.status === 'completed'
+        ? "UPDATE monthly_ai_runs SET status='completed',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now(),provider_cost_usd=$5,provider_key_fingerprint=$6,provider_model=$7,provider_input_tokens=$8,provider_output_tokens=$9 WHERE id=$4 AND status='reserved'"
+        : "UPDATE monthly_ai_runs SET status='failed',error_code='PROVIDER_INCOMPLETE',result=$1,provider_response_id=$2,actual_cost_micro_eur=$3,completed_at=now(),provider_cost_usd=$5,provider_key_fingerprint=$6,provider_model=$7,provider_input_tokens=$8,provider_output_tokens=$9 WHERE id=$4 AND status='reserved'",
       [
         JSON.stringify(raw),
         raw.id,
@@ -708,6 +811,7 @@ export async function monthlyProviderCall(
       ],
       cost,
     )
+    if (raw.status !== 'completed') throw new PlannerFailure('PROVIDER_INCOMPLETE')
     if (cost > reserve) throw new PlannerFailure('BUDGET_ESTIMATE_EXCEEDED')
     return raw
   } catch (error) {
@@ -718,6 +822,14 @@ export async function monthlyProviderCall(
         provider: config.provider.name,
         capability: args.capability,
         errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage:
+          error instanceof Error ? error.message.replace(/[\r\n\t]+/g, ' ').slice(0, 500) : undefined,
+        causeName:
+          error instanceof Error && error.cause instanceof Error ? error.cause.name : undefined,
+        causeMessage:
+          error instanceof Error && error.cause instanceof Error
+            ? error.cause.message.replace(/[\r\n\t]+/g, ' ').slice(0, 500)
+            : undefined,
         causeCode:
           error instanceof Error &&
           error.cause &&
@@ -785,8 +897,19 @@ export async function monthlyImageCall(
     args.reference.length +
     (args.brandLogo?.bytes.length || 0) +
     styleReferences.reduce((total, item) => total + item.bytes.length, 0)
-  if (Buffer.byteLength(args.prompt) > 12000 || referenceBytes > 6291456)
-    throw new PlannerFailure('EVIDENCE_TOO_LARGE')
+  // The base art direction alone is already around 11.5 KB once a page style
+  // profile is attached, so the old 12 KB ceiling left no room for the
+  // business's own guardrails. Those are prohibitions and must never be
+  // trimmed to fit, so the ceiling moves to the image model's own prompt limit
+  // instead. An overflow past that still fails loudly, naming the prompt size.
+  if (Buffer.byteLength(args.prompt) > 32000 || referenceBytes > 6291456)
+    throw new PlannerFailure('EVIDENCE_TOO_LARGE', [
+      'stage=image',
+      `prompt=${Buffer.byteLength(args.prompt)}`,
+      `reference=${args.reference.length}`,
+      `logo=${args.brandLogo?.bytes.length || 0}`,
+      `styleReferences=${styleReferences.reduce((total, item) => total + item.bytes.length, 0)}`,
+    ])
   const reserve = config.imageReserve
   const client = await db.connect()
   let runId: string
@@ -1140,8 +1263,13 @@ export function monthlyImagePrompt(input: {
   logoAvailable?: boolean
   styleProfile?: StyleProfile
   revisionFeedback?: string[]
+  // The business's own guardrail sentences, verbatim. They are not split into
+  // visual and textual rules: any such split would be an application-side
+  // classification, and the model is better placed to judge which of its own
+  // choices a rule constrains.
+  guardrails?: string[]
 }) {
-  const { brand, slot, previousPageStyle, revisionFeedback = [] } = input
+  const { brand, slot, previousPageStyle, revisionFeedback = [], guardrails = [] } = input
   const platformDirection =
     slot.channel === 'Instagram'
       ? 'For Instagram, make the focal idea readable in the first glance: use a strong subject, mobile-first hierarchy, controlled depth and an editorial 4:5 feed composition worth saving. The result must still feel like authentic premium photography, not an ad-template collage.'
@@ -1179,6 +1307,11 @@ export function monthlyImagePrompt(input: {
     input.logoAvailable
       ? `Render only this approved copy, spelled exactly as supplied: eyebrow "${input.creative.eyebrow}"; headline "${input.creative.headline}"; call to action "${input.creative.cta}". Do not abbreviate, translate, replace or invent words. Do not render the business name separately; the approved logo is the only business identity mark and will be added by the application.`
       : `Render only this approved copy, spelled exactly as supplied: eyebrow "${input.creative.eyebrow}"; headline "${input.creative.headline}"; call to action "${input.creative.cta}"; business name "${brand.name}". Do not abbreviate, translate, replace or invent words.`,
+    ...(guardrails.length
+      ? [
+          `Absolute restrictions set by this business. They are prohibitions, not preferences, and they override every other instruction here including the art direction and the page style. Apply each one to whatever it constrains in this image, and if one cannot be satisfied, leave the affected element out rather than working around it: ${guardrails.map((rule, index) => `(${index + 1}) ${rule}`).join(' ')}`,
+        ]
+      : []),
     ...(revisionFeedback.length
       ? [`Mandatory corrections from the independent quality review: ${revisionFeedback.join(' ')}`]
       : []),

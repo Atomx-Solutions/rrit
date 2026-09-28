@@ -9,6 +9,8 @@ import {
   plannerMessages,
   resumableContentFailureCode,
 } from '../../utils/monthly-planner-domain'
+import { getBrandForBusiness } from '../../utils/brands'
+import { loadPlannerBrain } from '../../utils/business-brain'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
@@ -30,9 +32,21 @@ export default defineEventHandler(async (event) => {
       [business.id],
     )
     let prerequisite: string | null = null
-    const prerequisites = plannerPrerequisites(workspace, new Date(), month.data)
+    // Readiness must judge the same inputs generation will use, or a business
+    // whose facts live only in Business Brain is told it is not ready while
+    // the planner would happily run.
+    const brand = await getBrandForBusiness(client, business.id, business.slug)
+    const businessBrain = brand
+      ? await loadPlannerBrain(client, business.id, brand.id)
+      : { brain: undefined, facts: [] }
+    const prerequisites = plannerPrerequisites(
+      workspace,
+      new Date(),
+      month.data,
+      businessBrain.facts,
+    )
     try {
-      plannerEvidence(workspace, new Date(), month.data)
+      plannerEvidence(workspace, new Date(), month.data, undefined, [], businessBrain)
     } catch (error) {
       prerequisite = error instanceof PlannerFailure ? error.code : 'BUSINESS_CONTEXT_REQUIRED'
     }

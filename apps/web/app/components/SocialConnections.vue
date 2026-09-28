@@ -58,7 +58,7 @@ async function connect() {
       retry: 0,
     })
     await navigateTo(result.url, { external: true })
-  } catch (problem) {
+  } catch {
     error.value = t('social.connectError')
   } finally {
     busy.value = false
@@ -91,7 +91,7 @@ async function disconnect() {
     await refresh()
     await initLive()
     await refreshNuxtData('social-posts')
-  } catch (problem) {
+  } catch {
     error.value = t('social.disconnectError')
   } finally {
     busy.value = false

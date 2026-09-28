@@ -2170,10 +2170,10 @@ describe('monthly planning persistence and cost boundaries', () => {
       vi.useRealTimers()
     }
     await pool.query('UPDATE assets SET rights=false WHERE id=$1', [item.assetId])
-    expect(
-      (await localPostChecks(posts.rows[0].payload, item.id, pool)).find(
-        (check) => check.key === 'ai_evidence',
-      )?.passed,
-    ).toBe(false)
+    const provenanceWarning = (await localPostChecks(posts.rows[0].payload, item.id, pool)).find(
+      (check) => check.key === 'ai_evidence',
+    )
+    expect(provenanceWarning?.passed).toBe(false)
+    expect(provenanceWarning?.advisory).toBe(true)
   }, 30000)
 })

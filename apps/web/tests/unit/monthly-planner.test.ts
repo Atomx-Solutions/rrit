@@ -14,6 +14,7 @@ import {
   monthlyAiConfigured,
   monthlyPlannerReadiness,
   researchFromResponse,
+  retryableMonthlyGenerationFailureCode,
   retryableProviderFailureCode,
   providerHttpFailure,
   monthlyImagePrompt,
@@ -110,10 +111,16 @@ describe('monthly evidence and provider boundaries', () => {
   })
   it('classifies explicit temporary provider failures for bounded retries', () => {
     expect(retryableProviderFailureCode('PROVIDER_CREDIT_REQUIRED')).toBe(true)
+    // A truncated answer may be retried, but only when the customer asks: a
+    // completed-looking row would otherwise serve the same unusable text for
+    // the life of the plan.
+    expect(retryableProviderFailureCode('PROVIDER_INCOMPLETE')).toBe(true)
     expect(retryableProviderFailureCode('PROVIDER_RATE_LIMITED')).toBe(true)
     expect(retryableProviderFailureCode('CONFIGURATION_REQUIRED')).toBe(true)
     expect(retryableProviderFailureCode('PROVIDER_TEMPORARY')).toBe(true)
     expect(retryableProviderFailureCode('PROVIDER_UNCERTAIN')).toBe(false)
+    expect(retryableMonthlyGenerationFailureCode('UNGROUNDED_PLAN')).toBe(true)
+    expect(retryableMonthlyGenerationFailureCode('PROVIDER_INCOMPLETE')).toBe(false)
     expect(retryableProviderFailureCode(null)).toBe(false)
     expect(providerHttpFailure(503).code).toBe('PROVIDER_TEMPORARY')
     expect(providerHttpFailure(429).code).toBe('PROVIDER_RATE_LIMITED')
@@ -180,6 +187,24 @@ describe('monthly evidence and provider boundaries', () => {
     expect(() => validateEditorialPlan(plan, evidence, research, '2026-09', 1)).toThrow(
       'PHOTO_SELECTION_MISSING',
     )
+  })
+  it('downgrades an unsupported claimed timing hour to truthful no_data', () => {
+    const workspace = createDemo()
+    const evidence = plannerEvidence(workspace, now, '2026-09', undefined, [
+      {
+        publishedAt: '2026-09-01T08:00:00.000Z',
+        channel: 'Instagram',
+        source: 'social',
+      },
+    ])
+    const research = researchFromResponse(researchFixture(), now)
+    const plan = editorialFixture()
+    plan.slots[0]!.time = '17:00'
+    plan.slots[0]!.timingBasis = 'social_history'
+    const normalized = normalizeEditorialPlanResponse(plan, evidence, research, 1, '2026-09')
+    expect(normalized.slots[0]!.timingBasis).toBe('no_data')
+    expect(normalized.slots[0]!.timingRationale).toContain('Nuk ka të dhëna')
+    expect(() => validateEditorialPlan(normalized, evidence, research, '2026-09', 1)).not.toThrow()
   })
   it('fails closed when provider configuration is incomplete', () => {
     vi.stubEnv('AI_MONTHLY_PLANNER_ENABLED', 'true')

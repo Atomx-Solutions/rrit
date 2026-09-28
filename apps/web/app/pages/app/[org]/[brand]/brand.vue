@@ -186,13 +186,6 @@ function setPrice(fact: BrandFact, value: string | number) {
               :rows="4"
               maxlength="2000"
               class="w-full" /></UFormField
-          ><UFormField :label="t('brand.voice')" name="voice"
-            ><UTextarea
-              v-model="form.voice"
-              :rows="2"
-              maxlength="1000"
-              class="w-full"
-              :placeholder="t('brand.voicePlaceholder')" /></UFormField
           ><UFormField :label="t('brand.audience')" name="audience"
             ><UTextarea
               v-model="form.audience"

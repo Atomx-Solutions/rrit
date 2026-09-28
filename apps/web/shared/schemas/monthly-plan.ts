@@ -60,6 +60,11 @@ export const slotBriefSchema = z.object({
   factIds: z.array(z.string()).min(1).max(12),
   sourceUrls: z.array(researchSourceSchema.shape.url).min(1).max(5),
   requiredAssetId: z.uuid().nullable(),
+  // References into the business's own Business Brain rows, not application
+  // categories. Optional here so plans snapshotted before Business Brain
+  // reached generation still parse and finish.
+  audienceId: z.uuid().nullable().default(null),
+  offerId: z.uuid().nullable().default(null),
 })
 export const styleProfileSchema = z.object({
   palette: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
@@ -87,8 +92,15 @@ export const editorialPlanSchema = z.object({
   // controls; this is a dynamic style contract, not a hard-coded template.
   styleProfile: styleProfileSchema.optional(),
 })
+// Structured outputs require every property to be present, so the requested
+// slot repeats the Business Brain references as required-but-nullable.
+export const slotBriefGenerationSchema = slotBriefSchema.extend({
+  audienceId: z.uuid().nullable(),
+  offerId: z.uuid().nullable(),
+})
 export const editorialPlanGenerationSchema = editorialPlanSchema.extend({
   styleProfile: styleProfileGenerationSchema,
+  slots: z.array(slotBriefGenerationSchema).min(1).max(100),
 })
 // Monthly AI analysis of the connected page (PRC-04): the visual profile plus
 // the caption text, post formats and hashtag habits of the fetched posts.

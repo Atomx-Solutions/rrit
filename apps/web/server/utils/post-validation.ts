@@ -141,6 +141,10 @@ export async function localPostChecks(
     const useDay = intendedDay > today ? intendedDay : today
     aiChecks.push({
       key: 'ai_evidence',
+      // Provenance drift is a warning for the human approver, not a veto over
+      // their explicit confirmation. Technical media and format checks below
+      // remain blocking.
+      advisory: true,
       passed:
         !!row?.original_rights &&
         provenance.factIds.every((id) => {
