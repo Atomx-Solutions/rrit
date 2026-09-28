@@ -13,6 +13,7 @@ import {
   type BrandFact,
   type CreateFact,
   type CreateOffer,
+  type UpdateOffer,
   type UpdateFact,
 } from '../../shared/schemas/business-brain'
 import { evidenceHash } from './monthly-planner-domain'
@@ -220,12 +221,31 @@ export async function updateExplicitFact(
   await lockBrand(client, organizationId, brandId)
   const result = await client.query<FactRow>(
     `UPDATE brand_facts SET text=$1, source=$2, source_url=$3, confidence=$4, version=version+1, updated_at=now()
-     WHERE id=$5 AND brand_id=$6 AND organization_id=$7 AND kind='explicit' AND status <> 'archived'
+     WHERE id=$5 AND brand_id=$6 AND organization_id=$7 AND status <> 'archived'
      RETURNING ${factColumns}`,
     [input.text, input.source, input.sourceUrl, input.confidence, factId, brandId, organizationId],
   )
   if (!result.rows[0])
     throw createError({ statusCode: 404, message: 'Fakti eksplicit nuk u gjet.' })
+  await syncLegacyFacts(client, organizationId, brandId)
+  await bumpBrand(client, organizationId, brandId)
+  return toFact(result.rows[0])
+}
+
+export async function archiveBusinessBrainFact(
+  client: PoolClient,
+  organizationId: string,
+  brandId: string,
+  factId: string,
+) {
+  await lockBrand(client, organizationId, brandId)
+  const result = await client.query<FactRow>(
+    `UPDATE brand_facts SET status='archived', updated_at=now()
+     WHERE id=$1 AND brand_id=$2 AND organization_id=$3 AND status <> 'archived'
+     RETURNING ${factColumns}`,
+    [factId, brandId, organizationId],
+  )
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Fakti nuk u gjet.' })
   await syncLegacyFacts(client, organizationId, brandId)
   await bumpBrand(client, organizationId, brandId)
   return toFact(result.rows[0])
@@ -301,6 +321,76 @@ export async function activateBusinessBrainOffer(
   )
   if (!result.rows[0])
     throw createError({ statusCode: 422, message: 'Oferta nuk eshte valide per aktivizim.' })
+  await bumpBrand(client, organizationId, brandId)
+  return toOffer(result.rows[0])
+}
+
+export async function deactivateBusinessBrainOffer(
+  client: PoolClient,
+  organizationId: string,
+  brandId: string,
+  offerId: string,
+) {
+  await lockBrand(client, organizationId, brandId)
+  const result = await client.query<OfferRow>(
+    `UPDATE brand_offers SET status='draft', updated_at=now()
+     WHERE id=$1 AND brand_id=$2 AND organization_id=$3 AND status='active'
+     RETURNING ${offerColumns}`,
+    [offerId, brandId, organizationId],
+  )
+  if (!result.rows[0])
+    throw createError({ statusCode: 422, message: 'Oferta nuk mund te Ã§aktivizohet.' })
+  await bumpBrand(client, organizationId, brandId)
+  return toOffer(result.rows[0])
+}
+
+export async function updateBusinessBrainOffer(
+  client: PoolClient,
+  organizationId: string,
+  brandId: string,
+  offerId: string,
+  input: UpdateOffer,
+) {
+  await lockBrand(client, organizationId, brandId)
+  const result = await client.query<OfferRow>(
+    `UPDATE brand_offers
+     SET name=$1, description=$2, currency=$3, amount=$4, valid_from=$5, valid_until=$6,
+         source=$7, confidence=$8, updated_at=now()
+     WHERE id=$9 AND brand_id=$10 AND organization_id=$11 AND status <> 'archived'
+     RETURNING ${offerColumns}`,
+    [
+      input.name,
+      input.description,
+      input.currency,
+      input.amount,
+      input.validFrom,
+      input.validUntil,
+      input.source,
+      input.confidence,
+      offerId,
+      brandId,
+      organizationId,
+    ],
+  )
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Oferta nuk u gjet.' })
+  await bumpBrand(client, organizationId, brandId)
+  return toOffer(result.rows[0])
+}
+
+export async function archiveBusinessBrainOffer(
+  client: PoolClient,
+  organizationId: string,
+  brandId: string,
+  offerId: string,
+) {
+  await lockBrand(client, organizationId, brandId)
+  const result = await client.query<OfferRow>(
+    `UPDATE brand_offers SET status='archived', updated_at=now()
+     WHERE id=$1 AND brand_id=$2 AND organization_id=$3 AND status <> 'archived'
+     RETURNING ${offerColumns}`,
+    [offerId, brandId, organizationId],
+  )
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Oferta nuk u gjet.' })
   await bumpBrand(client, organizationId, brandId)
   return toOffer(result.rows[0])
 }

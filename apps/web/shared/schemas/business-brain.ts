@@ -132,11 +132,14 @@ export const createOfferSchema = z.object({
   confidence: z.number().min(0).max(1).default(1),
 })
 
+export const updateOfferSchema = createOfferSchema
+
 export type BusinessBrain = z.infer<typeof businessBrainSchema>
 export type BusinessBrainFact = z.infer<typeof businessBrainFactSchema>
 export type CreateFact = z.infer<typeof createFactSchema>
 export type UpdateFact = z.infer<typeof updateFactSchema>
 export type CreateOffer = z.infer<typeof createOfferSchema>
+export type UpdateOffer = z.infer<typeof updateOfferSchema>
 
 // Backward-compatible input shape; server synchronization owns provenance and
 // verification metadata. A legacy checkbox does not imply independent verification.

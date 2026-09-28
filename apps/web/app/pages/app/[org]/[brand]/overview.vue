@@ -31,11 +31,20 @@ function dateKey(value: Date | string, timezone: string) {
 }
 
 function activityDateLabel(key: string, timezone: string) {
-  return new Intl.DateTimeFormat(locale.value === 'en-US' ? 'en-GB' : 'sq-AL', {
+  const isEnglish = locale.value === 'en-US'
+  const formatter = new Intl.DateTimeFormat(isEnglish ? 'en-GB' : 'sq-AL', {
     day: 'numeric',
     month: 'short',
     timeZone: timezone,
-  }).format(new Date(`${key}T12:00:00.000Z`))
+  })
+  return formatter
+    .formatToParts(new Date(`${key}T12:00:00.000Z`))
+    .map((part) => {
+      if (isEnglish || part.type !== 'month') return part.value
+      const firstLetter = part.value.charAt(0)
+      return `${firstLetter.toLocaleUpperCase('sq-AL')}${part.value.slice(1)}`
+    })
+    .join('')
 }
 
 const activity = computed(() => {
@@ -247,17 +256,15 @@ const summaries = computed(() => [
             :style="hoveredStyle"
             :label="t('overview.activityDay', { date: hoveredDay.label, count: hoveredDay.value })"
           />
-          <div
-            class="pointer-events-none absolute inset-x-3 bottom-3 flex justify-between text-[11px] text-muted"
-          >
-            <span>{{ activity[0]?.label }}</span>
-            <span>{{ activity[Math.floor(chartDays / 2)]?.label }}</span>
-            <span>{{ activity[chartDays - 1]?.label }}</span>
-          </div>
+        </div>
+        <div class="mt-2 flex justify-between px-1 text-[11px] text-muted">
+          <span>{{ activity[0]?.label }}</span>
+          <span>{{ activity[Math.floor(chartDays / 2)]?.label }}</span>
+          <span>{{ activity[chartDays - 1]?.label }}</span>
         </div>
 
         <div
-          class="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted"
+          class="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted"
         >
           <span>{{
             t('overview.activityPeak', { date: activityPeak.label, count: activityPeak.value })
