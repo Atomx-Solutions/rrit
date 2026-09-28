@@ -40,6 +40,20 @@ const requiredPolicies = [
   'rrit_worker_outbox_messages_update',
   'rrit_worker_outbox_consumptions_read',
   'rrit_worker_outbox_consumptions_insert',
+  'rrit_worker_brand_facts_read',
+  'rrit_worker_brand_voice_versions_read',
+  'rrit_worker_brand_audiences_read',
+  'rrit_worker_brand_offers_read',
+  'rrit_worker_brand_guardrails_read',
+]
+// The planner snapshots Business Brain but must never edit what the business
+// declared about itself, so these stay read-only for the worker login.
+const readOnlyWorkerTables = [
+  'brand_facts',
+  'brand_voice_versions',
+  'brand_audiences',
+  'brand_offers',
+  'brand_guardrails',
 ]
 const operationalTables = [
   'schema_migrations',
@@ -155,6 +169,21 @@ try {
   const inactiveOperationalTables = operationRls.rows
     .filter((table) => !table.rls_active)
     .map((table) => table.table_name)
+  const brainAccess = await client.query(
+    `SELECT table_name,
+       has_table_privilege(current_user, table_name, 'SELECT') AS can_read,
+       has_table_privilege(current_user, table_name, 'INSERT')
+         OR has_table_privilege(current_user, table_name, 'UPDATE')
+         OR has_table_privilege(current_user, table_name, 'DELETE') AS can_write,
+       row_security_active(to_regclass(table_name)) AS rls_active
+     FROM unnest($1::text[]) AS table_name`,
+    [readOnlyWorkerTables],
+  )
+  const unsafeBrainTables = brainAccess.rows.flatMap((table) => [
+    ...(table.can_read ? [] : [`missing_read:${table.table_name}`]),
+    ...(table.can_write ? [`unexpected_write:${table.table_name}`] : []),
+    ...(table.rls_active ? [] : [`rls_inactive:${table.table_name}`]),
+  ])
 
   const failedChecks = [
     role.is_superuser && 'is_superuser',
@@ -176,6 +205,7 @@ try {
     !role.plans_rls_active && 'plans_rls_inactive',
     !role.runs_rls_active && 'runs_rls_inactive',
     ...inactiveOperationalTables.map((table) => `rls_inactive:${table}`),
+    ...unsafeBrainTables,
     ...missingPolicies.map((policy) => `missing_policy:${policy}`),
   ].filter(Boolean)
 

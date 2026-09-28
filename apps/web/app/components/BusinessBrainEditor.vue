@@ -222,6 +222,10 @@ async function createOffer() {
     error.value = t('brain.offerRequired')
     return
   }
+  if (offer.validUntil && offer.validUntil < offer.validFrom) {
+    error.value = t('brain.offerValidUntilInvalid')
+    return
+  }
   const rawAmount = offer.amount as number | string | null
   const body = {
     ...offer,
@@ -238,6 +242,8 @@ async function createOffer() {
   }
   offer.name = ''
   offer.description = ''
+  offer.amount = null
+  offer.validUntil = null
   newOfferOpen.value = false
 }
 
@@ -273,6 +279,10 @@ async function saveOffer(offerId: string) {
     error.value = t('brain.offerRequired')
     return
   }
+  if (editOffer.validUntil && editOffer.validUntil < editOffer.validFrom) {
+    error.value = t('brain.offerValidUntilInvalid')
+    return
+  }
   const rawAmount = editOffer.amount as number | string | null
   offerSaving.value = true
   try {
@@ -298,6 +308,14 @@ async function deleteOffer(offerId: string) {
     () => $fetch(`${brandApiRoot.value}/offers/${offerId}`, { method: 'DELETE', body: {} }),
     t('brain.offerDeleted'),
   )
+}
+
+// An offer keeps its row once its window closes: nothing archives it, and a
+// seasonal offer is worth reopening next year. Generation already refuses an
+// expired offer, so this only stops the list from presenting one as live.
+function offerExpired(item: BusinessBrain['offers'][number]) {
+  if (!item.validUntil) return false
+  return item.validUntil < new Date().toISOString().slice(0, 10)
 }
 
 function offerActions(item: BusinessBrain['offers'][number]) {
@@ -667,7 +685,7 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                     :rows="3"
                     class="w-full"
                 /></UFormField>
-                <div class="grid gap-4 sm:grid-cols-3">
+                <div class="grid gap-4 sm:grid-cols-4">
                   <UFormField :label="t('brain.currency')"
                     ><USelect
                       v-model="offer.currency"
@@ -685,7 +703,17 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                     ><UInput
                       v-model="offer.validFrom"
                       type="date"
-                      :aria-label="t('brain.validFrom')"
+                      class="w-full"
+                      :aria-label="t('brain.validFrom')" /></UFormField
+                  ><UFormField
+                    :label="t('brand.validUntil')"
+                    :hint="t('brain.offerValidUntilHint')"
+                    ><UInput
+                      :model-value="offer.validUntil || ''"
+                      type="date"
+                      class="w-full"
+                      :aria-label="t('brand.validUntil')"
+                      @update:model-value="offer.validUntil = ($event as string) || null"
                   /></UFormField>
                 </div>
                 <div class="flex justify-end">
@@ -765,11 +793,27 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                       {{ item.validFrom }}{{ item.validUntil ? ` – ${item.validUntil}` : '' }} ·
                       {{ displayDefaultSource(item.source) }}
                     </p>
+                    <p v-if="offerExpired(item)" class="text-xs text-warning">
+                      {{ t('brain.offerExpiredHint') }}
+                    </p>
                   </div>
                   <div class="flex items-center gap-2">
-                    <UBadge :color="item.status === 'active' ? 'success' : 'neutral'">{{
-                      item.status === 'active' ? t('brain.active') : t('brain.draft')
-                    }}</UBadge>
+                    <UBadge
+                      :color="
+                        offerExpired(item)
+                          ? 'warning'
+                          : item.status === 'active'
+                            ? 'success'
+                            : 'neutral'
+                      "
+                      >{{
+                        offerExpired(item)
+                          ? t('brain.offerExpired')
+                          : item.status === 'active'
+                            ? t('brain.active')
+                            : t('brain.draft')
+                      }}</UBadge
+                    >
                     <UDropdownMenu :items="offerActions(item)" :content="{ align: 'end' }">
                       <UButton
                         type="button"

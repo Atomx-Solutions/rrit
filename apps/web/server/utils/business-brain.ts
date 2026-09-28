@@ -2,15 +2,18 @@ import type { PoolClient } from 'pg'
 import type { Workspace } from '../../shared/schemas/workspace'
 import {
   audienceSchema,
+  brainFactAsBrandFact,
   brandFactSchema,
   businessBrainFactSchema,
   businessBrainSchema,
   factInputProblem,
   guardrailSchema,
   offerSchema,
+  plannerBrainSchema,
   sameFactContent,
   voiceVersionSchema,
   type BrandFact,
+  type PlannerBrain,
   type CreateFact,
   type CreateOffer,
   type UpdateOffer,
@@ -155,6 +158,80 @@ export async function getBusinessBrain(
     offers: offers.rows.map(toOffer),
     guardrails: guardrails.rows.map(toGuardrail),
   })
+}
+
+/**
+ * Business Brain as the monthly planner consumes it.
+ *
+ * Only what the business has actually committed to reaches generation: the
+ * active voice version, non-archived audiences, `active` offers (a draft offer
+ * is not approved for publication), active guardrails and verified facts.
+ *
+ * Facts come back separately because the planner merges them into the single
+ * fact list its slots already cite by id.
+ *
+ * This is one sequential read per plan, not per post.
+ */
+export async function loadPlannerBrain(
+  client: PoolClient,
+  organizationId: string,
+  brandId: string,
+): Promise<{ brain: PlannerBrain; facts: BrandFact[] }> {
+  // A PoolClient runs one query at a time; keep these sequential.
+  const facts = await client.query<FactRow>(
+    `SELECT ${factColumns} FROM brand_facts
+      WHERE brand_id=$1 AND organization_id=$2 AND status='verified'
+      ORDER BY created_at LIMIT 100`,
+    [brandId, organizationId],
+  )
+  const voice = await client.query<VoiceRow>(
+    `SELECT ${voiceColumns} FROM brand_voice_versions
+      WHERE brand_id=$1 AND organization_id=$2 AND active=true
+      ORDER BY version DESC LIMIT 1`,
+    [brandId, organizationId],
+  )
+  const audiences = await client.query<AudienceRow>(
+    `SELECT ${audienceColumns} FROM brand_audiences
+      WHERE brand_id=$1 AND organization_id=$2 AND status='active'
+      ORDER BY created_at LIMIT 20`,
+    [brandId, organizationId],
+  )
+  const offers = await client.query<OfferRow>(
+    `SELECT ${offerColumns} FROM brand_offers
+      WHERE brand_id=$1 AND organization_id=$2 AND status='active'
+      ORDER BY valid_from DESC, created_at DESC LIMIT 20`,
+    [brandId, organizationId],
+  )
+  const guardrails = await client.query<GuardrailRow>(
+    `SELECT ${guardrailColumns} FROM brand_guardrails
+      WHERE brand_id=$1 AND organization_id=$2 AND status='active'
+      ORDER BY created_at LIMIT 30`,
+    [brandId, organizationId],
+  )
+  const brain = plannerBrainSchema.parse({
+    voice: voice.rows[0] ? toVoice(voice.rows[0]).text : '',
+    audiences: audiences.rows.map(toAudience).map((audience) => ({
+      id: audience.id,
+      name: audience.name,
+      description: audience.description,
+    })),
+    offers: offers.rows.map(toOffer).map((offer) => ({
+      id: offer.id,
+      name: offer.name,
+      description: offer.description,
+      currency: offer.currency,
+      amount: offer.amount,
+      validFrom: offer.validFrom,
+      validUntil: offer.validUntil,
+      source: offer.source,
+    })),
+    guardrails: guardrails.rows.map(toGuardrail).map((guardrail) => ({
+      id: guardrail.id,
+      text: guardrail.text,
+      source: guardrail.source,
+    })),
+  })
+  return { brain, facts: facts.rows.map(toFact).map(brainFactAsBrandFact) }
 }
 
 async function lockBrand(client: PoolClient, organizationId: string, brandId: string) {

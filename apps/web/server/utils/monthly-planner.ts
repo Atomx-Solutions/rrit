@@ -9,7 +9,13 @@ import {
   type PageStyleAnalysis,
 } from '../../shared/schemas/monthly-plan'
 import { postSchema } from '../../shared/schemas/workspace'
-import { factIsUsable, sameFactContent } from '../../shared/schemas/business-brain'
+import {
+  emptyPlannerBrain,
+  factIsUsable,
+  mergeBrandFacts,
+  sameBrainCommitments,
+  sameFactContent,
+} from '../../shared/schemas/business-brain'
 import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
 import { loadBrandLogo, type BrandLogoAsset } from './brand-assets'
@@ -41,6 +47,7 @@ import {
 import {
   monthlyAiConfigured,
   monthlyAutomaticStageKey,
+  invalidateMonthlyGenerationRun,
   monthlyImageCall,
   monthlyImagePrompt,
   monthlyProviderCall,
@@ -50,17 +57,23 @@ import {
 } from './monthly-ai'
 import {
   PlannerFailure,
+  brainForSlot,
   evidenceHash,
   earliestPlanningDate,
   normalizeEditorialPlanResponse,
   parsePersistedEditorialPlan,
+  plannerBrainOf,
   plannerEvidence,
+  plannerVoice,
   planningMonth,
+  promptEvidence,
   remainingMonthlyPosts,
   validateEditorialPlan,
   type PlannerEvidence,
   type PlannerTimingSample,
 } from './monthly-planner-domain'
+import { getBrandForBusiness } from './brands'
+import { loadPlannerBrain } from './business-brain'
 
 let workerPool: Pool | undefined
 function workerStatementTimeout() {
@@ -119,6 +132,19 @@ export async function plannerAccess(
   return paidAccessForPlanningMonth(businessId, month, db)
 }
 
+/**
+ * Business Brain for a plan snapshot.
+ *
+ * A business without a resolvable brand row simply generates without it, the
+ * way it did before Business Brain reached generation; a missing brand must
+ * never block a plan the customer has already paid for.
+ */
+async function plannerBrainFor(client: PoolClient, businessId: string, businessSlug: string) {
+  const brand = await getBrandForBusiness(client, businessId, businessSlug)
+  if (!brand) return { brain: emptyPlannerBrain, facts: [] }
+  return loadPlannerBrain(client, businessId, brand.id)
+}
+
 export async function ensureMonthlyPlan(
   client: PoolClient,
   businessId: string,
@@ -130,7 +156,7 @@ export async function ensureMonthlyPlan(
   await plannerStep('ensure.business_lock', () =>
     client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [businessId]),
   )
-  const { workspace } = await plannerStep('ensure.workspace', () =>
+  const { workspace, slug } = await plannerStep('ensure.workspace', () =>
     loadWorkspace(client, businessId, ownerId),
   )
   const currentMonth = planningMonth(workspace.preferences.timezone)
@@ -172,7 +198,17 @@ export async function ensureMonthlyPlan(
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
-  const evidence = plannerEvidence(workspace, new Date(), month, photoSelection, timingSamples)
+  const businessBrain = await plannerStep('ensure.business_brain', () =>
+    plannerBrainFor(client, businessId, slug),
+  )
+  const evidence = plannerEvidence(
+    workspace,
+    new Date(),
+    month,
+    photoSelection,
+    timingSamples,
+    businessBrain,
+  )
   const values = [
     businessId,
     `${month}-01`,
@@ -218,7 +254,7 @@ export async function restartMonthlyPlan(
 ) {
   if (!monthlyAiConfigured()) throw new PlannerFailure('CONFIGURATION_REQUIRED')
   await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [businessId])
-  const { workspace } = await loadWorkspace(client, businessId, ownerId)
+  const { workspace, slug } = await loadWorkspace(client, businessId, ownerId)
   const currentMonth = planningMonth(workspace.preferences.timezone)
   const nextMonth = new Date(`${currentMonth}-01T12:00:00Z`)
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1)
@@ -292,7 +328,15 @@ export async function restartMonthlyPlan(
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
-  const evidence = plannerEvidence(workspace, new Date(), month, photoSelection, timingSamples)
+  const businessBrain = await plannerBrainFor(client, businessId, slug)
+  const evidence = plannerEvidence(
+    workspace,
+    new Date(),
+    month,
+    photoSelection,
+    timingSamples,
+    businessBrain,
+  )
   await client.query(
     `UPDATE monthly_plans
       SET status='queued',stage='research',target_count=$1,completed_count=0,evidence=$2,evidence_hash=$3,
@@ -972,7 +1016,7 @@ async function plannerStep<T>(stage: string, work: () => Promise<T>) {
   }
 }
 async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
-  const { workspace } = await loadWorkspace(db, plan.business_id, plan.owner_id)
+  const { workspace, slug } = await loadWorkspace(db, plan.business_id, plan.owner_id)
   const selectedAssetIds = plan.evidence.photoSelection?.selectedAssetIds || []
   if (
     selectedAssetIds.some(
@@ -983,7 +1027,12 @@ async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
     )
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
-  const current = workspace.brand.facts.filter((fact) => fact.verified)
+  // The snapshot's facts may come from either editor, so the comparison is
+  // against the same merged list the snapshot was built from.
+  const live = await plannerBrainFor(db as PoolClient, plan.business_id, slug)
+  const current = mergeBrandFacts(workspace.brand.facts, live.facts).filter(
+    (fact) => fact.verified,
+  )
   if (
     plan.evidence.brand.facts.some(
       (fact) => !current.some((item) => item.id === fact.id && sameFactContent(item, fact)),
@@ -1001,14 +1050,28 @@ async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
   )
     throw new PlannerFailure('EVIDENCE_CHANGED')
   if (
-    ['name', 'voice', 'audience', 'industry', 'description', 'city', 'color'].some(
+    // `voice` is excluded here: the snapshot stores the reconciled voice, which
+    // is the Business Brain version when there is one, so comparing it against
+    // the raw brand profile would report drift on every tick.
+    ['name', 'audience', 'industry', 'description', 'city', 'color'].some(
       (key) =>
         workspace.brand[key as keyof typeof workspace.brand] !==
         plan.evidence.brand[key as keyof typeof plan.evidence.brand],
     )
   )
     throw new PlannerFailure('EVIDENCE_CHANGED')
-  return workspace
+  if (plannerVoice(live.brain, workspace.brand) !== plan.evidence.brand.voice)
+    throw new PlannerFailure('EVIDENCE_CHANGED')
+  // Only offers and guardrails are checked mid-flight. A changed price or a
+  // new prohibition makes an already-planned post wrong, so the plan must
+  // stop; a reworded voice or a renamed audience only makes the remaining
+  // posts less tailored, and discarding paid stages over that would cost the
+  // customer more than it protects them.
+  if ('brain' in plan.evidence && !sameBrainCommitments(plannerBrainOf(plan.evidence), live.brain))
+    throw new PlannerFailure('EVIDENCE_CHANGED')
+  // The merged verified facts are returned so the recheck under the write lock
+  // compares against the same list rather than rebuilding a narrower one.
+  return { workspace, facts: current }
 }
 function generationAssetIds(evidence: PlannerEvidence) {
   if (evidence.photoSelection?.mode === 'selected')
@@ -1016,7 +1079,9 @@ function generationAssetIds(evidence: PlannerEvidence) {
   return evidence.assets.map((asset) => asset.id)
 }
 async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
-  const workspace = await plannerStep('advance.evidence', () => assertCurrentEvidence(db, plan))
+  const { workspace } = await plannerStep('advance.evidence', () =>
+    assertCurrentEvidence(db, plan),
+  )
   const access = await plannerAccess(plan.business_id, plan.month_key, plan.evidence.timezone, db)
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
@@ -1055,7 +1120,15 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       stageKey: monthlyAutomaticStageKey('research', plan.evidence_hash),
       capability: 'research',
       maxOutput: 6000,
-      input: { brand: plan.evidence.brand, month: plan.month_key, asOf: plan.evidence.capturedAt },
+      input: {
+        brand: plan.evidence.brand,
+        // Research is one call per plan, so it receives the audiences and
+        // offers in full: knowing who the business serves and what it is
+        // promoting is what makes the market search relevant.
+        businessBrain: plannerBrainOf(plan.evidence),
+        month: plan.month_key,
+        asOf: plan.evidence.capturedAt,
+      },
     })
     const research = researchFromResponse(response)
     await db.query(
@@ -1087,18 +1160,30 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       })
       // Plan the complete month once. A stable key makes every later worker tick
       // reuse the same audited response instead of paying for another attempt.
+      const planningStageKey = monthlyAutomaticStageKey(
+        'planning',
+        plan.evidence_hash,
+        `${plan.target_count}:${previousPageStyle.revision}`,
+      )
       const response = await monthlyProviderCall(db, {
         ...common,
-        stageKey: monthlyAutomaticStageKey(
-          'planning',
-          plan.evidence_hash,
-          `${plan.target_count}:${previousPageStyle.revision}`,
-        ),
+        stageKey: planningStageKey,
         capability: 'planning',
-        maxOutput: Math.min(30000, 3000 + plan.target_count * 350),
+        // Measured on real plans: a slot costs roughly 430 output tokens on a
+        // 1400-token base, and Business Brain raised that by about half again
+        // because the brief now reasons about audiences and offers. A 4-slot
+        // plan overflowed the previous 3000 + 350/slot ceiling and came back
+        // truncated, wasting the whole paid call. The ceiling below keeps
+        // headroom over the measured need; unused output tokens cost nothing,
+        // but they do inflate the credit reservation, so it is not unbounded.
+        maxOutput: Math.min(40000, 4000 + plan.target_count * 700),
         schema: editorialPlanGenerationSchema,
         input: {
-          evidence: plan.evidence,
+          evidence: promptEvidence(plan.evidence),
+          // Planning decides the whole month, so it sees every Business Brain
+          // section in full and assigns an audience and, where one applies, an
+          // offer to each slot.
+          businessBrain: plannerBrainOf(plan.evidence),
           research,
           month: plan.month_key,
           count: plan.target_count,
@@ -1135,18 +1220,33 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             : []),
         ],
       })
-      const editorial = validateEditorialPlan(
-        normalizeEditorialPlanResponse(
-          JSON.parse(responseText(response)),
+      let editorial
+      try {
+        editorial = validateEditorialPlan(
+          normalizeEditorialPlanResponse(
+            JSON.parse(responseText(response)),
+            plan.evidence,
+            research,
+            plan.target_count,
+            plan.month_key,
+          ),
           plan.evidence,
           research,
+          plan.month_key,
           plan.target_count,
-        ),
-        plan.evidence,
-        research,
-        plan.month_key,
-        plan.target_count,
-      )
+        )
+      } catch (error) {
+        // A valid provider payload may still invent timing evidence or fail a
+        // domain constraint. Make that response non-reusable before blocking
+        // the plan so an explicit user resume gets a fresh strategy.
+        if (error instanceof PlannerFailure)
+          await invalidateMonthlyGenerationRun(db, {
+            ...common,
+            stageKey: planningStageKey,
+            code: error.code,
+          })
+        throw error
+      }
       await db.query(
         "UPDATE monthly_plans SET editorial_plan=$1,stage='content',updated_at=now() WHERE id=$2",
         [JSON.stringify(editorial), plan.id],
@@ -1169,6 +1269,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     })
   )
     throw new PlannerFailure('EVIDENCE_CHANGED')
+  const slotBrain = brainForSlot(plannerBrainOf(plan.evidence), slot, slotDay)
   const assets = await plannerStep('content.assets', () =>
     loadPlannerAssets(
       db,
@@ -1245,7 +1346,10 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         maxOutput: 3000,
         schema: generatedPostSchema,
         input: {
-          evidence: plan.evidence,
+          evidence: promptEvidence(plan.evidence),
+          // Narrowed to this slot: the guardrails and voice apply to every
+          // post, but only the audience and offer planning assigned here.
+          businessBrain: slotBrain,
           slot,
           strategy: editorial.objective,
           research: { sources: research.sources },
@@ -1345,6 +1449,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           : undefined,
         previousGeneratedPostCount: previousGeneratedAssets.length,
         revisionFeedback,
+        guardrails: slotBrain.guardrails.map((guardrail) => guardrail.text),
       })
       imageGeneration = await monthlyImageCall(db, {
         ...common,
@@ -1382,6 +1487,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         schema: qualitySchema,
         input: {
           brand: plan.evidence.brand,
+          // Quality reviews the finished post against the same commitments the
+          // content stage was given, so it receives the identical projection.
+          businessBrain: slotBrain,
           slot,
           content,
           previousPosts: earlier.rows,
@@ -1454,14 +1562,18 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         )
         if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
         // Recheck evidence, ownership and entitlements immediately before writing.
-        await plannerStep('content.persist.evidence', () => assertCurrentEvidence(client, plan))
-        const { workspace } = await loadWorkspace(client, plan.business_id, plan.owner_id)
+        // Recheck under the row locks taken above. The fact list is the merged
+        // one: a fact the business keeps in Business Brain is as real as one
+        // kept in the brand profile, and reading only the profile here rejected
+        // every plan whose snapshot cited a Business Brain fact.
+        const { facts: verifiedFacts } = await plannerStep('content.persist.evidence', () =>
+          assertCurrentEvidence(client, plan),
+        )
         if (
           plan.evidence.brand.facts.some(
             (fact) =>
-              !workspace.brand.facts.some(
-                (current) =>
-                  current.verified && current.id === fact.id && sameFactContent(current, fact),
+              !verifiedFacts.some(
+                (current) => current.id === fact.id && sameFactContent(current, fact),
               ),
           )
         )
@@ -1800,6 +1912,22 @@ export async function runMonthlyPlannerTick(
                     : 'Unknown generation failure',
               }),
         })
+      // A provider-side temporary error or rate limit has no usable result,
+      // but is safe to retry through the existing bounded ledger policy. Keep
+      // research/planning moving without requiring a human click; after the
+      // allowed attempts the ledger returns PROVIDER_RETRY_EXHAUSTED and this
+      // falls through to the normal blocked state below.
+      if (['PROVIDER_TEMPORARY', 'PROVIDER_RATE_LIMITED'].includes(code)) {
+        const delaySeconds = code === 'PROVIDER_RATE_LIMITED' ? 60 : 15
+        await db.query(
+          `UPDATE monthly_plans
+              SET status='queued',error_code=$1,
+                  next_run_at=now() + ($2::text || ' seconds')::interval,updated_at=now()
+            WHERE id=$3`,
+          [code, delaySeconds, plan.id],
+        )
+        return
+      }
       // Never turn a failed automatic stage into another paid attempt. The plan
       // remains resumable, but only an explicit user action may continue it.
       await db.query(

@@ -178,7 +178,9 @@ export default defineEventHandler(async (event) => {
         name: workspace.brand.name,
         description: workspace.brand.description,
         city: workspace.brand.city,
-        voice: workspace.brand.voice,
+        // Business Brain owns the voice and versions it; the brand profile
+        // field is only a fallback for a brand that has no voice version yet.
+        voice: brain.voiceVersions.find((version) => version.active)?.text || workspace.brand.voice,
         audience: workspace.brand.audience,
       },
       confirmedFacts: brain.facts

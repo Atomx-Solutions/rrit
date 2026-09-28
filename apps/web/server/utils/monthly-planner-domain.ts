@@ -6,7 +6,16 @@ import {
 import type { Workspace } from '../../shared/schemas/workspace'
 import { dayInZone } from '../../shared/utils/calendar'
 import { zonedToIso } from '../../shared/utils/format'
-import { factIsUsable } from '../../shared/schemas/business-brain'
+import {
+  emptyPlannerBrain,
+  factIsUsable,
+  mergeBrandFacts,
+  offerIsUsable,
+  profileGuardrailIdPrefix,
+  type BrandFact,
+  type PlannerBrain,
+  type PlannerBrainOffer,
+} from '../../shared/schemas/business-brain'
 
 export class PlannerFailure extends Error {
   constructor(
@@ -34,12 +43,17 @@ export function plannerPrerequisites(
   workspace: Workspace,
   now = new Date(),
   month = planningMonth(workspace.preferences.timezone, now),
+  // Verified Business Brain facts satisfy the requirement exactly like profile
+  // facts: which of the two editors the business typed them into is not its
+  // problem.
+  brainFacts: BrandFact[] = [],
 ): PlannerPrerequisite[] {
   const start = `${month}-01`
   const end = `${month}-${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()}`
   const today = dayInZone(now, workspace.preferences.timezone)
   const earliest = start > today ? start : today
-  const facts = workspace.brand.facts.filter((fact) => {
+  const knownFacts = mergeBrandFacts(workspace.brand.facts, brainFacts)
+  const facts = knownFacts.filter((fact) => {
     const day = fact.validFrom && fact.validFrom > earliest ? fact.validFrom : earliest
     return day <= end && factIsUsable(fact, day)
   })
@@ -60,7 +74,7 @@ export function plannerPrerequisites(
         'Te Profili i biznesit, plotëso fushën “Për kë janë produktet ose shërbimet e tua?”.',
     })
   if (!facts.length) {
-    const candidate = workspace.brand.facts.find(
+    const candidate = knownFacts.find(
       (fact) => !fact.validFrom || fact.validFrom <= end,
     )
     if (!candidate || !candidate.text.trim())
@@ -107,19 +121,22 @@ export function plannerEvidence(
     selectedAssetIds: [],
   },
   timingSamples: PlannerTimingSample[] = [],
+  businessBrain: { brain?: PlannerBrain; facts?: BrandFact[] } = {},
 ) {
+  const brain = businessBrain.brain || emptyPlannerBrain
+  const brainFacts = businessBrain.facts || []
   const start = `${month}-01`
   const end = `${month}-${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()}`
   const today = dayInZone(now, workspace.preferences.timezone)
   const earliest = start > today ? start : today
-  const facts = workspace.brand.facts.filter((fact) => {
+  const facts = mergeBrandFacts(workspace.brand.facts, brainFacts).filter((fact) => {
     const day = fact.validFrom && fact.validFrom > earliest ? fact.validFrom : earliest
     return day <= end && factIsUsable(fact, day)
   })
   const assets = workspace.assets.filter(
     (asset) => asset.kind === 'photo' && asset.rights && !asset.generated,
   )
-  const missing = plannerPrerequisites(workspace, now, month)
+  const missing = plannerPrerequisites(workspace, now, month, brainFacts)
   if (missing.length)
     throw new PlannerFailure(
       missing[0]!.code,
@@ -147,8 +164,37 @@ export function plannerEvidence(
   const observedTiming = [...timingSamples, ...localTimingSamples]
     .filter((sample) => Number.isFinite(Date.parse(sample.publishedAt)))
     .slice(0, 240)
+  // Business Brain is frozen into the snapshot exactly like the brand facts.
+  // Offers whose window cannot overlap this month are dropped here so no later
+  // stage can reach for one that was never publishable.
+  //
+  // The brand profile still carries a voice and a guardrail list of its own
+  // from the older editor. They are reconciled here so the stages never see
+  // two answers to the same question: the Business Brain voice wins because it
+  // is the versioned one, while guardrails are unioned because dropping a
+  // prohibition is worse than repeating one.
+  const legacyGuardrails = (workspace.brand.guardrails || [])
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .filter((text) => !brain.guardrails.some((guardrail) => guardrail.text.trim() === text))
+  const brainForMonth: PlannerBrain = {
+    ...brain,
+    voice: plannerVoice(brain, workspace.brand),
+    offers: brain.offers.filter(
+      (offer) => offer.validFrom <= end && (!offer.validUntil || offer.validUntil >= earliest),
+    ),
+    guardrails: [
+      ...brain.guardrails,
+      ...legacyGuardrails.map((text, index) => ({
+        id: `${profileGuardrailIdPrefix}${index}`,
+        text,
+        source: 'Profili i biznesit',
+      })),
+    ],
+  }
   const evidence = {
-    brand: { ...workspace.brand, facts },
+    brand: { ...workspace.brand, facts, voice: brainForMonth.voice },
+    brain: brainForMonth,
     timezone: workspace.preferences.timezone,
     // In selected mode this is an allow-list, not merely a preference. Keeping
     // unselected gallery assets out of evidence prevents downstream stages from
@@ -169,11 +215,76 @@ export function plannerEvidence(
     },
     capturedAt: now.toISOString(),
   }
-  if (Buffer.byteLength(JSON.stringify(evidence)) > 48000)
+  // Business Brain has its own budget rather than competing with the rest of
+  // the snapshot: its size is already bounded by the limits the editor
+  // enforces, and a business that fills that editor to the maximum must not
+  // find itself unable to generate.
+  if (Buffer.byteLength(JSON.stringify({ ...evidence, brain: undefined })) > 48000)
+    throw new PlannerFailure('EVIDENCE_TOO_LARGE')
+  if (Buffer.byteLength(JSON.stringify(brainForMonth)) > 96000)
     throw new PlannerFailure('EVIDENCE_TOO_LARGE')
   return evidence
 }
 export type PlannerEvidence = ReturnType<typeof plannerEvidence>
+
+/**
+ * The one voice generation uses.
+ *
+ * Business Brain versions its voice, so it wins over the brand-profile field
+ * whenever it has one. Both the snapshot and the drift check derive the value
+ * here, so they can never disagree about which of the two editors spoke last.
+ */
+export function plannerVoice(brain: PlannerBrain, brand: { voice: string }) {
+  return brain.voice.trim() || brand.voice
+}
+
+/** The Business Brain a plan carries, tolerating plans snapshotted before it existed. */
+export function plannerBrainOf(evidence: { brain?: PlannerBrain }): PlannerBrain {
+  return evidence.brain || emptyPlannerBrain
+}
+
+/**
+ * The snapshot as a prompt sees it.
+ *
+ * Business Brain is stored inside the evidence so that it is frozen and
+ * hashed with everything else, but each stage receives it separately at the
+ * width that stage needs. Sending the stored copy as well would put the whole
+ * brain back into every per-post call and undo that narrowing.
+ */
+export function promptEvidence(evidence: PlannerEvidence) {
+  const { brain: _brain, ...rest } = evidence as PlannerEvidence & { brain?: PlannerBrain }
+  return rest
+}
+
+/**
+ * What a single post is allowed to see.
+ *
+ * Planning decides the whole month and therefore receives every section in
+ * full. Content and quality run once per post, so they receive only the
+ * audience and offer that planning assigned to that slot: sending ten offers
+ * to a post about one offer invites the model to mix them. Guardrails and the
+ * voice are never narrowed — they apply to every post equally.
+ */
+export function brainForSlot(
+  brain: PlannerBrain,
+  slot: { audienceId?: string | null; offerId?: string | null },
+  day: string,
+) {
+  const audience = slot.audienceId
+    ? brain.audiences.find((item) => item.id === slot.audienceId) || null
+    : null
+  const selected = slot.offerId
+    ? brain.offers.find((item) => item.id === slot.offerId) || null
+    : null
+  return {
+    voice: brain.voice,
+    guardrails: brain.guardrails,
+    audience,
+    // A slot keeps its offer only while the business's own window still covers
+    // the publication day.
+    offer: selected && offerIsUsable(selected, day) ? selected : null,
+  }
+}
 export function planningMonth(timezone: string, now = new Date()) {
   return dayInZone(now, timezone).slice(0, 7)
 }
@@ -259,19 +370,49 @@ function observedTimingHour(
 
 // Provider output can contain a structurally valid but mistyped identifier or
 // an extra slot. Repair only machine-verifiable contract details here; the
+function offerIdForSlot(
+  offers: Map<string, PlannerBrainOffer>,
+  slot: { offerId?: string | null; day: number },
+  month?: string,
+) {
+  if (!slot.offerId) return null
+  const offer = offers.get(slot.offerId)
+  if (!offer) return null
+  if (!month) return offer.id
+  return offerIsUsable(offer, `${month}-${String(slot.day).padStart(2, '0')}`) ? offer.id : null
+}
 // editorial meaning still has to pass validateEditorialPlan below.
 export function normalizeEditorialPlanResponse(
   value: unknown,
   evidence: PlannerEvidence,
   research: Research,
   count: number,
+  month?: string,
 ) {
   const plan = editorialPlanSchema.parse(value)
   const knownFacts = new Set(evidence.brand.facts.map((fact) => fact.id))
+  const brain = plannerBrainOf(evidence)
+  const knownAudiences = new Set(brain.audiences.map((audience) => audience.id))
+  const monthOffers = new Map(brain.offers.map((offer) => [offer.id, offer]))
   const sourceByCanonicalUrl = new Map(
     research.sources.map((source) => [canonicalSourceUrl(source.url), source.url]),
   )
   const selectedAssets = new Set(evidence.photoSelection?.selectedAssetIds || [])
+  const timingEvidence = evidence.timingEvidence || { samples: [] }
+
+  function supportedTimingBasis(slot: { timingBasis?: 'social_history' | 'platform_history' | 'no_data'; channel: string; time: string }) {
+    if (slot.timingBasis === 'no_data' || !slot.timingBasis) return 'no_data' as const
+    const samples = timingEvidence.samples.filter((sample) =>
+      slot.timingBasis === 'platform_history'
+        ? sample.source === 'platform' && sample.channel === slot.channel
+        : sample.source !== 'platform' && sample.channel === slot.channel,
+    )
+    return samples.some(
+      (sample) => observedTimingHour(sample, evidence.timezone) === slot.time.slice(0, 2),
+    )
+      ? slot.timingBasis
+      : ('no_data' as const)
+  }
 
   return {
     ...plan,
@@ -285,6 +426,7 @@ export function normalizeEditorialPlanResponse(
           }),
         ),
       ]
+      const timingBasis = supportedTimingBasis(slot)
       return {
         ...slot,
         // Never replace an editorial claim with an unrelated fact or source.
@@ -298,7 +440,20 @@ export function normalizeEditorialPlanResponse(
           selectedAssets.has(slot.requiredAssetId)
             ? slot.requiredAssetId
             : null,
-        timingBasis: slot.timingBasis || 'no_data',
+        // Timing evidence is mechanically verifiable. If the model labels an
+        // hour as observed but no matching record exists, downgrade it to the
+        // truthful no-data state instead of blocking an otherwise safe plan.
+        timingBasis,
+        timingRationale:
+          timingBasis === 'no_data' && slot.timingBasis && slot.timingBasis !== 'no_data'
+            ? 'Nuk ka të dhëna të vëzhguara për këtë orë; orari mbetet për t’u testuar pa pretenduar optimalitet.'
+            : slot.timingRationale,
+        // Keep a Business Brain reference only when it names a row the
+        // business actually has. An offer additionally has to be valid on the
+        // day this slot publishes, so an expired price can never be planned.
+        audienceId:
+          slot.audienceId && knownAudiences.has(slot.audienceId) ? slot.audienceId : null,
+        offerId: offerIdForSlot(monthOffers, slot, month),
       }
     }),
   }
