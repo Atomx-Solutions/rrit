@@ -46,7 +46,6 @@ async function saveDetails() {
 }
 const commercialPlans = computed(() => plans.value.filter(plan => !plan.isTrial))
 const customPackage = computed(() => billing.value?.customPackage || null)
-const annualDiscount = computed(() => Math.max(0, ...commercialPlans.value.map(plan => plan.annualDiscount)))
 const { page, pageSize, total, paginated } = usePagination(commercialPlans)
 const selected = ref('')
 const selectedPlan = computed(() => commercialPlans.value.find((plan) => plan.name === selected.value))
@@ -55,7 +54,7 @@ const paidSubscription = computed(() =>
     ? billing.value.subscription
     : null,
 )
-function formatPeriodEnd(value: string) {
+function formatPeriodDate(value: string) {
   return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
 }
 function planByCode(code: string | null | undefined) {
@@ -190,17 +189,6 @@ function usageValue(key: string, value: number) {
     :title="t('nav.billing')"
     :description="t('billing.description')"
   >
-    <template v-if="billing?.selfServiceEnabled" #toolbar>
-      <div class="flex w-full flex-wrap items-center justify-between gap-3">
-        <span class="text-sm text-muted">{{ t('billing.proposedPlans') }}</span>
-        <div class="flex items-center gap-3">
-          <span class="text-sm">{{ t('billing.monthly') }}</span
-          ><USwitch v-model="annual" :aria-label="t('billing.annualBilling')" /><span class="flex items-center gap-1 text-sm"
-            >{{ t('billing.annual') }}<UBadge v-if="annualDiscount > 0" size="sm" color="success" variant="subtle">-{{ annualDiscount }}%</UBadge></span
-          >
-        </div>
-      </div>
-    </template>
     <UAlert
       v-if="trialLimitReached"
       color="primary"
@@ -222,7 +210,20 @@ function usageValue(key: string, value: number) {
           {{ t('billing.customPackagePosts', { count: customPackage.postsIncluded }) }}
         </p>
         <p class="text-xs text-muted" data-testid="custom-package-end">
-          {{ t('billing.customPackageUntil', { date: formatPeriodEnd(customPackage.endsAt) }) }}
+          {{ t('billing.customPackagePeriod', {
+            start: formatPeriodDate(customPackage.startsAt),
+            end: formatPeriodDate(customPackage.endsAt),
+          }) }}
+        </p>
+        <p class="text-xs text-muted" data-testid="custom-package-usage">
+          {{ t('billing.customPackageUsage', {
+            used: customPackage.usedPosts,
+            included: customPackage.postsIncluded,
+            remaining: customPackage.remainingPosts,
+          }) }}
+        </p>
+        <p class="text-xs text-muted" data-testid="custom-package-days-remaining">
+          {{ t('billing.customPackageDaysRemaining', { count: customPackage.remainingDays }) }}
         </p>
         <p class="text-xs text-muted">
           {{ t('billing.customPackageContact') }}
@@ -249,7 +250,7 @@ function usageValue(key: string, value: number) {
         </p>
         <p v-if="paidSubscription" class="text-xs text-muted" data-testid="subscription-period-end">
           {{ t('billing.validUntil', {
-            date: formatPeriodEnd(paidSubscription.periodEnd),
+            date: formatPeriodDate(paidSubscription.periodEnd),
             interval: (paidSubscription.interval === 'annual' ? t('billing.annual') : t('billing.monthly')).toLowerCase(),
           }) }}
         </p>

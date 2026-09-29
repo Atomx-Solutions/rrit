@@ -4,6 +4,7 @@ import {
   customPackageFromRow,
   expireCustomPackages,
   outgrownPackageStatus,
+  packageUsageSummary,
   packageIsInForce,
   packagePriceIsOverridden,
   resolvePackagePricing,
@@ -133,6 +134,30 @@ describe('custom package period and status', () => {
         new Date('2026-11-02T00:00:00.000Z'),
       ),
     ).toBeNull()
+  })
+})
+
+describe('custom package usage summaries', () => {
+  it('keeps usage and remaining posts isolated to each package period', () => {
+    const now = new Date('2026-10-15T12:00:00.000Z')
+    const october = packageUsageSummary(
+      customPackageFromRow(row({ posts_included: 5 })),
+      3,
+      now,
+    )
+    const november = packageUsageSummary(
+      customPackageFromRow(row({
+        id: '33333333-3333-4333-8333-333333333333',
+        starts_at: new Date('2026-11-01T00:00:00.000Z'),
+        ends_at: new Date('2026-12-01T00:00:00.000Z'),
+        posts_included: 8,
+      })),
+      0,
+      now,
+    )
+
+    expect(october).toMatchObject({ includedPosts: 5, usedPosts: 3, remainingPosts: 2, remainingDays: 17 })
+    expect(november).toMatchObject({ includedPosts: 8, usedPosts: 0, remainingPosts: 8, remainingDays: 0 })
   })
 })
 

@@ -3,6 +3,7 @@ import {
   CREDIT_TOP_UP_MINIMUM,
 } from '../../utils/credit-top-ups'
 import { creditPricing } from '../../utils/credits'
+import { packageUsageSummary } from '../../utils/custom-packages'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
@@ -31,12 +32,21 @@ export default defineEventHandler(async (event) => {
       price_cents: number
       starts_at: Date
       ends_at: Date
+      used_posts: number
     }>(
-      `SELECT name,posts_included,price_cents,starts_at,ends_at
-         FROM custom_packages
+      `SELECT package.name,package.posts_included,package.price_cents,package.starts_at,package.ends_at,
+              (
+                SELECT count(*)::integer
+                FROM posts
+                WHERE business_id=$1
+                  AND created_at >= package.starts_at
+                  AND created_at < package.ends_at
+              ) AS used_posts
+         FROM custom_packages AS package
         WHERE status='active' AND starts_at<=now() AND ends_at>now()
         ORDER BY ends_at DESC
         LIMIT 1`,
+      [business.id],
     )
     return {
       subscription: result.rows[0] || null,
@@ -52,13 +62,24 @@ export default defineEventHandler(async (event) => {
       maximum: CREDIT_TOP_UP_MAXIMUM,
       unitPrice: pricing.creditPriceCents / 100,
     },
-    customPackage: customPackage && {
-      name: customPackage.name,
-      postsIncluded: customPackage.posts_included,
-      price: customPackage.price_cents / 100,
-      startsAt: new Date(customPackage.starts_at).toISOString(),
-      endsAt: new Date(customPackage.ends_at).toISOString(),
-    },
+    customPackage: customPackage && (() => {
+      const startsAt = new Date(customPackage.starts_at).toISOString()
+      const endsAt = new Date(customPackage.ends_at).toISOString()
+      const usage = packageUsageSummary({
+        status: 'active',
+        startsAt,
+        endsAt,
+        postsIncluded: customPackage.posts_included,
+      }, customPackage.used_posts, new Date())
+      return {
+        name: customPackage.name,
+        postsIncluded: customPackage.posts_included,
+        price: customPackage.price_cents / 100,
+        startsAt,
+        endsAt,
+        ...usage,
+      }
+    })(),
     subscription: subscription && {
       planCode: subscription.plan_code,
       interval: subscription.billing_interval,

@@ -122,4 +122,28 @@ describe('trial post allowance', () => {
     expect(access.paid).toBe(false)
     expect(access.limits.posts_per_month).toBe(3)
   })
+
+  it('passes the active custom package period to downstream usage tracking', async () => {
+    vi.stubGlobal('createError', createError)
+    const startsAt = new Date('2026-09-25T00:00:00.000Z')
+    const endsAt = new Date('2026-09-30T00:00:00.000Z')
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('FROM trial_grants') || sql.includes('FROM entitlements')) return { rows: [] }
+      if (sql.includes('FROM custom_packages')) {
+        return { rows: [{ name: 'Paketa 25-30', posts_included: 3, starts_at: startsAt, ends_at: endsAt }] }
+      }
+      if (sql.includes('FROM app_settings')) {
+        return {
+          rows: [{ value: { duration_hours: 72, features: ['posts', 'ai'], device_retention_days: 365, limits: {
+            posts_per_month: 12, ai_requests_per_day: 200, media_storage_bytes: 5368709120, social_accounts: 2, members: 1,
+          } } }],
+        }
+      }
+      return { rows: [] }
+    })
+
+    const access = await trialStatus('00000000-0000-4000-8000-000000000001', { query } as never)
+
+    expect(access.quotaPeriod).toEqual({ startsAt, endsAt })
+  })
 })
