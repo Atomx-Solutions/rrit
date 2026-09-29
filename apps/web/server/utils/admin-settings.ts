@@ -5,6 +5,8 @@ export type PlatformSettings = {
   ai_top_up_url: string
   ai_warn_balance_usd: number
   ai_low_balance_usd: number
+  // The rate behind every custom package price suggestion.
+  custom_package_post_price_cents: number
   updated_at: string
 }
 
@@ -13,6 +15,7 @@ export const platformSettingsChangesSchema = z.object({
   ai_top_up_url: z.url().refine(value => value.startsWith('https://')).max(300).optional(),
   ai_warn_balance_usd: z.coerce.number().min(0).max(100_000).optional(),
   ai_low_balance_usd: z.coerce.number().min(0).max(100_000).optional(),
+  custom_package_post_price_cents: z.coerce.number().int().min(1).max(1_000_000).optional(),
 }).strict().refine(value => Object.keys(value).length > 0)
 
 function normalize(value: unknown): PlatformSettings {
@@ -21,6 +24,7 @@ function normalize(value: unknown): PlatformSettings {
     ai_top_up_url: typeof row.ai_top_up_url === 'string' ? row.ai_top_up_url : 'https://openrouter.ai/settings/credits',
     ai_warn_balance_usd: Number(row.ai_warn_balance_usd ?? 30) || 0,
     ai_low_balance_usd: Number(row.ai_low_balance_usd ?? 10) || 0,
+    custom_package_post_price_cents: Number(row.custom_package_post_price_cents ?? 150) || 150,
     updated_at: typeof row.updated_at === 'string' ? row.updated_at : '',
   }
 }
