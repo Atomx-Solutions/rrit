@@ -6,7 +6,7 @@ import { creditPricing } from '../../utils/credits'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const { subscription, pricing } = await withBusinessTransaction(user.id, async (client, business) => {
+  const { subscription, customPackage, pricing } = await withBusinessTransaction(user.id, async (client, business) => {
     const result = await client.query<{
       plan_code: string
       billing_interval: 'monthly' | 'annual'
@@ -22,7 +22,27 @@ export default defineEventHandler(async (event) => {
         WHERE organization_id=$1 AND status IN ('trialing','active','past_due')`,
       [business.id],
     )
-    return { subscription: result.rows[0] || null, pricing: await creditPricing(client) }
+    // A custom package is a negotiated agreement that replaces plan purchase
+    // while it runs. Row level security scopes this read to the caller's own
+    // organization, so the query does not filter by id itself.
+    const custom = await client.query<{
+      name: string
+      posts_included: number
+      price_cents: number
+      starts_at: Date
+      ends_at: Date
+    }>(
+      `SELECT name,posts_included,price_cents,starts_at,ends_at
+         FROM custom_packages
+        WHERE status='active' AND starts_at<=now() AND ends_at>now()
+        ORDER BY ends_at DESC
+        LIMIT 1`,
+    )
+    return {
+      subscription: result.rows[0] || null,
+      customPackage: custom.rows[0] || null,
+      pricing: await creditPricing(client),
+    }
   })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
@@ -31,6 +51,13 @@ export default defineEventHandler(async (event) => {
       minimum: CREDIT_TOP_UP_MINIMUM,
       maximum: CREDIT_TOP_UP_MAXIMUM,
       unitPrice: pricing.creditPriceCents / 100,
+    },
+    customPackage: customPackage && {
+      name: customPackage.name,
+      postsIncluded: customPackage.posts_included,
+      price: customPackage.price_cents / 100,
+      startsAt: new Date(customPackage.starts_at).toISOString(),
+      endsAt: new Date(customPackage.ends_at).toISOString(),
     },
     subscription: subscription && {
       planCode: subscription.plan_code,

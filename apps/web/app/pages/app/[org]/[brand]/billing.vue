@@ -21,11 +21,12 @@ const { plans, error: catalogError } = usePlanCatalog()
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', {
   key: 'billing-subscription',
 })
-const { data: invoiceData, refresh: refreshInvoices } = await useFetch('/api/billing/invoices', {
-  key: 'billing-invoices',
-})
+const { data: billingDetailsData, refresh: refreshDetails } = await useFetch(
+  '/api/billing/details',
+  { key: 'billing-details' },
+)
 const detailsForm = reactive({ legalName: '', address: '', city: '', country: '', fiscalNumber: '' })
-watch(() => invoiceData.value?.details, (details) => {
+watch(() => billingDetailsData.value?.details, (details) => {
   if (details) Object.assign(detailsForm, details)
 }, { immediate: true })
 const savingDetails = ref(false)
@@ -35,7 +36,7 @@ async function saveDetails() {
   detailsMessage.value = null
   try {
     await $fetch('/api/billing/details', { method: 'PUT', body: { ...detailsForm } })
-    await refreshInvoices()
+    await refreshDetails()
     detailsMessage.value = { ok: true, text: t('billing.detailsSaved') }
   } catch {
     detailsMessage.value = { ok: false, text: t('billing.detailsFailed') }
@@ -43,14 +44,8 @@ async function saveDetails() {
     savingDetails.value = false
   }
 }
-// Numeric dates: some browsers lack Albanian month names and print "M09".
-type BillingInvoice = NonNullable<typeof invoiceData.value>['invoices'][number]
-const previewInvoice = ref<BillingInvoice | null>(null)
-function formatInvoiceDate(iso: string) {
-  // The purchase time, to the second.
-  return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(iso))
-}
 const commercialPlans = computed(() => plans.value.filter(plan => !plan.isTrial))
+const customPackage = computed(() => billing.value?.customPackage || null)
 const annualDiscount = computed(() => Math.max(0, ...commercialPlans.value.map(plan => plan.annualDiscount)))
 const { page, pageSize, total, paginated } = usePagination(commercialPlans)
 const selected = ref('')
@@ -108,7 +103,7 @@ async function switchPlan() {
     })
     showSuccess(t('billing.activationSuccess'))
     selected.value = ''
-    await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('trial'), refreshInvoices()])
+    await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('trial'), refreshDetails()])
   } catch (error) {
     // Show the server's reason when it gives one.
     const reason = (error as { data?: { message?: string } }).data?.message
@@ -127,7 +122,7 @@ async function buyCreditTopUp() {
       body: { credits: topUpAmount.value, idempotencyKey: crypto.randomUUID() },
     })
     showSuccess(t('billing.creditTopUpSuccess', { credits: topUpAmount.value }))
-    await Promise.all([refreshUsage(), refreshNuxtData('header-credit-balance'), refreshInvoices()])
+    await Promise.all([refreshUsage(), refreshNuxtData('header-credit-balance'), refreshDetails()])
   } catch (error) {
     // Show the server's reason (e.g. no active subscription) when it gives one.
     const reason = (error as { data?: { message?: string } }).data?.message
@@ -195,7 +190,7 @@ function usageValue(key: string, value: number) {
     :title="t('nav.billing')"
     :description="t('billing.description')"
   >
-    <template #toolbar>
+    <template v-if="billing?.selfServiceEnabled" #toolbar>
       <div class="flex w-full flex-wrap items-center justify-between gap-3">
         <span class="text-sm text-muted">{{ t('billing.proposedPlans') }}</span>
         <div class="flex items-center gap-3">
@@ -214,7 +209,27 @@ function usageValue(key: string, value: number) {
       :title="t('billing.trialLimitTitle')"
       :description="t('billing.trialLimitDescription')"
     />
-    <UCard :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
+    <UCard v-if="customPackage" :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
+      <UIcon name="i-lucide-handshake" class="size-5 text-primary shrink-0 mt-0.5" />
+      <div class="space-y-1">
+        <h2 class="text-sm font-semibold">
+          {{ t('billing.customPackageActive') }}
+        </h2>
+        <p class="text-sm font-medium">
+          {{ customPackage.name }}
+        </p>
+        <p class="text-sm text-muted leading-relaxed">
+          {{ t('billing.customPackagePosts', { count: customPackage.postsIncluded }) }}
+        </p>
+        <p class="text-xs text-muted" data-testid="custom-package-end">
+          {{ t('billing.customPackageUntil', { date: formatPeriodEnd(customPackage.endsAt) }) }}
+        </p>
+        <p class="text-xs text-muted">
+          {{ t('billing.customPackageContact') }}
+        </p>
+      </div>
+    </UCard>
+    <UCard v-else :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
       <UIcon name="i-lucide-credit-card" class="size-5 text-muted shrink-0 mt-0.5" />
       <div class="space-y-1">
         <h2 class="text-sm font-semibold">
@@ -355,7 +370,27 @@ function usageValue(key: string, value: number) {
         </div>
       </UCard>
     </template>
-    <UCard id="plans" class="scroll-mt-4" :ui="{ body: 'p-0 sm:p-0' }"
+    <UAlert
+      v-if="!billing?.selfServiceEnabled"
+      color="neutral"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="t('billing.activationByTeam')"
+      :description="t('billing.activationByTeamDescription')"
+    />
+    <UCard v-if="!billing?.selfServiceEnabled" as="section" :ui="{ body: 'p-4 sm:p-5', header: 'px-5 py-4' }">
+      <template #header>
+        <h2 class="text-sm font-semibold">
+          {{ t('request.appTitle') }}
+        </h2>
+      </template>
+      <PackageRequestForm endpoint="/api/billing/package-request" compact contact-known />
+    </UCard>
+    <UCard
+      v-if="billing?.selfServiceEnabled && !customPackage"
+      id="plans"
+      class="scroll-mt-4"
+      :ui="{ body: 'p-0 sm:p-0' }"
       ><div class="divide-y divide-default">
         <article
           v-for="plan in paginated"
@@ -388,96 +423,22 @@ function usageValue(key: string, value: number) {
           <UButton
             variant="outline"
             color="neutral"
-            :aria-label="t('billing.buyPlanNow', { plan: packageName(plan) })"
+            :aria-label="
+              billing?.selfServiceEnabled
+                ? t('billing.buyPlanNow', { plan: packageName(plan) })
+                : t('billing.planDetailsFor', { plan: packageName(plan) })
+            "
             @click="selected = plan.name"
-            >{{ t('billing.buyPlanNow', { plan: packageName(plan) }) }}</UButton
+            >{{
+              billing?.selfServiceEnabled
+                ? t('billing.buyPlanNow', { plan: packageName(plan) })
+                : t('billing.planDetails')
+            }}</UButton
           >
         </article>
       </div>
       <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total"
     /></UCard>
-    <UCard id="invoices" as="section" :ui="{ body: 'p-0 sm:p-0', header: 'px-5 py-4' }">
-      <template #header
-        ><div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold">{{ t('billing.yourInvoices') }}</h2>
-          <span class="text-xs text-muted">{{ t('billing.currencyLabel') }}</span>
-        </div></template
-      >
-      <ul v-if="invoiceData?.invoices.length" class="divide-y divide-default" data-testid="invoice-list">
-        <li
-          v-for="invoice in invoiceData.invoices"
-          :key="invoice.id"
-          class="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
-        >
-          <div class="min-w-0">
-            <p class="text-sm font-medium tabular-nums">
-              {{ invoice.number }}
-              <UBadge v-if="invoice.kind === 'credit_note'" size="sm" color="neutral" variant="subtle">{{ t('billing.creditNote') }}</UBadge>
-            </p>
-            <p class="text-xs text-muted truncate">
-              {{ formatInvoiceDate(invoice.issuedAt) }} · {{ invoice.lines.map(line => line.description).join(', ') }}
-            </p>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-sm font-semibold tabular-nums">{{ formatMoney(invoice.total) }}</span>
-            <UButton
-              icon="i-lucide-eye"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              :label="t('billing.viewInvoice')"
-              :aria-label="t('billing.viewInvoiceNumber', { number: invoice.number })"
-              @click="previewInvoice = invoice"
-            />
-            <UButton
-              :to="`/api/billing/invoices/${invoice.id}/pdf`"
-              external
-              download
-              icon="i-lucide-download"
-              color="neutral"
-              variant="outline"
-              size="sm"
-              :aria-label="t('billing.downloadInvoice', { number: invoice.number })"
-            >PDF</UButton>
-          </div>
-        </li>
-      </ul>
-      <DashboardEmpty
-        v-else
-        :title="t('billing.noInvoices')"
-        :description="t('billing.noInvoicesDescription')"
-        icon="i-lucide-receipt-text"
-        class="border-0 rounded-none"
-      />
-    </UCard>
-    <!-- Same in-page preview as in the admin: the PDF opens without downloading. -->
-    <UModal
-      :open="!!previewInvoice"
-      :title="previewInvoice?.number"
-      :ui="{ content: 'sm:max-w-4xl h-[90dvh]', body: 'p-0 sm:p-0 flex-1' }"
-      @update:open="(value: boolean) => { if (!value) previewInvoice = null }"
-    >
-      <template #body>
-        <iframe
-          v-if="previewInvoice"
-          :src="`/api/billing/invoices/${previewInvoice.id}/pdf?inline=1`"
-          :title="previewInvoice.number"
-          class="h-full min-h-[70dvh] w-full border-0"
-        />
-      </template>
-      <template #footer>
-        <UButton
-          v-if="previewInvoice"
-          :to="`/api/billing/invoices/${previewInvoice.id}/pdf`"
-          external
-          download
-          icon="i-lucide-download"
-          color="neutral"
-          variant="outline"
-          label="PDF"
-        />
-      </template>
-    </UModal>
     <UCard id="billing-details" as="section" :ui="{ body: 'p-4 sm:p-5', header: 'px-5 py-4' }">
       <template #header>
         <h2 class="text-sm font-semibold">{{ t('billing.detailsTitle') }}</h2>
@@ -510,7 +471,7 @@ function usageValue(key: string, value: number) {
       </UForm>
     </UCard>
     <UModal
-      :open="!!selectedPlan"
+      :open="billing?.selfServiceEnabled && !!selectedPlan"
       :title="selectedPlan ? `${t('billing.planTitle')} ${packageName(selectedPlan)}` : t('billing.planTitle')"
        :description="t('billing.planSummaryDescription')"
       @update:open="selected = $event ? selected : ''"
