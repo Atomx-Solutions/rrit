@@ -401,6 +401,8 @@
   "admin.packages.name": "Package name",
   "admin.packages.posts": "Included posts",
   "admin.packages.postsValue": "{{count}} posts",
+  "admin.packages.usageValue": "Used: {{used}} · Remaining: {{remaining}}",
+  "admin.packages.daysRemaining": "{{count}} days remaining",
   "admin.packages.price": "Agreed price",
   "admin.packages.suggested": "Suggested: {{price}}",
   "admin.packages.useSuggestion": "Use suggestion",

@@ -15,6 +15,9 @@ export type AdminCustomPackage = {
   ends_at: string
   status: 'draft' | 'active' | 'expired' | 'cancelled'
   notes: string | null
+  used_posts: number
+  remaining_posts: number
+  remaining_days: number
 }
 
 const props = defineProps<{ organizationId: string; organizationName: string }>()
@@ -251,6 +254,15 @@ const listUi = {
             t('admin.packages.perPost', { price: formatMoney(row.original.post_price_cents / 100) })
           }}
         </span>
+        <p class="text-xs text-muted">
+          {{ t('admin.packages.usageValue', {
+            used: row.original.used_posts,
+            remaining: row.original.remaining_posts,
+          }) }}
+          <template v-if="row.original.status === 'active'">
+            · {{ t('admin.packages.daysRemaining', { count: row.original.remaining_days }) }}
+          </template>
+        </p>
       </template>
       <template #price-cell="{ row }">
         <span>{{ formatMoney(row.original.price_cents / 100) }}</span>

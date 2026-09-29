@@ -52,6 +52,31 @@ export function packageIsInForce(
 }
 
 /**
+ * Presents a package's period-bound post count without ever carrying usage
+ * into a later agreement. `usedPosts` must be counted by the caller using the
+ * package's starts_at/ends_at window.
+ */
+export function packageUsageSummary(
+  pkg: Pick<CustomPackage, 'status' | 'startsAt' | 'endsAt' | 'postsIncluded'>,
+  usedPosts: number,
+  now: Date,
+) {
+  const includedPosts = pkg.postsIncluded
+  const safeUsedPosts = Math.max(0, Math.trunc(usedPosts))
+  const active = packageIsInForce(pkg, now)
+  const remainingDays = active
+    ? Math.max(0, Math.ceil((Date.parse(pkg.endsAt) - now.getTime()) / (24 * 60 * 60 * 1000)))
+    : 0
+
+  return {
+    includedPosts,
+    usedPosts: safeUsedPosts,
+    remainingPosts: Math.max(0, includedPosts - safeUsedPosts),
+    remainingDays,
+  }
+}
+
+/**
  * The status a stored package has outgrown, or null when the stored status
  * still describes it. Kept separate from persistence so the caller decides when
  * to write, and so an expiry never surprises a package the superadmin cancelled.

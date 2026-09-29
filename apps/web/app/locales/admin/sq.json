@@ -401,6 +401,8 @@
   "admin.packages.name": "Emri i paketës",
   "admin.packages.posts": "Postime të përfshira",
   "admin.packages.postsValue": "{{count}} postime",
+  "admin.packages.usageValue": "Të përdorura: {{used}} · Të mbetura: {{remaining}}",
+  "admin.packages.daysRemaining": "{{count}} ditë të mbetura",
   "admin.packages.price": "Çmimi i rënë dakord",
   "admin.packages.suggested": "E sugjeruar: {{price}}",
   "admin.packages.useSuggestion": "Përdor sugjerimin",

@@ -353,6 +353,7 @@ export async function trialStatus(
     features: paidAccess?.features || (state === 'active' ? policy.features : []),
     limits: paidAccess?.limits || trialLimits,
     plan: paidAccess?.plan || null,
+    quotaPeriod: paidAccess?.quotaPeriod,
   }
 }
 export async function requireEntitlement(
