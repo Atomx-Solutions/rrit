@@ -1,4 +1,4 @@
-export type LowCreditAction = 'top-up' | 'choose-plan'
+export type LowCreditAction = 'contact-team'
 
 /**
  * The reminder shows below the threshold unless the customer dismissed it in
@@ -10,6 +10,6 @@ export function showLowCreditReminder(spendable: number, threshold: number, dism
   return dismissedAt === null || spendable < dismissedAt
 }
 
-export function lowCreditAction(hasActivePackage: boolean): LowCreditAction {
-  return hasActivePackage ? 'top-up' : 'choose-plan'
+export function lowCreditAction(): LowCreditAction {
+  return 'contact-team'
 }

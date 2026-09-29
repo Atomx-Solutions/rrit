@@ -1,13 +1,8 @@
-import {
-  CREDIT_TOP_UP_MAXIMUM,
-  CREDIT_TOP_UP_MINIMUM,
-} from '../../utils/credit-top-ups'
-import { creditPricing } from '../../utils/credits'
 import { packageUsageSummary } from '../../utils/custom-packages'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const { subscription, customPackage, pricing } = await withBusinessTransaction(user.id, async (client, business) => {
+  const { subscription, customPackage } = await withBusinessTransaction(user.id, async (client, business) => {
     const result = await client.query<{
       plan_code: string
       billing_interval: 'monthly' | 'annual'
@@ -51,17 +46,10 @@ export default defineEventHandler(async (event) => {
     return {
       subscription: result.rows[0] || null,
       customPackage: custom.rows[0] || null,
-      pricing: await creditPricing(client),
     }
   })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
-    selfServiceEnabled: process.env.BILLING_SELF_SERVICE_ENABLED === 'true',
-    creditTopUp: {
-      minimum: CREDIT_TOP_UP_MINIMUM,
-      maximum: CREDIT_TOP_UP_MAXIMUM,
-      unitPrice: pricing.creditPriceCents / 100,
-    },
     customPackage: customPackage && (() => {
       const startsAt = new Date(customPackage.starts_at).toISOString()
       const endsAt = new Date(customPackage.ends_at).toISOString()
