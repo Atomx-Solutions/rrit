@@ -40,7 +40,7 @@ const questions = computed(() => [
           <h1 id="pricing-page-title">{{ t('landing.howManyPosts') }}</h1>
           <p>{{ t('landing.packageRhythm') }}</p>
         </div>
-        <LandingPricing :show-details-link="false" />
+        <LandingPackageRequest />
       </UContainer>
     </section>
     <section class="landing-faq-section" aria-labelledby="pricing-faq-title">
