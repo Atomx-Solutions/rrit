@@ -166,10 +166,13 @@ export interface TrialStatus {
   features: EntitlementFeature[]
   limits: PlanLimits
   plan: { name: string; version: number } | null
+  // Present only for a custom package, whose negotiated dates define the post
+  // quota window rather than a calendar month.
+  quotaPeriod?: { startsAt: Date; endsAt: Date }
 }
 export type PlanningAccess = Pick<
   TrialStatus,
-  'paid' | 'features' | 'limits' | 'plan' | 'expiresAt'
+  'paid' | 'features' | 'limits' | 'plan' | 'expiresAt' | 'quotaPeriod'
 >
 
 type PaidEntitlementRow = {
@@ -203,18 +206,19 @@ async function customPackageAccess(
   coversFrom: Date,
   coversUntil: Date,
   db: Pool | PoolClient,
+  allowPartialCoverage = false,
 ): Promise<PlanningAccess | null> {
   const result = await db.query<{
     name: string
     posts_included: number
+    starts_at: Date
     ends_at: Date
   }>(
-    `SELECT name,posts_included,ends_at
-       FROM custom_packages
+    `SELECT name,posts_included,starts_at,ends_at
+      FROM custom_packages
       WHERE organization_id=$1
         AND status='active'
-        AND starts_at<=$2
-        AND ends_at>=$3
+        AND ${allowPartialCoverage ? 'starts_at<$3 AND ends_at>$2' : 'starts_at<=$2 AND ends_at>=$3'}
       ORDER BY ends_at DESC LIMIT 1`,
     [businessId, coversFrom, coversUntil],
   )
@@ -227,6 +231,7 @@ async function customPackageAccess(
     limits: { ...policy.limits, posts_per_month: Number(row.posts_included) },
     plan: { name: row.name, version: 1 },
     expiresAt: new Date(row.ends_at).toISOString(),
+    quotaPeriod: { startsAt: new Date(row.starts_at), endsAt: new Date(row.ends_at) },
   }
 }
 
@@ -275,7 +280,9 @@ export async function paidAccessForPlanningMonth(
   const start = new Date(`${month}-01T00:00:00.000Z`)
   const end = new Date(start)
   end.setUTCMonth(end.getUTCMonth() + 1)
-  const custom = await customPackageAccess(businessId, start, end, db)
+  // A negotiated package may span only part of a calendar month. The planner
+  // receives its exact quota window and rejects slots outside it.
+  const custom = await customPackageAccess(businessId, start, end, db, true)
   if (custom) return custom
   const subscription = await subscriptionAccess(businessId, start, end, db)
   if (subscription) return subscription
@@ -366,17 +373,25 @@ export async function requireEntitlement(
 }
 
 /**
- * Posts counted against the package allowance. A paid package renews every
- * calendar month; the trial's 3 posts are a single allowance that never
- * renews, so every post of the business counts, whatever its month.
+ * Posts counted against the package allowance. Subscriptions retain their
+ * calendar-month allowance, while a custom package supplies its negotiated
+ * date window. The trial's allowance never renews, so every post counts.
  */
 export async function postsCountedForLimit(
   db: Pool | PoolClient,
   businessId: string,
   month: string,
   paid: boolean,
+  quotaPeriod?: { startsAt: Date; endsAt: Date },
 ) {
-  const result = paid
+  const result = quotaPeriod
+    ? await db.query<{ count: number }>(
+        `SELECT count(*)::integer AS count
+           FROM posts
+          WHERE business_id=$1 AND created_at>=$2 AND created_at<$3`,
+        [businessId, quotaPeriod.startsAt, quotaPeriod.endsAt],
+      )
+    : paid
     ? await db.query<{ count: number }>(
         'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
         [businessId, `${month}-01`],
@@ -420,9 +435,20 @@ export async function usageSnapshot(
     ),
   ])
   const row = counters.rows[0]
+  const packagePosts = access.quotaPeriod
+    ? await postsCountedForLimit(
+        db,
+        businessId,
+        new Date().toISOString().slice(0, 7),
+        true,
+        access.quotaPeriod,
+      )
+    : null
   const current: Record<QuotaKey, number> = {
     // Same rule as postsCountedForLimit: the trial allowance never renews.
-    posts_per_month: Number((access.paid ? row.posts_per_month : row.trial_posts_used) || 0),
+    posts_per_month: Number(
+      (access.paid ? (packagePosts ?? row.posts_per_month) : row.trial_posts_used) || 0,
+    ),
     ai_requests_per_day: Number(row.ai_requests_per_day || 0),
     media_storage_bytes: Number(row.media_storage_bytes || 0),
     social_accounts: Number(row.social_accounts || 0),

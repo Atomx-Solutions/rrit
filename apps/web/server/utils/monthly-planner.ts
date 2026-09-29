@@ -132,6 +132,23 @@ export async function plannerAccess(
   return paidAccessForPlanningMonth(businessId, month, db)
 }
 
+function packagePlanningDates(
+  month: string,
+  quotaPeriod: { startsAt: Date; endsAt: Date } | undefined,
+) {
+  if (!quotaPeriod) return {}
+  const monthStart = `${month}-01`
+  const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
+    .toISOString()
+    .slice(0, 10)
+  const packageStart = quotaPeriod.startsAt.toISOString().slice(0, 10)
+  const packageEnd = new Date(quotaPeriod.endsAt.getTime() - 1).toISOString().slice(0, 10)
+  return {
+    earliest: packageStart > monthStart ? packageStart : monthStart,
+    latest: packageEnd < monthEnd ? packageEnd : monthEnd,
+  }
+}
+
 /**
  * Business Brain for a plan snapshot.
  *
@@ -187,7 +204,7 @@ export async function ensureMonthlyPlan(
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
   const existing = await plannerStep('ensure.post_count', () =>
-    postsCountedForLimit(client, businessId, month, access.paid),
+    postsCountedForLimit(client, businessId, month, access.paid, access.quotaPeriod),
   )
   const target = remainingMonthlyPosts(access.limits.posts_per_month, existing)
   if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
@@ -307,7 +324,13 @@ export async function restartMonthlyPlan(
   const access = await plannerAccess(businessId, month, workspace.preferences.timezone, client)
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
-  const existing = await postsCountedForLimit(client, businessId, month, access.paid)
+  const existing = await postsCountedForLimit(
+    client,
+    businessId,
+    month,
+    access.paid,
+    access.quotaPeriod,
+  )
   const target = remainingMonthlyPosts(access.limits.posts_per_month, existing)
   if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
   if (resumePlanning || resumeContent) {
@@ -1086,7 +1109,13 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
   if (plan.stage === 'content') {
-    const current = await postsCountedForLimit(db, plan.business_id, plan.month_key, access.paid)
+    const current = await postsCountedForLimit(
+      db,
+      plan.business_id,
+      plan.month_key,
+      access.paid,
+      access.quotaPeriod,
+    )
     if (!remainingMonthlyPosts(access.limits.posts_per_month, current))
       throw new PlannerFailure('QUOTA_EXCEEDED')
   }
@@ -1139,10 +1168,14 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   }
   const research = researchSchema.parse(plan.research)
   if (plan.stage === 'planning') {
-    const earliestPublishableDate = earliestPlanningDate(
+    const accessDates = packagePlanningDates(plan.month_key, access.quotaPeriod)
+    const baseEarliestPublishableDate = earliestPlanningDate(
       plan.evidence.timezone,
       plan.evidence.capturedAt,
     )
+    const earliestPublishableDate = accessDates.earliest && accessDates.earliest > baseEarliestPublishableDate
+      ? accessDates.earliest
+      : baseEarliestPublishableDate
     const planningAssets = await plannerStep('planning.assets', () =>
       loadPlannerAssets(
         db,
@@ -1188,6 +1221,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           month: plan.month_key,
           count: plan.target_count,
           earliestPublishableDate,
+          ...(accessDates.latest ? { latestPublishableDate: accessDates.latest } : {}),
           contactSheet: planningAssets.map((asset, index) => ({
             photo: index + 1,
             ...plan.evidence.assets.find((item) => item.id === asset.id),
@@ -1234,6 +1268,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           research,
           plan.month_key,
           plan.target_count,
+          accessDates.latest,
         )
       } catch (error) {
         // A valid provider payload may still invent timing evidence or fail a
@@ -1597,7 +1632,13 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           if (!rights.rowCount) throw new PlannerFailure('EVIDENCE_CHANGED')
         })
         const countedPosts = await plannerStep('content.persist.post_usage', () =>
-          postsCountedForLimit(client, plan.business_id, plan.month_key, currentAccess.paid),
+          postsCountedForLimit(
+            client,
+            plan.business_id,
+            plan.month_key,
+            currentAccess.paid,
+            currentAccess.quotaPeriod,
+          ),
         )
         const usage = await plannerStep('content.persist.usage', () =>
           client.query<{ bytes: number }>(

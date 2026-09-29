@@ -37,6 +37,31 @@ describe('trial post allowance', () => {
     expect(query.mock.calls[0]?.[0]).toContain('posts_used')
   })
 
+  it('counts a custom package across its exact billing period, not by calendar month', async () => {
+    const query = vi.fn(async () => ({ rows: [{ count: 14 }] }))
+
+    await expect(
+      postsCountedForLimit(
+        { query } as never,
+        '00000000-0000-4000-8000-000000000001',
+        '2026-08',
+        true,
+        {
+          startsAt: new Date('2026-07-25T00:00:00.000Z'),
+          endsAt: new Date('2026-08-25T00:00:00.000Z'),
+        },
+      ),
+    ).resolves.toBe(14)
+
+    expect(query.mock.calls[0]?.[0]).toContain('created_at>=$2')
+    expect(query.mock.calls[0]?.[0]).toContain('created_at<$3')
+    expect(query.mock.calls[0]?.[1]).toEqual([
+      '00000000-0000-4000-8000-000000000001',
+      new Date('2026-07-25T00:00:00.000Z'),
+      new Date('2026-08-25T00:00:00.000Z'),
+    ])
+  })
+
   it('records positive trial usage atomically', async () => {
     const query = vi.fn(async () => ({ rows: [{ posts_used: 3 }] }))
     await expect(

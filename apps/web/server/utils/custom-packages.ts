@@ -4,6 +4,7 @@ import {
   type CustomPackageDraft,
   type CustomPackageStatus,
 } from '../../shared/schemas/custom-package'
+import type { PoolClient } from 'pg'
 import { withTenantTransaction, type TenantContext } from './database'
 
 /**
@@ -61,6 +62,15 @@ export function outgrownPackageStatus(
 ): CustomPackageStatus | null {
   if (pkg.status !== 'active') return null
   return Date.parse(pkg.endsAt) <= now.getTime() ? 'expired' : null
+}
+
+/** Runs the database-owned, audited expiry transition from the maintenance worker. */
+export async function expireCustomPackages(client: PoolClient, now = new Date()) {
+  const result = await client.query<{ expired: number }>(
+    'SELECT app.expire_custom_packages($1) AS expired',
+    [now],
+  )
+  return Number(result.rows[0]?.expired || 0)
 }
 
 type CustomPackageRow = {
