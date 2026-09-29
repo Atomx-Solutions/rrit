@@ -18,8 +18,8 @@ const links = computed(() => [
     active: route.path === '/' && route.hash === '#perse',
   },
   {
-    label: t('public.prices'),
-    to: route.path === '/' ? '/#cmimet' : '/pricing',
+    label: t('landing.requestOffer'),
+    to: '/#cmimet',
     active: route.path === '/pricing' || (route.path === '/' && route.hash === '#cmimet'),
   },
   {
@@ -32,7 +32,8 @@ const legal = [
   { label: t('public.privacy'), to: '/privacy' },
   { label: t('public.terms'), to: '/terms' },
 ]
-const { trialLabel, canRegister } = useLandingOffer()
+const { canRegister } = useLandingOffer()
+const { to: offerCtaPath, labelKey: offerCtaLabelKey } = publicOfferCta
 const year = new Date().getFullYear()
 </script>
 <template>
@@ -70,11 +71,11 @@ const year = new Date().getFullYear()
             </template>
           </USelect><UButton to="/login" variant="ghost" color="neutral">{{ t('public.login') }}</UButton
           ><UButton
-            :to="canRegister ? '/signup' : '/help'"
+            :to="offerCtaPath"
             trailing-icon="i-lucide-arrow-up-right"
             size="sm"
             class="rounded-lg whitespace-nowrap max-[379px]:px-2 max-[379px]:text-[11px]"
-            >{{ canRegister ? trialLabel : t('public.contactUs') }}</UButton
+            >{{ t(offerCtaLabelKey) }}</UButton
           >
         </div></template
       ><template #body
@@ -100,12 +101,12 @@ const year = new Date().getFullYear()
               </span>
             </template>
           </USelect><UButton
-            :to="canRegister ? '/signup' : '/help'"
+            :to="offerCtaPath"
             trailing-icon="i-lucide-arrow-up-right"
             size="lg"
             block
             class="col-span-2 w-full rounded-lg"
-            >{{ canRegister ? trialLabel : t('public.contactUs') }}</UButton
+            >{{ t(offerCtaLabelKey) }}</UButton
           >
         </div><UNavigationMenu
           :items="[...links, { label: t('public.loginAccount'), to: '/login' }]"
@@ -128,7 +129,7 @@ const year = new Date().getFullYear()
             </div>
             <nav class="flex flex-col items-start gap-[14px] text-[13px] max-sm:gap-3 max-sm:text-xs" :aria-label="t('public.exploreRrit')">
               <p class="mb-2 text-[9px] tracking-[1.1px] text-muted">{{ t('public.explore') }}</p>
-              <ULink class="py-0.5 hover:text-primary" to="/#perse">{{ t('public.howItWorks') }}</ULink><ULink class="py-0.5 hover:text-primary" to="/pricing">{{ t('public.plans') }}</ULink
+              <ULink class="py-0.5 hover:text-primary" to="/#perse">{{ t('public.howItWorks') }}</ULink><ULink class="py-0.5 hover:text-primary" :to="offerCtaPath">{{ t(offerCtaLabelKey) }}</ULink
               ><ULink class="py-0.5 hover:text-primary" to="/#pyetje">{{ t('public.faq') }}</ULink>
             </nav>
             <nav class="flex flex-col items-start gap-[14px] text-[13px] max-sm:gap-3 max-sm:text-xs" :aria-label="t('public.accountAndHelp')">

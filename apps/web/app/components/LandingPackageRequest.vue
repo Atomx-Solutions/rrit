@@ -9,6 +9,6 @@
 
 <template>
   <div class="landing-request">
-    <PackageRequestForm compact />
+    <PackageRequestForm compact submit-label-key="landing.requestOffer" />
   </div>
 </template>
