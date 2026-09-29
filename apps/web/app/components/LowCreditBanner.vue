@@ -24,7 +24,7 @@ const visible = computed(() =>
   && props.threshold !== undefined
   && showLowCreditReminder(props.spendable, props.threshold, dismissedAt.value),
 )
-const action = computed(() => lowCreditAction(!!props.hasActivePackage))
+const action = computed(() => lowCreditAction())
 function dismiss() {
   if (props.spendable === undefined) return
   dismissedAt.value = props.spendable
@@ -47,19 +47,14 @@ function dismiss() {
       <div>
         <p class="text-sm font-medium">{{ t('lowCredit.title', { credits: spendable ?? 0 }) }}</p>
         <p class="text-xs text-muted mt-1">
-          {{ action === 'top-up' ? t('lowCredit.topUpDescription') : t('lowCredit.choosePlanDescription') }}
+          {{ t('lowCredit.contactTeamDescription') }}
         </p>
       </div>
     </div>
     <div class="flex items-center gap-1">
-      <UButton
-        :to="action === 'top-up' ? `${base}/billing#credit-top-up-section` : `${base}/billing#plans`"
-        :data-action="action"
-        color="warning"
-        size="sm"
-      >
-        {{ action === 'top-up' ? t('lowCredit.buyCredits') : t('lowCredit.choosePlan') }}
-      </UButton>
+      <UBadge :data-action="action" color="warning" variant="subtle">
+        {{ t('lowCredit.contactTeam') }}
+      </UBadge>
       <UButton
         icon="i-lucide-x"
         color="neutral"

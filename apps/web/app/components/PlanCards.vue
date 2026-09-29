@@ -4,7 +4,6 @@ import { formatMoney } from '~~/shared/utils/format'
 const { t } = useI18n()
 const props = defineProps<{ annual?: boolean; directSignup?: boolean }>()
 const { plans } = usePlanCatalog()
-const { canRegister } = useLandingOffer()
 const emit = defineEmits<{ select: [name: string] }>()
 
 const planNameKeys: Record<string, string> = {
@@ -110,14 +109,14 @@ const saving = (plan: CatalogPlan) => {
       </template>
       <template v-if="directSignup" #button>
         <UButton
-          :to="canRegister ? '/signup' : '/help'"
+          to="/help"
           :variant="plan.code === recommended ? 'solid' : 'outline'"
           :color="plan.code === recommended ? 'primary' : 'neutral'"
           :class="plan.code === recommended ? 'landing-primary-button' : undefined"
           size="lg"
           block
           trailing-icon="i-lucide-arrow-up-right"
-        >{{ canRegister ? t('billing.buyPlanNow', { plan: planName(plan) }) : t('landing.contactUs') }}</UButton>
+        >{{ t('landing.contactUs') }}</UButton>
       </template>
     </UPricingPlan>
   </UPricingPlans>
