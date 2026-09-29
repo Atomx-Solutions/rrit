@@ -198,6 +198,38 @@ function paidEntitlementAccess(row: PaidEntitlementRow | undefined): PlanningAcc
 
 // A paid PRC-02 subscription is the source of truth for the package. Its post
 // allowance comes from the plan; the other operational limits stay shared.
+async function customPackageAccess(
+  businessId: string,
+  coversFrom: Date,
+  coversUntil: Date,
+  db: Pool | PoolClient,
+): Promise<PlanningAccess | null> {
+  const result = await db.query<{
+    name: string
+    posts_included: number
+    ends_at: Date
+  }>(
+    `SELECT name,posts_included,ends_at
+       FROM custom_packages
+      WHERE organization_id=$1
+        AND status='active'
+        AND starts_at<=$2
+        AND ends_at>=$3
+      ORDER BY ends_at DESC LIMIT 1`,
+    [businessId, coversFrom, coversUntil],
+  )
+  const row = result.rows[0]
+  if (!row) return null
+  const policy = await trialPolicy(db)
+  return {
+    paid: true,
+    features: [...entitlementFeatureSchema.options],
+    limits: { ...policy.limits, posts_per_month: Number(row.posts_included) },
+    plan: { name: row.name, version: 1 },
+    expiresAt: new Date(row.ends_at).toISOString(),
+  }
+}
+
 async function subscriptionAccess(
   businessId: string,
   coversFrom: Date,
@@ -243,6 +275,8 @@ export async function paidAccessForPlanningMonth(
   const start = new Date(`${month}-01T00:00:00.000Z`)
   const end = new Date(start)
   end.setUTCMonth(end.getUTCMonth() + 1)
+  const custom = await customPackageAccess(businessId, start, end, db)
+  if (custom) return custom
   const subscription = await subscriptionAccess(businessId, start, end, db)
   if (subscription) return subscription
   const paid = await db.query<PaidEntitlementRow>(
@@ -280,7 +314,9 @@ export async function trialStatus(
     : 'unavailable'
   const now = new Date()
   const paidAccess =
-    (await subscriptionAccess(businessId, now, now, db)) || paidEntitlementAccess(paid.rows[0])
+    (await customPackageAccess(businessId, now, now, db))
+    || (await subscriptionAccess(businessId, now, now, db))
+    || paidEntitlementAccess(paid.rows[0])
   // A trial follows its package allowance (Free Trial: 3 posts), not the
   // legacy app_settings limit.
   const trialPlan = paidAccess
