@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   PackageInputError,
   customPackageFromRow,
+  expireCustomPackages,
   outgrownPackageStatus,
   packageIsInForce,
   packagePriceIsOverridden,
@@ -132,6 +133,16 @@ describe('custom package period and status', () => {
         new Date('2026-11-02T00:00:00.000Z'),
       ),
     ).toBeNull()
+  })
+})
+
+describe('custom package expiry', () => {
+  it('delegates expiry to the audited database transition with a stable clock', async () => {
+    const now = new Date('2026-08-25T00:00:00.000Z')
+    const query = vi.fn(async () => ({ rows: [{ expired: 2 }] }))
+
+    await expect(expireCustomPackages({ query } as never, now)).resolves.toBe(2)
+    expect(query).toHaveBeenCalledWith('SELECT app.expire_custom_packages($1) AS expired', [now])
   })
 })
 

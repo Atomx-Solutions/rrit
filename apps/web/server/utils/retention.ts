@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
+import { expireCustomPackages } from './custom-packages'
 
 const retentionPolicySchema = z.object({
   oauth_state_days: z.number().int().min(1).max(90),
@@ -66,6 +67,7 @@ export async function runRetentionBatch(db: Pool = database()) {
       const result = await client.query(statement[0], [statement[1]])
       removed[keys[index]!] = result.rowCount || 0
     }
+    removed.expiredCustomPackages = await expireCustomPackages(client)
     await client.query(
       "UPDATE maintenance_runs SET last_completed_at=now(),result=$1,failure=NULL WHERE name='retention'",
       [JSON.stringify(removed)],

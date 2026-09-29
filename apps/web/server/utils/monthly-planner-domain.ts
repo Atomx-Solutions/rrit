@@ -464,6 +464,7 @@ export function validateEditorialPlan(
   research: Research,
   month: string,
   count: number,
+  latestDate?: string,
 ) {
   const plan = editorialPlanSchema.parse(value)
   const earliestDate = earliestPlanningDate(evidence.timezone, evidence.capturedAt)
@@ -544,6 +545,7 @@ export function validateEditorialPlan(
     if (
       !iso ||
       date.slice(0, 10) < earliestDate ||
+      (latestDate !== undefined && date.slice(0, 10) > latestDate) ||
       Date.parse(iso) <= Date.parse(evidence.capturedAt)
     )
       throw new PlannerFailure('INVALID_SLOT_DATE', [

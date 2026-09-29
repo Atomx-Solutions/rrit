@@ -188,6 +188,16 @@ describe('monthly evidence and provider boundaries', () => {
       'PHOTO_SELECTION_MISSING',
     )
   })
+  it('rejects a planner slot after the custom package period ends', () => {
+    const evidence = plannerEvidence(createDemo(), now)
+    const research = researchFromResponse(researchFixture(), now)
+    const plan = editorialFixture()
+    plan.slots[0]!.day = 26
+
+    expect(() =>
+      validateEditorialPlan(plan, evidence, research, '2026-09', 1, '2026-09-25'),
+    ).toThrow('INVALID_SLOT_DATE')
+  })
   it('downgrades an unsupported claimed timing hour to truthful no_data', () => {
     const workspace = createDemo()
     const evidence = plannerEvidence(workspace, now, '2026-09', undefined, [
