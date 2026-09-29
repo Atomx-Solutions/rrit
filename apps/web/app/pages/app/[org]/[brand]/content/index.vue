@@ -127,7 +127,7 @@ watch([search, filter, channel], () => {
       :title="t('content.noPosts')"
       :description="t('content.noPostsDescription')"
       icon="i-lucide-search-x"
-      :actions="[{ label: t('content.createPost'), to: `${base}/content/new`, color: 'primary' }]"
+      :actions="[{ label: t('content.createPost'), to: `${base}/monthly-planner`, color: 'primary' }]"
     />
   </DashboardPage>
 </template>
