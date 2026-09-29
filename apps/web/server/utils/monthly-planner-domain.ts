@@ -590,6 +590,7 @@ export const plannerMessages: Record<string, string> = {
   CONFIGURATION_REQUIRED: 'Platforma ende nuk e ka aktivizuar planifikimin mujor.',
   ENTITLEMENT_REQUIRED: 'Planifikimi me AI kërkon një paketë aktive me AI.',
   QUOTA_EXCEEDED: 'Kufiri i paketës është arritur. Draftet e krijuara mbeten të ruajtura.',
+  QUANTITY_EXCEEDS_REMAINING: 'Sasia e zgjedhur tejkalon postimet e mbetura në paketë.',
   BUDGET_EXCEEDED: 'Përgatitja u ndal te kufiri i kostos. Draftet mbeten të ruajtura.',
   PROVIDER_UNCERTAIN:
     'Lidhja me shërbimin AI u ndërpre. Platforma po vazhdon automatikisht nga e njëjta fazë.',
@@ -646,6 +647,13 @@ export const plannerMessages: Record<string, string> = {
  */
 export function remainingMonthlyPosts(postsPerMonth: number, createdThisMonth: number) {
   return Math.max(0, Math.min(postsPerMonth, 100) - createdThisMonth)
+}
+
+/** Validates the client choice again at the server boundary. */
+export function requestedPlannerPosts(quantity: number, remaining: number) {
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > remaining)
+    throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
+  return quantity
 }
 
 export function resumableContentFailureCode(code: string | null | undefined) {

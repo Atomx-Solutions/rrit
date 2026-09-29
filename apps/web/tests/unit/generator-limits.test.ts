@@ -1,6 +1,6 @@
 import { createError } from 'h3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { remainingMonthlyPosts } from '../../server/utils/monthly-planner-domain'
+import { remainingMonthlyPosts, requestedPlannerPosts } from '../../server/utils/monthly-planner-domain'
 import { postsCountedForLimit, recordTrialPostUsage, trialStatus } from '../../server/utils/trials'
 
 afterEach(() => {
@@ -8,6 +8,10 @@ afterEach(() => {
 })
 
 describe('monthly post allowance', () => {
+  it('accepts a selected quantity only within the remaining allowance', () => {
+    expect(requestedPlannerPosts(2, 3)).toBe(2)
+    expect(() => requestedPlannerPosts(4, 3)).toThrow('QUANTITY_EXCEEDS_REMAINING')
+  })
   it('blocks the 15th post on Pako 1 after 14 generated posts', () => {
     expect(remainingMonthlyPosts(14, 13)).toBe(1)
     expect(remainingMonthlyPosts(14, 14)).toBe(0)

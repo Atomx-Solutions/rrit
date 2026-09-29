@@ -183,6 +183,8 @@
   "content.stayHere": "Stay here",
   "content.photoUnavailable": "Photo unavailable",
   "monthly.title": "AI Monthly Studio",
+  "monthly.quantityLabel": "How many posts?",
+  "monthly.quantityRemaining": "{{count}} posts remaining in your package",
   "monthly.checkingService": "Checking your plan and AI service.",
   "monthly.paused": "Preparation is paused",
   "monthly.needStep": "One more step needed",

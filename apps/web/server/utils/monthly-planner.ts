@@ -68,6 +68,7 @@ import {
   planningMonth,
   promptEvidence,
   remainingMonthlyPosts,
+  requestedPlannerPosts,
   validateEditorialPlan,
   type PlannerEvidence,
   type PlannerTimingSample,
@@ -167,7 +168,7 @@ export async function ensureMonthlyPlan(
   businessId: string,
   ownerId: string,
   month?: string,
-  options: { requeueCancelled?: boolean } = {},
+  options: { requeueCancelled?: boolean; quantity?: number } = {},
 ) {
   if (!monthlyAiConfigured()) throw new PlannerFailure('CONFIGURATION_REQUIRED')
   await plannerStep('ensure.business_lock', () =>
@@ -206,8 +207,9 @@ export async function ensureMonthlyPlan(
   const existing = await plannerStep('ensure.post_count', () =>
     postsCountedForLimit(client, businessId, month, access.paid, access.quotaPeriod),
   )
-  const target = remainingMonthlyPosts(access.limits.posts_per_month, existing)
-  if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
+  const remaining = remainingMonthlyPosts(access.limits.posts_per_month, existing)
+  if (remaining < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
+  const target = options.quantity === undefined ? remaining : requestedPlannerPosts(options.quantity, remaining)
   const photoSelection = {
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
@@ -335,8 +337,8 @@ export async function restartMonthlyPlan(
   if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
   if (resumePlanning || resumeContent) {
     await client.query(
-      "UPDATE monthly_plans SET status='queued',error_code=NULL,next_run_at=now(),updated_at=now() WHERE id=$1 AND business_id=$2",
-      [prior.id, businessId],
+      "UPDATE monthly_plans SET status='queued',error_code=NULL,next_run_at=now(),updated_at=now(),planning_retry_nonce=planning_retry_nonce+CASE WHEN $3='planning' THEN 1 ELSE 0 END WHERE id=$1 AND business_id=$2",
+      [prior.id, businessId, prior.stage],
     )
     await client.query(
       "INSERT INTO audit_events(business_id,organization_id,actor_id,action,resource_type,resource_id,result,revision) VALUES($1,$1,$2,'monthly_plan.resumed','monthly_plan',$3,'succeeded',$4)",
@@ -450,6 +452,7 @@ interface PlanRow {
   completed_count: number
   evidence: PlannerEvidence
   evidence_hash: string
+  planning_retry_nonce: number
   research: unknown
   editorial_plan: unknown
 }
@@ -1196,7 +1199,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       const planningStageKey = monthlyAutomaticStageKey(
         'planning',
         plan.evidence_hash,
-        `${plan.target_count}:${previousPageStyle.revision}`,
+        `${plan.target_count}:${previousPageStyle.revision}:${plan.planning_retry_nonce}`,
       )
       const response = await monthlyProviderCall(db, {
         ...common,

@@ -1,6 +1,7 @@
 import { monthSchema } from '../../../shared/schemas/monthly-plan'
 import { monthlyAiConfigured } from '../../utils/monthly-ai'
 import { plannerAccess } from '../../utils/monthly-planner'
+import { postsCountedForLimit } from '../../utils/trials'
 import {
   plannerEvidence,
   plannerPrerequisites,
@@ -56,6 +57,9 @@ export default defineEventHandler(async (event) => {
       [business.id, `${month.data}-01`],
     )
     const row = result.rows[0]
+    const usedPosts = access
+      ? await postsCountedForLimit(client, business.id, month.data, access.paid, access.quotaPeriod)
+      : 0
     const worker = await client.query(
       "SELECT EXISTS(SELECT 1 FROM worker_heartbeats WHERE name='monthly_planner' AND last_seen_at>now()-interval '5 minutes') AS alive",
     )
@@ -72,6 +76,11 @@ export default defineEventHandler(async (event) => {
       package: access?.plan || null,
       entitled: !!access?.features.includes('ai') && access.features.includes('posts'),
       limit: access?.limits.posts_per_month || 0,
+      usage: {
+        included: access?.limits.posts_per_month || 0,
+        used: usedPosts,
+        remaining: Math.max(0, (access?.limits.posts_per_month || 0) - usedPosts),
+      },
       workerAlive: worker.rows[0]?.alive === true,
       prerequisite: prerequisite
         ? plannerMessages[prerequisite] || 'Plotëso profilin e biznesit.'

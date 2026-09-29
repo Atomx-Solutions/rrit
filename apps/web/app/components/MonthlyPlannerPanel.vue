@@ -63,6 +63,11 @@ const phases = [
 ] as const
 
 const plan = computed(() => planner.value?.plan)
+const selectedQuantity = ref(1)
+const remainingPosts = computed(() => planner.value?.usage?.remaining || 0)
+watch(remainingPosts, (remaining) => {
+  selectedQuantity.value = Math.max(1, Math.min(selectedQuantity.value, remaining || 1))
+}, { immediate: true })
 const active = computed(() => ['queued', 'running'].includes(plan.value?.status || ''))
 const blocked = computed(() => plan.value?.status === 'blocked')
 const ready = computed(() => plan.value?.status === 'review')
@@ -182,6 +187,7 @@ async function act(action: 'prepare' | 'restart' | 'reset' | 'pause' | 'enable')
           ? {
               photoMode: photoMode.value,
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
+              quantity: selectedQuantity.value,
             }
           : {}),
       },
@@ -817,9 +823,21 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ t('legacy.monthlyProcess') }}
           </p>
         </div>
-        <UButton :loading="busy" icon="i-lucide-calendar-plus" @click="act('prepare')">
+        <div class="flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
+          <div class="flex min-w-0 items-center gap-2.5">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UIcon name="i-lucide-sparkles" class="size-4" />
+            </div>
+            <div>
+              <p class="text-sm font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
+              <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
+            </div>
+          </div>
+          <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
+          <UButton :loading="busy" :disabled="remainingPosts < 1" icon="i-lucide-calendar-plus" @click="act('prepare')">
           {{ t('legacy.prepareMonth') }}
-        </UButton>
+          </UButton>
+        </div>
       </div>
     </div>
 
