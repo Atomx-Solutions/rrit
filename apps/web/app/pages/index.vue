@@ -1,20 +1,12 @@
 <script setup lang="ts">
 import '~/assets/css/landing.css'
 import '~/assets/css/landing-scenes.css'
-import { formatMoney } from '~~/shared/utils/format'
 definePageMeta({ layout: 'public' })
 const landingRoot = ref<HTMLElement>()
 useLandingMotion(landingRoot)
 const { t } = useI18n()
-const { capabilities, error: offerError, trialDuration, trialLabel, canRegister, refresh } = useLandingOffer()
-const { plans, error } = usePlanCatalog()
-const { showError } = useFormFeedback()
-watch(offerError, (value) => {
-  if (value) showError(t('landing.registrationUnavailable'), 'warning')
-}, { immediate: true })
-const startingPlan = computed(() =>
-  error.value ? undefined : [...plans.value].sort((a, b) => a.price - b.price)[0],
-)
+const { capabilities, trialDuration } = useLandingOffer()
+const { to: trialCtaPath, labelKey: trialCtaLabelKey } = publicTrialCta
 useSeoMeta({
   title: t('landing.seoTitle'),
   description: t('landing.seoDescription'),
@@ -58,34 +50,15 @@ const questions = computed(() => [
           </p>
           <div class="landing-button-row">
             <UButton
-              v-if="canRegister"
-              to="/signup"
+              :to="trialCtaPath"
               size="xl"
               trailing-icon="i-lucide-arrow-up-right"
               class="landing-primary-button"
-              >{{ trialLabel }}</UButton
+              >{{ t(trialCtaLabelKey) }}</UButton
             >
-            <UButton
-              v-else
-              size="xl"
-              variant="outline"
-              color="neutral"
-              icon="i-lucide-refresh-cw"
-              @click="refresh()"
-              >{{ t('landing.checkRegistration') }}</UButton
-            >
-            <UButton to="#cmimet" variant="link" color="neutral" size="lg">{{
-              t('landing.viewPackages')
-            }}</UButton>
+            <UButton to="#perse" variant="link" color="neutral" size="lg">{{ t('landing.seeHowItWorks') }}</UButton>
           </div>
-          <p v-if="canRegister" class="landing-smallprint">
-            {{ t('landing.noCard') }}<template v-if="startingPlan">
-              {{ t('landing.fromPrice', { price: formatMoney(startingPlan.price) }) }}</template
-            >
-          </p>
-          <p v-else class="landing-smallprint" role="status">
-            {{ t('landing.registrationUnavailable') }}
-          </p>
+          <p class="landing-smallprint">{{ t('landing.offerByPostVolume') }}</p>
         </div>
         <LandingPostShowcase />
       </UContainer>
@@ -166,19 +139,19 @@ const questions = computed(() => [
         </div>
         <div class="landing-final-next">
           <UButton
-            :to="canRegister ? '/signup' : '/help'"
+            :to="trialCtaPath"
             size="xl"
             variant="link"
             class="landing-final-action"
           >
-            {{ canRegister ? trialLabel : t('landing.seeHowItWorks') }}
+            {{ t(trialCtaLabelKey) }}
             <template #trailing>
               <span class="landing-final-arrow" aria-hidden="true">
                 <UIcon name="i-lucide-arrow-up-right" />
               </span>
             </template>
           </UButton>
-          <p v-if="canRegister" class="landing-final-note">{{ t('landing.albanianNoCard') }}</p>
+          <p class="landing-final-note">{{ t('landing.offerByPostVolume') }}</p>
         </div>
       </section>
     </UContainer>

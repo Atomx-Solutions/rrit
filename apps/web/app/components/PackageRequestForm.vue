@@ -10,8 +10,8 @@ import { z } from 'zod'
  * volume and an optional note only.
  */
 const props = withDefaults(
-  defineProps<{ endpoint?: string, compact?: boolean, contactKnown?: boolean }>(),
-  { endpoint: '/api/package-requests', compact: false, contactKnown: false },
+  defineProps<{ endpoint?: string, compact?: boolean, contactKnown?: boolean, submitLabelKey?: string }>(),
+  { endpoint: '/api/package-requests', compact: false, contactKnown: false, submitLabelKey: '' },
 )
 const emit = defineEmits<{ sent: [] }>()
 const { t } = useI18n()
@@ -112,6 +112,6 @@ async function submit() {
         <UInput v-model="form.phone" type="tel" :maxlength="40" class="w-full" />
       </UFormField>
     </div>
-    <UButton type="submit" :loading="sending" :label="t('request.submit')" block />
+    <UButton type="submit" :loading="sending" :label="t(props.submitLabelKey || 'request.submit')" block />
   </UForm>
 </template>
