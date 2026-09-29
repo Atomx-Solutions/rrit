@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
       month: monthSchema.optional(),
       photoMode: z.enum(['auto', 'selected']).optional(),
       selectedAssetIds: z.array(z.uuid()).max(100).optional(),
+      quantity: z.number().int().min(1).max(100).optional(),
     })
     .safeParse(await boundedBody(event, 2048))
   if (!input.success)
@@ -59,6 +60,7 @@ export default defineEventHandler(async (event) => {
       )
       return ensureMonthlyPlan(client, business.id, user.id, input.data.month, {
         requeueCancelled: true,
+        quantity: input.data.quantity,
       })
     })
     setResponseStatus(event, 202)

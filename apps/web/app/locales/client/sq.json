@@ -183,6 +183,8 @@
   "content.stayHere": "Qëndro këtu",
   "content.photoUnavailable": "Fotografia nuk është e disponueshme",
   "monthly.title": "AI Monthly Studio",
+  "monthly.quantityLabel": "Sa postime?",
+  "monthly.quantityRemaining": "{{count}} postime të mbetura në paketë",
   "monthly.checkingService": "Po kontrollojmë paketën dhe shërbimin AI.",
   "monthly.paused": "Përgatitja është në pauzë",
   "monthly.needStep": "Duhet edhe një hap",
