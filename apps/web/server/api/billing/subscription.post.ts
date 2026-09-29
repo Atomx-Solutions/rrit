@@ -22,6 +22,19 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 422, message: 'Kërkesa nuk është e vlefshme.' })
   const result = await withBusinessTransaction(user.id, async (client, business) => {
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
+    // A negotiated package is an agreement made outside self service, so the
+    // organization cannot buy a plan over it while it runs.
+    const custom = await client.query(
+      `SELECT 1 FROM custom_packages
+        WHERE organization_id=$1 AND status='active' AND starts_at<=now() AND ends_at>now()`,
+      [business.id],
+    )
+    if (custom.rowCount)
+      throw createError({
+        statusCode: 409,
+        message: 'Kjo organizatë ka një paketë të posaçme aktive. Kontakto ekipin për ta ndryshuar.',
+        data: { code: 'CUSTOM_PACKAGE_ACTIVE' },
+      })
     const current = await client.query<{ status: string; billing_interval: string }>(
       `SELECT status,billing_interval FROM subscriptions
         WHERE organization_id=$1 AND status IN ('active','past_due')`,

@@ -403,7 +403,7 @@ describe('monthly evidence and provider boundaries', () => {
   })
   it('resolves future access only from an entitlement covering the full month', async () => {
     const query = vi.fn(async (sql: string) =>
-      sql.includes('FROM subscriptions')
+      sql.includes('FROM subscriptions') || sql.includes('FROM custom_packages')
         ? { rows: [] }
         : {
             rows: [

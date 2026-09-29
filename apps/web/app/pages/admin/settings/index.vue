@@ -4,7 +4,7 @@ const { t, locale, setLocale } = useI18n()
 const { onFormError, showError, watchError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.settings')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
-type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number }
+type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, custom_package_post_price_cents: number }
 const toast = useToast()
 const { data, status, error, refresh } = await useFetch<Settings>('/api/admin/settings', { lazy: true })
 watch(error, (value) => {
@@ -45,6 +45,34 @@ async function save() {
   }
 }
 
+// The per-post rate behind custom package suggestions. It is a commercial
+// setting rather than an AI one, so it lives in its own card and saves alone.
+const packageForm = reactive({ post_price_euro: 1.5 })
+watch(data, (value) => {
+  if (value) packageForm.post_price_euro = value.custom_package_post_price_cents / 100
+}, { immediate: true })
+const packagePriceCents = computed(() => Math.round(packageForm.post_price_euro * 100))
+const packageChanged = computed(() =>
+  !!data.value && packagePriceCents.value !== data.value.custom_package_post_price_cents)
+const savingPackage = ref(false)
+async function savePackageRate() {
+  if (!packageChanged.value) return
+  savingPackage.value = true
+  saveError.value = ''
+  try {
+    await $fetch('/api/admin/settings', {
+      method: 'PATCH',
+      body: { custom_package_post_price_cents: packagePriceCents.value },
+    })
+    await refresh()
+    toast.add({ title: t('admin.settings.saved'), color: 'success' })
+  } catch (problem) {
+    saveError.value = (problem as { data?: { message?: string } }).data?.message || t('admin.settings.saveFailed')
+  } finally {
+    savingPackage.value = false
+  }
+}
+
 // The same two languages as the customer app; the choice is per admin.
 const languageOptions = computed(() => [
   { label: t('admin.settings.albanian'), value: 'sq-XK' },
@@ -67,6 +95,38 @@ const language = computed({
           />
         </template>
         <USelect v-model="language" :items="languageOptions" :aria-label="t('admin.settings.language')" class="w-full sm:w-64" />
+      </UCard>
+
+      <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }">
+        <template #header>
+          <UUser
+            :name="t('admin.settings.packageRate')"
+            :description="t('admin.settings.packageRateHint')"
+            :avatar="{ icon: 'i-lucide-tag', size: 'sm' }"
+          />
+        </template>
+        <UForm :state="packageForm" class="space-y-4" @submit="savePackageRate" @error="onFormError">
+          <UFormField
+            name="post_price_euro"
+            :label="t('admin.settings.postPrice')"
+            :hint="t('admin.settings.postPriceHint')"
+          >
+            <UInputNumber
+              v-model="packageForm.post_price_euro"
+              :min="0.01"
+              :max="10000"
+              :step="0.01"
+              :format-options="{ style: 'currency', currency: 'EUR' }"
+              class="w-full sm:w-48"
+            />
+          </UFormField>
+          <UButton
+            type="submit"
+            :loading="savingPackage"
+            :disabled="!packageChanged"
+            :label="t('admin.settings.save')"
+          />
+        </UForm>
       </UCard>
 
       <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5 space-y-4' }">

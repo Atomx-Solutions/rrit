@@ -255,6 +255,11 @@ async function copyId() {
           </template>
         </UTable>
       </UCard>
+      <AdminCustomPackages
+        v-if="organization"
+        :organization-id="organization.id"
+        :organization-name="organization.name"
+      />
       <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
         <template #header>
           <UButton
