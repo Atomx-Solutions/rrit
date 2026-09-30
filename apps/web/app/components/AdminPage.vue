@@ -22,7 +22,13 @@ const language = computed({
 })
 </script>
 <template>
-  <UDashboardPanel :id="`admin-${route.path}`" :ui="{ root: 'min-w-0 bg-default' }">
+  <UDashboardPanel
+    :id="`admin-${route.path}`"
+    :ui="{
+      root: 'min-h-full min-w-0 flex flex-col bg-default',
+      body: 'flex-none overflow-visible p-0 sm:p-0 gap-0',
+    }"
+  >
     <template #header>
       <UDashboardNavbar
         :title="title"

@@ -34,11 +34,19 @@ const toast = useToast()
 function day(value: Date) {
   return value.toISOString().slice(0, 10)
 }
-const reportTo = day(new Date())
-const reportFromDate = new Date()
-reportFromDate.setDate(1)
-const report = reactive({ from: day(reportFromDate), to: reportTo })
-const { data: conversionSummary, error: conversionError } = await useFetch<{
+function defaultReportRange() {
+  const to = new Date()
+  const from = new Date(to)
+  from.setDate(1)
+  return { from: day(from), to: day(to) }
+}
+const report = reactive(defaultReportRange())
+const {
+  data: conversionSummary,
+  status: conversionStatus,
+  error: conversionError,
+  refresh: refreshConversion,
+} = await useFetch<{
   total: number
   new: number
   contacted: number
@@ -83,6 +91,29 @@ function clearFilters() {
   filter.value = 'all'
   Object.assign(search, { text: '', source: 'all', from: '', to: '' })
 }
+async function resetAndRefresh() {
+  const nextReport = defaultReportRange()
+  const listNeedsRefresh = filter.value !== 'all'
+    || !!search.text
+    || search.source !== 'all'
+    || !!search.from
+    || !!search.to
+  const summaryNeedsRefresh = report.from !== nextReport.from || report.to !== nextReport.to
+  filter.value = 'all'
+  page.value = 1
+  pageSize.value = 20
+  Object.assign(search, { text: '', source: 'all', from: '', to: '' })
+  Object.assign(report, nextReport)
+  // Filter/date changes are watched by useFetch and already trigger a refresh.
+  // Only call refresh explicitly when that query did not change, avoiding two
+  // concurrent requests and the resulting aborted-request error toasts.
+  await nextTick()
+  const requestsToRefresh = [
+    ...(listNeedsRefresh ? [] : [refresh()]),
+    ...(summaryNeedsRefresh ? [] : [refreshConversion()]),
+  ]
+  await Promise.all(requestsToRefresh)
+}
 const requests = computed(() => {
   const text = search.text.trim().toLowerCase()
   const from = search.from ? Date.parse(`${search.from}T00:00:00.000Z`) : null
@@ -103,6 +134,20 @@ const requests = computed(() => {
       request.industry,
     ].some(value => value?.toLowerCase().includes(text))
   })
+})
+const page = ref(1)
+const pageSize = ref(20)
+const paginatedRequests = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return requests.value.slice(start, start + pageSize.value)
+})
+watch(
+  [filter, () => search.text, () => search.source, () => search.from, () => search.to, pageSize],
+  () => { page.value = 1 },
+)
+watch(() => requests.value.length, (total) => {
+  const lastPage = Math.max(1, Math.ceil(total / pageSize.value))
+  if (page.value > lastPage) page.value = lastPage
 })
 
 const statusColors: Record<PackageRequest['status'], 'info' | 'warning' | 'success' | 'neutral'> = {
@@ -138,20 +183,13 @@ async function setStatus(request: PackageRequest, next: PackageRequest['status']
       { method: 'PATCH', body: { status: next, note } },
     )
     toast.add({ title: t('admin.requests.saved'), color: 'success' })
-    // The answer carries the stored row, so the panel shows the new status
-    // without waiting for the list to come back.
+    // Update only the existing reactive records. Replacing `selected` or the
+    // entire response object remounted the modal's contents after each click,
+    // which looked like a full reload and could interrupt text being entered.
     if (selected.value?.id === request.id)
-      selected.value = { ...selected.value, ...updated, status: next }
-    // Keep the inbox in place while the admin works through leads. A full
-    // refetch made every status/note click visibly reload the page.
-    if (data.value) {
-      data.value = {
-        ...data.value,
-        requests: data.value.requests.map(item => item.id === request.id
-          ? { ...item, ...updated, status: next }
-          : item),
-      }
-    }
+      Object.assign(selected.value, updated, { status: next })
+    const row = data.value?.requests.find(item => item.id === request.id)
+    if (row) Object.assign(row, updated, { status: next })
   } catch (problem) {
     showError(
       (problem as { data?: { message?: string } }).data?.message || t('admin.requests.saveFailed'),
@@ -286,16 +324,16 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="status === 'pending'"
+            :loading="status === 'pending' || conversionStatus === 'pending'"
             :aria-label="t('admin.requests.refresh')"
-            @click="refresh()"
+            @click="resetAndRefresh"
           />
         </div>
       </template>
     </UCard>
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <UTable
-        :data="requests"
+        :data="paginatedRequests"
         :columns="columns"
         :loading="status === 'pending'"
         :empty="t('admin.requests.empty')"
@@ -355,6 +393,15 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
         </template>
       </UTable>
     </UCard>
+    <template #footer>
+      <ListPagination
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="requests.length"
+        :sibling-count="1"
+        show-edges
+      />
+    </template>
     <AdminPackageRequestDetails
       :request="selected"
       :saving="saving === selected?.id"

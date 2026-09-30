@@ -139,6 +139,6 @@ const profileMenu = computed(() => [
       </template>
     </USidebar>
     <!-- Same as the customer layout: a fixed-height main lets the panel body scroll. -->
-    <main id="main" tabindex="-1" class="flex min-w-0 flex-1 overflow-hidden"><slot /></main>
+    <main id="main" tabindex="-1" class="flex min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"><slot /></main>
   </UDashboardGroup>
 </template>

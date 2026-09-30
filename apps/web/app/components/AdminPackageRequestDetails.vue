@@ -33,10 +33,16 @@ watch(() => props.request?.id, () => {
 const { t } = useI18n()
 const note = ref('')
 const selectedStatus = ref<AdminPackageRequest['status']>()
+type PendingAction = 'delete' | 'save' | 'proposal' | 'note'
+const pendingAction = ref<PendingAction | null>(null)
 watch(() => props.request?.id, () => {
   note.value = props.request?.handled_note || ''
   selectedStatus.value = undefined
+  pendingAction.value = null
 }, { immediate: true })
+watch(() => props.saving, (saving) => {
+  if (!saving) pendingAction.value = null
+})
 
 const statusColors: Record<AdminPackageRequest['status'], 'info' | 'warning' | 'success' | 'neutral'> = {
   new: 'info',
@@ -122,15 +128,33 @@ const statusOptions = computed<{ label: string; value: AdminPackageRequest['stat
 const canEditStatus = computed(() => ['new', 'contacted'].includes(props.request?.status || ''))
 const canSendProposal = computed(() => ['new', 'contacted'].includes(props.request?.status || ''))
 function saveChanges() {
-  if (props.request && selectedStatus.value) emit('status', selectedStatus.value, note.value)
+  if (!props.saving && props.request && selectedStatus.value) {
+    pendingAction.value = 'save'
+    emit('status', selectedStatus.value, note.value)
+  }
 }
 function sendProposal() {
   // The parent opens the proposal form. It persists proposal_sent only after
   // the draft package has been created for the client to review.
-  if (props.request) emit('status', 'won', note.value)
+  if (!props.saving && props.request) {
+    pendingAction.value = 'proposal'
+    emit('status', 'won', note.value)
+  }
 }
 function saveNote() {
-  if (props.request) emit('status', props.request.status, note.value)
+  if (!props.saving && props.request) {
+    pendingAction.value = 'note'
+    emit('status', props.request.status, note.value)
+  }
+}
+function removeRequest() {
+  if (!props.request) return
+  if (!confirmingDelete.value) {
+    confirmingDelete.value = true
+    return
+  }
+  pendingAction.value = 'delete'
+  emit('remove')
 }
 
 </script>
@@ -139,7 +163,7 @@ function saveNote() {
     :open="!!request"
     :title="request?.contact_name"
     :description="request?.organization_name || request?.business_name || ''"
-    :ui="{ content: 'sm:max-w-2xl', body: 'space-y-4' }"
+    :ui="{ content: 'sm:max-w-3xl', body: 'space-y-4' }"
     @update:open="(value: boolean) => { if (!value) emit('close') }"
   >
     <template #body>
@@ -205,38 +229,39 @@ function saveNote() {
     </template>
     <template #footer>
       <div class="flex w-full flex-wrap items-center gap-2 border-t border-default pt-3">
-        <div class="flex items-center gap-1.5">
+        <div class="flex shrink-0 items-center gap-1.5">
           <UButton
             v-if="request?.organization_id"
+            type="button"
             color="neutral"
             variant="soft"
-            size="sm"
+            class="h-11 w-32 justify-center"
             icon="i-lucide-building-2"
             :to="`/admin/organizations/${request.organization_id}`"
             :label="t('admin.requests.openOrganizationShort')"
           />
           <UButton
+            type="button"
             color="error"
             variant="ghost"
-            size="sm"
+            class="size-11 justify-center"
             icon="i-lucide-trash-2"
-            :loading="saving"
+            :loading="saving && pendingAction === 'delete'"
             :aria-label="confirmingDelete ? t('admin.requests.deleteConfirm') : t('admin.requests.delete')"
-            @click="confirmingDelete ? emit('remove') : (confirmingDelete = true)"
+            @click.stop.prevent="removeRequest"
           />
         </div>
-        <div class="flex w-full flex-wrap items-center justify-end gap-2 min-[800px]:ms-auto min-[800px]:w-auto min-[800px]:flex-nowrap">
+        <div class="ms-auto grid grid-cols-3 gap-2">
           <USelect
             v-if="canEditStatus"
             v-model="selectedStatus"
             :items="statusOptions"
             :placeholder="t('admin.details.status')"
-            size="sm"
-            class="h-8 w-full min-[480px]:w-56"
+            class="h-11 w-40"
           />
-          <UButton v-if="canEditStatus" color="neutral" variant="outline" size="sm" :disabled="!selectedStatus" :loading="saving" :label="t('admin.requests.saveChanges')" @click="saveChanges" />
-          <UButton v-if="canSendProposal" size="sm" :loading="saving" :label="t('admin.requests.sendProposal')" @click="sendProposal" />
-          <UButton v-else color="neutral" variant="outline" size="sm" :loading="saving" :label="t('admin.requests.saveNote')" @click="saveNote" />
+          <UButton v-if="canEditStatus" type="button" color="neutral" variant="outline" class="h-11 w-40 justify-center" :disabled="!selectedStatus" :loading="saving && pendingAction === 'save'" :label="t('admin.requests.saveChanges')" @click.stop.prevent="saveChanges" />
+          <UButton v-if="canSendProposal" type="button" class="h-11 w-40 justify-center" :loading="saving && pendingAction === 'proposal'" :label="t('admin.requests.sendProposal')" @click.stop.prevent="sendProposal" />
+          <UButton v-else type="button" color="neutral" variant="outline" class="h-11 w-40 justify-center" :loading="saving && pendingAction === 'note'" :label="t('admin.requests.saveNote')" @click.stop.prevent="saveNote" />
         </div>
       </div>
     </template>
