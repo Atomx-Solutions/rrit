@@ -7,10 +7,16 @@ import { withUserTransaction } from './database'
  * A request for a package. Prices are not part of it: the customer says how
  * much they need, and the team answers with an offer.
  */
+export const packageRequestPlatformSchema = z.enum(['instagram', 'facebook', 'both'])
 export const packageRequestSchema = z.object({
   contactName: z.string().trim().min(2).max(120),
   contactEmail: z.email().max(320),
-  phone: z.string().trim().min(4).max(40).optional(),
+  phone: z.string().trim().min(4).max(40),
+  businessName: z.string().trim().min(2).max(120),
+  industry: z.string().trim().min(2).max(100),
+  platform: packageRequestPlatformSchema,
+  // A predefined amount and a typed one are the same answer to the database:
+  // what matters is the number the visitor settled on.
   postsRequested: z.number().int().min(1).max(1000),
   message: z.string().trim().max(2000).optional(),
 })
@@ -24,6 +30,20 @@ export const appPackageRequestSchema = packageRequestSchema.pick({
   postsRequested: true,
   message: true,
 })
+
+/**
+ * The amounts offered as a starting point on the form. They are a setting
+ * rather than a catalogue: every organization agrees its own volume, so these
+ * only save the visitor from typing the usual ones.
+ */
+export async function packageRequestPostOptions() {
+  const result = await withUserTransaction('', client =>
+    client.query<{ package_request_post_options: number[] }>(
+      'SELECT package_request_post_options() AS package_request_post_options',
+    ),
+  )
+  return result.rows[0]?.package_request_post_options ?? []
+}
 
 /**
  * A keyed hash of the caller's address, so the rate limit can recognise a
@@ -59,7 +79,7 @@ export function packageRequestFailure(message: string | undefined) {
  * limit survives a restart and applies across every running instance.
  */
 export async function submitPackageRequest(input: {
-  values: PackageRequestInput
+  values: PackageRequestInput | (z.infer<typeof appPackageRequestSchema> & Partial<PackageRequestInput>)
   source: 'landing' | 'app'
   organizationId: string | null
   submitterHash: string | null
@@ -69,7 +89,7 @@ export async function submitPackageRequest(input: {
   try {
     return await withUserTransaction(input.userId ?? '', async (client) => {
       const result = await client.query<{ submit_package_request: string }>(
-        'SELECT submit_package_request($1,$2,$3,$4,$5,$6,$7,$8)',
+        'SELECT submit_package_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
         [
           values.contactName,
           values.contactEmail,
@@ -79,6 +99,9 @@ export async function submitPackageRequest(input: {
           values.phone ?? null,
           values.message ?? null,
           input.submitterHash,
+          values.businessName ?? null,
+          values.industry ?? null,
+          values.platform ?? null,
         ],
       )
       return { id: result.rows[0]!.submit_package_request }

@@ -1745,6 +1745,21 @@
   "request.nameRequired": "Enter your name.",
   "request.emailInvalid": "Enter a valid email.",
   "request.postsRequired": "Choose at least one post.",
-  "request.appTitle": "Request a package change",
-  "request.phoneInvalid": "The number needs at least 4 digits."
+  "request.appTitle": "Request a package",
+  "request.businessName": "Business name",
+  "request.industry": "Industry",
+  "request.platform": "Platform",
+  "request.platformInstagram": "Instagram",
+  "request.platformFacebook": "Facebook",
+  "request.platformBoth": "Both",
+  "request.businessRequired": "Enter the business name.",
+  "request.industryRequired": "Enter the industry.",
+  "request.phoneRequired": "Enter your phone number.",
+  "request.namePlaceholder": "John Doe",
+  "request.emailPlaceholder": "john@example.com",
+  "request.phonePlaceholder": "1 555 000 0000",
+  "request.businessPlaceholder": "Acme Inc.",
+  "request.industryPlaceholder": "Coffee shop",
+  "request.messagePlaceholder": "3 posts per week, mostly products",
+  "request.appRenewTitle": "Request a change or renewal"
 }

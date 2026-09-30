@@ -92,6 +92,17 @@ async function saveDetails() {
       </div>
     </UCard>
 
+    <!-- Packages are activated by the team, so asking for one has to be
+         possible from here rather than only described. -->
+    <UCard as="section" :ui="{ body: 'p-4 sm:p-5', header: 'px-5 py-4' }">
+      <template #header>
+        <h2 class="text-sm font-semibold">
+          {{ customPackage ? t('request.appRenewTitle') : t('request.appTitle') }}
+        </h2>
+      </template>
+      <PackageRequestForm endpoint="/api/billing/package-request" compact contact-known />
+    </UCard>
+
     <template v-if="usage">
       <UCard :ui="{ body: 'p-4' }">
         <div class="flex items-center justify-between gap-4">

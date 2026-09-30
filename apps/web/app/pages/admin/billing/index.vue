@@ -135,6 +135,7 @@ const sourceLabel: Record<string, string> = {
   subscription_upgrade: t('admin.billing.sourceSubscriptionUpgrade'),
   credit_top_up: t('admin.billing.sourceCreditTopUp'),
   credit_note: t('admin.billing.sourceCreditNote'),
+  custom_package: t('admin.billing.sourceCustomPackage'),
 }
 </script>
 

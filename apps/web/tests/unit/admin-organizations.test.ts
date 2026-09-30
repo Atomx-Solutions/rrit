@@ -7,11 +7,11 @@ describe('admin organization list query', () => {
   })
 
   it('accepts combined filters from the query string', () => {
-    expect(adminOrganizationsQuerySchema.parse({ page: '2', per_page: '50', status: 'paused', plan: 'pako-1', q: ' Hamza ' }))
-      .toEqual({ page: 2, per_page: 50, status: 'paused', plan: 'pako-1', q: 'Hamza' })
+    expect(adminOrganizationsQuerySchema.parse({ page: '2', per_page: '50', status: 'none', q: ' Hamza ' }))
+      .toEqual({ page: 2, per_page: 50, status: 'none', q: 'Hamza' })
   })
 
-  it.each([{ per_page: '101' }, { page: '0' }, { status: 'deleted' }, { plan: 'x' }])('rejects %o', (query) => {
+  it.each([{ per_page: '101' }, { page: '0' }, { status: 'deleted' }, { status: 'pako-1' }])('rejects %o', (query) => {
     expect(adminOrganizationsQuerySchema.safeParse(query).success).toBe(false)
   })
 })

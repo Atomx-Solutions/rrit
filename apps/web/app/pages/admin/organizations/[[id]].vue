@@ -9,7 +9,7 @@ useSeoMeta({ title: () => `${t('admin.nav.organizations')} · Rrit Admin`, robot
 
 const route = useRoute()
 const router = useRouter()
-const statuses = ['trialing', 'active', 'paused', 'cancelled', 'expired'] as const
+const statuses = organizationStates
 function routeString(value: unknown) {
   return typeof value === 'string' ? value : ''
 }
@@ -22,7 +22,6 @@ const pageSize = ref(positiveInteger(route.query.per_page, 20))
 const filters = reactive({
   search: routeString(route.query.q),
   status: statuses.includes(routeString(route.query.status) as typeof statuses[number]) ? routeString(route.query.status) : 'all',
-  plan: routeString(route.query.plan) || 'all',
 })
 const q = ref(filters.search.trim())
 
@@ -31,7 +30,6 @@ function syncUrl() {
     query: {
       ...(q.value ? { q: q.value } : {}),
       ...(filters.status !== 'all' ? { status: filters.status } : {}),
-      ...(filters.plan !== 'all' ? { plan: filters.plan } : {}),
       ...(page.value > 1 ? { page: String(page.value) } : {}),
       ...(pageSize.value !== 20 ? { per_page: String(pageSize.value) } : {}),
     },
@@ -49,17 +47,12 @@ watch(q, () => {
   page.value = 1
   syncUrl()
 })
-watch([() => filters.status, () => filters.plan, pageSize], () => {
+watch([() => filters.status, pageSize], () => {
   page.value = 1
   syncUrl()
 })
 watch(page, syncUrl)
 
-type AdminPlan = { code: string, name: string }
-const { data: plansData } = await useFetch<{ plans: AdminPlan[] }>('/api/admin/plans', {
-  key: 'admin-organization-plan-filter',
-})
-const plans = computed(() => plansData.value?.plans || [])
 const { data, status: loading, error, refresh } = await useFetch<{ items: Organization[]; total: number }>(
   '/api/admin/organizations',
   {
@@ -72,7 +65,6 @@ const { data, status: loading, error, refresh } = await useFetch<{ items: Organi
       per_page: pageSize.value,
       ...(q.value ? { q: q.value } : {}),
       ...(filters.status !== 'all' ? { status: filters.status } : {}),
-      ...(filters.plan !== 'all' ? { plan: filters.plan } : {}),
     })),
   },
 )
@@ -122,22 +114,11 @@ async function onChanged() {
 
 const statusOptions = computed(() => [
   { label: t('admin.organizations.allStatuses'), value: 'all' },
-  ...['trialing', 'active', 'paused', 'cancelled', 'expired'].map(value => ({
-    label: t(`admin.status.${value}`),
-    value,
-  })),
+  ...statuses.map(value => ({ label: t(`admin.organizations.state.${value}`), value })),
 ])
-const planOptions = computed(() => [
-  { label: t('admin.organizations.allPlans'), value: 'all' },
-  ...plans.value.map(item => ({ label: item.name, value: item.code })),
-])
-const statusColors: Record<string, 'success' | 'info' | 'warning' | 'error' | 'neutral'> = {
-  active: 'success',
-  trialing: 'info',
-  paused: 'warning',
-  past_due: 'error',
-  cancelled: 'neutral',
-  expired: 'neutral',
+// The state is decided in the database, so every view reads the same answer.
+function stateOf(organization: Organization) {
+  return organizationState(organization.state)
 }
 function formatDay(value: string) {
   return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
@@ -146,18 +127,17 @@ function credits(organization: Organization) {
   const balance = organization.credit_balance
   return balance ? balance.remaining_credits - balance.reserved_credits : '—'
 }
-function subscriptionLabel(organization: Organization) {
-  const subscription = organization.subscription
-  return subscription
-    ? `${subscription.plan_name} · ${t(`admin.status.${subscription.status}`)}`
-    : t('admin.organizations.noSubscription')
+function packageLabel(organization: Organization) {
+  const custom = organization.custom_package
+  if (!custom) return t('admin.organizations.noPackage')
+  return `${custom.name} · ${t('admin.organizations.postsShort', { count: custom.posts_included })}`
 }
 
 // Secondary columns appear from large screens; the phone view is a card list.
 const wide = { class: { th: 'hidden lg:table-cell', td: 'hidden lg:table-cell' } }
 const columns = computed<TableColumn<Organization>[]>(() => [
   { accessorKey: 'name', header: t('admin.organizations.organization') },
-  { id: 'subscription', header: t('admin.organizations.plan') },
+  { id: 'subscription', header: t('admin.organizations.package') },
   { id: 'status', header: t('admin.organizations.status') },
   { id: 'credits', header: t('admin.organizations.creditsRemaining') },
   { id: 'brands', header: t('admin.organizations.brands'), meta: wide },
@@ -183,7 +163,7 @@ const columns = computed<TableColumn<Organization>[]>(() => [
             class="w-full sm:col-span-2 lg:col-span-1"
           />
           <USelect v-model="filters.status" :items="statusOptions" :aria-label="t('admin.organizations.status')" class="w-full" />
-          <USelect v-model="filters.plan" :items="planOptions" :aria-label="t('admin.organizations.plan')" class="w-full" />
+
         </UForm>
       </template>
 
@@ -210,16 +190,16 @@ const columns = computed<TableColumn<Organization>[]>(() => [
           </UButton>
           <UFieldGroup class="flex flex-wrap items-center gap-1.5">
             <UBadge
-              :color="organization.subscription ? statusColors[organization.subscription.status] || 'neutral' : 'neutral'"
-              :variant="organization.subscription ? 'subtle' : 'outline'"
-              :label="subscriptionLabel(organization)"
+              :color="organization.custom_package?.in_force ? 'success' : 'neutral'"
+              :variant="organization.custom_package ? 'subtle' : 'outline'"
+              :label="packageLabel(organization)"
             />
             <UBadge
-              v-if="organization.subscription"
+              v-if="organization.custom_package"
               color="neutral"
               variant="soft"
               icon="i-lucide-calendar"
-              :label="formatDay(organization.subscription.current_period_end)"
+              :label="formatDay(organization.custom_package.ends_at)"
             />
             <UBadge color="neutral" variant="soft" icon="i-lucide-coins" :label="String(credits(organization))" />
             <UBadge
@@ -228,11 +208,12 @@ const columns = computed<TableColumn<Organization>[]>(() => [
               icon="i-lucide-users"
               :label="`${organization.brand_count} / ${organization.member_count}`"
             />
-            <AdminSubscriptionActions
+            <AdminPackageActions
               :organization-id="organization.id"
               :organization-name="organization.name"
-              :subscription="organization.subscription"
+              :package="organization.custom_package"
               @changed="refresh()"
+              @edit="openOrganization(organization.id)"
             />
           </UFieldGroup>
         </UCard>
@@ -278,22 +259,22 @@ const columns = computed<TableColumn<Organization>[]>(() => [
           </template>
           <template #subscription-cell="{ row }">
             <UBadge
-              color="neutral"
-              :variant="row.original.subscription ? 'subtle' : 'outline'"
-              :label="row.original.subscription?.plan_name || t('admin.organizations.noSubscription')"
+              :color="row.original.custom_package?.in_force ? 'success' : 'neutral'"
+              :variant="row.original.custom_package ? 'subtle' : 'outline'"
+              :label="packageLabel(row.original)"
             />
           </template>
           <template #period-cell="{ row }">
-            {{ row.original.subscription ? formatDay(row.original.subscription.current_period_end) : '—' }}
+            {{ row.original.custom_package ? formatDay(row.original.custom_package.ends_at) : '—' }}
           </template>
           <template #credits-cell="{ row }">
             {{ credits(row.original) }}
           </template>
           <template #status-cell="{ row }">
             <UBadge
-              :color="row.original.subscription ? statusColors[row.original.subscription.status] || 'neutral' : 'neutral'"
-              :variant="row.original.subscription ? 'subtle' : 'outline'"
-              :label="row.original.subscription ? t(`admin.status.${row.original.subscription.status}`) : t('admin.organizations.noSubscription')"
+              :color="organizationStateColors[stateOf(row.original)]"
+              :variant="stateOf(row.original) === 'none' ? 'outline' : 'subtle'"
+              :label="t(`admin.organizations.state.${stateOf(row.original)}`)"
             />
           </template>
           <template #brands-cell="{ row }">
@@ -306,11 +287,12 @@ const columns = computed<TableColumn<Organization>[]>(() => [
             {{ row.original.brand_count }} / {{ row.original.member_count }}
           </template>
           <template #actions-cell="{ row }">
-            <AdminSubscriptionActions
+            <AdminPackageActions
               :organization-id="row.original.id"
               :organization-name="row.original.name"
-              :subscription="row.original.subscription"
+              :package="row.original.custom_package"
               @changed="refresh()"
+              @edit="openOrganization(row.original.id)"
             />
           </template>
         </UTable>

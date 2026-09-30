@@ -13,6 +13,10 @@ function request(overrides: Record<string, unknown> = {}) {
   return {
     contactName: 'Altin Hamza',
     contactEmail: 'altin@example.test',
+    phone: '044111222',
+    businessName: 'Lumma Café',
+    industry: 'Kafene dhe ëmbëltore',
+    platform: 'both',
     postsRequested: 20,
     ...overrides,
   }
@@ -80,5 +84,41 @@ describe('admin package request changes', () => {
       status: 'contacted',
       note: 'U kontaktua',
     })
+  })
+})
+
+describe('lead fields', () => {
+  it('keeps what the team needs before it can answer with an offer', () => {
+    const parsed = packageRequestSchema.parse(request({ message: 'Tre postime në javë' }))
+
+    expect(parsed).toMatchObject({
+      businessName: 'Lumma Café',
+      industry: 'Kafene dhe ëmbëltore',
+      platform: 'both',
+      postsRequested: 20,
+    })
+  })
+
+  it('requires the business, a reachable number and where it publishes', () => {
+    // The team answers by calling, so the number is part of the request.
+    expect(() => packageRequestSchema.parse(request({ phone: undefined }))).toThrow()
+    expect(() => packageRequestSchema.parse(request({ phone: '12' }))).toThrow()
+    expect(() => packageRequestSchema.parse(request({ businessName: '' }))).toThrow()
+    expect(() => packageRequestSchema.parse(request({ industry: '' }))).toThrow()
+    expect(() => packageRequestSchema.parse(request({ platform: 'tiktok' }))).toThrow()
+  })
+
+  it('accepts a typed amount as readily as a suggested one', () => {
+    // A predefined choice and a custom number are the same answer here.
+    expect(packageRequestSchema.parse(request({ postsRequested: 137 })).postsRequested).toBe(137)
+    expect(packageRequestSchema.parse(request({ postsRequested: 10 })).postsRequested).toBe(10)
+  })
+
+  it('asks for none of it inside the app, where the organization is known', () => {
+    const parsed = appPackageRequestSchema.parse(request())
+
+    expect(parsed).not.toHaveProperty('businessName')
+    expect(parsed).not.toHaveProperty('industry')
+    expect(parsed).not.toHaveProperty('platform')
   })
 })
