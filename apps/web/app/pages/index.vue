@@ -83,8 +83,8 @@ const questions = computed(() => [
     </section>
     <LandingStories />
     <section id="cmimet" class="landing-pricing-section" aria-labelledby="pricing-title">
-      <UContainer class="landing-container">
-        <div class="landing-section-heading">
+      <UContainer class="landing-container landing-pricing-layout">
+        <div class="landing-section-heading landing-section-heading--start">
           <p class="landing-kicker">{{ t('landing.pricingKicker') }}</p>
           <h2 id="pricing-title">{{ t('landing.howManyPosts') }}</h2>
           <p>{{ t('landing.packageRhythm') }}</p>

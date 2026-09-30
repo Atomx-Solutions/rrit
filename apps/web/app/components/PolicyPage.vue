@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ kind: 'privacy' | 'terms' | 'security' }>()
+defineProps<{ kind: 'privacy' | 'terms' }>()
 const { data: site, error: siteError } = await useFetch('/api/site')
 const { t } = useI18n()
 const { showError } = useFormFeedback()
@@ -9,7 +9,6 @@ watch(siteError, (value) => {
 const titles = {
   privacy: 'policy.privacyTitle',
   terms: 'policy.termsTitle',
-  security: 'policy.securityTitle',
 }
 </script>
 <template>
@@ -23,7 +22,7 @@ const titles = {
         <h2>{{ t('policy.photosTitle') }}</h2><p>{{ t('policy.photosDescription') }}</p>
         <h2>{{ t('policy.exportTitle') }}</h2><p>{{ t('policy.exportDescription') }}</p></template
       >
-      <template v-else-if="kind === 'terms'"
+      <template v-else
         ><h2>{{ t('policy.accountTitle') }}</h2>
         <p>
           {{ t('policy.accountDescription') }}
@@ -35,20 +34,6 @@ const titles = {
         <h2>{{ t('policy.freePeriodTitle') }}</h2>
         <p>
           {{ t('policy.freePeriodDescription') }}
-        </p></template
-      >
-      <template v-else
-        ><h2>{{ t('legacy.loginRulesTitle') }}</h2>
-        <p>
-          {{ t('legacy.loginRules') }}
-        </p>
-        <h2>{{ t('legacy.accessRulesTitle') }}</h2>
-        <p>
-          {{ t('legacy.accessRules') }}
-        </p>
-        <h2>{{ t('legacy.publicationStatusTitle') }}</h2>
-        <p>
-          {{ t('legacy.publicationStatus') }}
         </p></template
       >
       <USeparator />

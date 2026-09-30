@@ -708,9 +708,6 @@ describe('trial transactions with PostgreSQL', () => {
     )
     expect(plans.rows).toEqual([
       { code: 'free-trial', monthly_cents: 0, posts_per_month: 3, monthly_credits: 250, style_fetch_post_count: 10, annual_discount_percent: 0, is_trial: true },
-      { code: 'pako-1', monthly_cents: 2499, posts_per_month: 14, monthly_credits: 1000, style_fetch_post_count: 10, annual_discount_percent: 15, is_trial: false },
-      { code: 'pako-2', monthly_cents: 4499, posts_per_month: 30, monthly_credits: 2250, style_fetch_post_count: 20, annual_discount_percent: 15, is_trial: false },
-      { code: 'pako-3', monthly_cents: 7999, posts_per_month: 60, monthly_credits: 4000, style_fetch_post_count: 30, annual_discount_percent: 15, is_trial: false },
     ])
     const item = await business()
     await insertOrganizationWithOwner(item, 'credit-org', 'Credit organization')

@@ -15,7 +15,7 @@ const props = withDefaults(
 )
 const emit = defineEmits<{ sent: [] }>()
 const { t } = useI18n()
-const { onFormError, watchError } = useFormFeedback()
+const { onFormError, watchError, showSuccess } = useFormFeedback()
 
 const form = reactive({
   contactName: '',
@@ -107,6 +107,7 @@ async function submit() {
       },
     })
     sent.value = true
+    showSuccess(t('request.sentDescription'))
     emit('sent')
   }
   catch (problem) {

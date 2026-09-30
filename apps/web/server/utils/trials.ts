@@ -340,9 +340,11 @@ export async function trialStatus(
           [businessId],
         )
       ).rows[0]
+  // Without an active trial or a paid package the account has no monthly
+  // allowance — the legacy app_settings fallback (12) is misleading.
   const trialLimits = trialPlan
     ? { ...policy.limits, posts_per_month: Number(trialPlan.posts_per_month) }
-    : policy.limits
+    : { ...policy.limits, posts_per_month: state === 'active' ? policy.limits.posts_per_month : 0 }
   return {
     state,
     startsAt: row?.starts_at?.toISOString() || null,

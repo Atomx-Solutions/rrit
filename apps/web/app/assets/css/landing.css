@@ -990,6 +990,32 @@
 
 /* The request card keeps the plan cards' surface: white, one hairline ring and
    the same padding, so the section reads as the pricing section it replaces. */
+.landing-pricing-layout {
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 56px;
+  align-items: center;
+}
+.landing-pricing-layout .landing-section-heading--start {
+  text-align: left;
+  margin: 0;
+  max-width: none;
+}
+.landing-pricing-layout .landing-section-heading--start .landing-kicker {
+  justify-content: flex-start;
+}
+@media (max-width: 900px) {
+  .landing-pricing-layout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .landing-pricing-layout .landing-section-heading--start {
+    text-align: center;
+  }
+  .landing-pricing-layout .landing-section-heading--start .landing-kicker {
+    justify-content: center;
+  }
+}
 .landing-request {
   max-width: 470px;
   margin: 0 auto;
@@ -999,8 +1025,62 @@
   padding: 28px 26px;
   text-align: left;
 }
+.landing-pricing-layout .landing-request {
+  margin: 0;
+}
 .landing-request label {
   font-size: 13px;
   font-weight: 550;
   color: var(--landing-ink);
+}
+.landing-request-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--landing-line);
+}
+.landing-request-count {
+  font-family: var(--landing-display, inherit);
+  font-size: 56px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--landing-ink);
+  letter-spacing: -0.02em;
+}
+.landing-request-hero-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.landing-request-hero-label {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--landing-ink);
+}
+.landing-request-hero-sub {
+  font-size: 12px;
+  color: var(--landing-muted, color-mix(in oklab, var(--landing-ink) 60%, transparent));
+}
+.landing-request-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.landing-request-dot {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--landing-ink) 12%, transparent);
+  transition: background 160ms ease;
+}
+.landing-request-dot.is-on {
+  background: var(--ui-primary, #22c55e);
+}
+.landing-request-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
 }
