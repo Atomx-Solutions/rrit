@@ -7,8 +7,22 @@ export type AdminOrganizationRow = {
   slug: string
   name: string
   status: string
+  // Decided in the database so the badge here matches the list exactly.
+  state: 'active' | 'trialing' | 'paused' | 'draft' | 'expired' | 'cancelled' | 'none'
   created_at: string
   subscription: { plan_code: string; plan_name: string; status: string; current_period_end: string; price_cents: number | null } | null
+  // The negotiated package the organization holds, which is what it may
+  // generate against. Older organizations may still carry only a subscription.
+  custom_package: {
+    id: string
+    name: string
+    posts_included: number
+    price_cents: number
+    starts_at: string
+    ends_at: string
+    status: 'draft' | 'active' | 'expired' | 'cancelled'
+    in_force: boolean
+  } | null
   credit_balance: { remaining_credits: number; reserved_credits: number } | null
   brand_count: number
   member_count: number
@@ -39,62 +53,32 @@ watch(detailsId, (id) => {
 }, { immediate: true })
 const memberStatusColors: Record<string, 'success' | 'warning' | 'neutral'> = { active: 'success', suspended: 'warning' }
 const brandStatusColors: Record<string, 'success' | 'neutral'> = { active: 'success', archived: 'neutral' }
-const statusColors: Record<string, 'success' | 'info' | 'warning' | 'error' | 'neutral'> = {
-  active: 'success',
-  trialing: 'info',
-  paused: 'warning',
-  past_due: 'error',
-  cancelled: 'neutral',
-  expired: 'neutral',
-}
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
 }
 
-const sections = computed(() => {
+// One card per step, so a step is never a scroll. The subscription is gone from
+// here: what an organization holds is its package, and that has its own step.
+const organizationRows = computed(() => {
   const organization = props.organization
   if (!organization) return []
-  const subscription = organization.subscription
-  const balance = organization.credit_balance
   return [
+    { label: t('admin.details.name'), value: organization.name },
+    { label: t('admin.details.slug'), value: organization.slug },
+    { label: t('admin.details.status'), value: t(`admin.organizationStatus.${organization.status}`) },
+    { label: t('admin.details.createdAt'), value: formatDateTime(organization.created_at) },
+    { label: 'ID', value: organization.id },
+  ]
+})
+const creditRows = computed(() => {
+  const balance = props.organization?.credit_balance
+  if (!balance) return [{ label: t('admin.details.remaining'), value: '—' }]
+  return [
+    { label: t('admin.details.remaining'), value: String(balance.remaining_credits) },
+    { label: t('admin.details.reserved'), value: String(balance.reserved_credits) },
     {
-      title: t('admin.details.organization'),
-      icon: 'i-lucide-building-2',
-      rows: [
-        { label: t('admin.details.name'), value: organization.name },
-        { label: t('admin.details.slug'), value: organization.slug },
-        { label: t('admin.details.status'), value: t(`admin.organizationStatus.${organization.status}`) },
-        { label: t('admin.details.createdAt'), value: formatDateTime(organization.created_at) },
-        { label: 'ID', value: organization.id },
-      ],
-    },
-    {
-      title: t('admin.details.subscription'),
-      icon: 'i-lucide-repeat',
-      rows: subscription
-        ? [
-            { label: t('admin.details.plan'), value: `${subscription.plan_name} (${subscription.plan_code})` },
-            { label: t('admin.details.status'), value: t(`admin.status.${subscription.status}`) },
-            { label: t('admin.details.price'), value: subscription.price_cents == null ? '—' : formatMoney(subscription.price_cents / 100) },
-            {
-              label: t('admin.details.period'),
-              value: details.value?.subscription
-                ? `${formatDateTime(details.value.subscription.current_period_start)} – ${formatDateTime(subscription.current_period_end)}`
-                : formatDateTime(subscription.current_period_end),
-            },
-          ]
-        : [{ label: t('admin.details.plan'), value: t('admin.organizations.noSubscription') }],
-    },
-    {
-      title: t('admin.details.credits'),
-      icon: 'i-lucide-coins',
-      rows: balance
-        ? [
-            { label: t('admin.details.remaining'), value: String(balance.remaining_credits) },
-            { label: t('admin.details.reserved'), value: String(balance.reserved_credits) },
-            { label: t('admin.details.spendable'), value: String(balance.remaining_credits - balance.reserved_credits) },
-          ]
-        : [{ label: t('admin.details.remaining'), value: '—' }],
+      label: t('admin.details.spendable'),
+      value: String(balance.remaining_credits - balance.reserved_credits),
     },
   ]
 })
@@ -119,6 +103,29 @@ function formatDay(value: string) {
 
 // The ten most recent invoices; the full history is on the billing page.
 const latestInvoices = computed(() => (invoiceData.value?.invoices || []).slice(0, 10))
+const steps = computed(() => [
+  { key: 'overview', label: t('admin.details.stepOverview') },
+  { key: 'packages', label: t('admin.details.stepPackages') },
+  { key: 'credits', label: t('admin.details.stepCredits') },
+  { key: 'members', label: t('admin.details.stepMembers', { count: details.value?.members.length ?? 0 }) },
+  { key: 'brands', label: t('admin.details.stepBrands', { count: details.value?.brands.length ?? 0 }) },
+  { key: 'invoices', label: t('admin.details.stepInvoices', { count: latestInvoices.value.length }) },
+])
+const step = ref(0)
+watch(() => props.organization?.id, () => {
+  step.value = 0
+})
+const currentStep = computed(() => steps.value[step.value]?.key ?? 'overview')
+// The steps double as a navigation bar, so a section can be reached directly
+// instead of only by walking through the ones before it.
+const stepItems = computed(() => steps.value.map(item => ({ label: item.label, value: item.key })))
+const activeStep = computed({
+  get: () => currentStep.value,
+  set: (value: string) => {
+    const index = steps.value.findIndex(item => item.key === value)
+    if (index >= 0) step.value = index
+  },
+})
 const memberColumns = computed<TableColumn<Member>[]>(() => [
   { accessorKey: 'email', header: t('admin.details.email') },
   { id: 'role', header: t('admin.users.role') },
@@ -169,17 +176,28 @@ async function copyId() {
     @update:open="(value: boolean) => { if (!value) emit('close') }"
   >
     <template #body>
+      <UTabs
+        v-model="activeStep"
+        :items="stepItems"
+        :content="false"
+        size="sm"
+        :aria-label="organization?.name"
+        :ui="{ list: 'w-full overflow-x-auto' }"
+      />
       <UBadge
         v-if="organization"
-        :color="organization.subscription ? statusColors[organization.subscription.status] || 'neutral' : 'neutral'"
-        :variant="organization.subscription ? 'subtle' : 'outline'"
-        :label="organization.subscription
-          ? `${organization.subscription.plan_name} · ${t(`admin.status.${organization.subscription.status}`)}`
-          : t('admin.organizations.noSubscription')"
+        :color="organizationStateColors[organizationState(organization.state)]"
+        :variant="organization.state === 'none' ? 'outline' : 'subtle'"
+        :label="organization.custom_package
+          ? `${organization.custom_package.name} · ${t(`admin.organizations.state.${organizationState(organization.state)}`)}`
+          : t(`admin.organizations.state.${organizationState(organization.state)}`)"
       />
       <UCard
-        v-for="section in sections"
-        :key="section.title"
+        v-for="section in [
+          { key: 'overview', title: t('admin.details.organization'), icon: 'i-lucide-building-2', rows: organizationRows },
+          { key: 'credits', title: t('admin.details.credits'), icon: 'i-lucide-coins', rows: creditRows },
+        ].filter(item => item.key === currentStep)"
+        :key="section.key"
         variant="outline"
         :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }"
       >
@@ -204,7 +222,7 @@ async function copyId() {
           }"
         />
       </UCard>
-      <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
+      <UCard v-if="currentStep === 'members'" variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
         <template #header>
           <UButton
             icon="i-lucide-users"
@@ -232,7 +250,7 @@ async function copyId() {
           <template #joined-cell="{ row }">{{ formatDay(row.original.created_at) }}</template>
         </UTable>
       </UCard>
-      <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
+      <UCard v-if="currentStep === 'brands'" variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
         <template #header>
           <UButton
             icon="i-lucide-store"
@@ -256,11 +274,11 @@ async function copyId() {
         </UTable>
       </UCard>
       <AdminCustomPackages
-        v-if="organization"
+        v-if="organization && currentStep === 'packages'"
         :organization-id="organization.id"
         :organization-name="organization.name"
       />
-      <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
+      <UCard v-if="currentStep === 'invoices'" variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
         <template #header>
           <UButton
             icon="i-lucide-receipt-text"
@@ -320,28 +338,26 @@ async function copyId() {
       </UCard>
     </template>
     <template #footer>
-      <UButton
-        icon="i-lucide-arrow-left"
-        color="neutral"
-        variant="outline"
-        :label="t('admin.details.back')"
-        @click="emit('close')"
-      />
-      <UButton
-        v-if="organization"
-        icon="i-lucide-copy"
-        color="neutral"
-        variant="ghost"
-        :label="t('admin.details.copyId')"
-        @click="copyId"
-      />
-      <AdminSubscriptionActions
-        v-if="organization"
-        :organization-id="organization.id"
-        :organization-name="organization.name"
-        :subscription="organization.subscription"
-        @changed="onSubscriptionChanged"
-      />
+      <div class="flex w-full flex-wrap items-center gap-2">
+        <div class="ms-auto flex flex-wrap items-center gap-2">
+          <UButton
+            v-if="organization"
+            icon="i-lucide-copy"
+            color="neutral"
+            variant="ghost"
+            :label="t('admin.details.copyId')"
+            @click="copyId"
+          />
+          <AdminPackageActions
+            v-if="organization"
+            :organization-id="organization.id"
+            :organization-name="organization.name"
+            :package="organization.custom_package"
+            @changed="onSubscriptionChanged"
+            @edit="step = steps.findIndex(item => item.key === 'packages')"
+          />
+        </div>
+      </div>
     </template>
   </UModal>
   <UModal

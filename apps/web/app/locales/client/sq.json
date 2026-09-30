@@ -1745,6 +1745,21 @@
   "request.nameRequired": "Shkruaj emrin.",
   "request.emailInvalid": "Shkruaj një email të vlefshëm.",
   "request.postsRequired": "Zgjidh të paktën një postim.",
-  "request.appTitle": "Kërko ndryshim të pakos",
-  "request.phoneInvalid": "Numri duhet të ketë të paktën 4 shifra."
+  "request.appTitle": "Kërko një pako",
+  "request.businessName": "Emri i biznesit",
+  "request.industry": "Industria",
+  "request.platform": "Platforma",
+  "request.platformInstagram": "Instagram",
+  "request.platformFacebook": "Facebook",
+  "request.platformBoth": "Të dyja",
+  "request.businessRequired": "Shkruaj emrin e biznesit.",
+  "request.industryRequired": "Shkruaj industrinë.",
+  "request.phoneRequired": "Shkruaj numrin e telefonit.",
+  "request.namePlaceholder": "John Doe",
+  "request.emailPlaceholder": "john@example.com",
+  "request.phonePlaceholder": "1 555 000 0000",
+  "request.businessPlaceholder": "Acme Inc.",
+  "request.industryPlaceholder": "Coffee shop",
+  "request.messagePlaceholder": "3 posts per week, mostly products",
+  "request.appRenewTitle": "Kërko ndryshim ose rinovim"
 }

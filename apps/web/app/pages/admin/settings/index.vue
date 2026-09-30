@@ -4,7 +4,7 @@ const { t, locale, setLocale } = useI18n()
 const { onFormError, showError, watchError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.settings')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
-type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, custom_package_post_price_cents: number }
+type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, custom_package_post_price_cents: number, package_request_post_options: number[] }
 const toast = useToast()
 const { data, status, error, refresh } = await useFetch<Settings>('/api/admin/settings', { lazy: true })
 watch(error, (value) => {
@@ -47,13 +47,26 @@ async function save() {
 
 // The per-post rate behind custom package suggestions. It is a commercial
 // setting rather than an AI one, so it lives in its own card and saves alone.
-const packageForm = reactive({ post_price_euro: 1.5 })
+const packageForm = reactive({ post_price_euro: 1.5, post_options: '10, 20, 30' })
 watch(data, (value) => {
-  if (value) packageForm.post_price_euro = value.custom_package_post_price_cents / 100
+  if (!value) return
+  packageForm.post_price_euro = value.custom_package_post_price_cents / 100
+  packageForm.post_options = value.package_request_post_options.join(', ')
 }, { immediate: true })
 const packagePriceCents = computed(() => Math.round(packageForm.post_price_euro * 100))
+// Whatever the admin types, only whole positive numbers reach the setting.
+const postOptions = computed(() => [
+  ...new Set(
+    packageForm.post_options
+      .split(',')
+      .map(part => Number(part.trim()))
+      .filter(value => Number.isInteger(value) && value > 0 && value <= 1000),
+  ),
+].sort((a, b) => a - b))
 const packageChanged = computed(() =>
-  !!data.value && packagePriceCents.value !== data.value.custom_package_post_price_cents)
+  !!data.value
+  && (packagePriceCents.value !== data.value.custom_package_post_price_cents
+    || postOptions.value.join(',') !== data.value.package_request_post_options.join(',')))
 const savingPackage = ref(false)
 async function savePackageRate() {
   if (!packageChanged.value) return
@@ -62,7 +75,10 @@ async function savePackageRate() {
   try {
     await $fetch('/api/admin/settings', {
       method: 'PATCH',
-      body: { custom_package_post_price_cents: packagePriceCents.value },
+      body: {
+        custom_package_post_price_cents: packagePriceCents.value,
+        ...(postOptions.value.length ? { package_request_post_options: postOptions.value } : {}),
+      },
     })
     await refresh()
     toast.add({ title: t('admin.settings.saved'), color: 'success' })
@@ -119,6 +135,13 @@ const language = computed({
               :format-options="{ style: 'currency', currency: 'EUR' }"
               class="w-full sm:w-48"
             />
+          </UFormField>
+          <UFormField
+            name="post_options"
+            :label="t('admin.settings.requestOptions')"
+            :hint="t('admin.settings.requestOptionsHint')"
+          >
+            <UInput v-model="packageForm.post_options" :maxlength="60" class="w-full sm:w-64" />
           </UFormField>
           <UButton
             type="submit"

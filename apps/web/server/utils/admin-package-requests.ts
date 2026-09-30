@@ -43,6 +43,14 @@ export function adminPackageRequests(status?: string) {
   return rpc('admin_package_requests', { p_status: status ?? null })
 }
 
+export function deletePackageRequest(requestId: string, actor: { id: string, email: string }) {
+  return rpc('admin_delete_package_request', {
+    p_request_id: requestId,
+    p_actor_id: actor.id,
+    p_actor_email: actor.email,
+  })
+}
+
 export function updatePackageRequest(
   requestId: string,
   actor: { id: string; email: string },
