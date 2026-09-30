@@ -5,6 +5,7 @@ import {
   moveCalendar,
   type CalendarView,
 } from '~~/shared/utils/calendar'
+import { monthlyPlannerPath } from '~/utils/creation-route'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t } = useI18n()
@@ -108,7 +109,7 @@ function move(direction: number) {
         <UButton :to="`${base}/monthly-planner`" variant="outline" icon="i-lucide-sparkles">
           {{ t('monthly.pageTitle') }}
         </UButton>
-        <UButton :to="`${base}/content/new`" color="neutral" variant="outline" icon="i-lucide-plus">
+        <UButton :to="monthlyPlannerPath(base)" color="neutral" variant="outline" icon="i-lucide-plus">
           {{ t('content.createPost') }}
         </UButton>
       </div></template

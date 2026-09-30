@@ -1,15 +1,14 @@
 <script setup lang="ts">
+import { workspaceHomeDestination } from '~/utils/workspace-home'
+
 definePageMeta({ middleware: 'workspace' })
 const { base, context, data } = useWorkspace()
-const destination = !context.value
-  ? '/onboarding'
-  : data.value.onboardingSkipped
-    ? `${base.value}/overview`
-  : data.value.onboarding < 3
-    ? '/onboarding'
-    : data.value.onboarding === 3
-      ? `${base.value}/content/new`
-      : `${base.value}/overview`
+const destination = workspaceHomeDestination({
+  base: base.value,
+  hasContext: Boolean(context.value),
+  onboarding: data.value.onboarding,
+  onboardingSkipped: data.value.onboardingSkipped,
+})
 await navigateTo(destination, { replace: true })
 </script>
 <template>

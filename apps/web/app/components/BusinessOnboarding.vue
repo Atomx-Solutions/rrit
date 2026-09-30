@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { monthlyPlannerPath } from '~/utils/creation-route'
+
 const { data, base, context, applyBusiness, commit, syncing } = useWorkspace()
 const { setLocale, t } = useI18n()
 const step = ref(context.value ? Math.min(data.value.onboarding, 2) : 0)
@@ -157,7 +159,7 @@ async function next() {
         })
       ) {
         clearRecovery()
-        await navigateTo(`${base.value}/content/new`)
+        await navigateTo(monthlyPlannerPath(base.value))
       }
     }
   } catch (problem) {

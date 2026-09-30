@@ -18,7 +18,7 @@ const suggestions = [
   {
     title: () => `3. ${t('copilot.createPost')}`,
     description: () => t('copilot.createPostDescription'),
-    path: 'content/new',
+    path: 'monthly-planner',
     icon: 'i-lucide-square-pen',
   },
   {

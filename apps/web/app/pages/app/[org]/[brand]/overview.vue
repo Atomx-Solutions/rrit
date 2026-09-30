@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatDate } from '~~/shared/utils/format'
+import { monthlyPlannerPath } from '~/utils/creation-route'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t, locale } = useI18n()
@@ -146,7 +147,7 @@ const summaries = computed(() => [
     :description="`${data.brand.name} · ${data.brand.city}`"
   >
     <template #actions
-      ><UButton :to="`${base}/content/new`" variant="outline" icon="i-lucide-plus">{{
+      ><UButton :to="monthlyPlannerPath(base)" variant="outline" icon="i-lucide-plus">{{
         t('content.createPost')
       }}</UButton></template
     >
