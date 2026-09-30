@@ -11,6 +11,7 @@ import {
   suggestedPackagePriceCents,
 } from '../../server/utils/custom-packages'
 import {
+  additionalCustomPackagePriceCents,
   customPackageChangesSchema,
   customPackageCreateSchema,
   customPackageFailure,
@@ -51,6 +52,10 @@ function row(overrides: Record<string, unknown> = {}) {
 }
 
 describe('custom package pricing', () => {
+  it('prices added posts at the active parent package rate', () => {
+    expect(additionalCustomPackagePriceCents(5, 169)).toBe(845)
+  })
+
   it('suggests a price from the configured per-post rate', () => {
     expect(suggestedPackagePriceCents(20, 150)).toBe(3000)
     // The rate is a setting, so a different rate must change the suggestion

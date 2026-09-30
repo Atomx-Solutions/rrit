@@ -5,6 +5,18 @@ import { customPackageStatusSchema } from '../../shared/schemas/custom-package'
 const cents = z.number().int().min(0).max(100_000_000)
 const isoDate = z.string().datetime({ offset: true })
 
+export const customPackagePostAdditionSchema = z
+  .object({
+    posts_to_add: z.number().int().min(1).max(1000),
+  })
+  .strict()
+
+// Added posts always use the rate stored on the active package. This keeps a
+// later platform-default change from altering an agreement already in force.
+export function additionalCustomPackagePriceCents(postsToAdd: number, parentPostPriceCents: number) {
+  return postsToAdd * parentPostPriceCents
+}
+
 // suggested_price_cents is always derived in the database from the rate and the
 // post count, so the superadmin never supplies it. The rate itself may be
 // negotiated per organization; an omitted rate takes the platform default.
@@ -54,6 +66,7 @@ const failures: Record<string, { statusCode: number; message: string }> = {
     statusCode: 409,
     message: 'Kjo organizatë ka tashmë një paketë aktive.',
   },
+  PACKAGE_ACTIVE_NOT_FOUND: { statusCode: 409, message: 'Nuk ka pako aktive per kete organizate.' },
 }
 
 export function customPackageFailure(message: string | undefined) {
@@ -108,5 +121,18 @@ export function updateCustomPackage(
     p_actor_id: actor.id,
     p_actor_email: actor.email,
     p_changes: changes,
+  })
+}
+
+export function addPostsToActiveCustomPackage(
+  organizationId: string,
+  actor: { id: string; email: string },
+  postsToAdd: number,
+) {
+  return rpc('admin_add_posts_to_active_custom_package', {
+    p_organization_id: organizationId,
+    p_actor_id: actor.id,
+    p_actor_email: actor.email,
+    p_posts_to_add: postsToAdd,
   })
 }

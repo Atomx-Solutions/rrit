@@ -21,6 +21,7 @@ type PackageRequest = {
   industry: string | null
   platform: 'instagram' | 'facebook' | 'both' | null
   posts_requested: number
+  active_posts_included: number | null
   message: string | null
   source: 'landing' | 'app'
   status: 'new' | 'contacted' | 'proposal_sent' | 'won' | 'lost'
@@ -363,7 +364,10 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
           </div>
         </template>
         <template #posts-cell="{ row }">
-          <p>{{ t('admin.requests.postsValue', { count: row.original.posts_requested }) }}</p>
+          <p>{{ t('admin.requests.postsValue', { count: row.original.active_posts_included ?? row.original.posts_requested }) }}</p>
+          <p v-if="row.original.active_posts_included !== null" class="text-xs text-muted">
+            {{ t('admin.requests.askedFor', { count: row.original.posts_requested }) }}
+          </p>
           <p v-if="row.original.platform" class="text-xs text-muted">
             {{ t(`admin.requests.platform.${row.original.platform}`) }}
           </p>
