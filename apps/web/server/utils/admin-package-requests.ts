@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { adminServiceClient } from './admin-supabase'
 
-export const packageRequestStatusSchema = z.enum(['new', 'contacted', 'converted', 'declined'])
+export const packageRequestStatusSchema = z.enum(['new', 'contacted', 'proposal_sent', 'won', 'lost'])
 export const packageRequestChangeSchema = z
   .object({
     status: packageRequestStatusSchema,
     note: z.string().trim().max(2000).optional(),
+    organizationId: z.uuid().nullable().optional(),
   })
   .strict()
 
@@ -62,5 +63,6 @@ export function updatePackageRequest(
     p_actor_email: actor.email,
     p_status: change.status,
     p_note: change.note ?? null,
+    p_organization_id: change.organizationId ?? null,
   })
 }

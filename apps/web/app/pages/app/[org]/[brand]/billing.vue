@@ -6,11 +6,13 @@ const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Rrit` })
 
 const { data: usage, error: usageError } = await useFetch('/api/usage', { key: 'usage' })
-const { data: billing } = await useFetch('/api/billing/subscription', { key: 'billing-subscription' })
+const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { key: 'billing-subscription' })
 const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { key: 'billing-details' })
 
 const detailsForm = reactive({ legalName: '', address: '', city: '', country: '', fiscalNumber: '' })
 const savingDetails = ref(false)
+const acceptingProposal = ref(false)
+const decliningProposal = ref(false)
 watch(() => billingDetailsData.value?.details, (details) => {
   if (details) Object.assign(detailsForm, details)
 }, { immediate: true })
@@ -19,6 +21,7 @@ watch(usageError, (value) => {
 }, { immediate: true })
 
 const customPackage = computed(() => billing.value?.customPackage || null)
+const packageProposal = computed(() => billing.value?.packageProposal || null)
 const subscription = computed(() => billing.value?.subscription || null)
 const postsUsage = computed(() => usage.value?.usage.find(item => item.key === 'posts_per_month'))
 
@@ -50,6 +53,28 @@ async function saveDetails() {
     savingDetails.value = false
   }
 }
+async function acceptProposal() {
+  acceptingProposal.value = true
+  try {
+    await $fetch('/api/billing/custom-package-accept', { method: 'POST', body: {} })
+    await refreshBilling()
+    showSuccess(t('billing.packageProposalAccepted'))
+  } catch (error) {
+    showError((error as { data?: { message?: string } }).data?.message || t('billing.packageProposalFailed'))
+  } finally {
+    acceptingProposal.value = false
+  }
+}
+async function declineProposal() {
+  decliningProposal.value = true
+  try {
+    await $fetch('/api/billing/custom-package-decline', { method: 'POST', body: {} })
+    await refreshBilling()
+    showSuccess(t('billing.packageProposalDeclined'))
+  } catch (error) {
+    showError((error as { data?: { message?: string } }).data?.message || t('billing.packageProposalFailed'))
+  } finally { decliningProposal.value = false }
+}
 </script>
 
 <template>
@@ -61,6 +86,20 @@ async function saveDetails() {
       :title="t('billing.activationByTeam')"
       :description="t('billing.activationByTeamDescription')"
     />
+
+    <UCard v-if="packageProposal" color="primary" variant="subtle" :ui="{ body: 'p-4 sm:p-5' }">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2"><UIcon name="i-lucide-handshake" class="size-5 text-primary" /><h2 class="text-sm font-semibold">{{ t('billing.packageProposalTitle') }}</h2></div>
+          <p class="text-sm font-medium">{{ packageProposal.name }} · €{{ packageProposal.price.toFixed(2) }}</p>
+          <p class="text-xs text-muted">{{ t('billing.customPackagePosts', { count: packageProposal.postsIncluded }) }} · {{ t('billing.customPackagePeriod', { start: formatPeriodDate(packageProposal.startsAt), end: formatPeriodDate(packageProposal.endsAt) }) }}</p>
+        </div>
+        <div class="flex gap-2">
+          <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click="declineProposal" />
+          <UButton icon="i-lucide-check" :loading="acceptingProposal" :label="t('billing.packageProposalAccept')" @click="acceptProposal" />
+        </div>
+      </div>
+    </UCard>
 
     <UCard v-if="customPackage" :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
       <UIcon name="i-lucide-handshake" class="size-5 shrink-0 text-primary mt-0.5" />

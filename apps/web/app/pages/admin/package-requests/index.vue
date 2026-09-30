@@ -22,12 +22,12 @@ type PackageRequest = {
   posts_requested: number
   message: string | null
   source: 'landing' | 'app'
-  status: 'new' | 'contacted' | 'converted' | 'declined'
+  status: 'new' | 'contacted' | 'proposal_sent' | 'won' | 'lost'
   handled_note: string | null
   created_at: string
 }
 
-const statuses = ['all', 'new', 'contacted', 'converted', 'declined'] as const
+const statuses = ['all', 'new', 'contacted', 'proposal_sent', 'won', 'lost'] as const
 const filter = ref<(typeof statuses)[number]>('all')
 const toast = useToast()
 const { data, status, error, refresh } = await useFetch<{
@@ -84,8 +84,9 @@ const requests = computed(() => {
 const statusColors: Record<PackageRequest['status'], 'info' | 'warning' | 'success' | 'neutral'> = {
   new: 'info',
   contacted: 'warning',
-  converted: 'success',
-  declined: 'neutral',
+  proposal_sent: 'warning',
+  won: 'success',
+  lost: 'neutral',
 }
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat('sq-XK', {
@@ -105,19 +106,28 @@ function formatDateTime(value: string) {
 const selected = ref<PackageRequest | null>(null)
 
 const saving = ref('')
-async function setStatus(request: PackageRequest, next: PackageRequest['status']) {
+async function setStatus(request: PackageRequest, next: PackageRequest['status'], note?: string) {
   saving.value = request.id
   try {
     const updated = await $fetch<Partial<PackageRequest>>(
       `/api/admin/package-requests/${request.id}`,
-      { method: 'PATCH', body: { status: next } },
+      { method: 'PATCH', body: { status: next, note } },
     )
     toast.add({ title: t('admin.requests.saved'), color: 'success' })
     // The answer carries the stored row, so the panel shows the new status
     // without waiting for the list to come back.
     if (selected.value?.id === request.id)
       selected.value = { ...selected.value, ...updated, status: next }
-    await refresh()
+    // Keep the inbox in place while the admin works through leads. A full
+    // refetch made every status/note click visibly reload the page.
+    if (data.value) {
+      data.value = {
+        ...data.value,
+        requests: data.value.requests.map(item => item.id === request.id
+          ? { ...item, ...updated, status: next }
+          : item),
+      }
+    }
   } catch (problem) {
     showError(
       (problem as { data?: { message?: string } }).data?.message || t('admin.requests.saveFailed'),
@@ -283,10 +293,10 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
       :request="selected"
       :saving="saving === selected?.id"
       @close="selected = null"
-      @status="(next) => {
+      @status="(next, note) => {
         if (!selected) return
-        if (next === 'converted') converting = selected
-        else setStatus(selected, next)
+        if (next === 'won') converting = selected
+        else setStatus(selected, next, note)
       }"
       @remove="() => { if (selected) removeRequest(selected) }"
     />
