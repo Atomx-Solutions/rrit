@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
+import { formatMoney } from '~~/shared/utils/format'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
@@ -30,6 +31,29 @@ type PackageRequest = {
 const statuses = ['all', 'new', 'contacted', 'proposal_sent', 'won', 'lost'] as const
 const filter = ref<(typeof statuses)[number]>('all')
 const toast = useToast()
+function day(value: Date) {
+  return value.toISOString().slice(0, 10)
+}
+const reportTo = day(new Date())
+const reportFromDate = new Date()
+reportFromDate.setDate(1)
+const report = reactive({ from: day(reportFromDate), to: reportTo })
+const { data: conversionSummary, error: conversionError } = await useFetch<{
+  total: number
+  new: number
+  contacted: number
+  proposalSent: number
+  won: number
+  lost: number
+  conversionValueCents: number
+  conversionRate: number
+}>('/api/admin/package-requests/conversion-summary', {
+  lazy: true,
+  query: computed(() => ({ from: report.from, to: report.to })),
+})
+watch(conversionError, (value) => {
+  if (value) showError(t('admin.requests.conversionLoadError'))
+}, { immediate: true })
 const { data, status, error, refresh } = await useFetch<{
   open_count: number
   requests: PackageRequest[]
@@ -177,6 +201,48 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
 </script>
 <template>
   <AdminPage :title="t('admin.nav.packageRequests')">
+    <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'px-4 py-4 sm:px-5' }">
+      <template #header>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold">{{ t('admin.requests.conversionTitle') }}</h2>
+            <p class="mt-0.5 text-xs text-muted">{{ t('admin.requests.conversionDescription') }}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <UFormField :label="t('admin.requests.from')" class="w-38">
+              <UInput v-model="report.from" type="date" :max="report.to" class="w-full" />
+            </UFormField>
+            <UFormField :label="t('admin.requests.to')" class="w-38">
+              <UInput v-model="report.to" type="date" :min="report.from" class="w-full" />
+            </UFormField>
+          </div>
+        </div>
+      </template>
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div
+          v-for="item in [
+            ['total', t('admin.requests.conversionTotal')],
+            ['contacted', t('admin.requests.status.contacted')],
+            ['proposalSent', t('admin.requests.status.proposal_sent')],
+            ['won', t('admin.requests.status.won')],
+            ['lost', t('admin.requests.status.lost')],
+          ] as const"
+          :key="item[0]"
+          class="rounded-lg border border-default px-3 py-2.5"
+        >
+          <p class="text-xs text-muted">{{ item[1] }}</p>
+          <p class="mt-1 text-lg font-semibold tabular-nums">{{ conversionSummary?.[item[0]] ?? 0 }}</p>
+        </div>
+        <div class="rounded-lg border border-default px-3 py-2.5">
+          <p class="text-xs text-muted">{{ t('admin.requests.conversionRate') }}</p>
+          <p class="mt-1 text-lg font-semibold tabular-nums">{{ conversionSummary?.conversionRate?.toFixed(1) ?? '0.0' }}%</p>
+        </div>
+        <div class="rounded-lg border border-default px-3 py-2.5">
+          <p class="text-xs text-muted">{{ t('admin.requests.conversionValue') }}</p>
+          <p class="mt-1 text-lg font-semibold tabular-nums">{{ formatMoney((conversionSummary?.conversionValueCents ?? 0) / 100) }}</p>
+        </div>
+      </div>
+    </UCard>
     <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-0 sm:p-0' }">
       <template #header>
         <div class="flex flex-wrap items-end gap-3">
