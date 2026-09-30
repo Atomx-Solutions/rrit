@@ -170,7 +170,7 @@ async function submit() {
       if (result.error) error.value = errorText(result.error)
       else {
         state.password = ''
-        await navigateTo(safeRedirect(route.query.redirect))
+        await navigateTo('/app')
       }
     } else if (props.mode === 'forgot') {
       const result = await authClient.requestPasswordReset({
