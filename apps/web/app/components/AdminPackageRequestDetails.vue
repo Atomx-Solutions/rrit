@@ -14,7 +14,7 @@ export type AdminPackageRequest = {
   posts_requested: number
   message: string | null
   source: 'landing' | 'app'
-  status: 'new' | 'contacted' | 'converted' | 'declined'
+  status: 'new' | 'contacted' | 'proposal_sent' | 'won' | 'lost'
   handled_note: string | null
   created_at: string
 }
@@ -22,7 +22,7 @@ export type AdminPackageRequest = {
 const props = defineProps<{ request: AdminPackageRequest | null; saving: boolean }>()
 const emit = defineEmits<{
   close: []
-  status: [status: AdminPackageRequest['status']]
+  status: [status: AdminPackageRequest['status'], note?: string]
   remove: []
 }>()
 // Deleting is asked for twice, because the row leaves the inbox for good.
@@ -31,12 +31,19 @@ watch(() => props.request?.id, () => {
   confirmingDelete.value = false
 })
 const { t } = useI18n()
+const note = ref('')
+const selectedStatus = ref<AdminPackageRequest['status']>()
+watch(() => props.request?.id, () => {
+  note.value = props.request?.handled_note || ''
+  selectedStatus.value = undefined
+}, { immediate: true })
 
 const statusColors: Record<AdminPackageRequest['status'], 'info' | 'warning' | 'success' | 'neutral'> = {
   new: 'info',
   contacted: 'warning',
-  converted: 'success',
-  declined: 'neutral',
+  proposal_sent: 'warning',
+  won: 'success',
+  lost: 'neutral',
 }
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat('sq-XK', {
@@ -93,7 +100,6 @@ const sections = computed(() => {
         },
         { label: t('admin.requests.source'), value: t(`admin.requests.sourceValue.${request.source}`) },
         { label: t('admin.requests.created'), value: formatDateTime(request.created_at) },
-        { label: 'ID', value: request.id },
       ],
     },
   ]
@@ -108,6 +114,23 @@ const listUi = {
   td: 'px-4 py-2 text-sm border-b border-default',
   tbody: '[&>tr]:last:[&>td]:border-b-0',
   separator: 'h-0',
+}
+const statusOptions = computed<{ label: string; value: AdminPackageRequest['status'] }[]>(() => (['new', 'contacted'] as const).map(value => ({
+  label: t(`admin.requests.status.${value}`),
+  value,
+})))
+const canEditStatus = computed(() => ['new', 'contacted'].includes(props.request?.status || ''))
+const canSendProposal = computed(() => ['new', 'contacted'].includes(props.request?.status || ''))
+function saveChanges() {
+  if (props.request && selectedStatus.value) emit('status', selectedStatus.value, note.value)
+}
+function sendProposal() {
+  // The parent opens the proposal form. It persists proposal_sent only after
+  // the draft package has been created for the client to review.
+  if (props.request) emit('status', 'won', note.value)
+}
+function saveNote() {
+  if (props.request) emit('status', props.request.status, note.value)
 }
 
 </script>
@@ -126,8 +149,23 @@ const listUi = {
         variant="subtle"
         :label="t(`admin.requests.status.${request.status}`)"
       />
+      <div class="grid gap-3 sm:grid-cols-2">
+        <UCard
+          v-for="section in sections.slice(0, 2).filter(item => item.rows.length)"
+          :key="section.title"
+          variant="outline"
+          :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }"
+        >
+          <template #header>
+            <div class="flex items-center gap-2 text-sm font-semibold">
+              <UIcon :name="section.icon" class="size-4 text-muted" />{{ section.title }}
+            </div>
+          </template>
+          <UTable :data="section.rows" :columns="columns" :ui="listUi" />
+        </UCard>
+      </div>
       <UCard
-        v-for="section in sections.filter(item => item.rows.length)"
+        v-for="section in sections.slice(2).filter(item => item.rows.length)"
         :key="section.title"
         variant="outline"
         :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }"
@@ -155,56 +193,50 @@ const listUi = {
           {{ request.message }}
         </p>
       </UCard>
-      <UAlert
-        v-if="request?.handled_note"
-        color="neutral"
-        variant="subtle"
-        icon="i-lucide-sticky-note"
-        :title="t('admin.requests.note')"
-        :description="request.handled_note"
-      />
+      <UCard variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-4 sm:p-4' }">
+        <template #header>
+          <div class="flex items-center justify-between gap-3 text-sm font-semibold">
+            <span class="flex items-center gap-2"><UIcon name="i-lucide-sticky-note" class="size-4 text-muted" />{{ t('admin.requests.note') }}</span>
+            <span class="text-xs font-normal text-muted">{{ t('admin.requests.internalNoteHint') }}</span>
+          </div>
+        </template>
+        <UTextarea v-model="note" :maxlength="2000" :rows="3" class="w-full" />
+      </UCard>
     </template>
     <template #footer>
-      <div class="flex w-full flex-wrap items-center gap-2">
-        <UButton
-          v-if="request?.organization_id"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-building-2"
-          :to="`/admin/organizations/${request.organization_id}`"
-          :label="t('admin.requests.openOrganization')"
-        />
-        <UButton
-          color="error"
-          variant="ghost"
-          icon="i-lucide-trash-2"
-          :loading="saving"
-          :label="confirmingDelete ? t('admin.requests.deleteConfirm') : t('admin.requests.delete')"
-          @click="confirmingDelete ? emit('remove') : (confirmingDelete = true)"
-        />
-        <div class="ms-auto flex flex-wrap items-center gap-2">
+      <div class="flex w-full flex-wrap items-center gap-2 border-t border-default pt-3">
+        <div class="flex items-center gap-1.5">
           <UButton
-            v-if="request && request.status !== 'declined'"
+            v-if="request?.organization_id"
             color="neutral"
-            variant="outline"
-            :loading="saving"
-            :label="t('admin.requests.markDeclined')"
-            @click="emit('status', 'declined')"
+            variant="soft"
+            size="sm"
+            icon="i-lucide-building-2"
+            :to="`/admin/organizations/${request.organization_id}`"
+            :label="t('admin.requests.openOrganizationShort')"
           />
           <UButton
-            v-if="request?.status === 'new'"
-            color="neutral"
-            variant="outline"
+            color="error"
+            variant="ghost"
+            size="sm"
+            icon="i-lucide-trash-2"
             :loading="saving"
-            :label="t('admin.requests.markContacted')"
-            @click="emit('status', 'contacted')"
+            :aria-label="confirmingDelete ? t('admin.requests.deleteConfirm') : t('admin.requests.delete')"
+            @click="confirmingDelete ? emit('remove') : (confirmingDelete = true)"
           />
-          <UButton
-            v-if="request && request.status !== 'converted'"
-            :loading="saving"
-            :label="t('admin.requests.markConverted')"
-            @click="emit('status', 'converted')"
+        </div>
+        <div class="flex w-full flex-wrap items-center justify-end gap-2 min-[800px]:ms-auto min-[800px]:w-auto min-[800px]:flex-nowrap">
+          <USelect
+            v-if="canEditStatus"
+            v-model="selectedStatus"
+            :items="statusOptions"
+            :placeholder="t('admin.details.status')"
+            size="sm"
+            class="h-8 w-full min-[480px]:w-56"
           />
+          <UButton v-if="canEditStatus" color="neutral" variant="outline" size="sm" :disabled="!selectedStatus" :loading="saving" :label="t('admin.requests.saveChanges')" @click="saveChanges" />
+          <UButton v-if="canSendProposal" size="sm" :loading="saving" :label="t('admin.requests.sendProposal')" @click="sendProposal" />
+          <UButton v-else color="neutral" variant="outline" size="sm" :loading="saving" :label="t('admin.requests.saveNote')" @click="saveNote" />
         </div>
       </div>
     </template>

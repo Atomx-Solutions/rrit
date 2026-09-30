@@ -71,7 +71,9 @@ describe('package request failures', () => {
 
 describe('admin package request changes', () => {
   it('accepts only the known statuses', () => {
-    expect(packageRequestStatusSchema.parse('converted')).toBe('converted')
+    expect(packageRequestStatusSchema.parse('proposal_sent')).toBe('proposal_sent')
+    expect(packageRequestStatusSchema.parse('won')).toBe('won')
+    expect(packageRequestStatusSchema.parse('lost')).toBe('lost')
     expect(() => packageRequestChangeSchema.parse({ status: 'archived' })).toThrow()
     expect(() => packageRequestChangeSchema.parse({})).toThrow()
   })
@@ -84,6 +86,11 @@ describe('admin package request changes', () => {
       status: 'contacted',
       note: 'U kontaktua',
     })
+    expect(packageRequestChangeSchema.parse({
+      status: 'proposal_sent',
+      organizationId: '00000000-0000-4000-8000-000000000001',
+    }).organizationId).toBe('00000000-0000-4000-8000-000000000001')
+    expect(() => packageRequestChangeSchema.parse({ status: 'won', organizationId: 'not-an-id' })).toThrow()
   })
 })
 

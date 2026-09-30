@@ -2,7 +2,7 @@ import { packageUsageSummary } from '../../utils/custom-packages'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const { subscription, customPackage } = await withBusinessTransaction(user.id, async (client, business) => {
+  const { subscription, customPackage, packageProposal } = await withBusinessTransaction(user.id, async (client, business) => {
     const result = await client.query<{
       plan_code: string
       billing_interval: 'monthly' | 'annual'
@@ -43,13 +43,32 @@ export default defineEventHandler(async (event) => {
         LIMIT 1`,
       [business.id],
     )
+    const proposal = await client.query<{
+      name: string
+      posts_included: number
+      price_cents: number
+      starts_at: Date
+      ends_at: Date
+    }>(
+      `SELECT name,posts_included,price_cents,starts_at,ends_at
+         FROM custom_packages WHERE status='draft'
+         ORDER BY created_at DESC,id DESC LIMIT 1`,
+    )
     return {
       subscription: result.rows[0] || null,
       customPackage: custom.rows[0] || null,
+      packageProposal: proposal.rows[0] || null,
     }
   })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
+    packageProposal: packageProposal && {
+      name: packageProposal.name,
+      postsIncluded: packageProposal.posts_included,
+      price: packageProposal.price_cents / 100,
+      startsAt: new Date(packageProposal.starts_at).toISOString(),
+      endsAt: new Date(packageProposal.ends_at).toISOString(),
+    },
     customPackage: customPackage && (() => {
       const startsAt = new Date(customPackage.starts_at).toISOString()
       const endsAt = new Date(customPackage.ends_at).toISOString()

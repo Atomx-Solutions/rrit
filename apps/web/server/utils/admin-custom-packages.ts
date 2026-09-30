@@ -17,6 +17,7 @@ export const customPackageCreateSchema = z
     starts_at: isoDate,
     ends_at: isoDate,
     status: customPackageStatusSchema,
+    package_request_id: z.uuid().optional(),
     notes: z.string().trim().max(2000).nullable().optional(),
   })
   .strict()

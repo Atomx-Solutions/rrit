@@ -15,6 +15,8 @@ const { onFormError, watchError } = useFormFeedback()
 
 type OrganizationRow = { id: string; name: string }
 const search = ref('')
+const newOrganizationName = ref('')
+const creatingOrganization = ref(false)
 // A landing lead has no account yet, so the picker is only loaded when the
 // request did not arrive from inside the app.
 const { data: organizations, refresh: refreshOrganizations } = await useFetch<{
@@ -27,6 +29,32 @@ const { data: organizations, refresh: refreshOrganizations } = await useFetch<{
 const organizationOptions = computed(() =>
   (organizations.value?.items || []).map(row => ({ label: row.name, value: row.id })),
 )
+function slugFor(value: string) {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70)
+}
+async function createOrganization() {
+  const name = newOrganizationName.value.trim()
+  const slug = slugFor(name)
+  if (name.length < 2 || slug.length < 2) {
+    error.value = t('admin.requests.organizationInvalid')
+    return
+  }
+  creatingOrganization.value = true
+  error.value = ''
+  try {
+    const organization = await $fetch<OrganizationRow>('/api/v1/organizations', {
+      method: 'POST', body: { name, slug },
+    })
+    form.organizationId = organization.id
+    newOrganizationName.value = ''
+    await refreshOrganizations()
+  } catch (problem) {
+    error.value = (problem as { data?: { message?: string } }).data?.message || t('admin.requests.organizationCreateFailed')
+  } finally {
+    creatingOrganization.value = false
+  }
+}
 
 const form = reactive({
   organizationId: '',
@@ -134,14 +162,15 @@ async function submit() {
         price_cents: priceCents.value,
         starts_at: dayToIso(form.startsAt),
         ends_at: dayToIso(form.endsAt),
-        status: 'active',
+        status: 'draft',
+        package_request_id: props.request.id,
         notes: form.notes.trim() || null,
       },
     })
-    // Only once the package exists is the request an answered one.
+    // The client accepts the draft from Billing; this only sends the proposal.
     await $fetch(`/api/admin/package-requests/${props.request.id}`, {
       method: 'PATCH',
-      body: { status: 'converted' },
+      body: { status: 'proposal_sent', organizationId: form.organizationId },
     })
     toast.add({ title: t('admin.requests.convertSaved'), color: 'success' })
     emit('done')
@@ -179,6 +208,10 @@ async function submit() {
             searchable
             class="w-full"
           />
+          <div class="mt-2 flex gap-2">
+            <UInput v-model="newOrganizationName" :placeholder="t('admin.requests.newOrganizationPlaceholder')" class="flex-1" />
+            <UButton color="neutral" variant="outline" :loading="creatingOrganization" :label="t('admin.requests.createOrganization')" @click="createOrganization" />
+          </div>
         </UFormField>
         <UFormField name="name" :label="t('admin.packages.name')" required>
           <UInput v-model="form.name" :maxlength="120" class="w-full" />
@@ -231,7 +264,7 @@ async function submit() {
         <UFormField name="notes" :label="t('admin.packages.notes')">
           <UTextarea v-model="form.notes" :rows="2" :maxlength="2000" class="w-full" />
         </UFormField>
-        <UButton type="submit" :loading="saving" :label="t('admin.requests.convertSubmit')" block />
+        <UButton type="submit" :loading="saving" :label="t('admin.requests.sendProposal')" block />
       </UForm>
     </template>
   </UModal>
