@@ -1081,13 +1081,7 @@
   "billing.paymentsInactiveDescription": "No payment will be charged. Final terms, taxes and limits will be confirmed before subscriptions are activated.",
   "billing.closeSummary": "Close summary",
   "billing.catalogError": "Plans could not be loaded",
-  "billing.planPackage1": "Package 1",
-  "billing.planPackage2": "Package 2",
-  "billing.planPackage3": "Package 3",
   "billing.planDescription": "{{posts}} posts per month and {{credits}} AI credits.",
-  "billing.planPosts": "{{posts}} posts per month",
-  "billing.planTokens": "{{credits}} AI credits per month",
-  "billing.planStyleFetch": "{{count}} posts for style analysis",
   "billing.buyPlanNow": "Buy {{plan}} now",
   "billing.currentPlan": "Current package: {{plan}}",
   "billing.currentPlanBadge": "Current",
@@ -1767,5 +1761,10 @@
   "request.businessPlaceholder": "Acme Inc.",
   "request.industryPlaceholder": "Coffee shop",
   "request.messagePlaceholder": "3 posts per week, mostly products",
-  "request.appRenewTitle": "Request a change or renewal"
+  "request.appRenewTitle": "Request a change or renewal",
+  "request.appLede": "Need more posts?",
+  "request.appBody": "Tell us how many you need per month and we'll get back with a price.",
+  "request.appCta": "Send request",
+  "request.appRenewCta": "Change package",
+  "request.appNote": "Reply within 24 hours."
 }

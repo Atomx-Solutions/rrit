@@ -8,17 +8,6 @@ function nonEmpty<T extends z.ZodRawShape>(shape: T) {
   return z.object(shape).strict().refine(value => Object.keys(value).length > 0)
 }
 
-export const planCodeSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/)
-export const planChangesSchema = nonEmpty({
-  name: z.string().trim().min(2).max(120).optional(),
-  monthly_cents: count.max(100_000_000).optional(),
-  posts_per_month: count.max(100_000).optional(),
-  monthly_credits: count.max(100_000_000).optional(),
-  annual_discount_percent: z.number().int().min(0).max(100).optional(),
-  style_fetch_post_count: z.number().int().min(1).max(100).optional(),
-  active: z.boolean().optional(),
-  sort_order: count.max(10_000).optional(),
-})
 // Column names follow PRC-08 (one credit = a slice of provider cost).
 export const creditPricingChangesSchema = nonEmpty({
   credit_price_cents: z.number().int().min(1).max(100_000).optional(),
@@ -35,9 +24,6 @@ export const invoiceSettingsChangesSchema = nonEmpty({
 
 // Business-rule failures raised by the admin_update_* functions.
 const failures: Record<string, { statusCode: number; message: string }> = {
-  PLAN_NOT_FOUND: { statusCode: 404, message: 'Pakoja nuk u gjet.' },
-  PLAN_CONFLICT: { statusCode: 409, message: 'Emri ose renditja e pakos përdoret nga një pako tjetër.' },
-  PLAN_INVALID: { statusCode: 400, message: 'Vlerat e pakos nuk janë të vlefshme.' },
   SETTINGS_INVALID: { statusCode: 400, message: 'Vlerat e cilësimeve nuk janë të vlefshme.' },
 }
 export function adminPlansFailure(message: string | undefined) {
@@ -70,9 +56,6 @@ export async function adminChangeBody<T extends z.ZodType>(event: H3Event, schem
   return body.data
 }
 
-export function updatePlan(code: string, actor: { id: string; email: string }, changes: Record<string, unknown>) {
-  return rpc('admin_update_plan', { p_code: code, p_actor_id: actor.id, p_actor_email: actor.email, p_changes: changes })
-}
 export function updateCreditPricing(actor: { id: string; email: string }, changes: Record<string, unknown>) {
   return rpc('admin_update_credit_pricing', { p_actor_id: actor.id, p_actor_email: actor.email, p_changes: changes })
 }

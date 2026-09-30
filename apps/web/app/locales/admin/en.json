@@ -4,6 +4,7 @@
   "admin.nav.organizations": "Organizations",
   "admin.nav.users": "Users",
   "admin.nav.plans": "Plans & Pricing",
+  "admin.nav.billingSettings": "Credits & Invoicing",
   "admin.nav.subscriptions": "Subscriptions",
   "admin.nav.billing": "Billing & Invoices",
   "admin.nav.ai": "AI Costs",

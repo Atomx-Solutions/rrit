@@ -11,6 +11,7 @@ const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/a
 
 const detailsForm = reactive({ legalName: '', address: '', city: '', country: '', fiscalNumber: '' })
 const savingDetails = ref(false)
+const requestOpen = ref(false)
 const acceptingProposal = ref(false)
 const decliningProposal = ref(false)
 watch(() => billingDetailsData.value?.details, (details) => {
@@ -131,15 +132,39 @@ async function declineProposal() {
       </div>
     </UCard>
 
-    <!-- Packages are activated by the team, so asking for one has to be
-         possible from here rather than only described. -->
-    <UCard as="section" :ui="{ body: 'p-4 sm:p-5', header: 'px-5 py-4' }">
-      <template #header>
-        <h2 class="text-sm font-semibold">
-          {{ customPackage ? t('request.appRenewTitle') : t('request.appTitle') }}
-        </h2>
-      </template>
-      <PackageRequestForm endpoint="/api/billing/package-request" compact contact-known />
+    <!-- Packages are activated by the team, so the invitation lives here as
+         a real card and the form opens in a modal on demand. -->
+    <UCard as="section" :ui="{ body: 'p-5 sm:p-6' }">
+      <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div class="flex gap-4">
+          <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <UIcon name="i-lucide-package-plus" class="size-5" />
+          </div>
+          <div class="space-y-2">
+            <h2 class="text-base font-semibold">
+              {{ customPackage ? t('request.appRenewTitle') : t('request.appTitle') }}
+            </h2>
+            <p class="text-sm font-medium">{{ t('request.appLede') }}</p>
+            <p class="text-sm text-muted leading-relaxed">{{ t('request.appBody') }}</p>
+            <p class="pt-1 text-xs text-muted flex items-center gap-1.5">
+              <UIcon name="i-lucide-clock-3" class="size-3.5" />
+              {{ t('request.appNote') }}
+            </p>
+          </div>
+        </div>
+        <UModal v-model:open="requestOpen" :title="customPackage ? t('request.appRenewTitle') : t('request.appTitle')">
+          <UButton
+            color="primary"
+            variant="solid"
+            trailing-icon="i-lucide-arrow-right"
+            :label="customPackage ? t('request.appRenewCta') : t('request.appCta')"
+            class="self-start whitespace-nowrap sm:self-auto"
+          />
+          <template #body>
+            <PackageRequestForm endpoint="/api/billing/package-request" compact contact-known @sent="requestOpen = false" />
+          </template>
+        </UModal>
+      </div>
     </UCard>
 
     <template v-if="usage">

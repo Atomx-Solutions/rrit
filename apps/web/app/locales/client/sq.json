@@ -1081,13 +1081,7 @@
   "billing.paymentsInactiveDescription": "Asnjë pagesë nuk do të kryhet. Kushtet, taksat dhe kufijtë përfundimtarë do të konfirmohen para aktivizimit të abonimeve.",
   "billing.closeSummary": "Mbyll përmbledhjen",
   "billing.catalogError": "Paketat nuk mund të ngarkohen",
-  "billing.planPackage1": "Pako 1",
-  "billing.planPackage2": "Pako 2",
-  "billing.planPackage3": "Pako 3",
   "billing.planDescription": "{{posts}} postime në muaj dhe {{credits}} kredite AI.",
-  "billing.planPosts": "{{posts}} postime në muaj",
-  "billing.planTokens": "{{credits}} kredite AI në muaj",
-  "billing.planStyleFetch": "{{count}} postime për analizë stili",
   "billing.buyPlanNow": "Bli {{plan}} tani",
   "billing.currentPlan": "Pakoja aktuale: {{plan}}",
   "billing.currentPlanBadge": "Aktuale",
@@ -1767,5 +1761,10 @@
   "request.businessPlaceholder": "Acme Inc.",
   "request.industryPlaceholder": "Coffee shop",
   "request.messagePlaceholder": "3 posts per week, mostly products",
-  "request.appRenewTitle": "Kërko ndryshim ose rinovim"
+  "request.appRenewTitle": "Kërko ndryshim ose rinovim",
+  "request.appLede": "Ke nevojë për më shumë postime?",
+  "request.appBody": "Na thuaj sa postime të duhen në muaj dhe të kthehemi me çmimin.",
+  "request.appCta": "Dërgo kërkesën",
+  "request.appRenewCta": "Ndrysho pakon",
+  "request.appNote": "Përgjigje brenda 24 orësh."
 }

@@ -69,7 +69,7 @@ const year = new Date().getFullYear()
                 {{ languageLabel }}
               </span>
             </template>
-          </USelect><UButton to="/login" variant="ghost" color="neutral">{{ t('public.login') }}</UButton
+          </USelect><UButton to="/login" variant="ghost" color="neutral" class="whitespace-nowrap">{{ t('public.login') }}</UButton
           ><UButton
             :to="offerCtaPath"
             trailing-icon="i-lucide-arrow-up-right"

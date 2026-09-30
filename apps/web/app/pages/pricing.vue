@@ -34,8 +34,8 @@ const questions = computed(() => [
 <template>
   <div class="landing landing-pricing-page">
     <section class="landing-pricing-section" aria-labelledby="pricing-page-title">
-      <UContainer class="landing-container">
-        <div class="landing-section-heading">
+      <UContainer class="landing-container landing-pricing-layout">
+        <div class="landing-section-heading landing-section-heading--start">
           <p class="landing-kicker">{{ t('landing.pricingKicker') }}</p>
           <h1 id="pricing-page-title">{{ t('landing.howManyPosts') }}</h1>
           <p>{{ t('landing.packageRhythm') }}</p>
