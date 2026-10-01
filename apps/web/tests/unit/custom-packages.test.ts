@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   PackageInputError,
+  customPackageCredits,
   customPackageFromRow,
+  defaultCustomPackageCreditsPerPost,
   expireCustomPackages,
   outgrownPackageStatus,
   packageUsageSummary,
@@ -51,6 +53,15 @@ function row(overrides: Record<string, unknown> = {}) {
 }
 
 describe('custom package pricing', () => {
+  it('allocates 80 credits for every package post', () => {
+    expect(defaultCustomPackageCreditsPerPost).toBe(80)
+    expect(customPackageCredits(1)).toBe(80)
+    expect(customPackageCredits(20)).toBe(1600)
+    expect(customPackageCredits(20, 100)).toBe(2000)
+    expect(() => customPackageCredits(0)).toThrow(PackageInputError)
+    expect(() => customPackageCredits(20, 0)).toThrow(PackageInputError)
+  })
+
   it('suggests a price from the configured per-post rate', () => {
     expect(suggestedPackagePriceCents(20, 150)).toBe(3000)
     // The rate is a setting, so a different rate must change the suggestion

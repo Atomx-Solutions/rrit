@@ -8,6 +8,25 @@ import type { PoolClient } from 'pg'
 import { withTenantTransaction, type TenantContext } from './database'
 
 /**
+ * A package funds the complete lifecycle of each promised post: the first
+ * creation (research, strategy and creative) plus one AI redesign if the
+ * client wants to improve the result.
+ */
+export const defaultCustomPackageCreditsPerPost = 80
+
+/** The credit allocation is derived solely from the volume agreed in the package. */
+export function customPackageCredits(
+  postsIncluded: number,
+  creditsPerPost = defaultCustomPackageCreditsPerPost,
+) {
+  if (!Number.isInteger(postsIncluded) || postsIncluded <= 0)
+    throw new PackageInputError('POSTS_INCLUDED_INVALID')
+  if (!Number.isInteger(creditsPerPost) || creditsPerPost <= 0)
+    throw new PackageInputError('CREDITS_PER_POST_INVALID')
+  return postsIncluded * creditsPerPost
+}
+
+/**
  * Price suggested for a package of this size. The per-post rate is a commercial
  * setting read from platform_settings, never a constant in this file: the
  * superadmin changes it without a deployment, and a package already agreed

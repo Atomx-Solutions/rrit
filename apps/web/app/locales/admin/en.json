@@ -426,6 +426,8 @@
   "admin.settings.packageRateHint": "The rate behind the suggested price for custom packages.",
   "admin.settings.postPrice": "Price per post",
   "admin.settings.postPriceHint": "A change affects new packages only; existing ones keep their suggestion.",
+  "admin.settings.creditsPerPost": "Credits per post",
+  "admin.settings.creditsPerPostHint": "Credits granted for each post when a client accepts a custom package. Existing packages keep their granted credits.",
   "admin.packages.postPrice": "Price per post",
   "admin.packages.perPost": "{{price}}/post",
   "admin.packages.nameRequired": "Enter the package name.",

@@ -5,7 +5,7 @@ const { t } = useI18n()
 const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Rrit` })
 
-const { data: usage, error: usageError } = await useFetch('/api/usage', { key: 'usage' })
+const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { key: 'usage' })
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { key: 'billing-subscription' })
 const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { key: 'billing-details' })
 
@@ -58,7 +58,9 @@ async function acceptProposal() {
   acceptingProposal.value = true
   try {
     await $fetch('/api/billing/custom-package-accept', { method: 'POST', body: {} })
-    await refreshBilling()
+    // The accepted package grants its post-based credits atomically. Refresh
+    // every visible balance immediately instead of waiting for polling.
+    await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('header-credit-balance')])
     showSuccess(t('billing.packageProposalAccepted'))
   } catch (error) {
     showError((error as { data?: { message?: string } }).data?.message || t('billing.packageProposalFailed'))
