@@ -426,6 +426,8 @@
   "admin.settings.packageRateHint": "Norma që llogarit çmimin e sugjeruar për paketat e posaçme.",
   "admin.settings.postPrice": "Çmimi për postim",
   "admin.settings.postPriceHint": "Ndryshimi prek vetëm paketat e reja; ato ekzistuese ruajnë sugjerimin e tyre.",
+  "admin.settings.creditsPerPost": "Kredite për postim",
+  "admin.settings.creditsPerPostHint": "Kreditë që shtohen për çdo postim kur klienti pranon një paketë të posaçme. Paketat ekzistuese i ruajnë kreditë e dhëna.",
   "admin.packages.postPrice": "Çmimi për postim",
   "admin.packages.perPost": "{{price}}/postim",
   "admin.packages.nameRequired": "Shkruaj emrin e paketës.",
