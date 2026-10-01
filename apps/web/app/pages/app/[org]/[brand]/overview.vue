@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatDate } from '~~/shared/utils/format'
+import { contentActivityDate } from '~/utils/content-activity'
 import { monthlyPlannerPath } from '~/utils/creation-route'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
@@ -56,10 +57,9 @@ const activity = computed(() => {
     date.setHours(12, 0, 0, 0)
     date.setDate(date.getDate() - (chartDays - index - 1))
     const key = dateKey(date, timezone)
-    const isToday = index === chartDays - 1
     const value = data.value.posts.filter((post) => {
-      const source = post.proposedAt || post.publishedAt || post.scheduledAt
-      return source ? dateKey(source, timezone) === key : isToday
+      const source = contentActivityDate(post)
+      return source ? dateKey(source, timezone) === key : false
     }).length
 
     return {
