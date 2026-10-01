@@ -566,7 +566,7 @@ export function validateEditorialPlan(
   if (
     intents.size < minimumIntents ||
     layouts.size < minimumLayouts ||
-    algorithmGoals.size < Math.min(count, count >= 6 ? 4 : count) ||
+    algorithmGoals.size < minimumIntents ||
     (count >= 6 && pillars.size < 3) ||
     Math.max(...intents.values()) > Math.ceil(count * 0.4) ||
     Math.max(...layouts.values()) > Math.ceil(count * 0.35)
@@ -622,21 +622,21 @@ export const plannerMessages: Record<string, string> = {
     'Një thirrje e mëparshme e AI kërkon pajtim të kostos nga platforma përpara rifillimit.',
   PLANNER_PAUSED: 'Përgatitja automatike është në pauzë.',
   LEGACY_PHOTO_SELECTION_CHANGED:
-    'NjÃ« fotografi e zgjedhur nuk Ã«shtÃ« mÃ« e disponueshme ose nuk i ka tÃ« drejtat aktive.',
+    'Një fotografi e zgjedhur nuk është më e disponueshme ose nuk i ka të drejtat aktive.',
   LEGACY_PHOTO_SELECTION_MISSING:
-    'Strategjia nuk i caktoi tÃ« gjitha fotografitÃ« e zgjedhura. Plani duhet korrigjuar.',
+    'Strategjia nuk i caktoi të gjitha fotografitë e zgjedhura. Plani duhet korrigjuar.',
   LEGACY_TOO_MANY_SELECTED_PHOTOS:
-    'Ke zgjedhur mÃ« shumÃ« fotografi sesa postime lejon plani i kÃ«tij muaji.',
+    'Ke zgjedhur më shumë fotografi sesa postime lejon plani i këtij muaji.',
   PHOTO_PREFERENCE_REQUIRED:
-    'Zgjidh nÃ«se fotografitÃ« do t\'i caktojÃ« AI apo do t\'i zgjedhÃ«sh vetÃ«.',
+    'Zgjidh nëse fotografitë do t\'i caktojë AI apo do t\'i zgjedhësh vetë.',
   PHOTO_SELECTION_CHANGED:
-    'NjÃ« fotografi e zgjedhur nuk Ã«shtÃ« mÃ« e disponueshme ose nuk i ka tÃ« drejtat aktive.',
+    'Një fotografi e zgjedhur nuk është më e disponueshme ose nuk i ka të drejtat aktive.',
   PHOTO_SELECTION_MISSING:
-    'Strategjia nuk i caktoi tÃ« gjitha fotografitÃ« e zgjedhura. Plani duhet korrigjuar.',
+    'Strategjia nuk i caktoi të gjitha fotografitë e zgjedhura. Plani duhet korrigjuar.',
   TOO_MANY_SELECTED_PHOTOS:
-    'Ke zgjedhur mÃ« shumÃ« fotografi sesa postime lejon plani i kÃ«tij muaji.',
+    'Ke zgjedhur më shumë fotografi sesa postime lejon plani i këtij muaji.',
   PLAN_RESET_UNSAFE:
-    'Plani ka postime tÃ« miratuara ose tÃ« publikuara dhe nuk mund tÃ« pastrohet automatikisht.',
+    'Plani ka postime të miratuara ose të publikuara dhe nuk mund të pastrohet automatikisht.',
   BUDGET_ESTIMATE_EXCEEDED:
     'Kostoja e shërbimit tejkaloi rezervimin. Platforma duhet të rishikojë kufijtë përpara vazhdimit.',
 }

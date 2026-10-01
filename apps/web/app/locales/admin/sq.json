@@ -476,6 +476,8 @@
   "admin.requests.empty": "Asnjë kërkesë për këtë filtër.",
   "admin.requests.loadError": "Kërkesat nuk u ngarkuan.",
   "admin.requests.saved": "Kërkesa u përditësua.",
+  "admin.requests.newRequestNotification": "Kërkesë e re për paketë",
+  "admin.requests.newRequestNotificationDescription": "{{count}} kërkesa të reja presin në inbox.",
   "admin.requests.saveFailed": "Kërkesa nuk u përditësua.",
   "admin.audit.areas.package_request": "Kërkesë për paketë",
   "admin.requests.platform.instagram": "Instagram",

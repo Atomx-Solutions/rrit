@@ -95,7 +95,7 @@ async function expectReducedMotion(page: Page) {
 }
 
 async function createBusiness(page: Page, origin: string) {
-  await signUp(page, 'Kontrolli i aksesueshmÃ«risÃ«')
+  await signUp(page, 'Kontrolli i aksesueshmërisë')
   const request = page.request
   /* Legacy request flow kept as a reference while the test uses the Supabase UI flow.
   const signup = await request.post('/api/supabase-auth-placeholder', {

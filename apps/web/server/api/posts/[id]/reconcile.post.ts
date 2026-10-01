@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   try {
     return await withBusinessTransaction(user.id, (client, currentBusiness) => {
       if (currentBusiness.id !== business.id)
-        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sÃ«rish.' })
+        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sërish.' })
       return reconcileUncertainPublication(id.data, business.id, client)
     })
   } catch (error) {

@@ -15,21 +15,20 @@ type Section = { title: string; lines: Line[] }
 
 const headingKeys: Record<string, string> = {
   'përmbledhja ekzekutive': 'research.executiveSummary',
-  'pÃ«rmbledhja ekzekutive': 'research.executiveSummary',
   'executive summary': 'research.executiveSummary',
   'tregu dhe audienca': 'research.marketAudience',
   'market and audience': 'research.marketAudience',
-  'sjellja nÃ« instagram': 'research.instagramBehavior',
+  'sjellja në instagram': 'research.instagramBehavior',
   'instagram behavior': 'research.instagramBehavior',
-  'sjellja nÃ« facebook': 'research.facebookBehavior',
+  'sjellja në facebook': 'research.facebookBehavior',
   'facebook behavior': 'research.facebookBehavior',
-  'mundÃ«sitÃ« e pÃ«rmbajtjes': 'research.contentOpportunities',
+  'mundësitë e përmbajtjes': 'research.contentOpportunities',
   'content opportunities': 'research.contentOpportunities',
-  'tÃ« dhÃ«nat e vÃ«zhguara pÃ«r orarin': 'research.observedTiming',
+  'të dhënat e vëzhguara për orarin': 'research.observedTiming',
   'observed timing data': 'research.observedTiming',
   'hipotezat e orarit': 'research.observedTiming',
   'timing hypotheses': 'research.observedTiming',
-  'boshllÃ«qet nÃ« tÃ« dhÃ«na': 'research.dataGaps',
+  'boshllëqet në të dhëna': 'research.dataGaps',
   'data gaps': 'research.dataGaps',
 }
 

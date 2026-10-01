@@ -76,6 +76,39 @@ watch(
   },
   { immediate: true },
 )
+
+let liveRefreshTimer: ReturnType<typeof setInterval> | undefined
+let inboxSnapshotReady = false
+let previousOpenCount = 0
+watch(data, (value) => {
+  if (!inboxSnapshotReady && value) {
+    previousOpenCount = value.open_count || 0
+    inboxSnapshotReady = true
+  }
+}, { immediate: true })
+async function refreshLiveInbox() {
+  if (document.visibilityState !== 'visible') return
+  if (status.value === 'pending' || conversionStatus.value === 'pending') return
+  await Promise.all([refresh(), refreshConversion()])
+  const openCount = data.value?.open_count || 0
+  if (inboxSnapshotReady && openCount > previousOpenCount) {
+    toast.add({
+      title: t('admin.requests.newRequestNotification'),
+      description: t('admin.requests.newRequestNotificationDescription', { count: openCount - previousOpenCount }),
+      color: 'info',
+    })
+  }
+  previousOpenCount = openCount
+}
+onMounted(() => {
+  liveRefreshTimer = setInterval(() => { void refreshLiveInbox() }, 5000)
+  window.addEventListener('focus', refreshLiveInbox)
+})
+onBeforeUnmount(() => {
+  if (liveRefreshTimer) clearInterval(liveRefreshTimer)
+  window.removeEventListener('focus', refreshLiveInbox)
+})
+
 // The status goes to the API because it decides which rows are fetched; the
 // rest filters what is already here, so typing costs no round trip.
 const sources = ['all', 'landing', 'app'] as const

@@ -1512,7 +1512,11 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       // The provider result is the complete design. Local processing only
       // normalizes the output and places the approved logo in a dynamically
       // selected clear region; it does not apply a coded layout template.
-      creative = await normalizeGeneratedCreative(imageGeneration.bytes, brandLogo?.bytes)
+      creative = await normalizeGeneratedCreative(
+        imageGeneration.bytes,
+        brandLogo?.bytes,
+        content.creative.logoZone,
+      )
       const qualityResponse = await monthlyProviderCall(db, {
         ...common,
         stageKey: monthlyAutomaticStageKey(

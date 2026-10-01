@@ -1721,6 +1721,7 @@
   "billing.packageProposalDecline": "Refuzo",
   "billing.packageProposalDeclined": "Oferta u refuzua.",
   "billing.packageProposalAccepted": "Paketa juaj tani është aktive.",
+  "billing.packageProposalNotification": "Një ofertë e re për paketë është gati për shqyrtim.",
   "billing.packageProposalFailed": "Oferta nuk mund të pranohej.",
   "billing.customPackagePosts": "{{count}} postime të përfshira",
   "billing.customPackageUntil": "E vlefshme deri më {{date}}",
@@ -1766,5 +1767,6 @@
   "request.appBody": "Na thuaj sa postime të duhen në muaj dhe të kthehemi me çmimin.",
   "request.appCta": "Dërgo kërkesën",
   "request.appRenewCta": "Ndrysho pakon",
-  "request.appNote": "Përgjigje brenda 24 orësh."
+  "request.appNote": "Përgjigje brenda 24 orësh.",
+  "monthly.photoLimitReached": "kufiri për {{count}} postime"
 }

@@ -48,10 +48,10 @@ function item(n: (typeof navigation)[number]): NavigationMenuItem {
     to: `${base.value}/${n.path}`,
     active: route.path.includes(`/${n.path}`),
     tooltip: { text: t(n.label) },
-    badge:
-      n.path === 'content'
-        ? data.value.posts.filter((p) => p.status === 'review').length
-        : undefined,
+    // How many posts there are, matching the count the content list shows. A
+    // badge that counted only what awaited approval read as a total and
+    // contradicted that list whenever nothing was waiting.
+    badge: n.path === 'content' ? data.value.posts.length || undefined : undefined,
   }
 }
 function items(paths: string[]) {

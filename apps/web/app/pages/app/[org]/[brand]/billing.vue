@@ -26,6 +26,34 @@ const packageProposal = computed(() => billing.value?.packageProposal || null)
 const subscription = computed(() => billing.value?.subscription || null)
 const postsUsage = computed(() => usage.value?.usage.find(item => item.key === 'posts_per_month'))
 
+let packageRefreshTimer: ReturnType<typeof setInterval> | undefined
+let proposalSnapshotReady = false
+let previousProposalId: string | null = null
+watch(billing, (value) => {
+  if (!proposalSnapshotReady && value) {
+    const proposal = value.packageProposal
+    previousProposalId = proposal ? `${proposal.name}:${proposal.startsAt}:${proposal.endsAt}` : null
+    proposalSnapshotReady = true
+  }
+}, { immediate: true })
+async function refreshLiveProposal() {
+  if (document.visibilityState !== 'visible') return
+  await refreshBilling()
+  const proposal = billing.value?.packageProposal
+  const proposalId = proposal ? `${proposal.name}:${proposal.startsAt}:${proposal.endsAt}` : null
+  if (proposalSnapshotReady && proposalId && proposalId !== previousProposalId)
+    showSuccess(t('billing.packageProposalNotification'))
+  previousProposalId = proposalId
+}
+onMounted(() => {
+  packageRefreshTimer = setInterval(() => { void refreshLiveProposal() }, 5000)
+  window.addEventListener('focus', refreshLiveProposal)
+})
+onBeforeUnmount(() => {
+  if (packageRefreshTimer) clearInterval(packageRefreshTimer)
+  window.removeEventListener('focus', refreshLiveProposal)
+})
+
 function formatPeriodDate(value: string) {
   return new Intl.DateTimeFormat('sq-XK', {
     day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade',

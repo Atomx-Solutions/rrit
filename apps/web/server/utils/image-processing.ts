@@ -9,11 +9,29 @@ function escapeXml(value: string) {
 }
 
 /**
- * Removes a connected, mostly uniform background from an uploaded logo while
- * preserving artwork that is not connected to the image edge. The dominant
- * border color is used instead of assuming the background is white, so both
- * light and dark logo exports work on different post backgrounds.
+ * Removes a flat background from an uploaded logo. The dominant border color is
+ * used instead of assuming white, so both light and dark exports work.
+ *
+ * Three things leave the white fringes a single threshold cannot:
+ *  - a compressed export puts ringing around every edge, so pixels just outside
+ *    the artwork sit between the background and the logo;
+ *  - the gaps enclosed by the artwork, such as the counter of a letter, are
+ *    never reached by a fill that starts at the border;
+ *  - a pixel that becomes half transparent still carries the background color,
+ *    which reads as a pale halo once the logo sits on a photograph.
+ * The passes below answer them in that order.
  */
+// A pixel this close to the border color is background beyond doubt and can
+// start a fill; one within the loose distance only continues a fill already
+// touching background, which is what consumes a compressed edge without eating
+// into the artwork.
+const BACKGROUND_SEED_DISTANCE = 40
+const BACKGROUND_EDGE_DISTANCE = 115
+// An enclosed gap this small relative to the image is a hole in the artwork
+// rather than a part of it, so it is cleared too. A larger pale area is left
+// alone, because a logo may legitimately be built on one.
+const ENCLOSED_GAP_SHARE = 0.2
+
 export async function removeLogoBackground(input: Buffer) {
   const { data, info } = await sharp(input, { limitInputPixels: 16000000 })
     .rotate()
@@ -23,21 +41,13 @@ export async function removeLogoBackground(input: Buffer) {
   const width = info.width
   const height = info.height
   const channels = 4
-  const visited = new Uint8Array(width * height)
-  const queue: number[] = []
+  const pixels = width * height
 
   const borderPixels: number[] = []
-  for (let x = 0; x < width; x++) {
-    borderPixels.push(x, (height - 1) * width + x)
-  }
-  for (let y = 1; y < height - 1; y++) {
-    borderPixels.push(y * width, y * width + width - 1)
-  }
+  for (let x = 0; x < width; x++) borderPixels.push(x, (height - 1) * width + x)
+  for (let y = 1; y < height - 1; y++) borderPixels.push(y * width, y * width + width - 1)
 
-  const colorBins = new Map<
-    string,
-    { count: number; red: number; green: number; blue: number }
-  >()
+  const colorBins = new Map<string, { count: number, red: number, green: number, blue: number }>()
   for (const pixel of borderPixels) {
     const offset = pixel * channels
     if (!data[offset + 3]) continue
@@ -69,40 +79,111 @@ export async function removeLogoBackground(input: Buffer) {
     return Math.sqrt(red * red + green * green + blue * blue)
   }
 
-  const isBackground = (pixel: number) => data[pixel * channels + 3]! > 0 && backgroundDistance(pixel) <= 72
-
-  const enqueue = (pixel: number) => {
-    if (!visited[pixel] && isBackground(pixel)) {
-      visited[pixel] = 1
-      queue.push(pixel)
-    }
+  // First pass: the background connected to the border, grown with hysteresis
+  // so a compressed edge is followed outward from certain background.
+  const removed = new Uint8Array(pixels)
+  const queue: number[] = []
+  const seed = (pixel: number) => {
+    if (removed[pixel] || !data[pixel * channels + 3]) return
+    if (backgroundDistance(pixel) > BACKGROUND_SEED_DISTANCE) return
+    removed[pixel] = 1
+    queue.push(pixel)
   }
-
-  for (const pixel of borderPixels) enqueue(pixel)
-
+  const grow = (pixel: number) => {
+    if (removed[pixel] || !data[pixel * channels + 3]) return
+    if (backgroundDistance(pixel) > BACKGROUND_EDGE_DISTANCE) return
+    removed[pixel] = 1
+    queue.push(pixel)
+  }
+  for (const pixel of borderPixels) seed(pixel)
   for (let cursor = 0; cursor < queue.length; cursor++) {
     const pixel = queue[cursor]!
     const x = pixel % width
     const y = Math.floor(pixel / width)
-    if (x > 0) enqueue(pixel - 1)
-    if (x + 1 < width) enqueue(pixel + 1)
-    if (y > 0) enqueue(pixel - width)
-    if (y + 1 < height) enqueue(pixel + width)
+    if (x > 0) grow(pixel - 1)
+    if (x + 1 < width) grow(pixel + 1)
+    if (y > 0) grow(pixel - width)
+    if (y + 1 < height) grow(pixel + width)
   }
 
-  for (const pixel of queue) {
+  // Second pass: gaps the artwork encloses. A region that never touches the
+  // border is a hole, and a small one belongs to the background it is cut out
+  // of rather than to the logo.
+  const maximumGap = Math.round(pixels * ENCLOSED_GAP_SHARE)
+  const seen = new Uint8Array(pixels)
+  for (let start = 0; start < pixels; start++) {
+    if (seen[start] || removed[start]) continue
+    if (backgroundDistance(start) > BACKGROUND_SEED_DISTANCE) continue
+    const region: number[] = [start]
+    seen[start] = 1
+    let touchesBorder = false
+    for (let cursor = 0; cursor < region.length; cursor++) {
+      const pixel = region[cursor]!
+      const x = pixel % width
+      const y = Math.floor(pixel / width)
+      if (x === 0 || y === 0 || x === width - 1 || y === height - 1) touchesBorder = true
+      const visit = (next: number) => {
+        if (seen[next] || removed[next]) return
+        if (backgroundDistance(next) > BACKGROUND_EDGE_DISTANCE) return
+        seen[next] = 1
+        region.push(next)
+      }
+      if (x > 0) visit(pixel - 1)
+      if (x + 1 < width) visit(pixel + 1)
+      if (y > 0) visit(pixel - width)
+      if (y + 1 < height) visit(pixel + width)
+    }
+    if (touchesBorder || region.length > maximumGap) continue
+    for (const pixel of region) removed[pixel] = 1
+  }
+
+  // Third pass: fade each removed pixel by how far it stands from the
+  // background, and take the background color back out of what is left. Without
+  // that subtraction a half transparent edge still carries white and shows as a
+  // halo over a photograph.
+  for (let pixel = 0; pixel < pixels; pixel++) {
+    if (!removed[pixel]) continue
     const offset = pixel * channels
     const distance = backgroundDistance(pixel)
-    const remainingAlpha = Math.max(0, Math.min(1, (distance - 20) / 52))
-    data[offset + 3] = Math.round(data[offset + 3]! * remainingAlpha)
+    const alpha = Math.max(
+      0,
+      Math.min(1, (distance - BACKGROUND_SEED_DISTANCE) / (BACKGROUND_EDGE_DISTANCE - BACKGROUND_SEED_DISTANCE)),
+    )
+    data[offset + 3] = Math.round(data[offset + 3]! * alpha)
+    if (alpha <= 0 || alpha >= 1) continue
+    const unmix = (value: number, backgroundValue: number) =>
+      Math.max(0, Math.min(255, Math.round((value - backgroundValue * (1 - alpha)) / alpha)))
+    data[offset] = unmix(data[offset]!, backgroundColor.red)
+    data[offset + 1] = unmix(data[offset + 1]!, backgroundColor.green)
+    data[offset + 2] = unmix(data[offset + 2]!, backgroundColor.blue)
   }
 
   return sharp(data, { raw: { width, height, channels } }).png().toBuffer()
 }
 
-async function chooseLogoPlacement(image: Buffer, logo: Buffer) {
+// The logo needs air around it, so a position is judged on a band wider than
+// the logo itself. Headline type set beside the logo is what makes a placement
+// look wrong, and a region limited to the logo's own box never sees it.
+const LOGO_CLEARANCE = 88
+// Fine enough for set type to register as edges; the former 108x135 averaged a
+// headline away into flat sky.
+const PLACEMENT_ANALYSIS_WIDTH = 216
+const PLACEMENT_ANALYSIS_HEIGHT = 270
+
+/**
+ * The corner the composing model left free, when it said which one. Scoring is
+ * still what picks the exact spot inside that corner, and still decides alone
+ * when no corner was named or the named one turned out to be occupied after all.
+ */
+export type LogoZone = 'auto' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+
+export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: LogoZone) {
   const [imageAnalysis, logoAnalysis] = await Promise.all([
-    sharp(image).resize(108, 135, { fit: 'fill' }).grayscale().raw().toBuffer({ resolveWithObject: true }),
+    sharp(image)
+      .resize(PLACEMENT_ANALYSIS_WIDTH, PLACEMENT_ANALYSIS_HEIGHT, { fit: 'fill' })
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true }),
     sharp(logo).resize(64, 36, { fit: 'inside' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
   ])
   const imageChannels = imageAnalysis.info.channels
@@ -137,18 +218,35 @@ async function chooseLogoPlacement(image: Buffer, logo: Buffer) {
     height - logoHeight - marginY,
   ])].filter((top) => top >= marginY && top + logoHeight <= height - marginY)
 
+  // The named corner is a preference, not a rule. A model that says it left the
+  // bottom free and then sets its copy block there would otherwise push the
+  // logo onto its own type, so the measurement still decides and the hint only
+  // breaks a tie.
+  const inZone = (left: number, top: number) => {
+    if (!zone || zone === 'auto') return false
+    const onLeft = left + logoWidth / 2 < width / 2
+    const onTop = top + logoHeight / 2 < height / 2
+    return zone === `${onTop ? 'top' : 'bottom'}-${onLeft ? 'left' : 'right'}`
+  }
+
   let best = { left: marginX, top: marginY, score: Number.POSITIVE_INFINITY }
   for (const top of verticalPositions) {
     for (const left of horizontalPositions) {
-      const startX = Math.max(0, Math.floor((left / width) * imageAnalysis.info.width))
+      const startX = Math.max(
+        0,
+        Math.floor(((left - LOGO_CLEARANCE) / width) * imageAnalysis.info.width),
+      )
       const endX = Math.min(
         imageAnalysis.info.width,
-        Math.ceil(((left + logoWidth) / width) * imageAnalysis.info.width),
+        Math.ceil(((left + logoWidth + LOGO_CLEARANCE) / width) * imageAnalysis.info.width),
       )
-      const startY = Math.max(0, Math.floor((top / height) * imageAnalysis.info.height))
+      const startY = Math.max(
+        0,
+        Math.floor(((top - LOGO_CLEARANCE) / height) * imageAnalysis.info.height),
+      )
       const endY = Math.min(
         imageAnalysis.info.height,
-        Math.ceil(((top + logoHeight) / height) * imageAnalysis.info.height),
+        Math.ceil(((top + logoHeight + LOGO_CLEARANCE) / height) * imageAnalysis.info.height),
       )
       const values: number[] = []
       for (let y = startY; y < endY; y++) {
@@ -173,9 +271,11 @@ async function chooseLogoPlacement(image: Buffer, logo: Buffer) {
           }
         }
       }
-      const complexity = Math.min(1, variance / 7000 + (edgeDifference / Math.max(1, edgeCount)) / 80)
+      // Left uncapped on purpose: set type is far busier than a textured
+      // surface, and a ceiling of one made the two look equally bad.
+      const complexity = variance / 7000 + edgeDifference / Math.max(1, edgeCount) / 80
       const contrastPenalty = 1 - Math.min(1, Math.abs(mean - logoLuminance) / 160)
-      const score = complexity + contrastPenalty * 0.6
+      const score = complexity + contrastPenalty * 0.5 - (inZone(left, top) ? 0.3 : 0)
       if (score < best.score) best = { left, top, score }
     }
   }
@@ -184,7 +284,7 @@ async function chooseLogoPlacement(image: Buffer, logo: Buffer) {
 
 // Technical output normalization. A supplied approved logo is the only optional
 // deterministic brand element added after generation; no logo means no overlay.
-export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer) {
+export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer, logoZone?: LogoZone) {
   const normalized = sharp(image, { limitInputPixels: 24000000 })
     .rotate()
     // The image prompt reserves a centered 4:5 safe region inside providers that
@@ -207,7 +307,7 @@ export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer) {
     const logoHeight = logoMetadata.height || 0
     if (logoWidth && logoHeight) {
       const base = await normalized.png().toBuffer()
-      const placement = await chooseLogoPlacement(base, resizedLogo)
+      const placement = await chooseLogoPlacement(base, resizedLogo, logoZone)
       result = await sharp(base)
         .composite([{ input: resizedLogo, left: placement.left, top: placement.top }])
         .jpeg({ quality: 94, mozjpeg: true })
