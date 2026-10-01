@@ -9,7 +9,7 @@ export async function loadWorkspace(db: Pool | PoolClient, id: string, owner: st
   if (!business.rows[0]) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
   const row = business.rows[0]
   const [posts, assets] = await Promise.all([
-    db.query('SELECT payload FROM posts WHERE business_id = $1 ORDER BY created_at DESC, id', [id]),
+    db.query('SELECT payload, created_at FROM posts WHERE business_id = $1 ORDER BY created_at DESC, id', [id]),
     db.query(
       "SELECT id, name, tags, rights, kind, creative_provenance IS NOT NULL AS generated, COALESCE(size_bytes, octet_length(bytes))::integer AS size FROM assets WHERE business_id = $1 ORDER BY created_at DESC, id",
       [id],
@@ -18,7 +18,7 @@ export async function loadWorkspace(db: Pool | PoolClient, id: string, owner: st
   const workspace: Workspace = workspaceSchema.parse({
     ...row.state,
     revision: row.revision,
-    posts: posts.rows.map((p) => p.payload),
+    posts: posts.rows.map((p) => ({ ...p.payload, createdAt: new Date(p.created_at).toISOString() })),
     assets: assets.rows.map((a) => ({
       ...a,
       size: Number(a.size),

@@ -20,6 +20,7 @@ export const postSchema = z.object({
   image: z.string(),
   pillar: z.string(),
   scheduledAt: z.string().nullable(),
+  createdAt: z.iso.datetime().optional(),
   proposedAt: z.iso.datetime().optional(),
   aiProvenance: monthlyPostProvenanceSchema.optional(),
   publicationMode: z.enum(['manual', 'automatic']).optional(),
