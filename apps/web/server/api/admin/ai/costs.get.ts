@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   if (!range)
     throw createError({
       statusCode: 422,
-      message: 'Periudha nuk Ã«shtÃ« e vlefshme (YYYY-MM-DD, deri nÃ« 366 ditÃ«).',
+      message: 'Periudha nuk është e vlefshme (YYYY-MM-DD, deri në 366 ditë).',
       data: { code: 'INVALID_RANGE' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

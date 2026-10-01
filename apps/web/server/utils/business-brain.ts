@@ -416,7 +416,7 @@ export async function deactivateBusinessBrainOffer(
     [offerId, brandId, organizationId],
   )
   if (!result.rows[0])
-    throw createError({ statusCode: 422, message: 'Oferta nuk mund te Ã§aktivizohet.' })
+    throw createError({ statusCode: 422, message: 'Oferta nuk mund te çaktivizohet.' })
   await bumpBrand(client, organizationId, brandId)
   return toOffer(result.rows[0])
 }

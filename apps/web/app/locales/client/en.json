@@ -1721,6 +1721,7 @@
   "billing.packageProposalDecline": "Decline",
   "billing.packageProposalDeclined": "The offer was declined.",
   "billing.packageProposalAccepted": "Your package is now active.",
+  "billing.packageProposalNotification": "A new package proposal is ready for your review.",
   "billing.packageProposalFailed": "The offer could not be accepted.",
   "billing.customPackagePosts": "{{count}} posts included",
   "billing.customPackageUntil": "Valid until {{date}}",
@@ -1766,5 +1767,6 @@
   "request.appBody": "Tell us how many you need per month and we'll get back with a price.",
   "request.appCta": "Send request",
   "request.appRenewCta": "Change package",
-  "request.appNote": "Reply within 24 hours."
+  "request.appNote": "Reply within 24 hours.",
+  "monthly.photoLimitReached": "limit for {{count}} posts"
 }

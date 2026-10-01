@@ -45,9 +45,15 @@ watch(
 )
 
 function togglePhoto(id: string) {
-  selectedPhotoIds.value = selectedPhotoIds.value.includes(id)
-    ? selectedPhotoIds.value.filter((item) => item !== id)
-    : [...selectedPhotoIds.value, id]
+  if (selectedPhotoIds.value.includes(id)) {
+    selectedPhotoIds.value = selectedPhotoIds.value.filter(item => item !== id)
+    return
+  }
+  // One photo is used per post, so choosing more than the month will produce is
+  // a selection the planner has to reject later. Stopping it at the click says
+  // so while the person can still act on it.
+  if (selectedPhotoIds.value.length >= selectedQuantity.value) return
+  selectedPhotoIds.value = [...selectedPhotoIds.value, id]
 }
 
 function openReport(type: 'research' | 'strategy') {
@@ -68,6 +74,12 @@ const remainingPosts = computed(() => planner.value?.usage?.remaining || 0)
 watch(remainingPosts, (remaining) => {
   selectedQuantity.value = Math.max(1, Math.min(selectedQuantity.value, remaining || 1))
 }, { immediate: true })
+// Lowering the post count leaves photos chosen that no longer have a post to go
+// with, so the extras are released rather than left to fail at submission.
+watch(selectedQuantity, (quantity) => {
+  if (selectedPhotoIds.value.length > quantity)
+    selectedPhotoIds.value = selectedPhotoIds.value.slice(0, quantity)
+})
 const active = computed(() => ['queued', 'running'].includes(plan.value?.status || ''))
 const blocked = computed(() => plan.value?.status === 'blocked')
 const ready = computed(() => plan.value?.status === 'review')
@@ -757,6 +769,10 @@ onBeforeUnmount(() => clearInterval(timer))
                 "
                 :aria-pressed="selectedPhotoIds.includes(asset.id)"
                 :aria-label="t('gallery.selectPhoto', { name: asset.name })"
+                :disabled="
+                  !selectedPhotoIds.includes(asset.id)
+                    && selectedPhotoIds.length >= selectedQuantity
+                "
                 @click="togglePhoto(asset.id)"
               >
                 <MediaImage
@@ -810,6 +826,9 @@ onBeforeUnmount(() => clearInterval(timer))
           />
           <p v-if="photoMode === 'selected' && selectedPhotoIds.length" class="mt-2 text-xs text-muted">
             {{ t('monthly.photosIncluded', { count: selectedPhotoIds.length }) }}
+            <template v-if="selectedPhotoIds.length >= selectedQuantity">
+              · {{ t('monthly.photoLimitReached', { count: selectedQuantity }) }}
+            </template>
           </p>
         </div>
       </div>

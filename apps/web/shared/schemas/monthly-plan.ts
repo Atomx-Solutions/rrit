@@ -110,12 +110,33 @@ export const pageStyleAnalysisSchema = styleProfileGenerationSchema.extend({
   hashtags: z.string().trim().max(500),
 })
 export type PageStyleAnalysis = z.infer<typeof pageStyleAnalysisSchema>
+/**
+ * Where the approved logo belongs in this composition. The image model must not
+ * draw a logo, so the application composites the real file afterwards; this is
+ * how the model that designed the composition says which corner it left free.
+ * "auto" leaves the choice to the application, which finds the calmest area
+ * itself. It exists so a model with no real preference does not have to invent
+ * one, and so posts written before this field carry a truthful value.
+ */
+export const logoZoneSchema = z.enum([
+  'auto',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+])
+export type LogoZone = z.infer<typeof logoZoneSchema>
+
 export const creativeSchema = z.object({
   headline: z.string().trim().min(3).max(64),
   eyebrow: z.string().trim().min(2).max(48),
   cta: z.string().trim().min(2).max(32),
   // Describes the model's unique composition; it never selects a coded preset.
   layout: z.string().trim().min(1).max(600),
+  // Required of the model, because provider structured output rejects a
+  // property that is not required. The fallback keeps older stored posts and a
+  // malformed answer readable.
+  logoZone: logoZoneSchema.catch('auto'),
 })
 export const generatedPostSchema = z.object({
   title: z.string().trim().min(3).max(120),

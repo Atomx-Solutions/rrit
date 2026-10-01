@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
     user.id,
     async (client, currentBusiness) => {
       if (currentBusiness.id !== business.id)
-        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sÃ«rish.' })
+        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sërish.' })
       await requireEntitlement(business.id, 'validation', client)
       const row = await client.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [
         id.data,

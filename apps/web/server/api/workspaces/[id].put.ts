@@ -102,7 +102,7 @@ export default defineEventHandler(async (event) => {
     if (canonicalBrand.rows[0] && input.brandRevision !== canonicalBrand.rows[0].revision)
       throw createError({
         statusCode: 409,
-        message: 'Brandi ndryshoi nÃ« njÃ« pajisje tjetÃ«r. Ngarko versionin e fundit.',
+        message: 'Brandi ndryshoi në një pajisje tjetër. Ngarko versionin e fundit.',
       })
     input.brand = await syncBusinessBrain(client, id.data, user.id, input.brand, current.brand)
     const organization = await client.query<{ name: string }>(
@@ -515,7 +515,7 @@ export default defineEventHandler(async (event) => {
       if (!savedBrand.rows[0])
         throw createError({
           statusCode: 409,
-          message: 'Brandi ndryshoi nÃ« njÃ« pajisje tjetÃ«r. Ngarko versionin e fundit.',
+          message: 'Brandi ndryshoi në një pajisje tjetër. Ngarko versionin e fundit.',
         })
       savedBrandRevision = savedBrand.rows[0].revision
     }

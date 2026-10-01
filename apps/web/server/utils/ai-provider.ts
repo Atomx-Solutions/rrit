@@ -125,9 +125,11 @@ export function aiProviderJsonSchema(value: unknown): Record<string, unknown> {
     return Object.fromEntries(
       Object.entries(node)
         // Provider-side structured output supports only a subset of JSON
-        // Schema regex syntax. Domain schemas are parsed again after the
-        // response, so formats and patterns remain enforced by Zod locally.
-        .filter(([key]) => !['format', 'pattern'].includes(key))
+        // Schema. Domain schemas are parsed again after the response, so
+        // formats, patterns and fallbacks remain enforced by Zod locally.
+        // "default" in particular is rejected outright by strict mode, and a
+        // field carrying one is required of the model anyway.
+        .filter(([key]) => !['format', 'pattern', 'default'].includes(key))
         .map(([key, item]) => [key, normalize(item)]),
     )
   }

@@ -476,6 +476,8 @@
   "admin.requests.empty": "No request for this filter.",
   "admin.requests.loadError": "The requests could not be loaded.",
   "admin.requests.saved": "Request updated.",
+  "admin.requests.newRequestNotification": "New package request",
+  "admin.requests.newRequestNotificationDescription": "{{count}} new request(s) are waiting in the inbox.",
   "admin.requests.saveFailed": "The request was not updated.",
   "admin.audit.areas.package_request": "Package request",
   "admin.requests.platform.instagram": "Instagram",

@@ -226,21 +226,21 @@ function heading(value: string, language: 'sq' | 'en') {
     return englishLabels[normalized] || clean(value)
   }
   const labels: Record<string, string> = {
-    'pÃ«rmbledhja ekzekutive': 'Përmbledhja ekzekutive',
+    'përmbledhja ekzekutive': 'Përmbledhja ekzekutive',
     'executive summary': 'Executive summary',
     'tregu dhe audienca': 'Tregu dhe audienca',
     'market and audience': 'Market and audience',
-    'sjellja nÃ« instagram': 'Sjellja në Instagram',
+    'sjellja në instagram': 'Sjellja në Instagram',
     'instagram behavior': 'Instagram behavior',
-    'sjellja nÃ« facebook': 'Sjellja në Facebook',
+    'sjellja në facebook': 'Sjellja në Facebook',
     'facebook behavior': 'Facebook behavior',
-    'mundÃ«sitÃ« e pÃ«rmbajtjes': 'Mundësitë e përmbajtjes',
+    'mundësitë e përmbajtjes': 'Mundësitë e përmbajtjes',
     'content opportunities': 'Content opportunities',
-    'tÃ« dhÃ«nat e vÃ«zhguara pÃ«r orarin': 'Të dhënat e vëzhguara për orarin',
+    'të dhënat e vëzhguara për orarin': 'Të dhënat e vëzhguara për orarin',
     'observed timing data': 'Observed timing data',
     'hipotezat e orarit': 'Të dhënat e vëzhguara për orarin',
     'timing hypotheses': 'Observed timing data',
-    'boshllÃ«qet nÃ« tÃ« dhÃ«na': 'Boshllëqet në të dhëna',
+    'boshllëqet në të dhëna': 'Boshllëqet në të dhëna',
     'data gaps': 'Data gaps',
   }
   return labels[normalized] || clean(value)
