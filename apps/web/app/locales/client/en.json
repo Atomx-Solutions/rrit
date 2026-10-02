@@ -1057,6 +1057,8 @@
   "gallery.emptyTitle": "Space for your story",
   "gallery.noResultsDescription": "Try another name or view the whole gallery.",
   "gallery.emptyDescription": "Add your photos to use them in posts.",
+  "gallery.noGeneratedTitle": "No AI-generated photos yet",
+  "gallery.noGeneratedDescription": "Photos created with AI will appear here.",
   "gallery.clearSearch": "Clear search",
   "gallery.rightsWithdrawnInFlight": "Rights withdrawn; a publication in progress requires verification",
   "gallery.rightsWithdrawn": "Rights withdrawn and future use blocked",

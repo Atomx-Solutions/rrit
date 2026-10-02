@@ -432,8 +432,8 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
           </div>
         </div>
-        <UButton :to="`${base}/brand`" variant="outline" color="neutral" size="sm">
-          {{ t('legacy.completeBusiness') }}
+        <UButton :to="`${base}/gallery?upload=1`" variant="outline" color="neutral" size="sm">
+          {{ t('gallery.uploadPhotos') }}
         </UButton>
       </div>
     </div>

@@ -1057,6 +1057,8 @@
   "gallery.emptyTitle": "Hapësirë për historinë tënde",
   "gallery.noResultsDescription": "Provo një emër tjetër ose shiko të gjithë galerinë.",
   "gallery.emptyDescription": "Shto fotografitë e tua për t’i përdorur në postime.",
+  "gallery.noGeneratedTitle": "Nuk ka fotografi të gjeneruara me AI",
+  "gallery.noGeneratedDescription": "Fotografitë e krijuara me AI do të shfaqen këtu.",
   "gallery.clearSearch": "Pastro kërkimin",
   "gallery.rightsWithdrawnInFlight": "Të drejtat u tërhoqën; një publikim në proces kërkon verifikim",
   "gallery.rightsWithdrawn": "Të drejtat u tërhoqën dhe përdorimi i ardhshëm u bllokua",
