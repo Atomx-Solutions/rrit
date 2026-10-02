@@ -60,6 +60,7 @@ const form = reactive({
   organizationId: '',
   name: '',
   postsIncluded: 20,
+  creditsIncluded: 0,
   postPriceEuro: 1.5,
   priceEuro: 30,
   startsAt: '',
@@ -67,7 +68,12 @@ const form = reactive({
   notes: '',
 })
 const postPriceCents = computed(() => Math.round(form.postPriceEuro * 100))
-const suggestedCents = computed(() => form.postsIncluded * postPriceCents.value)
+// Credits are priced from the platform rate the credits screen sets, so a
+// converted lead quotes the same number the billing page showed the customer.
+const creditPriceCents = ref(0)
+const suggestedCents = computed(
+  () => form.postsIncluded * postPriceCents.value + form.creditsIncluded * creditPriceCents.value,
+)
 const priceCents = computed(() => Math.round(form.priceEuro * 100))
 // The rate cannot always divide the total evenly, so an agreed total of 45.61
 // over 30 posts keeps that total and shows the nearest rate beside it.
@@ -88,10 +94,18 @@ function sync(update: () => void) {
   update()
   syncing = false
 }
+// The credit rate is fetched after the form is filled from the request, so it
+// is a source of its own: without it the first suggestion would be computed
+// against a rate of zero and the agreed price would open at 0.00.
 watch(
-  [() => form.postsIncluded, () => form.postPriceEuro],
+  [
+    () => form.postsIncluded,
+    () => form.postPriceEuro,
+    () => form.creditsIncluded,
+    creditPriceCents,
+  ],
   () => sync(() => {
-    form.priceEuro = Math.round(form.postsIncluded * form.postPriceEuro * 100) / 100
+    form.priceEuro = Math.round(suggestedCents.value) / 100
   }),
   { flush: 'sync' },
 )
@@ -116,6 +130,7 @@ watch(
       organizationId: request.organization_id || '',
       name: request.organization_name || request.business_name || request.contact_name,
       postsIncluded: request.posts_requested,
+      creditsIncluded: request.credits_requested ?? 0,
       startsAt: today.toISOString().slice(0, 10),
       endsAt: inAMonth.toISOString().slice(0, 10),
       notes: request.message || '',
@@ -130,10 +145,11 @@ watch(
 async function loadRate() {
   if (!form.organizationId) return
   try {
-    const settings = await $fetch<{ post_price_cents: number }>(
+    const settings = await $fetch<{ post_price_cents: number; credit_price_cents: number }>(
       `/api/admin/organizations/${form.organizationId}/packages`,
     )
     form.postPriceEuro = settings.post_price_cents / 100
+    creditPriceCents.value = settings.credit_price_cents
   } catch {
     // The default in the form stands when the rate cannot be read.
   }
@@ -158,6 +174,7 @@ async function submit() {
       body: {
         name: form.name.trim(),
         posts_included: form.postsIncluded,
+        credits_included: form.creditsIncluded,
         post_price_cents: postPriceCents.value,
         price_cents: priceCents.value,
         starts_at: dayToIso(form.startsAt),
@@ -223,7 +240,14 @@ async function submit() {
             :hint="t('admin.requests.askedFor', { count: request?.posts_requested ?? 0 })"
             required
           >
-            <UInputNumber v-model="form.postsIncluded" :min="1" :max="1000" class="w-full" />
+            <UInputNumber v-model="form.postsIncluded" :min="0" :max="1000" class="w-full" />
+          </UFormField>
+          <UFormField
+            name="creditsIncluded"
+            :label="t('admin.packages.credits')"
+            :hint="t('admin.requests.askedForCredits', { count: request?.credits_requested ?? 0 })"
+          >
+            <UInputNumber v-model="form.creditsIncluded" :min="0" :max="1000000" :step="100" class="w-full" />
           </UFormField>
           <UFormField name="postPriceEuro" :label="t('admin.packages.postPrice')" required>
             <UInputNumber

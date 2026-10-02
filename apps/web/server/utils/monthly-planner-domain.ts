@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   editorialPlanSchema,
   type Research,
+  type SlotBrief,
 } from '../../shared/schemas/monthly-plan'
 import type { Workspace } from '../../shared/schemas/workspace'
 import { dayInZone } from '../../shared/utils/calendar'
@@ -16,6 +17,45 @@ import {
   type PlannerBrain,
   type PlannerBrainOffer,
 } from '../../shared/schemas/business-brain'
+
+// The platforms a post may be planned for.
+export const plannerChannels = ['Instagram', 'Facebook'] as const
+export type PlannerChannel = (typeof plannerChannels)[number]
+// How many of a batch's posts each platform gets. An empty object is the
+// absence of a request, not a request for nothing.
+export type PlannerChannelCounts = Partial<Record<PlannerChannel, number>>
+
+export function channelCountsTotal(counts: PlannerChannelCounts | undefined) {
+  return plannerChannels.reduce((total, channel) => total + (counts?.[channel] || 0), 0)
+}
+/**
+ * The distribution a request asked for, or nothing.
+ *
+ * A distribution is only meaningful when it accounts for exactly the posts
+ * being requested, so a partial or oversized one is rejected here rather than
+ * half-applied by the planner.
+ */
+export function normalizedChannelCounts(
+  counts: PlannerChannelCounts | undefined,
+  quantity: number,
+): PlannerChannelCounts {
+  if (!counts) return {}
+  const entries = plannerChannels.flatMap((channel) => {
+    const value = counts[channel]
+    if (value === undefined) return []
+    if (!Number.isInteger(value) || value < 0) throw new PlannerFailure('INVALID_CHANNEL_SPLIT')
+    return value > 0 ? ([[channel, value]] as const) : []
+  })
+  if (!entries.length) return {}
+  const asked = entries.reduce((total, [, value]) => total + value, 0)
+  if (asked !== quantity) throw new PlannerFailure('INVALID_CHANNEL_SPLIT')
+  return Object.fromEntries(entries) as PlannerChannelCounts
+}
+/** The single platform a distribution leaves, when it leaves only one. */
+export function soleChannel(counts: PlannerChannelCounts | undefined) {
+  const used = plannerChannels.filter((channel) => (counts?.[channel] || 0) > 0)
+  return used.length === 1 ? used[0]! : undefined
+}
 
 export class PlannerFailure extends Error {
   constructor(
@@ -293,7 +333,59 @@ export function earliestPlanningDate(timezone: string, capturedAt: string) {
   date.setUTCDate(date.getUTCDate() + 1)
   return date.toISOString().slice(0, 10)
 }
-function canonicalSourceUrl(value: string) {
+/**
+ * The calendar days of `month` that a package actually covers.
+ *
+ * A custom package is negotiated between two dates rather than along calendar
+ * months, so a month may be covered only in part. Returns the intersection, or
+ * the plain month when the plan has no package window of its own.
+ */
+export function packageMonthWindow(
+  month: string,
+  quotaPeriod: { startsAt: Date; endsAt: Date } | undefined,
+) {
+  const monthStart = `${month}-01`
+  const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
+    .toISOString()
+    .slice(0, 10)
+  if (!quotaPeriod) return { from: monthStart, to: monthEnd, bounded: false as const }
+  const packageStart = quotaPeriod.startsAt.toISOString().slice(0, 10)
+  // `endsAt` is the exclusive end of the paid period, so the last covered day
+  // is the one before it.
+  const packageEnd = new Date(quotaPeriod.endsAt.getTime() - 1).toISOString().slice(0, 10)
+  return {
+    from: packageStart > monthStart ? packageStart : monthStart,
+    to: packageEnd < monthEnd ? packageEnd : monthEnd,
+    bounded: true as const,
+  }
+}
+
+/**
+ * The window the monthly research may look for dated events inside.
+ *
+ * It is the part of the month that is both paid for and still publishable, so
+ * research never spends a paid call on an occasion no post could reach: a
+ * package bought on 30 October and valid to 30 November makes November's
+ * holidays researchable, while a December occasion is outside what the customer
+ * bought. Returns null when nothing of the month remains.
+ */
+export function eventResearchWindow(
+  month: string,
+  quotaPeriod: { startsAt: Date; endsAt: Date } | undefined,
+  timezone: string,
+  capturedAt: string,
+) {
+  const covered = packageMonthWindow(month, quotaPeriod)
+  const earliest = earliestPlanningDate(timezone, capturedAt)
+  const from = covered.from > earliest ? covered.from : earliest
+  if (from > covered.to) return null
+  return { from, to: covered.to }
+}
+
+// Search results arrive with tracking parameters the model does not always
+// repeat verbatim, so every comparison between a cited URL and a returned
+// source goes through this rather than matching the raw strings.
+export function canonicalSourceUrl(value: string) {
   const url = new URL(value)
   url.hash = ''
   for (const key of [...url.searchParams.keys()])
@@ -388,6 +480,11 @@ export function normalizeEditorialPlanResponse(
   research: Research,
   count: number,
   month?: string,
+  // How this batch's posts were split across platforms. A split that leaves a
+  // single platform has no judgement left in it, so it is applied rather than
+  // rejected: blocking a paid plan over a field the request already decided
+  // helps nobody.
+  channelCounts: PlannerChannelCounts = {},
 ) {
   const plan = editorialPlanSchema.parse(value)
   const knownFacts = new Set(evidence.brand.facts.map((fact) => fact.id))
@@ -429,6 +526,9 @@ export function normalizeEditorialPlanResponse(
       const timingBasis = supportedTimingBasis(slot)
       return {
         ...slot,
+        // With one platform requested there is nothing to decide, so the
+        // request wins outright.
+        channel: soleChannel(channelCounts) || slot.channel,
         // Never replace an editorial claim with an unrelated fact or source.
         // Keeping the original when nothing matches makes validation request a
         // precise model correction instead of silently weakening grounding.
@@ -465,6 +565,11 @@ export function validateEditorialPlan(
   month: string,
   count: number,
   latestDate?: string,
+  // Slots planned by earlier batches of the same month. A new batch must not
+  // collide with their dates or repeat their ideas, so they seed the
+  // uniqueness checks without being revalidated themselves.
+  existingSlots: SlotBrief[] = [],
+  channelCounts: PlannerChannelCounts = {},
 ) {
   const plan = editorialPlanSchema.parse(value)
   const earliestDate = earliestPlanningDate(evidence.timezone, evidence.capturedAt)
@@ -473,9 +578,11 @@ export function validateEditorialPlan(
   ).getUTCDate()
   const facts = new Map(evidence.brand.facts.map((fact) => [fact.id, fact]))
   const sources = new Set(research.sources.map((source) => canonicalSourceUrl(source.url)))
-  const used = new Set<string>()
-  const topics = new Set<string>()
-  const hooks = new Set<string>()
+  const used = new Set(
+    existingSlots.map((slot) => `${slot.day}:${slot.time}:${slot.channel}`),
+  )
+  const topics = new Set(existingSlots.map((slot) => normalizedIdea(slot.topic)))
+  const hooks = new Set(existingSlots.map((slot) => normalizedIdea(slot.hook)))
   const pillars = new Set<string>()
   const intents = new Map<string, number>()
   const layouts = new Map<string, number>()
@@ -581,6 +688,23 @@ export function validateEditorialPlan(
     throw new PlannerFailure('PHOTO_SELECTION_MISSING', [
       `Caktoje secilën fotografi të zgjedhur ekzaktësisht një herë: ${[...selectedAssets].join(', ')}.`,
     ])
+  // The platform split the customer asked for is a promise about this batch,
+  // so it is checked over the batch as a whole rather than slot by slot.
+  if (channelCountsTotal(channelCounts)) {
+    const planned = plan.slots.reduce<Record<string, number>>((totals, slot) => {
+      totals[slot.channel] = (totals[slot.channel] || 0) + 1
+      return totals
+    }, {})
+    const wrong = plannerChannels.filter(
+      (channel) => (planned[channel] || 0) !== (channelCounts[channel] || 0),
+    )
+    if (wrong.length)
+      throw new PlannerFailure('UNGROUNDED_PLAN', [
+        `Ndaji postimet sipas kërkesës: ${plannerChannels
+          .map((channel) => `${channel} ${channelCounts[channel] || 0}`)
+          .join(', ')}.`,
+      ])
+  }
   return plan
 }
 export const plannerMessages: Record<string, string> = {
@@ -621,6 +745,7 @@ export const plannerMessages: Record<string, string> = {
   PLAN_RECONCILIATION_REQUIRED:
     'Një thirrje e mëparshme e AI kërkon pajtim të kostos nga platforma përpara rifillimit.',
   PLANNER_PAUSED: 'Përgatitja automatike është në pauzë.',
+  INVALID_CHANNEL_SPLIT: 'Ndarja sipas platformave duhet të mbulojë saktësisht numrin e postimeve të kërkuara.',
   LEGACY_PHOTO_SELECTION_CHANGED:
     'Një fotografi e zgjedhur nuk është më e disponueshme ose nuk i ka të drejtat aktive.',
   LEGACY_PHOTO_SELECTION_MISSING:

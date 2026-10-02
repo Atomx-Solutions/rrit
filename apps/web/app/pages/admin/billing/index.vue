@@ -44,7 +44,10 @@ const pageSize = ref(20)
 // Date filters go to the API
 const dateFilters = reactive({ from: '', to: '' })
 // Text filters are client-side (fast, no extra round trip for short lists)
-const search = reactive({ org: '', number: '' })
+// A package invoice and a credit top-up are both sold through the same
+// proposal flow, so the list separates them by what was actually bought.
+const sourceKinds = ['all', 'custom_package', 'credit_top_up'] as const
+const search = reactive({ org: '', number: '', source: 'all' as (typeof sourceKinds)[number] })
 
 watch([() => dateFilters.from, () => dateFilters.to], () => { page.value = 1 })
 
@@ -72,7 +75,8 @@ const invoices = computed(() => {
   const num = search.number.trim().toLowerCase()
   return list.filter(inv =>
     (!org || inv.organization_name?.toLowerCase().includes(org))
-    && (!num || inv.number.toLowerCase().includes(num)),
+    && (!num || inv.number.toLowerCase().includes(num))
+    && (search.source === 'all' || inv.source_type === search.source),
   )
 })
 
@@ -94,12 +98,15 @@ const summaryTiles = computed(() => {
   ]
 })
 
-const hasFilters = computed(() => !!(dateFilters.from || dateFilters.to || search.org || search.number))
+const hasFilters = computed(() =>
+  !!(dateFilters.from || dateFilters.to || search.org || search.number) || search.source !== 'all',
+)
 function clearFilters() {
   dateFilters.from = ''
   dateFilters.to = ''
   search.org = ''
   search.number = ''
+  search.source = 'all'
 }
 
 const preview = ref<Invoice | null>(null)
@@ -170,6 +177,13 @@ const sourceLabel: Record<string, string> = {
           </UFormField>
           <UFormField :label="t('admin.billing.number')" class="w-44">
             <UInput v-model="search.number" icon="i-lucide-hash" :placeholder="t('admin.billing.number')" class="w-full" />
+          </UFormField>
+          <UFormField :label="t('admin.billing.filterSource')" class="w-48">
+            <USelect
+              v-model="search.source"
+              :items="sourceKinds.map(value => ({ label: t(`admin.billing.sourceFilter.${value}`), value }))"
+              class="w-full"
+            />
           </UFormField>
           <!-- Date range: goes to API -->
           <UFormField :label="t('admin.billing.filterFrom')" class="w-38">

@@ -9,6 +9,13 @@ import {
   validateEditorialPlan,
   planningMonth,
   parsePersistedEditorialPlan,
+  eventResearchWindow,
+  packageMonthWindow,
+  plannerChannels,
+  normalizedChannelCounts,
+  soleChannel,
+  channelCountsTotal,
+  PlannerFailure,
 } from '../../server/utils/monthly-planner-domain'
 import {
   monthlyAiConfigured,
@@ -19,6 +26,7 @@ import {
   providerHttpFailure,
   monthlyImagePrompt,
   monthlyAutomaticStageKey,
+  researchOccasionsFromText,
   postImageEditPrompt,
   type ProviderResponse,
 } from '../../server/utils/monthly-ai'
@@ -640,5 +648,188 @@ describe('monthly planner source photos', () => {
       loadPlannerAssets({ query } as never, 'business-id', [firstAsset, secondAsset], download),
     ).rejects.toThrow('Storage unavailable')
     expect(firstPhoto).toEqual(Buffer.alloc(firstPhoto.length))
+  })
+})
+
+describe('event research window', () => {
+  const zone = 'Europe/Belgrade'
+  const period = (startsAt: string, endsAt: string) => ({
+    startsAt: new Date(startsAt),
+    endsAt: new Date(endsAt),
+  })
+
+  it('covers the whole month when the plan has no package window', () => {
+    expect(packageMonthWindow('2026-11', undefined)).toEqual({
+      from: '2026-11-01',
+      to: '2026-11-30',
+      bounded: false,
+    })
+  })
+
+  it('intersects a package bought mid-month with the month', () => {
+    // Bought on 30 October, valid to 30 November: November is covered whole,
+    // October only from the purchase day on.
+    const quota = period('2026-10-30T00:00:00Z', '2026-11-30T00:00:00Z')
+    expect(packageMonthWindow('2026-11', quota)).toMatchObject({
+      from: '2026-11-01',
+      to: '2026-11-29',
+    })
+    expect(packageMonthWindow('2026-10', quota)).toMatchObject({
+      from: '2026-10-30',
+      to: '2026-10-31',
+    })
+  })
+
+  it('researches the days that are both paid for and still publishable', () => {
+    const quota = period('2026-10-30T00:00:00Z', '2026-12-01T00:00:00Z')
+    // Planning on 1 November: the 28 November holiday is inside the window.
+    expect(eventResearchWindow('2026-11', quota, zone, '2026-11-01T09:00:00Z')).toEqual({
+      from: '2026-11-02',
+      to: '2026-11-30',
+    })
+    // Planning on 28 November: the holiday is already unpublishable, so it is
+    // outside the window the research is given.
+    const late = eventResearchWindow('2026-11', quota, zone, '2026-11-28T09:00:00Z')
+    expect(late).toEqual({ from: '2026-11-29', to: '2026-11-30' })
+    expect(late!.from > '2026-11-28').toBe(true)
+  })
+
+  it('returns no window when nothing of the month remains', () => {
+    const quota = period('2026-10-30T00:00:00Z', '2026-12-01T00:00:00Z')
+    expect(eventResearchWindow('2026-11', quota, zone, '2026-11-30T09:00:00Z')).toBeNull()
+  })
+
+  it('never reaches past the end of the paid period', () => {
+    const quota = period('2026-10-30T00:00:00Z', '2026-11-15T00:00:00Z')
+    expect(eventResearchWindow('2026-11', quota, zone, '2026-11-01T09:00:00Z')).toEqual({
+      from: '2026-11-02',
+      to: '2026-11-14',
+    })
+  })
+})
+
+describe('research occasions', () => {
+  const sources = new Map([
+    ['https://example.org/kalendari', { url: 'https://example.org/kalendari', title: 'Kalendari' }],
+  ])
+  const window = {
+    from: '2026-11-02',
+    to: '2026-11-30',
+    categories: ['publicEvents', 'seasonalEvents', 'industryTrends'],
+  }
+  const block = (occasions: unknown) =>
+    `Raporti.
+
+\`\`\`json
+${JSON.stringify({ occasions })}
+\`\`\``
+  const occasion = (overrides: Record<string, unknown> = {}) => ({
+    date: '2026-11-28',
+    name: 'Dita e Flamurit',
+    category: 'publicEvents',
+    relevance: 'Festë kombëtare me trafik të lartë.',
+    sourceUrl: 'https://example.org/kalendari',
+    ...overrides,
+  })
+
+  it('lifts the occasions out and leaves the prose for the customer', () => {
+    const result = researchOccasionsFromText(block([occasion()]), sources, window)
+    expect(result.text).toBe('Raporti.')
+    expect(result.occasions).toHaveLength(1)
+    expect(result.occasions[0]!.date).toBe('2026-11-28')
+  })
+
+  it('drops an occasion outside the granted window', () => {
+    const result = researchOccasionsFromText(block([occasion({ date: '2026-12-25' })]), sources, window)
+    expect(result.occasions).toEqual([])
+  })
+
+  it('drops an occasion in a category the business did not permit', () => {
+    const result = researchOccasionsFromText(block([occasion()]), sources, {
+      ...window,
+      categories: ['seasonalEvents'],
+    })
+    expect(result.occasions).toEqual([])
+  })
+
+  it('keeps an occasion whose source differs only by tracking parameters', () => {
+    // Search returns the URL with utm parameters; the model echoes it without
+    // them. They are the same source.
+    const tracked = new Map([
+      [
+        'https://example.org/kalendari?utm_source=openai',
+        { url: 'https://example.org/kalendari?utm_source=openai', title: 'Kalendari' },
+      ],
+    ])
+    const result = researchOccasionsFromText(block([occasion()]), tracked, window)
+    expect(result.occasions).toHaveLength(1)
+  })
+
+  it('drops an occasion cited to a source the search never returned', () => {
+    const result = researchOccasionsFromText(
+      block([occasion({ sourceUrl: 'https://elsewhere.example/invented' })]),
+      sources,
+      window,
+    )
+    expect(result.occasions).toEqual([])
+  })
+
+  it('keeps the paid report when the block is malformed', () => {
+    const text = ['Raporti.', '', '```json', '{not json', '```'].join('\n')
+    const result = researchOccasionsFromText(text, sources, window)
+    expect(result.text).toBe('Raporti.')
+    expect(result.occasions).toEqual([])
+  })
+
+  it('reports none when the permission was never granted', () => {
+    const result = researchOccasionsFromText(block([occasion()]), sources, undefined)
+    expect(result.occasions).toEqual([])
+  })
+
+  it('leaves a report without a block untouched', () => {
+    const result = researchOccasionsFromText('Vetëm prozë.', sources, window)
+    expect(result.text).toBe('Vetëm prozë.')
+    expect(result.occasions).toEqual([])
+  })
+})
+
+describe('requested platforms', () => {
+  it('offers exactly the two platforms a post can be planned for', () => {
+    expect([...plannerChannels].sort()).toEqual(['Facebook', 'Instagram'])
+  })
+
+  it('keeps a split that accounts for every requested post', () => {
+    expect(normalizedChannelCounts({ Instagram: 2, Facebook: 1 }, 3)).toEqual({
+      Instagram: 2,
+      Facebook: 1,
+    })
+  })
+
+  it('drops the platforms that were given no posts', () => {
+    expect(normalizedChannelCounts({ Instagram: 3, Facebook: 0 }, 3)).toEqual({ Instagram: 3 })
+  })
+
+  it('rejects a split that does not add up to the request', () => {
+    expect(() => normalizedChannelCounts({ Instagram: 1, Facebook: 1 }, 3)).toThrow(PlannerFailure)
+    expect(() => normalizedChannelCounts({ Instagram: 4 }, 3)).toThrow(PlannerFailure)
+  })
+
+  it('rejects a fractional or negative share', () => {
+    expect(() => normalizedChannelCounts({ Instagram: -1, Facebook: 4 }, 3)).toThrow(PlannerFailure)
+    expect(() => normalizedChannelCounts({ Instagram: 1.5, Facebook: 1.5 }, 3)).toThrow(
+      PlannerFailure,
+    )
+  })
+
+  it('treats no split as no restriction', () => {
+    expect(normalizedChannelCounts(undefined, 3)).toEqual({})
+    expect(normalizedChannelCounts({}, 3)).toEqual({})
+    expect(channelCountsTotal({})).toBe(0)
+  })
+
+  it('names the single platform when a split leaves only one', () => {
+    expect(soleChannel({ Instagram: 3 })).toBe('Instagram')
+    expect(soleChannel({ Instagram: 2, Facebook: 1 })).toBeUndefined()
+    expect(soleChannel({})).toBeUndefined()
   })
 })

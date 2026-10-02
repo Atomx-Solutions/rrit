@@ -8,7 +8,7 @@ import {
   researchSchema,
   type PageStyleAnalysis,
 } from '../../shared/schemas/monthly-plan'
-import { postSchema } from '../../shared/schemas/workspace'
+import { permittedEventCategories, postSchema } from '../../shared/schemas/workspace'
 import {
   emptyPlannerBrain,
   factIsUsable,
@@ -60,16 +60,21 @@ import {
   brainForSlot,
   evidenceHash,
   earliestPlanningDate,
+  eventResearchWindow,
   normalizeEditorialPlanResponse,
   parsePersistedEditorialPlan,
   plannerBrainOf,
   plannerEvidence,
+  packageMonthWindow,
+  channelCountsTotal,
+  normalizedChannelCounts,
   plannerVoice,
   planningMonth,
   promptEvidence,
   remainingMonthlyPosts,
   requestedPlannerPosts,
   validateEditorialPlan,
+  type PlannerChannelCounts,
   type PlannerEvidence,
   type PlannerTimingSample,
 } from './monthly-planner-domain'
@@ -138,16 +143,8 @@ function packagePlanningDates(
   quotaPeriod: { startsAt: Date; endsAt: Date } | undefined,
 ) {
   if (!quotaPeriod) return {}
-  const monthStart = `${month}-01`
-  const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
-    .toISOString()
-    .slice(0, 10)
-  const packageStart = quotaPeriod.startsAt.toISOString().slice(0, 10)
-  const packageEnd = new Date(quotaPeriod.endsAt.getTime() - 1).toISOString().slice(0, 10)
-  return {
-    earliest: packageStart > monthStart ? packageStart : monthStart,
-    latest: packageEnd < monthEnd ? packageEnd : monthEnd,
-  }
+  const covered = packageMonthWindow(month, quotaPeriod)
+  return { earliest: covered.from, latest: covered.to }
 }
 
 /**
@@ -168,7 +165,11 @@ export async function ensureMonthlyPlan(
   businessId: string,
   ownerId: string,
   month?: string,
-  options: { requeueCancelled?: boolean; quantity?: number } = {},
+  options: {
+    requeueCancelled?: boolean
+    quantity?: number
+    channelCounts?: PlannerChannelCounts
+  } = {},
 ) {
   if (!monthlyAiConfigured()) throw new PlannerFailure('CONFIGURATION_REQUIRED')
   await plannerStep('ensure.business_lock', () =>
@@ -189,6 +190,18 @@ export async function ensureMonthlyPlan(
       `${month}-01`,
     ]),
   )
+  // An idle plan is a live plan with quota left, so asking for more posts
+  // extends it instead of recreating it: the research and the drafts it already
+  // paid for are kept.
+  if (prior.rows[0]?.status === 'idle' && options.quantity !== undefined)
+    return requestMonthlyPosts(
+      client,
+      businessId,
+      ownerId,
+      month,
+      options.quantity,
+      options.channelCounts,
+    )
   if (prior.rows[0] && (prior.rows[0].status !== 'cancelled' || !options.requeueCancelled))
     return prior.rows[0] as { id: string; status: string }
   const settings = await plannerStep('ensure.settings', () =>
@@ -209,13 +222,21 @@ export async function ensureMonthlyPlan(
   )
   const remaining = remainingMonthlyPosts(access.limits.posts_per_month, existing)
   if (remaining < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
-  const target = options.quantity === undefined ? remaining : requestedPlannerPosts(options.quantity, remaining)
+  // `target` is the month's whole quota and `generate` is only what the
+  // customer has asked for right now. A plan created by the worker's own
+  // rotation asks for nothing, so it costs nothing until the customer does.
+  const target = remaining
+  const generate =
+    options.quantity === undefined ? 0 : requestedPlannerPosts(options.quantity, remaining)
   const photoSelection = {
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
   }
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
+  // Nothing requested means nothing queued: the plan waits in 'idle' until a
+  // request arrives, so no provider call is ever made on the worker's behalf.
+  const queuedStatus = generate > 0 ? 'queued' : 'idle'
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
   const businessBrain = await plannerStep('ensure.business_brain', () =>
     plannerBrainFor(client, businessId, slug),
@@ -235,20 +256,23 @@ export async function ensureMonthlyPlan(
     JSON.stringify(evidence),
     evidenceHash(evidence),
     JSON.stringify({ plan: access.plan, limits: access.limits, paid: access.paid }),
+    generate,
+    queuedStatus,
+    JSON.stringify(normalizedChannelCounts(options.channelCounts, generate)),
   ]
   const created = await plannerStep('ensure.plan_insert', () =>
     prior.rows[0]
       ? client.query(
           `UPDATE monthly_plans
-              SET status='queued',stage='research',target_count=$3,completed_count=0,
+              SET status=$8,stage='research',target_count=$3,generate_count=$7,completed_count=0,batch_start=0,batch_channel_counts=$9,
                   evidence=$4,evidence_hash=$5,entitlement_snapshot=$6,research=NULL,
                   editorial_plan=NULL,error_code=NULL,next_run_at=now(),updated_at=now()
-            WHERE id=$7 AND business_id=$1 AND month=$2::date RETURNING id,status`,
+            WHERE id=$10 AND business_id=$1 AND month=$2::date RETURNING id,status`,
           [...values, prior.rows[0].id],
         )
       : client.query(
-          `INSERT INTO monthly_plans(business_id,month,target_count,evidence,evidence_hash,entitlement_snapshot)
-           VALUES($1,$2,$3,$4,$5,$6) RETURNING id,status`,
+          `INSERT INTO monthly_plans(business_id,month,target_count,evidence,evidence_hash,entitlement_snapshot,generate_count,status,batch_channels)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,status`,
           values,
         ),
   )
@@ -259,6 +283,108 @@ export async function ensureMonthlyPlan(
     ),
   )
   return created.rows[0] as { id: string; status: string }
+}
+
+/**
+ * Ask an existing plan for more posts.
+ *
+ * Posts are drawn from a package on the customer's own rhythm, so a plan that
+ * has produced everything asked of it waits in 'idle' rather than ending. This
+ * adds to what was asked and wakes it up, without touching the research it has
+ * already paid for or the drafts it has already produced.
+ *
+ * The evidence snapshot is recaptured, because a batch requested weeks after
+ * the plan was created must be dated, grounded and priced from today's facts
+ * rather than from the day the plan happened to be opened.
+ */
+export async function requestMonthlyPosts(
+  client: PoolClient,
+  businessId: string,
+  ownerId: string,
+  month: string,
+  quantity: number,
+  channelCounts?: PlannerChannelCounts,
+) {
+  if (!monthlyAiConfigured()) throw new PlannerFailure('CONFIGURATION_REQUIRED')
+  const { workspace, slug } = await loadWorkspace(client, businessId, ownerId)
+  const plan = await client.query<{
+    id: string
+    status: string
+    generate_count: number
+    completed_count: number
+    has_research: boolean
+  }>(
+    `SELECT id,status,generate_count,completed_count,research IS NOT NULL AS has_research
+       FROM monthly_plans WHERE business_id=$1 AND month=$2::date FOR UPDATE`,
+    [businessId, `${month}-01`],
+  )
+  const prior = plan.rows[0]
+  if (!prior) throw new PlannerFailure('PLAN_NOT_RESTARTABLE')
+  if (!['idle', 'review', 'queued'].includes(prior.status))
+    throw new PlannerFailure('PLAN_NOT_RESTARTABLE')
+  const settings = await client.query(
+    'SELECT enabled,photo_mode,preferred_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    [businessId],
+  )
+  if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
+  if (!settings.rows[0]?.configured_at) throw new PlannerFailure('PHOTO_PREFERENCE_REQUIRED')
+  const access = await plannerAccess(businessId, month, workspace.preferences.timezone, client)
+  if (!access?.features.includes('ai') || !access.features.includes('posts'))
+    throw new PlannerFailure('ENTITLEMENT_REQUIRED')
+  const existing = await postsCountedForLimit(
+    client,
+    businessId,
+    month,
+    access.paid,
+    access.quotaPeriod,
+  )
+  const remaining = remainingMonthlyPosts(access.limits.posts_per_month, existing)
+  if (remaining < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
+  const added = requestedPlannerPosts(quantity, remaining)
+  const photoSelection = {
+    mode: settings.rows[0].photo_mode as 'auto' | 'selected',
+    selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
+  }
+  if (photoSelection.selectedAssetIds.length > added)
+    throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
+  const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
+  const businessBrain = await plannerBrainFor(client, businessId, slug)
+  const evidence = plannerEvidence(
+    workspace,
+    new Date(),
+    month,
+    photoSelection,
+    timingSamples,
+    businessBrain,
+  )
+  // The quota is re-read rather than trusted: posts may have been created or
+  // removed by hand since the plan was opened.
+  const target = prior.completed_count + remaining
+  const generate = Math.min(prior.generate_count + added, target)
+  const updated = await client.query(
+    `UPDATE monthly_plans
+        SET status='queued',stage=$3,target_count=$4,generate_count=$5,
+            batch_start=completed_count,batch_channel_counts=$9,
+            evidence=$6,evidence_hash=$7,entitlement_snapshot=$8,
+            error_code=NULL,next_run_at=now(),updated_at=now()
+      WHERE id=$1 AND business_id=$2 RETURNING id,status`,
+    [
+      prior.id,
+      businessId,
+      prior.has_research ? 'planning' : 'research',
+      target,
+      generate,
+      JSON.stringify(evidence),
+      evidenceHash(evidence),
+      JSON.stringify({ plan: access.plan, limits: access.limits, paid: access.paid }),
+      JSON.stringify(normalizedChannelCounts(channelCounts, added)),
+    ],
+  )
+  await client.query(
+    "INSERT INTO audit_events(business_id,organization_id,actor_id,action,resource_type,resource_id,result,revision) VALUES($1,$1,$2,'monthly_plan.requested','monthly_plan',$3,'succeeded',$4)",
+    [businessId, ownerId, prior.id, workspace.revision],
+  )
+  return updated.rows[0] as { id: string; status: string }
 }
 
 // A blocked plan can resume from its current stage when all earlier stages have
@@ -449,6 +575,8 @@ interface PlanRow {
   month_key: string
   stage: 'research' | 'planning' | 'content'
   target_count: number
+  generate_count: number
+  batch_channel_counts: PlannerChannelCounts
   completed_count: number
   evidence: PlannerEvidence
   evidence_hash: string
@@ -1105,12 +1233,32 @@ function generationAssetIds(evidence: PlannerEvidence) {
   return evidence.assets.map((asset) => asset.id)
 }
 async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
+  // The queue already skips a paused business, but a customer can pause
+  // between the claim and this point. Re-read the switch before doing any
+  // work: the paid-call boundary would catch it anyway, after a workspace
+  // load, an asset load and a contact sheet have been built for nothing.
+  const paused = await plannerStep('advance.paused', () =>
+    db.query<{ enabled: boolean }>(
+      'SELECT enabled FROM monthly_planner_settings WHERE business_id=$1',
+      [plan.business_id],
+    ),
+  )
+  if (paused.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
   const { workspace } = await plannerStep('advance.evidence', () =>
     assertCurrentEvidence(db, plan),
   )
   const access = await plannerAccess(plan.business_id, plan.month_key, plan.evidence.timezone, db)
   if (!access?.features.includes('ai') || !access.features.includes('posts'))
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
+  // Everything that was asked for has been produced. The plan keeps its
+  // research and its drafts and waits for the next request.
+  if (plan.completed_count >= plan.generate_count) {
+    await db.query(
+      "UPDATE monthly_plans SET status='idle',error_code=NULL,updated_at=now() WHERE id=$1",
+      [plan.id],
+    )
+    return
+  }
   if (plan.stage === 'content') {
     const current = await postsCountedForLimit(
       db,
@@ -1147,6 +1295,19 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     return pageStyleAnalysisSchema.parse(JSON.parse(responseText(response)))
   }
   if (plan.stage === 'research') {
+    // Event research is a permission, read once, here. The snapshot is the
+    // source of truth rather than the live brand: a customer who changes the
+    // switches after this call keeps the plan they already paid for, and the
+    // new answer applies to the next plan.
+    const eventCategories = permittedEventCategories(plan.evidence.brand.eventResearch)
+    const eventWindow = eventCategories.length
+      ? eventResearchWindow(
+          plan.month_key,
+          access.quotaPeriod,
+          plan.evidence.timezone,
+          plan.evidence.capturedAt,
+        )
+      : null
     const response = await monthlyProviderCall(db, {
       ...common,
       stageKey: monthlyAutomaticStageKey('research', plan.evidence_hash),
@@ -1160,9 +1321,16 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         businessBrain: plannerBrainOf(plan.evidence),
         month: plan.month_key,
         asOf: plan.evidence.capturedAt,
+        // Omitted entirely when the permission is off, so the model never sees
+        // a category it is not allowed to research.
+        ...(eventWindow ? { eventResearch: { ...eventWindow, categories: eventCategories } } : {}),
       },
     })
-    const research = researchFromResponse(response)
+    const research = researchFromResponse(
+      response,
+      new Date(),
+      eventWindow ? { ...eventWindow, categories: eventCategories } : undefined,
+    )
     await db.query(
       "UPDATE monthly_plans SET research=$1,stage='planning',updated_at=now() WHERE id=$2",
       [JSON.stringify(research), plan.id],
@@ -1171,7 +1339,29 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   }
   const research = researchSchema.parse(plan.research)
   if (plan.stage === 'planning') {
+    // Only the posts that have been asked for but not yet given a slot are
+    // planned. Each batch is dated from today forward, so a slot can never sit
+    // waiting until its own date has passed.
+    const plannedSoFar = plan.editorial_plan
+      ? parsePersistedEditorialPlan(plan.editorial_plan).slots
+      : []
+    const batchCount = plan.generate_count - plannedSoFar.length
+    if (batchCount < 1) {
+      await db.query("UPDATE monthly_plans SET stage='content',updated_at=now() WHERE id=$1", [
+        plan.id,
+      ])
+      return
+    }
     const accessDates = packagePlanningDates(plan.month_key, access.quotaPeriod)
+    const planningEventCategories = permittedEventCategories(plan.evidence.brand.eventResearch)
+    const planningEventWindow = planningEventCategories.length
+      ? eventResearchWindow(
+          plan.month_key,
+          access.quotaPeriod,
+          plan.evidence.timezone,
+          plan.evidence.capturedAt,
+        )
+      : null
     const baseEarliestPublishableDate = earliestPlanningDate(
       plan.evidence.timezone,
       plan.evidence.capturedAt,
@@ -1179,6 +1369,16 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     const earliestPublishableDate = accessDates.earliest && accessDates.earliest > baseEarliestPublishableDate
       ? accessDates.earliest
       : baseEarliestPublishableDate
+    const takenDays = new Set(plannedSoFar.map((slot) => slot.day))
+    const upcomingOccasions = planningEventWindow
+      ? research.occasions.filter(
+          (occasion) =>
+            occasion.date >= earliestPublishableDate &&
+            (!accessDates.latest || occasion.date <= accessDates.latest) &&
+            // An occasion an earlier batch already built a post around is spent.
+            !takenDays.has(Number(occasion.date.slice(8, 10))),
+        )
+      : []
     const planningAssets = await plannerStep('planning.assets', () =>
       loadPlannerAssets(
         db,
@@ -1194,12 +1394,13 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       previousPageStyle = await loadPreviousPageStyle(db, plan.business_id, {
         analyze: analyzePageStyle,
       })
-      // Plan the complete month once. A stable key makes every later worker tick
-      // reuse the same audited response instead of paying for another attempt.
+      // One key per batch. It carries how many slots already existed, so a
+      // later request plans its own slots while every earlier tick of this
+      // batch reuses the audited response instead of paying again.
       const planningStageKey = monthlyAutomaticStageKey(
         'planning',
         plan.evidence_hash,
-        `${plan.target_count}:${previousPageStyle.revision}:${plan.planning_retry_nonce}`,
+        `${plannedSoFar.length}:${batchCount}:${previousPageStyle.revision}:${plan.planning_retry_nonce}`,
       )
       const response = await monthlyProviderCall(db, {
         ...common,
@@ -1212,7 +1413,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         // truncated, wasting the whole paid call. The ceiling below keeps
         // headroom over the measured need; unused output tokens cost nothing,
         // but they do inflate the credit reservation, so it is not unbounded.
-        maxOutput: Math.min(40000, 4000 + plan.target_count * 700),
+        maxOutput: Math.min(40000, 4000 + batchCount * 700),
         schema: editorialPlanGenerationSchema,
         input: {
           evidence: promptEvidence(plan.evidence),
@@ -1222,9 +1423,37 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           businessBrain: plannerBrainOf(plan.evidence),
           research,
           month: plan.month_key,
-          count: plan.target_count,
+          count: batchCount,
           earliestPublishableDate,
+          // The occasions the research found that are still ahead and not
+          // already taken by an earlier slot. This is what lets a post asked
+          // for today be dated on tomorrow's holiday.
+          ...(upcomingOccasions.length ? { upcomingOccasions } : {}),
+          // How many of this batch's posts each platform was asked for.
+          ...(channelCountsTotal(plan.batch_channel_counts)
+            ? { channelPlan: plan.batch_channel_counts }
+            : {}),
+          // Earlier batches of this same month, so the new slots neither
+          // repeat them nor collide with their dates.
+          ...(plannedSoFar.length
+            ? {
+                alreadyPlanned: plannedSoFar.map((slot) => ({
+                  day: slot.day,
+                  time: slot.time,
+                  channel: slot.channel,
+                  topic: slot.topic,
+                  hook: slot.hook,
+                  pillar: slot.pillar,
+                })),
+              }
+            : {}),
           ...(accessDates.latest ? { latestPublishableDate: accessDates.latest } : {}),
+          // Planning learns the same permission the research stage ran under,
+          // so a dated occasion the research found can be given the day it
+          // belongs to instead of an arbitrary one.
+          ...(planningEventWindow
+            ? { eventResearch: { ...planningEventWindow, categories: planningEventCategories } }
+            : {}),
           contactSheet: planningAssets.map((asset, index) => ({
             photo: index + 1,
             ...plan.evidence.assets.find((item) => item.id === asset.id),
@@ -1264,14 +1493,17 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             JSON.parse(responseText(response)),
             plan.evidence,
             research,
-            plan.target_count,
+            batchCount,
             plan.month_key,
+            plan.batch_channel_counts || {},
           ),
           plan.evidence,
           research,
           plan.month_key,
-          plan.target_count,
+          batchCount,
           accessDates.latest,
+          plannedSoFar,
+          plan.batch_channel_counts || {},
         )
       } catch (error) {
         // A valid provider payload may still invent timing evidence or fail a
@@ -1285,9 +1517,18 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           })
         throw error
       }
+      // Batches accumulate into one editorial plan. The month keeps the
+      // objective and rationale it was opened with, because later batches are
+      // continuations of the same strategy rather than new ones.
+      const merged = plannedSoFar.length
+        ? {
+            ...parsePersistedEditorialPlan(plan.editorial_plan),
+            slots: [...plannedSoFar, ...editorial.slots],
+          }
+        : editorial
       await db.query(
         "UPDATE monthly_plans SET editorial_plan=$1,stage='content',updated_at=now() WHERE id=$2",
-        [JSON.stringify(editorial), plan.id],
+        [JSON.stringify(merged), plan.id],
       )
     } finally {
       planningContactSheet?.fill(0)
@@ -1764,11 +2005,19 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ],
           ),
         )
-        const complete = plan.completed_count + 1 === plan.target_count
+        // Three outcomes, not two: more of this batch to produce, the batch
+        // done but quota left, or the month's quota exhausted.
+        const produced = plan.completed_count + 1
+        const batchDone = produced >= plan.generate_count
+        const quotaDone = produced >= plan.target_count
         await plannerStep('content.persist.plan_update', () =>
           client.query(
             'UPDATE monthly_plans SET completed_count=completed_count+1,status=$1,stage=$2,error_code=NULL,updated_at=now() WHERE id=$3',
-            [complete ? 'review' : 'running', complete ? 'complete' : 'content', plan.id],
+            [
+              quotaDone ? 'review' : batchDone ? 'idle' : 'running',
+              quotaDone ? 'complete' : 'content',
+              plan.id,
+            ],
           ),
         )
         await plannerStep('content.persist.business_update', () =>
@@ -1942,7 +2191,10 @@ export async function runMonthlyPlannerTick(
               }),
             )
           : undefined
-      if (stage)
+      // A customer pausing their own planner is a decision, not a fault. The
+      // plan is still blocked below so the explicit resume can pick it up, but
+      // it is not worth a warning on every tick that races a pause.
+      if (stage && code !== 'PLANNER_PAUSED')
         console.warn('Monthly planner paused the current tick at a validated stage.', {
           code,
           stage,

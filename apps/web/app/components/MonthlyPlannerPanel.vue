@@ -70,6 +70,59 @@ const phases = [
 
 const plan = computed(() => planner.value?.plan)
 const selectedQuantity = ref(1)
+// Which platforms this request is for. Both selected is the absence of a
+// restriction, which is how the planner behaved before the choice existed.
+type PlannerChannel = 'Instagram' | 'Facebook'
+const channelOptions: { value: PlannerChannel; label: string; icon: string }[] = [
+  { value: 'Instagram', label: 'Instagram', icon: 'i-lucide-instagram' },
+  { value: 'Facebook', label: 'Facebook', icon: 'i-lucide-facebook' },
+]
+const channelSplit = reactive<Record<PlannerChannel, number>>({ Instagram: 0, Facebook: 0 })
+const requestOpen = ref(false)
+const requestAction = ref<'prepare' | 'generate'>('prepare')
+const splitAssigned = computed(() => channelSplit.Instagram + channelSplit.Facebook)
+// A single post is a choice between platforms, not an allocation across them.
+const singlePost = computed(() => selectedQuantity.value === 1)
+const splitComplete = computed(() => splitAssigned.value === selectedQuantity.value)
+function openRequest(action: 'prepare' | 'generate') {
+  if (action === 'prepare' && photoMode.value === 'selected' && !selectedPhotoIds.value.length) {
+    error.value = t('monthly.selectPhotoRequired')
+    return
+  }
+  requestAction.value = action
+  // Start from everything on Instagram for one post, and an even split
+  // otherwise, so the common case needs no arithmetic from the customer.
+  const half = Math.floor(selectedQuantity.value / 2)
+  channelSplit.Instagram = selectedQuantity.value - half
+  channelSplit.Facebook = half
+  requestOpen.value = true
+}
+function chooseSingleChannel(channel: PlannerChannel) {
+  channelSplit.Instagram = channel === 'Instagram' ? 1 : 0
+  channelSplit.Facebook = channel === 'Facebook' ? 1 : 0
+}
+function setChannelCount(channel: PlannerChannel, value: number) {
+  const other: PlannerChannel = channel === 'Instagram' ? 'Facebook' : 'Instagram'
+  const next = Math.max(0, Math.min(value, selectedQuantity.value))
+  channelSplit[channel] = next
+  // Keep the pair consistent with the number of posts being requested, so the
+  // customer adjusts one side rather than solving for both.
+  channelSplit[other] = selectedQuantity.value - next
+}
+// Platforms with no posts are left out entirely: zero is the absence of a
+// request for that platform, not a request for none.
+function requestedChannelCounts() {
+  return Object.fromEntries(
+    channelOptions.flatMap((option) =>
+      channelSplit[option.value] > 0 ? [[option.value, channelSplit[option.value]]] : [],
+    ),
+  )
+}
+async function confirmRequest() {
+  if (!splitComplete.value) return
+  requestOpen.value = false
+  await act(requestAction.value)
+}
 const remainingPosts = computed(() => planner.value?.usage?.remaining || 0)
 watch(remainingPosts, (remaining) => {
   selectedQuantity.value = Math.max(1, Math.min(selectedQuantity.value, remaining || 1))
@@ -83,6 +136,23 @@ watch(selectedQuantity, (quantity) => {
 const active = computed(() => ['queued', 'running'].includes(plan.value?.status || ''))
 const blocked = computed(() => plan.value?.status === 'blocked')
 const ready = computed(() => plan.value?.status === 'review')
+// Everything the customer asked for is produced, and the package still owes
+// posts. This is a resting state with two next steps: look at what arrived, or
+// ask for more.
+const settled = computed(() => plan.value?.status === 'idle' && (plan.value?.completed || 0) > 0)
+// A plan that produced everything asked of it but still owes posts from the
+// package. Posts are drawn on request, so this is a normal resting state, not
+// an end state.
+const extendable = computed(() => !!plan.value?.extendable && remainingPosts.value > 0)
+// Progress is measured against what the customer asked for, not against the
+// month's whole quota: asking for one post and being shown "0 / 11" reports a
+// job eleven times larger than the one running.
+const batchTotal = computed(() => plan.value?.batch?.total || plan.value?.requested || plan.value?.total || 0)
+// Produced within the running request, so a second request for one post starts
+// again at zero instead of continuing the month's running total.
+const batchCompleted = computed(() =>
+  Math.max(0, Math.min(plan.value?.batch?.completed ?? plan.value?.completed ?? 0, batchTotal.value)),
+)
 const automaticRecoveryCodes = [
   'PROVIDER_TEMPORARY',
   'PROVIDER_RATE_LIMITED',
@@ -180,7 +250,7 @@ const updatedAt = computed(() => {
   }).format(new Date(plan.value.updatedAt))
 })
 
-async function act(action: 'prepare' | 'restart' | 'reset' | 'pause' | 'enable') {
+async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause' | 'enable') {
   if (busy.value) return
   busy.value = true
   error.value = ''
@@ -195,11 +265,15 @@ async function act(action: 'prepare' | 'restart' | 'reset' | 'pause' | 'enable')
       body: {
         action,
         month: props.month,
+        ...(action === 'generate'
+          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts() }
+          : {}),
         ...(action === 'prepare'
           ? {
               photoMode: photoMode.value,
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
               quantity: selectedQuantity.value,
+              channelCounts: requestedChannelCounts(),
             }
           : {}),
       },
@@ -386,7 +460,7 @@ onBeforeUnmount(() => clearInterval(timer))
           <div class="rounded-lg bg-default/70 px-3.5 py-3">
             <span class="block text-xs text-muted">{{ t('monthly.completedDrafts') }}</span>
             <strong class="mt-1 block text-sm font-semibold"
-              >{{ plan.completed }} {{ t('common.of') }} {{ plan.total }}</strong
+              >{{ batchCompleted }} {{ t('common.of') }} {{ batchTotal }}</strong
             >
           </div>
           <div class="rounded-lg bg-default/70 px-3.5 py-3">
@@ -449,17 +523,17 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="mt-1 max-w-2xl text-sm leading-6 text-muted">{{ activeCopy.description }}</p>
           </div>
         </div>
-        <span class="text-sm font-medium">{{ plan.completed }} / {{ plan.total }} {{ t('monthly.drafts') }}</span>
+        <span class="text-sm font-medium">{{ batchCompleted }} / {{ batchTotal }} {{ t('monthly.drafts') }}</span>
       </div>
 
-      <UProgress class="mt-5" :model-value="plan.completed" :max="plan.total" size="sm" />
+      <UProgress class="mt-5" :model-value="batchCompleted" :max="batchTotal" size="sm" />
       <div
         v-if="plan.stage === 'content'"
         class="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4"
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <strong class="text-sm text-highlighted">
-            {{ t('monthly.postProgress', { current: Math.min(plan.completed + 1, plan.total), total: plan.total }) }}
+            {{ t('monthly.postProgress', { current: Math.min(batchCompleted + 1, batchTotal), total: batchTotal }) }}
           </strong>
           <span class="text-xs text-muted">{{ t('monthly.noAutoRegeneration') }}</span>
         </div>
@@ -474,7 +548,7 @@ onBeforeUnmount(() => clearInterval(timer))
         v-if="plan.completed === 0 && plan.stage !== 'content'"
         class="mt-2 text-xs leading-5 text-muted"
       >
-        {{ t('monthly.firstDraftAppears', { completed: plan.completed, total: plan.total }) }}
+        {{ t('monthly.firstDraftAppears', { completed: batchCompleted, total: batchTotal }) }}
       </p>
 
       <div class="mt-5 grid gap-3 sm:grid-cols-3">
@@ -581,6 +655,59 @@ onBeforeUnmount(() => clearInterval(timer))
       />
     </div>
 
+    <div v-else-if="settled && plan" class="border-t border-default p-4">
+      <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
+        <div class="flex items-start gap-3">
+          <div
+            class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success"
+          >
+            <UIcon name="i-lucide-circle-check" class="size-5" />
+          </div>
+          <div>
+            <UBadge color="success" variant="subtle">{{ t('monthly.batchReady') }}</UBadge>
+            <h3 class="mt-2 text-base font-semibold text-highlighted">
+              {{ t('monthly.postsAwaitingApproval', { count: batchTotal }) }}
+            </h3>
+            <p class="mt-1 text-sm text-muted">
+              {{ t('monthly.batchReadyDescription') }}
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            v-if="plan.research"
+            variant="outline"
+            color="neutral"
+            icon="i-lucide-book-open"
+            @click="researchOpen = true"
+          >
+            {{ t('legacy.viewStrategyResearch') }}
+          </UButton>
+          <UButton :to="`${base}/content`" icon="i-lucide-eye" trailing-icon="i-lucide-arrow-right">
+            {{ t('monthly.viewGeneratedPosts', { count: plan.completed }) }}
+          </UButton>
+        </div>
+      </div>
+      <div
+        v-if="extendable"
+        class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
+      >
+        <div class="flex min-w-0 items-center gap-2.5">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-sparkles" class="size-4" />
+          </div>
+          <div>
+            <p class="text-sm font-medium text-highlighted">{{ t('monthly.generateMoreTitle') }}</p>
+            <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
+          </div>
+        </div>
+        <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
+        <UButton :loading="busy" icon="i-lucide-plus" @click="openRequest('generate')">
+          {{ t('monthly.generateMore', { count: selectedQuantity }) }}
+        </UButton>
+      </div>
+      <p v-else class="mt-3 text-sm text-muted">{{ t('monthly.quotaUsedUp') }}</p>
+    </div>
     <div v-else-if="ready && plan" class="border-t border-default p-4">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
         <div class="flex items-start gap-3">
@@ -613,6 +740,24 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ t('legacy.reviewPosts') }}
           </UButton>
         </div>
+      </div>
+      <div
+        v-if="extendable"
+        class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
+      >
+        <div class="flex min-w-0 items-center gap-2.5">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-sparkles" class="size-4" />
+          </div>
+          <div>
+            <p class="text-sm font-medium text-highlighted">{{ t('monthly.generateMoreTitle') }}</p>
+            <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
+          </div>
+        </div>
+        <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
+        <UButton :loading="busy" icon="i-lucide-plus" @click="openRequest('generate')">
+          {{ t('monthly.generateMore', { count: selectedQuantity }) }}
+        </UButton>
       </div>
     </div>
 
@@ -837,7 +982,9 @@ onBeforeUnmount(() => clearInterval(timer))
         class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-default pt-4"
       >
         <div>
-          <h3 class="text-sm font-semibold text-highlighted">{{ t('monthly.readyToPrepare') }}</h3>
+          <h3 class="text-sm font-semibold text-highlighted">
+            {{ extendable ? t('monthly.generateMoreTitle') : t('monthly.readyToPrepare') }}
+          </h3>
           <p class="mt-1 max-w-xl text-sm leading-6 text-muted">
             {{ t('legacy.monthlyProcess') }}
           </p>
@@ -853,12 +1000,83 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
           </div>
           <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
-          <UButton :loading="busy" :disabled="remainingPosts < 1" icon="i-lucide-calendar-plus" @click="act('prepare')">
-          {{ t('legacy.prepareMonth') }}
+          <UButton :loading="busy" :disabled="remainingPosts < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
+          {{ extendable ? t('monthly.generateMore', { count: selectedQuantity }) : t('legacy.prepareMonth') }}
           </UButton>
         </div>
       </div>
     </div>
+
+    <UModal
+      v-model:open="requestOpen"
+      :title="singlePost ? t('monthly.requestSingleTitle') : t('monthly.requestSplitTitle')"
+      :description="
+        singlePost
+          ? t('monthly.requestSingleDescription')
+          : t('monthly.requestSplitDescription', { count: selectedQuantity })
+      "
+    >
+      <template #body>
+        <div v-if="singlePost" class="grid grid-cols-2 gap-3">
+          <UButton
+            v-for="option in channelOptions"
+            :key="option.value"
+            block
+            size="xl"
+            :color="channelSplit[option.value] === 1 ? 'primary' : 'neutral'"
+            :variant="channelSplit[option.value] === 1 ? 'soft' : 'outline'"
+            :aria-pressed="channelSplit[option.value] === 1"
+            class="h-auto flex-col gap-3 py-6"
+            @click="chooseSingleChannel(option.value)"
+          >
+            <UIcon :name="option.icon" class="size-12" />
+            <span class="text-sm font-semibold">{{ option.label }}</span>
+          </UButton>
+        </div>
+        <div v-else class="grid grid-cols-2 gap-3">
+          <UCard
+            v-for="option in channelOptions"
+            :key="option.value"
+            :ui="{ body: 'p-4' }"
+            :class="channelSplit[option.value] > 0 ? 'ring-1 ring-primary' : ''"
+          >
+            <div class="flex flex-col items-center gap-3 text-center">
+              <UIcon :name="option.icon" class="size-8" />
+              <span class="text-sm font-semibold text-highlighted">{{ option.label }}</span>
+              <UInputNumber
+                :model-value="channelSplit[option.value]"
+                :min="0"
+                :max="selectedQuantity"
+                class="w-28"
+                :aria-label="t('monthly.postsForChannel', { channel: option.label })"
+                @update:model-value="setChannelCount(option.value, Number($event))"
+              />
+            </div>
+          </UCard>
+        </div>
+        <p
+          v-if="!singlePost"
+          class="mt-3 text-sm"
+          :class="splitComplete ? 'text-muted' : 'text-error'"
+        >
+          {{ t('monthly.splitAssigned', { assigned: splitAssigned, total: selectedQuantity }) }}
+        </p>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="outline" @click="requestOpen = false">
+            {{ t('common.cancel') }}
+          </UButton>
+          <UButton :loading="busy" :disabled="!splitComplete" @click="confirmRequest">
+            {{
+              requestAction === 'prepare'
+                ? t('legacy.prepareMonth')
+                : t('monthly.generateMore', { count: selectedQuantity })
+            }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UModal
       v-model:open="resetOpen"

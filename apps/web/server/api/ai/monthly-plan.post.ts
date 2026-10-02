@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { monthSchema } from '../../../shared/schemas/monthly-plan'
-import { ensureMonthlyPlan, resetMonthlyPlan, restartMonthlyPlan } from '../../utils/monthly-planner'
+import {
+  ensureMonthlyPlan,
+  requestMonthlyPosts,
+  resetMonthlyPlan,
+  restartMonthlyPlan,
+} from '../../utils/monthly-planner'
 import { PlannerFailure, plannerMessages } from '../../utils/monthly-planner-domain'
 
 export default defineEventHandler(async (event) => {
@@ -8,11 +13,17 @@ export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const input = z
     .object({
-      action: z.enum(['prepare', 'restart', 'reset', 'pause', 'enable']),
+      action: z.enum(['prepare', 'generate', 'restart', 'reset', 'pause', 'enable']),
       month: monthSchema.optional(),
       photoMode: z.enum(['auto', 'selected']).optional(),
       selectedAssetIds: z.array(z.uuid()).max(100).optional(),
       quantity: z.number().int().min(1).max(100).optional(),
+      channelCounts: z
+        .object({
+          Instagram: z.number().int().min(0).max(100).optional(),
+          Facebook: z.number().int().min(0).max(100).optional(),
+        })
+        .optional(),
     })
     .safeParse(await boundedBody(event, 2048))
   if (!input.success)
@@ -23,6 +34,20 @@ export default defineEventHandler(async (event) => {
       if (input.data.action === 'restart') {
         if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
         return restartMonthlyPlan(client, business.id, user.id, input.data.month)
+      }
+      // Asking an existing plan for more posts. It keeps its research and its
+      // drafts; only the newly requested slots are planned and produced.
+      if (input.data.action === 'generate') {
+        if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
+        if (!input.data.quantity) throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
+        return requestMonthlyPosts(
+          client,
+          business.id,
+          user.id,
+          input.data.month,
+          input.data.quantity,
+          input.data.channelCounts,
+        )
       }
       if (input.data.action === 'reset') {
         if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
@@ -61,6 +86,7 @@ export default defineEventHandler(async (event) => {
       return ensureMonthlyPlan(client, business.id, user.id, input.data.month, {
         requeueCancelled: true,
         quantity: input.data.quantity,
+        channelCounts: input.data.channelCounts,
       })
     })
     setResponseStatus(event, 202)

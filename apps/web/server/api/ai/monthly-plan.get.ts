@@ -52,7 +52,7 @@ export default defineEventHandler(async (event) => {
       prerequisite = error instanceof PlannerFailure ? error.code : 'BUSINESS_CONTEXT_REQUIRED'
     }
     const result = await client.query(
-      `SELECT id,status,stage,target_count,completed_count,evidence_hash,research,editorial_plan,error_code,created_at,updated_at
+      `SELECT id,status,stage,target_count,generate_count,batch_start,completed_count,evidence_hash,research,editorial_plan,error_code,created_at,updated_at
       FROM monthly_plans WHERE business_id=$1 AND month=$2::date`,
       [business.id, `${month.data}-01`],
     )
@@ -92,7 +92,21 @@ export default defineEventHandler(async (event) => {
             status: row.status as string,
             stage: row.stage as string,
             total: row.target_count as number,
+            requested: row.generate_count as number,
             completed: row.completed_count as number,
+            // The run the customer just started, reported on its own:
+            // `generate_count` accumulates across requests and would otherwise
+            // make a single new post read as part of a larger job.
+            batch: {
+              total: (row.generate_count as number) - (row.batch_start as number),
+              completed: (row.completed_count as number) - (row.batch_start as number),
+            },
+            // Posts are drawn on request, so the panel needs to know the plan
+            // is alive and still owes the customer posts it has not been asked
+            // for yet.
+            extendable:
+              row.status === 'idle' ||
+              (row.status === 'review' && row.completed_count < row.target_count),
             errorCode: (row.error_code as string | null) || null,
             error: row.error_code
               ? plannerMessages[row.error_code] ||

@@ -20,6 +20,10 @@ export function createDemo(): Workspace {
       facebookUrl: '',
       instagramUrl: '',
       goals: ['Rrit njohjen e biznesit'],
+      eventResearch: {
+        enabled: false,
+        categories: { publicEvents: true, seasonalEvents: true, industryTrends: true },
+      },
       facts: [
         {
           id: 'f1',

@@ -1,8 +1,9 @@
 import { packageUsageSummary } from '../../utils/custom-packages'
+import { creditPricing } from '../../utils/credits'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const { subscription, customPackage, packageProposal } = await withBusinessTransaction(user.id, async (client, business) => {
+  const { subscription, customPackage, packageProposal, creditPriceCents } = await withBusinessTransaction(user.id, async (client, business) => {
     const result = await client.query<{
       plan_code: string
       billing_interval: 'monthly' | 'annual'
@@ -46,11 +47,12 @@ export default defineEventHandler(async (event) => {
     const proposal = await client.query<{
       name: string
       posts_included: number
+      credits_included: number
       price_cents: number
       starts_at: Date
       ends_at: Date
     }>(
-      `SELECT name,posts_included,price_cents,starts_at,ends_at
+      `SELECT name,posts_included,credits_included,price_cents,starts_at,ends_at
          FROM custom_packages WHERE status='draft'
          ORDER BY created_at DESC,id DESC LIMIT 1`,
     )
@@ -58,13 +60,20 @@ export default defineEventHandler(async (event) => {
       subscription: result.rows[0] || null,
       customPackage: custom.rows[0] || null,
       packageProposal: proposal.rows[0] || null,
+      // What a credit costs the customer, so the page can price a top-up
+      // before asking for one instead of leaving the amount a mystery.
+      creditPriceCents: (await creditPricing(client)).creditPriceCents,
     }
   })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
+    creditPrice: creditPriceCents / 100,
     packageProposal: packageProposal && {
       name: packageProposal.name,
       postsIncluded: packageProposal.posts_included,
+      // A proposal with no posts is a credit top-up for the running package,
+      // so the page can say what is actually being offered.
+      creditsIncluded: packageProposal.credits_included,
       price: packageProposal.price_cents / 100,
       startsAt: new Date(packageProposal.starts_at).toISOString(),
       endsAt: new Date(packageProposal.ends_at).toISOString(),

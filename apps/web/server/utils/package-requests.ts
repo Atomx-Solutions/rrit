@@ -26,10 +26,19 @@ export type PackageRequestInput = z.infer<typeof packageRequestSchema>
  * From inside the app the contact is whoever is signed in, so identity is taken
  * from the session rather than accepted from the request body.
  */
-export const appPackageRequestSchema = packageRequestSchema.pick({
-  postsRequested: true,
-  message: true,
-})
+export const appPackageRequestSchema = packageRequestSchema
+  .pick({ message: true })
+  .extend({
+    // Inside the app a request may be for posts, for credits, or for both.
+    // Zero means "not asking for this", and asking for neither is not a
+    // request at all.
+    postsRequested: z.number().int().min(0).max(1000).default(0),
+    creditsRequested: z.number().int().min(0).max(10_000_000).default(0),
+  })
+  .refine((value) => value.postsRequested > 0 || value.creditsRequested > 0, {
+    message: 'Kërko postime ose kredite.',
+    path: ['postsRequested'],
+  })
 
 /**
  * The amounts offered as a starting point on the form. They are a setting
@@ -89,7 +98,7 @@ export async function submitPackageRequest(input: {
   try {
     return await withUserTransaction(input.userId ?? '', async (client) => {
       const result = await client.query<{ submit_package_request: string }>(
-        'SELECT submit_package_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+        'SELECT submit_package_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
         [
           values.contactName,
           values.contactEmail,
@@ -102,6 +111,7 @@ export async function submitPackageRequest(input: {
           values.businessName ?? null,
           values.industry ?? null,
           values.platform ?? null,
+          'creditsRequested' in values ? values.creditsRequested : 0,
         ],
       )
       return { id: result.rows[0]!.submit_package_request }

@@ -21,6 +21,7 @@ type PackageRequest = {
   industry: string | null
   platform: 'instagram' | 'facebook' | 'both' | null
   posts_requested: number
+  credits_requested: number
   message: string | null
   source: 'landing' | 'app'
   status: 'new' | 'contacted' | 'proposal_sent' | 'won' | 'lost'
@@ -112,23 +113,34 @@ onBeforeUnmount(() => {
 // The status goes to the API because it decides which rows are fetched; the
 // rest filters what is already here, so typing costs no round trip.
 const sources = ['all', 'landing', 'app'] as const
-const search = reactive({ text: '', source: 'all' as (typeof sources)[number], from: '', to: '' })
+// What the request asks for. A request may carry both, so it counts as a post
+// request and as a credit request at the same time.
+const kinds = ['all', 'posts', 'credits'] as const
+const search = reactive({
+  text: '',
+  source: 'all' as (typeof sources)[number],
+  kind: 'all' as (typeof kinds)[number],
+  from: '',
+  to: '',
+})
 const hasFilters = computed(() =>
   filter.value !== 'all'
   || !!search.text.trim()
   || search.source !== 'all'
+  || search.kind !== 'all'
   || !!search.from
   || !!search.to,
 )
 function clearFilters() {
   filter.value = 'all'
-  Object.assign(search, { text: '', source: 'all', from: '', to: '' })
+  Object.assign(search, { text: '', source: 'all', kind: 'all', from: '', to: '' })
 }
 async function resetAndRefresh() {
   const nextReport = defaultReportRange()
   const listNeedsRefresh = filter.value !== 'all'
     || !!search.text
     || search.source !== 'all'
+    || search.kind !== 'all'
     || !!search.from
     || !!search.to
   const summaryNeedsRefresh = report.from !== nextReport.from || report.to !== nextReport.to
@@ -154,6 +166,8 @@ const requests = computed(() => {
   const to = search.to ? Date.parse(`${search.to}T23:59:59.999Z`) : null
   return (data.value?.requests || []).filter((request) => {
     if (search.source !== 'all' && request.source !== search.source) return false
+    if (search.kind === 'posts' && request.posts_requested < 1) return false
+    if (search.kind === 'credits' && request.credits_requested < 1) return false
     const sent = Date.parse(request.created_at)
     if (from !== null && sent < from) return false
     if (to !== null && sent > to) return false
@@ -255,6 +269,15 @@ async function removeRequest(request: PackageRequest) {
 // Marking a request answered is where the agreed package gets written, so the
 // status is set by that dialog rather than on its own.
 const converting = ref<PackageRequest | null>(null)
+// A request for credits alone is answered with a credit proposal, which has no
+// post count, no per-post rate and no period of its own. Mixed requests keep
+// the package form, because they are still selling a package.
+const convertingCredits = computed(() =>
+  converting.value && converting.value.posts_requested === 0 ? converting.value : null,
+)
+const convertingPackage = computed(() =>
+  converting.value && converting.value.posts_requested > 0 ? converting.value : null,
+)
 async function onConverted() {
   converting.value = null
   selected.value = null
@@ -263,7 +286,7 @@ async function onConverted() {
 
 const columns = computed<TableColumn<PackageRequest>[]>(() => [
   { id: 'contact', header: t('admin.requests.contact') },
-  { id: 'posts', header: t('admin.requests.posts') },
+  { id: 'posts', header: t('admin.requests.requested') },
   { id: 'source', header: t('admin.requests.source') },
   { id: 'created', header: t('admin.requests.created') },
   { id: 'status', header: t('admin.details.status') },
@@ -280,7 +303,14 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
             <p class="mt-0.5 text-xs text-muted">{{ t('admin.requests.conversionDescription') }}</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <UFormField :label="t('admin.requests.from')" class="w-38">
+            <UFormField :label="t('admin.requests.kind')" class="w-40">
+            <USelect
+              v-model="search.kind"
+              :items="kinds.map(value => ({ label: t(`admin.requests.kindFilter.${value}`), value }))"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField :label="t('admin.requests.from')" class="w-38">
               <UInput v-model="report.from" type="date" :max="report.to" class="w-full" />
             </UFormField>
             <UFormField :label="t('admin.requests.to')" class="w-38">
@@ -396,7 +426,8 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
           </div>
         </template>
         <template #posts-cell="{ row }">
-          <p>{{ t('admin.requests.postsValue', { count: row.original.posts_requested }) }}</p>
+          <p v-if="row.original.posts_requested > 0">{{ t('admin.requests.postsValue', { count: row.original.posts_requested }) }}</p>
+          <p v-if="row.original.credits_requested > 0">{{ t('admin.packages.creditsValue', { count: row.original.credits_requested }) }}</p>
           <p v-if="row.original.platform" class="text-xs text-muted">
             {{ t(`admin.requests.platform.${row.original.platform}`) }}
           </p>
@@ -447,7 +478,12 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
       @remove="() => { if (selected) removeRequest(selected) }"
     />
     <AdminPackageRequestConvert
-      :request="converting"
+      :request="convertingPackage"
+      @close="converting = null"
+      @done="onConverted"
+    />
+    <AdminCreditRequestConvert
+      :request="convertingCredits"
       @close="converting = null"
       @done="onConverted"
     />
