@@ -5,7 +5,7 @@ definePageMeta({ layout: 'public' })
 const landingRoot = ref<HTMLElement>()
 useLandingMotion(landingRoot)
 const { t } = useI18n()
-const { capabilities, trialDuration } = useLandingOffer()
+const { capabilities } = useLandingOffer()
 const { to: trialCtaPath, labelKey: trialCtaLabelKey } = publicTrialCta
 useSeoMeta({
   title: t('landing.seoTitle'),
@@ -27,8 +27,8 @@ const questions = computed(() => [
   },
   {
     label: t('landing.faqAfterTrial'),
-    content: trialDuration.value
-      ? t('landing.faqAfterTrialAvailable', { duration: trialDuration.value })
+    content: capabilities.value?.trialHours
+      ? t('landing.faqAfterTrialAvailable')
       : t('landing.faqAfterTrialUnavailable'),
   },
 ])

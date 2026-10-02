@@ -322,7 +322,7 @@ async function submit() {
     >{{ t('auth.continueLogin') }}</UButton
   >
   <p v-if="mode === 'signup' && capabilities?.trialHours" class="text-sm text-muted mt-5">
-    {{ t('auth.trialDescription', { days: capabilities.trialHours / 24 }) }}
+    {{ t('auth.trialDescription') }}
   </p>
   <p class="text-center text-sm text-muted mt-6">
     <template v-if="mode === 'login'"
