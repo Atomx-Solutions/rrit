@@ -371,9 +371,7 @@ async function saveMetadata() {
       :actions="
         query.trim()
           ? [{ label: t('gallery.clearSearch'), onClick: () => (query = '') }]
-          : generatedFilterActive
-            ? []
-          : [{ label: t('gallery.addPhoto'), onClick: openUpload }]
+          : []
       "
       />
     <UModal
