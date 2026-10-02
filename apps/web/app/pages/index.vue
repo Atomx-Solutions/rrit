@@ -5,7 +5,7 @@ definePageMeta({ layout: 'public' })
 const landingRoot = ref<HTMLElement>()
 useLandingMotion(landingRoot)
 const { t } = useI18n()
-const { capabilities, trialDuration } = useLandingOffer()
+const { capabilities } = useLandingOffer()
 const { to: trialCtaPath, labelKey: trialCtaLabelKey } = publicTrialCta
 useSeoMeta({
   title: t('landing.seoTitle'),
@@ -25,8 +25,8 @@ const questions = computed(() => [
   },
   {
     label: t('landing.faqAfterTrial'),
-    content: trialDuration.value
-      ? t('landing.faqAfterTrialAvailable', { duration: trialDuration.value })
+    content: capabilities.value?.trialHours
+      ? t('landing.faqAfterTrialAvailable')
       : t('landing.faqAfterTrialUnavailable'),
   },
 ])
@@ -67,19 +67,42 @@ const questions = computed(() => [
           <p>{{ t('landing.allMonth') }}<br /><strong>{{ t('landing.underControl') }}</strong></p>
           <ol>
             <li>
-              <span>01</span><UIcon name="i-lucide-image-plus" /><strong>{{ t('landing.photoText') }}</strong>
+              <span>01</span><UIcon name="i-lucide-image-plus" />
+              <div>
+                <strong>{{ t('landing.photoText') }}</strong>
+                <p>{{ t('landing.processStepOneDescription') }}</p>
+              </div>
             </li>
             <li>
-              <span>02</span><UIcon name="i-lucide-circle-check" /><strong>{{ t('landing.yourApproval') }}</strong>
+              <span>02</span><UIcon name="i-lucide-circle-check" />
+              <div>
+                <strong>{{ t('landing.yourApproval') }}</strong>
+                <p>{{ t('landing.processStepTwoDescription') }}</p>
+              </div>
             </li>
             <li>
-              <span>03</span><UIcon name="i-lucide-calendar-days" /><strong>{{ t('landing.inCalendar') }}</strong>
+              <span>03</span><UIcon name="i-lucide-calendar-days" />
+              <div>
+                <strong>{{ t('landing.inCalendar') }}</strong>
+                <p>{{ t('landing.processStepThreeDescription') }}</p>
+              </div>
             </li>
           </ol>
         </div>
       </UContainer>
+      <LandingStories />
+      <UContainer class="landing-container">
+        <div class="landing-process-cta">
+          <p>{{ t('landing.processCtaDescription') }}</p>
+          <UButton
+            :to="trialCtaPath"
+            size="lg"
+            trailing-icon="i-lucide-arrow-up-right"
+            class="landing-primary-button"
+          >{{ t(trialCtaLabelKey) }}</UButton>
+        </div>
+      </UContainer>
     </section>
-    <LandingStories />
     <section id="cmimet" class="landing-pricing-section" aria-labelledby="pricing-title">
       <UContainer class="landing-container landing-pricing-layout">
         <div class="landing-section-heading landing-section-heading--start">

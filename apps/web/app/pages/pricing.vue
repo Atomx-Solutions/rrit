@@ -7,13 +7,12 @@ useSeoMeta({
   title: t('pricing.seoTitle'),
   description: t('pricing.seoDescription'),
 })
-const { capabilities, trialDuration } = useLandingOffer()
+const { capabilities } = useLandingOffer()
 const questions = computed(() => [
   {
     label: t('pricing.faqFreeTrial'),
-    content: trialDuration.value
+    content: capabilities.value?.trialHours
       ? t('pricing.faqFreeTrialAvailable', {
-          duration: trialDuration.value,
           verification: capabilities.value?.emailVerificationRequired
             ? t('pricing.verifyEmailAndComplete')
             : t('pricing.complete'),

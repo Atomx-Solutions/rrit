@@ -3,9 +3,10 @@ import type { Asset } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, commit, notify, initLive } = useWorkspace()
 const { t } = useI18n()
+const route = useRoute()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Rrit` })
 const query = ref('')
-const assetFilter = ref<'all' | 'original' | 'generated'>('generated')
+const assetFilter = ref<'all' | 'original' | 'generated'>('all')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
 const deleteOpen = ref(false)
@@ -47,6 +48,7 @@ const assets = computed(() =>
     assetFilter.value === 'generated' ? asset.generated : assetFilter.value === 'original' ? !asset.generated : true,
   ),
 )
+const generatedFilterActive = computed(() => assetFilter.value === 'generated')
 const viewerAssets = computed(() => allAssets.value.filter((asset) => asset.kind === 'photo'))
 const viewerAsset = computed(() => viewerAssets.value[viewerIndex.value] || null)
 function openViewer(asset: Asset) {
@@ -86,9 +88,9 @@ function onViewerKeydown(event: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onViewerKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 const filterTabs = computed(() => [
+  { label: t('gallery.allAssets'), value: 'all' },
   { label: t('gallery.generatedAssets'), value: 'generated' },
   { label: t('gallery.originalAssets'), value: 'original' },
-  { label: t('gallery.allAssets'), value: 'all' },
 ])
 const { page, pageSize, total, paginated } = usePagination(assets)
 watch(query, () => {
@@ -117,6 +119,11 @@ function openUpload() {
   error.value = ''
   uploadOpen.value = true
 }
+onMounted(() => {
+  if (route.query.upload !== '1') return
+  openUpload()
+  void navigateTo({ path: route.path, query: { ...route.query, upload: undefined } }, { replace: true })
+})
 async function withdrawRights() {
   if (!detail.value || rightsBusy.value) return
   rightsBusy.value = true
@@ -202,10 +209,19 @@ async function upload(files: File[] | null | undefined) {
 }
 async function remove() {
   if (dependencies.value.length) return
-  if (await commit((d) => (d.assets = d.assets.filter((a) => !selected.value.includes(a.id))))) {
+  const assetIds = [...selected.value]
+  if (!assetIds.length) return
+  error.value = ''
+  try {
+    for (const id of assetIds)
+      await $fetch(`/api/media/${id}`, { method: 'DELETE', body: {}, retry: 0 })
+    await initLive()
     selected.value = []
     deleteOpen.value = false
     notify(t('gallery.photosRemoved'))
+  } catch (problem) {
+    error.value =
+      (problem as { data?: { message?: string } }).data?.message || t('gallery.saveError')
   }
 }
 async function saveMetadata() {
@@ -343,17 +359,19 @@ async function saveMetadata() {
     </UCard>
     <DashboardEmpty
       v-if="!assets.length"
-      :title="query.trim() ? t('gallery.noResults') : t('gallery.emptyTitle')"
+      :title="query.trim() ? t('gallery.noResults') : generatedFilterActive ? t('gallery.noGeneratedTitle') : t('gallery.emptyTitle')"
       :description="
         query.trim()
           ? t('gallery.noResultsDescription')
+          : generatedFilterActive
+            ? t('gallery.noGeneratedDescription')
           : t('gallery.emptyDescription')
       "
       icon="i-lucide-images"
       :actions="
         query.trim()
           ? [{ label: t('gallery.clearSearch'), onClick: () => (query = '') }]
-          : [{ label: t('gallery.addPhoto'), onClick: openUpload }]
+          : []
       "
       />
     <UModal

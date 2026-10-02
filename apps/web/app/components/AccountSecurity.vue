@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { z } from 'zod'
 import { authClient } from '~/utils/auth-client'
+import { hasPasswordSymbol, PASSWORD_MIN_LENGTH } from '~/utils/password-policy'
 const { t } = useI18n()
 const toast = useToast()
 const busy = ref(false)
@@ -12,7 +13,11 @@ const passwordVisible = reactive({ current: false, next: false, confirm: false }
 const schema = z
   .object({
     currentPassword: z.string().min(1, t('security.currentPasswordRequired')),
-    newPassword: z.string().min(12, t('security.passwordTooShort')).max(128),
+    newPassword: z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, t('security.passwordTooShort'))
+      .max(128)
+      .refine(hasPasswordSymbol, t('security.passwordSymbolRequired')),
     confirm: z.string(),
   })
   .refine((value) => value.newPassword === value.confirm, {
@@ -102,7 +107,7 @@ async function revokeOthers() {
               :disabled="busy"
               @click="passwordVisible.current = !passwordVisible.current" /></template></UInput
       ></UFormField>
-      <UFormField name="newPassword" :label="t('security.newPassword')" required
+      <UFormField name="newPassword" :label="t('security.newPassword')" :description="t('auth.passwordHint')" required
         ><UInput
           v-model="form.newPassword"
           :type="passwordVisible.next ? 'text' : 'password'"

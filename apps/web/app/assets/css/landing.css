@@ -394,6 +394,30 @@
 .landing-process li strong {
   font-weight: 550;
 }
+.landing-process li > div {
+  min-width: 0;
+}
+.landing-process li p {
+  margin-top: 6px;
+  color: var(--landing-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.landing-process-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 20px 0 64px;
+  padding: 26px 0;
+  border-top: 1px solid var(--landing-line);
+}
+.landing-process-cta p {
+  max-width: 540px;
+  color: var(--landing-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
 .landing-pricing-section {
   padding: 88px 0 60px;
   scroll-margin-top: 75px;
@@ -925,6 +949,18 @@
   }
   .landing-process li > span {
     display: none;
+  }
+  .landing-process li p {
+    font-size: 10px;
+  }
+  .landing-process-cta {
+    display: block;
+    margin: 12px 0 40px;
+    padding: 22px 0;
+  }
+  .landing-process-cta p {
+    font-size: 13px;
+    margin-bottom: 16px;
   }
   .landing-pricing-section {
     padding-block: 54px 30px;
