@@ -10,6 +10,37 @@ const researchSourceSchema = z
     return url.protocol === 'https:' && !url.username && !url.password
   })
 
+// Which kinds of dated context the monthly research may look for. These are
+// the business's own permissions, not application categories applied to it: a
+// business that does not want its content tied to public holidays simply never
+// has them researched. Off by default, because a business that was generating
+// without events must not silently start publishing holiday posts.
+export const eventResearchCategoriesSchema = z.object({
+  // National, local, religious and cultural occasions.
+  publicEvents: z.boolean().default(true),
+  // Seasons and recurring commercial periods such as the end of year.
+  seasonalEvents: z.boolean().default(true),
+  // Industry occasions and local trends.
+  industryTrends: z.boolean().default(true),
+})
+export const eventResearchSchema = z.object({
+  enabled: z.boolean().default(false),
+  categories: eventResearchCategoriesSchema.default({
+    publicEvents: true,
+    seasonalEvents: true,
+    industryTrends: true,
+  }),
+})
+export type EventResearch = z.infer<typeof eventResearchSchema>
+export const eventResearchCategoryKeys = ['publicEvents', 'seasonalEvents', 'industryTrends'] as const
+export type EventResearchCategory = (typeof eventResearchCategoryKeys)[number]
+// The permission is read once, when the research stage runs. An empty list is
+// the same answer as a disabled switch: there is nothing to look for.
+export function permittedEventCategories(events: EventResearch | undefined) {
+  if (!events?.enabled) return []
+  return eventResearchCategoryKeys.filter((key) => events.categories[key])
+}
+
 export const postSchema = z.object({
   id: z.string(),
   title: z.string().min(3).max(120),
@@ -77,6 +108,10 @@ export const workspaceSchema = z.object({
     goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
     status: z.enum(['active', 'archived']).default('active'),
     researchSources: z.array(researchSourceSchema).max(10).default([]),
+    eventResearch: eventResearchSchema.default({
+      enabled: false,
+      categories: { publicEvents: true, seasonalEvents: true, industryTrends: true },
+    }),
     facts: z.array(brandFactSchema),
     guardrails: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
     brainVersion: z.number().int().nonnegative().optional(),

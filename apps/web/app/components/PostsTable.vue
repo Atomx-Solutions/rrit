@@ -162,27 +162,32 @@ const columns = computed<TableColumn<Post>[]>(() => [
   >
     <template #body>
       <div v-if="viewerPost" class="flex h-[calc(100dvh-12rem)] min-h-[36rem] flex-col gap-5">
-        <div
-          class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8"
-        >
-          <MediaImage
-            :src="viewerPost.image"
-            :alt="viewerPost.title"
-            fit="natural"
-            class="size-full rounded-xl"
-          />
+        <!-- A feed post is 4:5, so a full-width stage behind it is mostly
+             empty surface. The dialog's own background carries the picture and
+             the controls sit beside it, rather than a dark panel being drawn
+             across the width of the screen. -->
+        <div class="relative flex min-h-0 flex-1 items-center justify-center gap-3 sm:gap-5">
           <UButton
             color="neutral"
-            variant="ghost"
-            class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white sm:left-5"
+            variant="outline"
+            size="lg"
+            class="shrink-0 rounded-full"
             icon="i-lucide-chevron-left"
             :aria-label="t('content.previousPostPhoto')"
             @click="moveViewer(-1)"
           />
+          <MediaImage
+            :src="viewerPost.image"
+            :alt="viewerPost.title"
+            fit="natural"
+            :surface="false"
+            class="h-full w-auto max-w-full rounded-xl ring-1 ring-default"
+          />
           <UButton
             color="neutral"
-            variant="ghost"
-            class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white sm:right-5"
+            variant="outline"
+            size="lg"
+            class="shrink-0 rounded-full"
             icon="i-lucide-chevron-right"
             :aria-label="t('content.nextPostPhoto')"
             @click="moveViewer(1)"

@@ -20,6 +20,10 @@ async function signOut() {
   await navigateTo('/login')
 }
 const route = useRoute()
+// The same snapshot the header already loads for the credit balance, so the
+// badge costs no extra request.
+const { data: billingSnapshot } = await useFetch('/api/usage', { key: 'header-credit-balance' })
+const pendingProposals = computed(() => billingSnapshot.value?.pendingProposals || 0)
 // Use a new preference key so every existing workspace starts with the compact
 // icon rail, then retain the navigation width chosen by that user.
 const collapsed = useCookie('rrit-sidebar-collapsed-v2', { default: () => true })
@@ -51,7 +55,15 @@ function item(n: (typeof navigation)[number]): NavigationMenuItem {
     // How many posts there are, matching the count the content list shows. A
     // badge that counted only what awaited approval read as a total and
     // contradicted that list whenever nothing was waiting.
-    badge: n.path === 'content' ? data.value.posts.length || undefined : undefined,
+    //
+    // Billing counts offers waiting for a decision instead, because an offer
+    // expires unanswered if nobody notices it.
+    badge:
+      n.path === 'content'
+        ? data.value.posts.length || undefined
+        : n.path === 'billing'
+          ? pendingProposals.value || undefined
+          : undefined,
   }
 }
 function items(paths: string[]) {

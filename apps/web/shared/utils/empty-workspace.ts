@@ -16,6 +16,10 @@ export function emptyWorkspace(name = '', email = ''): Workspace {
       goals: [],
       status: 'active',
       researchSources: [],
+      eventResearch: {
+        enabled: false,
+        categories: { publicEvents: true, seasonalEvents: true, industryTrends: true },
+      },
       facts: [],
     },
     preferences: {

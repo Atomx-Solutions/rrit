@@ -7,8 +7,19 @@ const props = withDefaults(
     height?: string | number
     loading?: 'eager' | 'lazy'
     fit?: 'cover' | 'contain' | 'natural'
+    // A viewer that supplies its own backdrop needs the frame to disappear:
+    // otherwise the placeholder surface is painted across the whole stage and
+    // reads as a grey slab around a small picture.
+    surface?: boolean
   }>(),
-  { loading: 'lazy', src: '', width: undefined, height: undefined, fit: 'cover' },
+  {
+    loading: 'lazy',
+    src: '',
+    width: undefined,
+    height: undefined,
+    fit: 'cover',
+    surface: true,
+  },
 )
 const { t } = useI18n()
 const failed = ref(false)
@@ -21,8 +32,12 @@ watch(
 </script>
 <template>
   <div
-    class="relative overflow-hidden bg-elevated"
-    :class="fit === 'natural' ? 'flex min-h-40 items-center justify-center' : ''"
+    class="relative overflow-hidden"
+    :class="[
+      surface ? 'bg-elevated' : '',
+      fit === 'natural' ? 'flex items-center justify-center' : '',
+      fit === 'natural' && surface ? 'min-h-40' : '',
+    ]"
   >
     <img
       v-if="src && !failed"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { z } from 'zod'
 import { factInputProblem, type BrandFact } from '~~/shared/schemas/business-brain'
+import { eventResearchCategoryKeys } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base, syncing, commit, notify } = useWorkspace()
 const { t } = useI18n()
@@ -9,6 +10,7 @@ const { form, clear, recovered, localError } = useDraft(
   `${base.value}:brand`,
   structuredClone(toRaw(data.value.brand)),
 )
+const eventCategories = eventResearchCategoryKeys
 const baseline = ref(JSON.stringify(form))
 const saved = ref(false)
 const formError = ref('')
@@ -393,6 +395,30 @@ function setPrice(fact: BrandFact, value: string | number) {
                   @click="addResearchSource"
                   >{{ t('brand.addSource') }}</UButton
                 >
+              </div>
+            </template>
+          </UAccordion>
+          <UAccordion :items="[{ label: t('brand.eventResearch'), slot: 'events' }]">
+            <template #events>
+              <div class="space-y-3 pb-4">
+                <p class="text-sm text-muted leading-relaxed">
+                  {{ t('brand.eventResearchDescription') }}
+                </p>
+                <UCheckbox
+                  v-model="form.eventResearch.enabled"
+                  :label="t('brand.eventResearchEnabled')"
+                  :description="t('brand.eventResearchEnabledHint')"
+                />
+                <div class="space-y-2 ps-6">
+                  <UCheckbox
+                    v-for="category in eventCategories"
+                    :key="category"
+                    v-model="form.eventResearch.categories[category]"
+                    :disabled="!form.eventResearch.enabled"
+                    :label="t(`brand.eventCategory.${category}`)"
+                    :description="t(`brand.eventCategoryHint.${category}`)"
+                  />
+                </div>
               </div>
             </template>
           </UAccordion>

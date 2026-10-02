@@ -12,6 +12,10 @@ const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/a
 const detailsForm = reactive({ legalName: '', address: '', city: '', country: '', fiscalNumber: '' })
 const savingDetails = ref(false)
 const requestOpen = ref(false)
+const creditRequestOpen = ref(false)
+const creditsRequested = ref(500)
+const creditMessage = ref('')
+const sendingCreditRequest = ref(false)
 const acceptingProposal = ref(false)
 const decliningProposal = ref(false)
 watch(() => billingDetailsData.value?.details, (details) => {
@@ -25,6 +29,34 @@ const customPackage = computed(() => billing.value?.customPackage || null)
 const packageProposal = computed(() => billing.value?.packageProposal || null)
 const subscription = computed(() => billing.value?.subscription || null)
 const postsUsage = computed(() => usage.value?.usage.find(item => item.key === 'posts_per_month'))
+const creditPrice = computed(() => billing.value?.creditPrice || 0)
+// Credits are bought for the package that is running, so the offer only makes
+// sense to someone who has one.
+const canBuyCredits = computed(() => !!customPackage.value)
+const creditEstimate = computed(() => creditsRequested.value * creditPrice.value)
+async function sendCreditRequest() {
+  if (sendingCreditRequest.value || creditsRequested.value < 1) return
+  sendingCreditRequest.value = true
+  try {
+    await $fetch('/api/billing/package-request', {
+      method: 'POST',
+      body: {
+        postsRequested: 0,
+        creditsRequested: creditsRequested.value,
+        ...(creditMessage.value.trim() ? { message: creditMessage.value.trim() } : {}),
+      },
+    })
+    creditRequestOpen.value = false
+    creditMessage.value = ''
+    showSuccess(t('billing.creditRequestSent'))
+  } catch (error) {
+    showError(
+      (error as { data?: { message?: string } }).data?.message || t('billing.creditRequestFailed'),
+    )
+  } finally {
+    sendingCreditRequest.value = false
+  }
+}
 
 let packageRefreshTimer: ReturnType<typeof setInterval> | undefined
 let proposalSnapshotReady = false
@@ -123,7 +155,8 @@ async function declineProposal() {
         <div class="space-y-1">
           <div class="flex items-center gap-2"><UIcon name="i-lucide-handshake" class="size-5 text-primary" /><h2 class="text-sm font-semibold">{{ t('billing.packageProposalTitle') }}</h2></div>
           <p class="text-sm font-medium">{{ packageProposal.name }} · €{{ packageProposal.price.toFixed(2) }}</p>
-          <p class="text-xs text-muted">{{ t('billing.customPackagePosts', { count: packageProposal.postsIncluded }) }} · {{ t('billing.customPackagePeriod', { start: formatPeriodDate(packageProposal.startsAt), end: formatPeriodDate(packageProposal.endsAt) }) }}</p>
+          <p v-if="packageProposal.postsIncluded > 0" class="text-xs text-muted">{{ t('billing.customPackagePosts', { count: packageProposal.postsIncluded }) }}<template v-if="packageProposal.creditsIncluded > 0"> · {{ t('billing.proposalCredits', { count: packageProposal.creditsIncluded }) }}</template> · {{ t('billing.customPackagePeriod', { start: formatPeriodDate(packageProposal.startsAt), end: formatPeriodDate(packageProposal.endsAt) }) }}</p>
+          <p v-else class="text-xs text-muted">{{ t('billing.proposalCreditsOnly', { count: packageProposal.creditsIncluded }) }}</p>
         </div>
         <div class="flex gap-2">
           <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click="declineProposal" />
@@ -188,27 +221,65 @@ async function declineProposal() {
             variant="solid"
             trailing-icon="i-lucide-arrow-right"
             :label="customPackage ? t('request.appRenewCta') : t('request.appCta')"
-            class="self-start whitespace-nowrap sm:self-auto"
+            class="self-start justify-center whitespace-nowrap sm:w-52 sm:self-auto"
           />
           <template #body>
             <PackageRequestForm endpoint="/api/billing/package-request" compact contact-known @sent="requestOpen = false" />
           </template>
         </UModal>
       </div>
+      <!-- Credits are bought the same way a package is, so the two live in one
+           card. The balance is not repeated here: the header already carries
+           it on every page. -->
+      <template v-if="canBuyCredits">
+        <USeparator class="my-5" />
+        <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div class="flex gap-4">
+            <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <UIcon name="i-lucide-coins" class="size-5" />
+            </div>
+            <div class="space-y-2">
+              <h2 class="text-base font-semibold">{{ t('billing.credits') }}</h2>
+              <p class="text-sm font-medium">{{ t('billing.buyCreditsLede') }}</p>
+              <p class="text-sm text-muted leading-relaxed">{{ t('billing.creditsDescription') }}</p>
+            </div>
+          </div>
+          <UButton
+            color="primary"
+            variant="outline"
+            icon="i-lucide-coins"
+            :label="t('billing.buyCredits')"
+            class="self-start justify-center whitespace-nowrap sm:w-52 sm:self-auto"
+            @click="creditRequestOpen = true"
+          />
+        </div>
+      </template>
     </UCard>
 
-    <template v-if="usage">
-      <UCard :ui="{ body: 'p-4' }">
-        <div class="flex items-center justify-between gap-4">
-          <div class="flex min-w-0 items-center gap-3">
-            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <UIcon name="i-lucide-sparkles" class="size-4 text-primary" />
-            </div>
-            <div><h2 class="text-sm font-semibold">{{ t('billing.credits') }}</h2><p class="text-xs text-muted">{{ t('billing.creditsDescription') }}</p></div>
-          </div>
-          <p class="shrink-0 text-sm font-semibold tabular-nums" data-testid="credit-balance">{{ usage.credits.remaining }} <span class="text-xs font-normal text-muted">{{ t('billing.creditsUnit') }}</span></p>
+    <UModal v-model:open="creditRequestOpen" :title="t('billing.buyCreditsTitle')" :description="t('billing.buyCreditsDescription')">
+      <template #body>
+        <div class="space-y-4">
+          <UFormField :label="t('billing.buyCreditsAmount')">
+            <UInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="100" class="w-44" />
+          </UFormField>
+          <p class="text-sm text-muted">
+            {{ t('billing.buyCreditsEstimate', { amount: creditEstimate.toFixed(2) }) }}
+          </p>
+          <UFormField :label="t('billing.buyCreditsMessage')">
+            <UTextarea v-model="creditMessage" :rows="3" maxlength="2000" class="w-full" />
+          </UFormField>
+          <p class="text-xs text-muted">{{ t('billing.buyCreditsNote') }}</p>
         </div>
-      </UCard>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="creditRequestOpen = false" />
+          <UButton :loading="sendingCreditRequest" :disabled="creditsRequested < 1" :label="t('billing.buyCreditsSubmit')" @click="sendCreditRequest" />
+        </div>
+      </template>
+    </UModal>
+
+    <template v-if="usage">
       <UAlert v-if="usage.credits.spendable === 0" color="warning" variant="outline" icon="i-lucide-circle-alert" :title="t('billing.creditsExhausted')" />
       <UCard as="section" :ui="{ body: 'p-4' }">
         <div class="mb-5"><h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2><p class="text-sm text-muted mt-1">{{ t('billing.currentUsageDescription') }}</p><p v-if="postsUsage" class="text-sm font-medium mt-2">{{ t('billing.postsRemaining', { count: usageValue('posts_per_month', postsUsage.remaining) }) }}</p></div>

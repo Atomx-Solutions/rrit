@@ -7,6 +7,7 @@ export type AdminCustomPackage = {
   id: string
   name: string
   posts_included: number
+  credits_included: number
   post_price_cents: number
   price_cents: number
   suggested_price_cents: number
@@ -31,6 +32,7 @@ const {
   execute: reload,
 } = useFetch<{
   post_price_cents: number
+  credit_price_cents: number
   packages: AdminCustomPackage[]
 }>(() => `/api/admin/organizations/${props.organizationId}/packages`, {
   immediate: false,
@@ -47,6 +49,9 @@ const packages = computed(() => data.value?.packages || [])
 // The platform rate is only the default a new package starts from; each
 // package then carries the rate actually agreed with this organization.
 const defaultPostPriceCents = computed(() => data.value?.post_price_cents ?? 0)
+// Credits are priced from the same platform setting the credits screen edits,
+// so a proposal can never quote a rate the platform does not charge.
+const creditPriceCents = computed(() => data.value?.credit_price_cents ?? 0)
 
 const statusColors: Record<AdminCustomPackage['status'], 'success' | 'info' | 'neutral'> = {
   active: 'success',
@@ -80,7 +85,10 @@ watchError(error)
 const schema = z
   .object({
     name: z.string().trim().min(2, t('admin.packages.nameRequired')).max(120),
-    posts_included: z.number().int().min(1).max(1000),
+    // A credit top-up carries no posts; the refine below keeps an empty
+  // proposal impossible.
+  posts_included: z.number().int().min(0).max(1000),
+  credits_included: z.number().int().min(0).max(10_000_000),
     post_price_cents: z.number().int().min(1, t('admin.packages.postPriceRequired')),
     price_cents: z.number().int().min(0),
     starts_at: z.string().min(1, t('admin.packages.dateRequired')),
@@ -94,6 +102,7 @@ const schema = z
 const form = reactive({
   name: '',
   posts_included: 20,
+  credits_included: 0,
   post_price_cents: 0,
   price_cents: 0,
   starts_at: '',
@@ -101,7 +110,9 @@ const form = reactive({
   status: 'draft' as AdminCustomPackage['status'],
   notes: '',
 })
-const suggestedCents = computed(() => form.posts_included * form.post_price_cents)
+const suggestedCents = computed(
+  () => form.posts_included * form.post_price_cents + form.credits_included * creditPriceCents.value,
+)
 const overridden = computed(() => form.price_cents !== suggestedCents.value)
 // The field is a currency input, so the admin works in euro while the package
 // is stored, compared and audited in cents.
@@ -127,6 +138,7 @@ function startCreate() {
   Object.assign(form, {
     name: '',
     posts_included: 20,
+    credits_included: 0,
     post_price_cents: defaultPostPriceCents.value,
     price_cents: 20 * defaultPostPriceCents.value,
     starts_at: today.toISOString().slice(0, 10),
@@ -143,6 +155,7 @@ function startEdit(row: AdminCustomPackage) {
   Object.assign(form, {
     name: row.name,
     posts_included: row.posts_included,
+    credits_included: row.credits_included ?? 0,
     post_price_cents: row.post_price_cents,
     price_cents: row.price_cents,
     starts_at: dayInput(row.starts_at),
@@ -156,11 +169,13 @@ function startEdit(row: AdminCustomPackage) {
 // Resizing follows the suggestion only while the price has not been negotiated
 // away from it, so an agreed figure survives a change of size.
 watch(
-  () => [form.posts_included, form.post_price_cents] as const,
-  ([posts, rate], [previousPosts, previousRate]) => {
+  () => [form.posts_included, form.post_price_cents, form.credits_included] as const,
+  ([posts, rate, credits], [previousPosts, previousRate, previousCredits]) => {
     if (previousPosts === undefined) return
-    if (posts === previousPosts && rate === previousRate) return
-    if (form.price_cents === previousPosts * previousRate) form.price_cents = posts * rate
+    if (posts === previousPosts && rate === previousRate && credits === previousCredits) return
+    const previousSuggestion =
+      previousPosts * previousRate + (previousCredits || 0) * creditPriceCents.value
+    if (form.price_cents === previousSuggestion) form.price_cents = suggestedCents.value
   },
 )
 
@@ -175,6 +190,7 @@ async function submit() {
   const body = {
     name: form.name.trim(),
     posts_included: form.posts_included,
+    credits_included: form.credits_included,
     post_price_cents: form.post_price_cents,
     price_cents: form.price_cents,
     starts_at: dayToIso(form.starts_at),
@@ -249,6 +265,7 @@ const listUi = {
       </template>
       <template #posts-cell="{ row }">
         <span>{{ t('admin.packages.postsValue', { count: row.original.posts_included }) }}</span>
+        <span v-if="row.original.credits_included > 0" class="text-muted"> · {{ t('admin.packages.creditsValue', { count: row.original.credits_included }) }}</span>
         <span class="ms-2 text-xs text-muted">
           {{
             t('admin.packages.perPost', { price: formatMoney(row.original.post_price_cents / 100) })
@@ -317,7 +334,14 @@ const listUi = {
         </UFormField>
         <div class="grid gap-4 sm:grid-cols-2">
           <UFormField name="posts_included" :label="t('admin.packages.posts')" required>
-            <UInputNumber v-model="form.posts_included" :min="1" :max="1000" class="w-full" />
+            <UInputNumber v-model="form.posts_included" :min="0" :max="1000" class="w-full" />
+          </UFormField>
+          <UFormField
+            name="credits_included"
+            :label="t('admin.packages.credits')"
+            :description="t('admin.packages.creditsHint')"
+          >
+            <UInputNumber v-model="form.credits_included" :min="0" :max="1000000" :step="100" class="w-full" />
           </UFormField>
           <UFormField
             name="post_price_cents"

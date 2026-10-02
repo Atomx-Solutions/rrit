@@ -11,7 +11,10 @@ const isoDate = z.string().datetime({ offset: true })
 export const customPackageCreateSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
-    posts_included: z.number().int().min(1).max(1000),
+    // A credit top-up carries no posts, and a package carries no credits of
+    // its own beyond what its posts fund. Either may be zero; both may not.
+    posts_included: z.number().int().min(0).max(1000),
+    credits_included: z.number().int().min(0).max(10_000_000).optional(),
     post_price_cents: z.number().int().min(1).max(1_000_000).optional(),
     price_cents: cents.optional(),
     starts_at: isoDate,
@@ -25,11 +28,16 @@ export const customPackageCreateSchema = z
     message: 'ends_at must be after starts_at',
     path: ['ends_at'],
   })
+  .refine((value) => value.posts_included > 0 || (value.credits_included || 0) > 0, {
+    message: 'a package must include posts or credits',
+    path: ['posts_included'],
+  })
 
 export const customPackageChangesSchema = z
   .object({
     name: z.string().trim().min(2).max(120).optional(),
-    posts_included: z.number().int().min(1).max(1000).optional(),
+    posts_included: z.number().int().min(0).max(1000).optional(),
+    credits_included: z.number().int().min(0).max(10_000_000).optional(),
     post_price_cents: z.number().int().min(1).max(1_000_000).optional(),
     price_cents: cents.optional(),
     starts_at: isoDate.optional(),

@@ -5,6 +5,18 @@ export const researchSourceSchema = z.object({
   url: z.url().refine((value) => ['https:', 'http:'].includes(new URL(value).protocol)),
   title: z.string().max(500),
 })
+// A dated occasion the research found inside the permitted window. It is kept
+// structured, separately from the prose, because every later batch of posts is
+// planned on demand and must be able to anchor on a date without re-reading the
+// report. `sourceUrl` is always one of the research sources: an occasion whose
+// date cannot be cited is not an occasion, it is a guess.
+export const researchOccasionSchema = z.object({
+  date: z.string().date(),
+  name: z.string().trim().min(2).max(120),
+  category: z.enum(['publicEvents', 'seasonalEvents', 'industryTrends']),
+  relevance: z.string().trim().max(400),
+  sourceUrl: researchSourceSchema.shape.url,
+})
 export const researchSchema = z.object({
   text: z.string().min(1).max(30000),
   sources: z.array(researchSourceSchema).min(1).max(100),
@@ -18,6 +30,9 @@ export const researchSchema = z.object({
       }),
     )
     .max(200),
+  // Older plans carry none, and a research run that found nothing inside the
+  // window carries an empty list; both must keep parsing.
+  occasions: z.array(researchOccasionSchema).max(30).default([]),
   researchedAt: z.iso.datetime(),
 })
 export const contentIntentSchema = z.enum([
@@ -245,6 +260,7 @@ export const monthlyPostProvenanceSchema = z.object({
 })
 export type SlotBrief = z.infer<typeof slotBriefSchema>
 export type Research = z.infer<typeof researchSchema>
+export type ResearchOccasion = z.infer<typeof researchOccasionSchema>
 export type Creative = z.infer<typeof creativeSchema>
 export type StyleProfile = z.infer<typeof styleProfileSchema>
 export type PlannedCreativeLayout = z.infer<typeof plannedCreativeLayoutSchema>

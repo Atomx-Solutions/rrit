@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { createDemo } from '../fixtures/workspace'
-import { workspaceSchema, validateTransition } from '../../shared/schemas/workspace'
+import {
+  workspaceSchema,
+  validateTransition,
+  permittedEventCategories,
+} from '../../shared/schemas/workspace'
 import { safeRedirect, zonedToIso, formatMoney } from '../../shared/utils/format'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
 describe('workspace invariants', () => {
@@ -79,5 +83,46 @@ describe('Albanian localization and time', () => {
   })
   it('keeps safe internal routes', () => {
     expect(safeRedirect('/app/demo/mulliri/content')).toBe('/app/demo/mulliri/content')
+  })
+})
+
+describe('event research permissions', () => {
+  it('leaves event research off for a workspace saved before the permission existed', () => {
+    const stored = createDemo() as Record<string, unknown>
+    delete (stored.brand as Record<string, unknown>).eventResearch
+    const parsed = workspaceSchema.parse(stored)
+    expect(parsed.brand.eventResearch.enabled).toBe(false)
+    // The categories still carry a usable default, so enabling the switch is
+    // one click rather than four.
+    expect(parsed.brand.eventResearch.categories).toEqual({
+      publicEvents: true,
+      seasonalEvents: true,
+      industryTrends: true,
+    })
+    expect(permittedEventCategories(parsed.brand.eventResearch)).toEqual([])
+  })
+  it('permits only the categories the business left on', () => {
+    expect(
+      permittedEventCategories({
+        enabled: true,
+        categories: { publicEvents: true, seasonalEvents: false, industryTrends: true },
+      }),
+    ).toEqual(['publicEvents', 'industryTrends'])
+  })
+  it('permits nothing when the switch is on but every category is off', () => {
+    expect(
+      permittedEventCategories({
+        enabled: true,
+        categories: { publicEvents: false, seasonalEvents: false, industryTrends: false },
+      }),
+    ).toEqual([])
+  })
+  it('permits nothing when the master switch is off', () => {
+    expect(
+      permittedEventCategories({
+        enabled: false,
+        categories: { publicEvents: true, seasonalEvents: true, industryTrends: true },
+      }),
+    ).toEqual([])
   })
 })

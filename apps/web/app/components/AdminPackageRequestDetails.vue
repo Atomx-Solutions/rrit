@@ -12,6 +12,7 @@ export type AdminPackageRequest = {
   industry: string | null
   platform: 'instagram' | 'facebook' | 'both' | null
   posts_requested: number
+  credits_requested: number
   message: string | null
   source: 'landing' | 'app'
   status: 'new' | 'contacted' | 'proposal_sent' | 'won' | 'lost'
@@ -100,10 +101,24 @@ const sections = computed(() => {
       title: t('admin.requests.request'),
       icon: 'i-lucide-inbox',
       rows: [
-        {
-          label: t('admin.requests.posts'),
-          value: t('admin.requests.postsValue', { count: request.posts_requested }),
-        },
+        // A request is for posts, for credits, or for both. Showing a zero
+        // would read as a request for none, so an unasked-for line is absent.
+        ...(request.posts_requested > 0
+          ? [
+              {
+                label: t('admin.requests.posts'),
+                value: t('admin.requests.postsValue', { count: request.posts_requested }),
+              },
+            ]
+          : []),
+        ...(request.credits_requested > 0
+          ? [
+              {
+                label: t('admin.packages.credits'),
+                value: t('admin.packages.creditsValue', { count: request.credits_requested }),
+              },
+            ]
+          : []),
         { label: t('admin.requests.source'), value: t(`admin.requests.sourceValue.${request.source}`) },
         { label: t('admin.requests.created'), value: formatDateTime(request.created_at) },
       ],
