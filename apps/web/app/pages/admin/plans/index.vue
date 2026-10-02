@@ -12,6 +12,12 @@ const { data, error, refresh } = await useFetch<{
   credit_pricing: CreditPricing
   invoice_settings: InvoiceSettings
 }>('/api/admin/plans', { lazy: true, key: 'admin-billing-settings' })
+// How many credits a package post is funded with lives with the platform
+// settings, not with the credit pricing, but it belongs on this screen: it is
+// the third number that decides what a post costs the business.
+const { data: platform, refresh: refreshPlatform } = await useFetch<{
+  custom_package_credits_per_post: number
+}>('/api/admin/settings', { lazy: true, key: 'admin-platform-credits-per-post' })
 watch(error, (value) => {
   if (value) showError(t('admin.plans.loadError'))
 }, { immediate: true })
@@ -21,6 +27,15 @@ function changed<T extends Record<string, unknown>>(current: T | undefined, next
 }
 
 const pricing = reactive({ credit_price: 0, provider_cost: 0, low_credit_threshold: 0 })
+const creditsPerPost = ref(0)
+watch(platform, (value) => {
+  if (value) creditsPerPost.value = value.custom_package_credits_per_post
+}, { immediate: true })
+const creditsPerPostChanged = computed(
+  () =>
+    !!platform.value
+    && Number(creditsPerPost.value) !== platform.value.custom_package_credits_per_post,
+)
 const invoice = reactive({ number_prefix: '', seller_name: '', seller_address: '', seller_fiscal_number: '', vat_percent: 0 })
 watch(data, (value) => {
   if (!value) return
@@ -50,18 +65,34 @@ const invoiceChanges = computed(() => changed(data.value?.invoice_settings, {
   vat_rate_basis_points: Math.round(Number(invoice.vat_percent) * 100),
 }))
 const margin = computed(() => pricing.credit_price > 0 ? Math.round((1 - pricing.provider_cost / pricing.credit_price) * 100) : 0)
-const pricingInvalid = computed(() => pricing.credit_price <= 0 || pricing.provider_cost <= 0 || pricing.low_credit_threshold < 0)
+const pricingInvalid = computed(() =>
+  pricing.credit_price <= 0
+  || pricing.provider_cost <= 0
+  || pricing.low_credit_threshold < 0
+  || Number(creditsPerPost.value) < 1,
+)
 const invoiceInvalid = computed(() => invoice.vat_percent < 0 || invoice.vat_percent > 100 || !invoice.seller_name.trim())
 const saving = reactive({ pricing: false, invoice: false })
 
 async function saveSettings(kind: 'pricing' | 'invoice') {
   const body = kind === 'pricing' ? pricingChanges.value : invoiceChanges.value
-  if (!Object.keys(body).length || (kind === 'pricing' ? pricingInvalid.value : invoiceInvalid.value)) return
+  // The card edits two stores, so it may have nothing to say to one of them.
+  const alsoCreditsPerPost = kind === 'pricing' && creditsPerPostChanged.value
+  if (
+    (!Object.keys(body).length && !alsoCreditsPerPost)
+    || (kind === 'pricing' ? pricingInvalid.value : invoiceInvalid.value)
+  ) return
   saving[kind] = true
   try {
-    await $fetch(kind === 'pricing' ? '/api/admin/plans/credit-pricing' : '/api/admin/plans/invoice-settings', { method: 'PATCH', body })
+    if (Object.keys(body).length)
+      await $fetch(kind === 'pricing' ? '/api/admin/plans/credit-pricing' : '/api/admin/plans/invoice-settings', { method: 'PATCH', body })
+    if (alsoCreditsPerPost)
+      await $fetch('/api/admin/settings', {
+        method: 'PATCH',
+        body: { custom_package_credits_per_post: Number(creditsPerPost.value) },
+      })
     toast.add({ title: t('admin.plans.saved'), color: 'success' })
-    await refresh()
+    await Promise.all([refresh(), refreshPlatform()])
   } catch (problem) {
     toast.add({ title: (problem as { data?: { message?: string } }).data?.message || t('admin.plans.saveFailed'), color: 'error' })
   } finally {
@@ -76,12 +107,13 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
   <AdminPage :title="t('admin.nav.billingSettings')">
       <UCard class="shrink-0" :ui="cardUi">
         <template #header><UUser :name="t('admin.plans.pricingTitle')" :description="t('admin.plans.pricingDescription')" :avatar="{ icon: 'i-lucide-coins', size: 'sm' }" /></template>
-        <UForm :state="pricing" class="grid gap-4 sm:grid-cols-3" @submit="saveSettings('pricing')" @error="onFormError">
+        <UForm :state="pricing" class="grid gap-4 sm:grid-cols-2" @submit="saveSettings('pricing')" @error="onFormError">
           <UFormField name="credit_price" :label="t('admin.plans.creditPrice')" :help="t('admin.plans.creditPriceHelp')"><UInputNumber v-model="pricing.credit_price" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 4 }" class="w-full" /></UFormField>
           <UFormField name="provider_cost" :label="t('admin.plans.providerCost')" :help="t('admin.plans.providerCostHelp')"><UInputNumber v-model="pricing.provider_cost" :min="0.000001" :step="0.001" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 6 }" class="w-full" /></UFormField>
           <UFormField name="low_credit_threshold" :label="t('admin.plans.lowCreditThreshold')" :help="t('admin.plans.lowCreditThresholdHelp')"><UInputNumber v-model="pricing.low_credit_threshold" :min="0" class="w-full" /></UFormField>
-          <UAlert class="sm:col-span-3" :color="margin > 0 ? 'neutral' : 'error'" variant="subtle" icon="i-lucide-percent" :title="t('admin.plans.margin', { margin })" />
-          <UButton type="submit" class="sm:col-span-3 justify-self-start" :loading="saving.pricing" :disabled="!Object.keys(pricingChanges).length || pricingInvalid" :label="t('admin.plans.save')" />
+          <UFormField name="credits_per_post" :label="t('admin.settings.creditsPerPost')" :help="t('admin.settings.creditsPerPostHint')"><UInputNumber v-model="creditsPerPost" :min="1" :max="100000" class="w-full" /></UFormField>
+          <UAlert class="sm:col-span-2" :color="margin > 0 ? 'neutral' : 'error'" variant="subtle" icon="i-lucide-percent" :title="t('admin.plans.margin', { margin })" />
+          <UButton type="submit" class="sm:col-span-2 justify-self-start" :loading="saving.pricing" :disabled="(!Object.keys(pricingChanges).length && !creditsPerPostChanged) || pricingInvalid" :label="t('admin.plans.save')" />
         </UForm>
       </UCard>
 

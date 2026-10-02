@@ -146,13 +146,6 @@ const language = computed({
           >
             <UInput v-model="packageForm.post_options" :maxlength="60" class="w-full sm:w-64" />
           </UFormField>
-          <UFormField
-            name="credits_per_post"
-            :label="t('admin.settings.creditsPerPost')"
-            :hint="t('admin.settings.creditsPerPostHint')"
-          >
-            <UInputNumber v-model="packageForm.credits_per_post" :min="1" :max="100000" :step="1" class="w-full sm:w-48" />
-          </UFormField>
           <UButton
             type="submit"
             :loading="savingPackage"
