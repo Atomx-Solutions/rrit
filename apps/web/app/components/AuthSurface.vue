@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import { authClient } from '~/utils/auth-client'
 import { safeRedirect } from '~~/shared/utils/format'
+import { hasPasswordSymbol, PASSWORD_MIN_LENGTH } from '~/utils/password-policy'
 
 const props = defineProps<{
   mode: 'login' | 'signup' | 'forgot' | 'reset' | 'verify' | 'callback'
@@ -21,8 +22,12 @@ const schema = z
     password: ['login', 'signup', 'reset'].includes(props.mode)
       ? z
           .string()
-          .min(props.mode === 'login' ? 1 : 12, t('auth.validationPassword'))
+          .min(props.mode === 'login' ? 1 : PASSWORD_MIN_LENGTH, t('auth.validationPassword'))
           .max(128)
+          .refine(
+            (value) => props.mode === 'login' || hasPasswordSymbol(value),
+            t('auth.validationPasswordSymbol'),
+          )
       : z.string(),
     confirm: z.string(),
   })
@@ -247,7 +252,7 @@ async function submit() {
       :label="t('legacy.password')"
       name="password"
       :description="
-        mode === 'signup'
+        mode === 'signup' || mode === 'reset'
           ? t('auth.passwordHint')
           : undefined
       "
