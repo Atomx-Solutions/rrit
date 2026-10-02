@@ -1,8 +1,14 @@
-import { packageRequestPostOptions } from '../utils/package-requests'
+import { packageRequestPostOptions, packageRequestPostPrice } from '../utils/package-requests'
 
 // The amounts the public form offers as a starting point. They are a setting,
 // so the form never carries a list of its own.
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'private, no-store')
-  return { postOptions: await packageRequestPostOptions() }
+  // The price is public: a visitor should know what a post costs before
+  // being asked for a phone number.
+  const [postOptions, postPriceCents] = await Promise.all([
+    packageRequestPostOptions(),
+    packageRequestPostPrice(),
+  ])
+  return { postOptions, postPriceCents }
 })

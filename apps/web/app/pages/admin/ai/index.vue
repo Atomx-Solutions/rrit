@@ -267,8 +267,14 @@ const tileUi = {
              not a tap target that needs its own width, so the minimum is dropped
              here; each bar stays the full height of the chart to tap. A plain
              `min-w-0` cannot do this, because the theme's rule lives in a media
-             query and wins over an unprefixed utility. -->
-        <UFieldGroup :aria-label="t('admin.ai.dailyTitle')" class="flex h-44 w-full items-end gap-1 sm:gap-1.5">
+             query and wins over an unprefixed utility.
+
+             A range of one or two days would otherwise stretch each bar across
+             the whole card and read as a solid block rather than a measurement,
+             so a bar has a maximum width and the row is centred. With a month
+             of data the bars shrink below that maximum and the cap does
+             nothing. -->
+        <UFieldGroup :aria-label="t('admin.ai.dailyTitle')" class="flex h-44 w-full items-end justify-center gap-1 sm:gap-1.5">
           <UButton
             v-for="day in daily"
             :key="day.date"
@@ -276,7 +282,7 @@ const tileUi = {
             variant="ghost"
             :aria-label="dayTooltip(day)"
             :aria-pressed="activeDay?.date === day.date"
-            class="flex h-44 min-w-0 flex-1 items-end rounded-none p-0 pointer-coarse:min-h-0 pointer-coarse:min-w-0 hover:bg-elevated/60 focus-visible:ring-2"
+            class="flex h-44 min-w-0 max-w-14 flex-1 items-end rounded-none p-0 pointer-coarse:min-h-0 pointer-coarse:min-w-0 hover:bg-elevated/60 focus-visible:ring-2"
             @mouseenter="activeDate = day.date"
             @focus="activeDate = day.date"
             @click="activeDate = day.date"
@@ -299,9 +305,21 @@ const tileUi = {
           class="mt-3"
           :title="dayTooltip(activeDay)"
         />
-        <UFieldGroup v-if="daily.length" class="mt-2 flex w-full justify-between">
+        <!-- One day is one label: printing the same date at both ends reads as
+             a range that does not exist. -->
+        <UFieldGroup
+          v-if="daily.length"
+          class="mt-2 flex w-full"
+          :class="daily.length > 1 ? 'justify-between' : 'justify-center'"
+        >
           <UBadge color="neutral" variant="soft" size="sm" :label="formatDay(daily[0]!.date)" />
-          <UBadge color="neutral" variant="soft" size="sm" :label="formatDay(daily[daily.length - 1]!.date)" />
+          <UBadge
+            v-if="daily.length > 1"
+            color="neutral"
+            variant="soft"
+            size="sm"
+            :label="formatDay(daily[daily.length - 1]!.date)"
+          />
         </UFieldGroup>
       </UCard>
 

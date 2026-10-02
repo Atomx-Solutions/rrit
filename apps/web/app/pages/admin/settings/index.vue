@@ -126,20 +126,6 @@ const language = computed({
         </template>
         <UForm :state="packageForm" class="space-y-4" @submit="savePackageRate" @error="onFormError">
           <UFormField
-            name="post_price_euro"
-            :label="t('admin.settings.postPrice')"
-            :hint="t('admin.settings.postPriceHint')"
-          >
-            <UInputNumber
-              v-model="packageForm.post_price_euro"
-              :min="0.01"
-              :max="10000"
-              :step="0.01"
-              :format-options="{ style: 'currency', currency: 'EUR' }"
-              class="w-full sm:w-48"
-            />
-          </UFormField>
-          <UFormField
             name="post_options"
             :label="t('admin.settings.requestOptions')"
             :hint="t('admin.settings.requestOptionsHint')"

@@ -13,8 +13,8 @@ export const packageRequestSchema = z.object({
   contactEmail: z.email().max(320),
   phone: z.string().trim().min(4).max(40),
   businessName: z.string().trim().min(2).max(120),
-  industry: z.string().trim().min(2).max(100),
-  platform: packageRequestPlatformSchema,
+  industry: z.string().trim().min(2).max(100).optional(),
+  platform: packageRequestPlatformSchema.optional(),
   // A predefined amount and a typed one are the same answer to the database:
   // what matters is the number the visitor settled on.
   postsRequested: z.number().int().min(1).max(1000),
@@ -52,6 +52,22 @@ export async function packageRequestPostOptions() {
     ),
   )
   return result.rows[0]?.package_request_post_options ?? []
+}
+
+/**
+ * What a post costs today.
+ *
+ * The public page quotes this before anyone fills in a form, so it is read
+ * from the same setting the team edits rather than written into the page. An
+ * agreed package still carries the rate it was written with.
+ */
+export async function packageRequestPostPrice() {
+  const result = await withUserTransaction('', client =>
+    client.query<{ package_request_post_price_cents: number }>(
+      'SELECT package_request_post_price_cents() AS package_request_post_price_cents',
+    ),
+  )
+  return Number(result.rows[0]?.package_request_post_price_cents ?? 0)
 }
 
 /**
