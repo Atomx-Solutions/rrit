@@ -1017,12 +1017,12 @@
   }
 }
 .landing-request {
-  max-width: 470px;
+  max-width: 430px;
   margin: 0 auto;
   background: var(--ui-bg);
   border-radius: 12px;
   box-shadow: inset 0 0 0 1px var(--landing-line);
-  padding: 28px 26px;
+  padding: 20px 20px;
   text-align: left;
 }
 .landing-pricing-layout .landing-request {
@@ -1033,54 +1033,27 @@
   font-weight: 550;
   color: var(--landing-ink);
 }
-.landing-request-hero {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  padding-bottom: 18px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid var(--landing-line);
-}
-.landing-request-count {
-  font-family: var(--landing-display, inherit);
-  font-size: 56px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--landing-ink);
-  letter-spacing: -0.02em;
-}
-.landing-request-hero-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.landing-request-hero-label {
-  font-size: 13px;
-  font-weight: 550;
-  color: var(--landing-ink);
-}
-.landing-request-hero-sub {
-  font-size: 12px;
-  color: var(--landing-muted, color-mix(in oklab, var(--landing-ink) 60%, transparent));
-}
-.landing-request-grid {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 6px;
-  margin-bottom: 18px;
-}
-.landing-request-dot {
-  aspect-ratio: 1;
-  border-radius: 4px;
-  background: color-mix(in oklab, var(--landing-ink) 12%, transparent);
-  transition: background 160ms ease;
-}
-.landing-request-dot.is-on {
-  background: var(--ui-primary, #22c55e);
-}
-.landing-request-chips {
+.landing-request-price {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
+  align-items: baseline;
+  gap: 6px 8px;
+  margin-bottom: 4px;
+  font-size: 15px;
+  font-weight: 550;
+  color: var(--landing-ink);
+  font-variant-numeric: tabular-nums;
+}
+/* A separator rather than a second line, so the rate and the total read as
+   one statement at the same weight. */
+.landing-request-price-total::before {
+  content: '·';
+  margin-right: 8px;
+  font-weight: 400;
+  color: var(--landing-muted, color-mix(in oklab, var(--landing-ink) 60%, transparent));
+}
+.landing-request-form {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--landing-line);
 }

@@ -199,7 +199,7 @@ test('landing registration and publishing copy follow capabilities', async ({ pa
   await expect(page.getByRole('link', { name: /Provoje.*falas/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'A publikohen postimet vetë?' }).click()
   await expect(
-    page.getByText('Publikimi automatik ende nuk është aktiv.', { exact: false }),
+    page.getByText('Po. Pasi ta miratosh postimin, cakto datën dhe orën e publikimit.', { exact: false }),
   ).toBeVisible()
   ready = true
   await page.getByRole('button', { name: 'Kontrollo regjistrimin' }).click()

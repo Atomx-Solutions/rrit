@@ -1,68 +1,50 @@
 <script setup lang="ts">
 /**
- * Public landing estimator. The visitor picks a monthly post volume as
- * intent only — the real request is placed after signup, so the section
- * carries no personal fields and posts nothing. The dot grid maps the
- * chosen count onto a 30-day month so the choice reads at a glance.
+ * Public landing lead form.
+ *
+ * The visitor says how many posts they need, sees what that costs at the
+ * current rate and leaves their details so the team can answer with a real
+ * offer. The price is read from the platform setting rather than written into
+ * the page, so the figure quoted here is the one the team charges.
  */
 const { t } = useI18n()
 
 const postsRequested = ref(20)
-const { data: options } = await useFetch<{ postOptions: number[] }>('/api/package-requests', {
+const { data: options } = await useFetch<{ postPriceCents: number }>('/api/package-requests', {
   key: 'package-request-options',
   server: false,
-  default: () => ({ postOptions: [] }),
+  default: () => ({ postPriceCents: 0 }),
 })
-const postOptions = computed(() => options.value?.postOptions || [])
-const signupHref = computed(() => `/signup?posts=${postsRequested.value}`)
-const perWeek = computed(() => (postsRequested.value / 30 * 7).toFixed(1).replace(/\.0$/, ''))
-const dotCount = 30
-const filledDays = computed(() => {
-  const posts = Math.max(0, Math.min(dotCount, postsRequested.value))
-  const step = dotCount / posts
-  return new Set(Array.from({ length: posts }, (_, i) => Math.floor(i * step)))
-})
+const postPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
+const estimatedTotal = computed(() => postPrice.value * postsRequested.value)
+const money = (value: number) =>
+  new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR' }).format(value)
 </script>
 
 <template>
   <div class="landing-request">
-    <div class="landing-request-hero">
-      <span class="landing-request-count">{{ postsRequested }}</span>
-      <div class="landing-request-hero-meta">
-        <span class="landing-request-hero-label">{{ t('request.posts') }}</span>
-        <span class="landing-request-hero-sub">≈ {{ perWeek }} / javë</span>
-      </div>
-    </div>
+    <!-- The price before the form, not after it: nobody should have to hand
+         over a phone number to learn what a post costs. -->
+    <!-- The rate first, because it is the fact; the total is what it adds up
+         to for the volume chosen. Both read at the same weight so neither is
+         sold as the headline. -->
+    <p v-if="postPrice > 0" class="landing-request-price">
+      <span class="landing-request-price-rate">
+        {{ t('landing.perPostPrice', { price: money(postPrice) }) }}
+      </span>
+      <span class="landing-request-price-total">
+        {{ t('landing.monthlyTotal', { price: money(estimatedTotal) }) }}
+      </span>
+    </p>
 
-    <div class="landing-request-grid" aria-hidden="true">
-      <span
-        v-for="i in dotCount"
-        :key="i"
-        class="landing-request-dot"
-        :class="{ 'is-on': filledDays.has(i - 1) }"
+    <div class="landing-request-form">
+      <PackageRequestForm
+        v-model:posts="postsRequested"
+        compact
+        lean
+        submit-label-key="landing.leadSubmit"
+        :reset-after-sent-ms="10_000"
       />
     </div>
-
-    <div v-if="postOptions.length" class="landing-request-chips">
-      <UButton
-        v-for="amount in postOptions"
-        :key="amount"
-        size="sm"
-        :color="postsRequested === amount ? 'primary' : 'neutral'"
-        :variant="postsRequested === amount ? 'solid' : 'outline'"
-        :aria-pressed="postsRequested === amount"
-        :label="String(amount)"
-        @click="postsRequested = amount"
-      />
-    </div>
-    <UInputNumber v-model="postsRequested" :min="1" :max="1000" class="w-full" />
-
-    <UButton
-      :to="signupHref"
-      trailing-icon="i-lucide-arrow-up-right"
-      :label="t('landing.requestOffer')"
-      block
-      class="mt-4"
-    />
   </div>
 </template>

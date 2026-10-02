@@ -21,9 +21,7 @@ const questions = computed(() => [
   },
   {
     label: t('landing.faqAutoPublish'),
-    content: capabilities.value?.publishing
-      ? t('landing.faqAutoPublishEnabled')
-      : t('landing.faqAutoPublishDisabled'),
+    content: t('landing.faqAutoPublishEnabled'),
   },
   {
     label: t('landing.faqAfterTrial'),
