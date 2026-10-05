@@ -13,7 +13,9 @@ const postsRequested = ref(20)
 const { data: options } = await useFetch<{ postPriceCents: number }>('/api/package-requests', {
   key: 'package-request-options',
   server: false,
-  default: () => ({ postPriceCents: 0 }),
+  // Keep the payload shape identical to PackageRequestForm because both
+  // components intentionally share this useFetch key.
+  default: () => ({ postOptions: [], postPriceCents: 0 }),
 })
 const postPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
 const estimatedTotal = computed(() => postPrice.value * postsRequested.value)

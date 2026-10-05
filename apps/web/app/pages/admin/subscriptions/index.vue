@@ -26,13 +26,12 @@ type Subscription = {
 const page = ref(1)
 const pageSize = ref(20)
 // Every filter is applied by the API, so pagination and totals stay correct.
-const filters = reactive({ status: 'all', plan: 'all', expiringSoon: false })
-watch([() => filters.status, () => filters.plan, () => filters.expiringSoon, pageSize], () => {
+const filters = reactive({ status: 'all', expiringSoon: false })
+watch([() => filters.status, () => filters.expiringSoon, pageSize], () => {
   page.value = 1
 })
 
-const { plans } = usePlanCatalog()
-const { data, status, error, refresh } = await useFetch<{ items: Subscription[]; total: number }>('/api/admin/subscriptions', {
+const { data, status, error } = await useFetch<{ items: Subscription[]; total: number }>('/api/admin/subscriptions', {
   // Open the page at once and show loading inside it, instead of blocking navigation.
   lazy: true,
   key: 'admin-subscriptions',
@@ -40,7 +39,6 @@ const { data, status, error, refresh } = await useFetch<{ items: Subscription[];
     page: page.value,
     per_page: pageSize.value,
     ...(filters.status !== 'all' ? { status: filters.status } : {}),
-    ...(filters.plan !== 'all' ? { plan: filters.plan } : {}),
     ...(filters.expiringSoon ? { expiring_days: 7 } : {}),
   })),
 })
@@ -56,11 +54,7 @@ watch(page, () => {
 
 const statusTabs = computed(() => [
   { label: t('admin.subscriptions.tabAll'), value: 'all' },
-  ...['active', 'trialing', 'paused', 'past_due', 'cancelled', 'expired'].map(value => ({ label: t(`admin.status.${value}`), value })),
-])
-const planOptions = computed(() => [
-  { label: t('admin.organizations.allPlans'), value: 'all' },
-  ...plans.value.map(plan => ({ label: plan.name, value: plan.code })),
+  ...['active', 'draft', 'cancelled', 'expired'].map(value => ({ label: t(`admin.status.${value}`), value })),
 ])
 
 const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -135,7 +129,6 @@ const tableMeta = {
           class="w-full md:hidden"
         />
         <UForm :state="filters" class="flex flex-wrap items-center gap-3">
-          <USelect v-model="filters.plan" :items="planOptions" :aria-label="t('admin.subscriptions.plan')" class="w-full sm:w-48" />
           <UCheckbox v-model="filters.expiringSoon" :label="t('admin.subscriptions.expiringWeek')" />
         </UForm>
       </template>
@@ -154,12 +147,6 @@ const tableMeta = {
               :description="`${subscription.plan_name} · ${intervalLabel(subscription.billing_interval)} · ${formatCents(subscription.price_cents)}`"
               :avatar="{ alt: subscription.organization_name || '', size: 'sm' }"
               :ui="{ root: 'min-w-0 flex-1', wrapper: 'min-w-0 flex-1', name: 'truncate', description: 'truncate' }"
-            />
-            <AdminSubscriptionActions
-              :organization-id="subscription.organization_id"
-              :organization-name="subscription.organization_name"
-              :subscription="subscription"
-              @changed="refresh()"
             />
           </UFieldGroup>
           <UFieldGroup class="flex flex-wrap items-center gap-1.5">
@@ -214,15 +201,6 @@ const tableMeta = {
               variant="soft"
               class="tabular-nums"
               :label="daysLabel(row.original)"
-            />
-          </template>
-          <template #actions-cell="{ row }">
-            <!-- Each action opens a confirmation modal before the PATCH is sent. -->
-            <AdminSubscriptionActions
-              :organization-id="row.original.organization_id"
-              :organization-name="row.original.organization_name"
-              :subscription="row.original"
-              @changed="refresh()"
             />
           </template>
         </UTable>
