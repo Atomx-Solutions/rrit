@@ -58,8 +58,8 @@ describe('admin subscriptions query schema', () => {
     expect(result.data.expiring_days).toBe(7)
   })
 
-  it('accepts past_due for the Past Due tab and rejects unknown statuses', () => {
-    expect(adminSubscriptionsQuerySchema.safeParse({ status: 'past_due' }).success).toBe(true)
+  it('rejects removed subscription statuses and unknown statuses', () => {
+    expect(adminSubscriptionsQuerySchema.safeParse({ status: 'past_due' }).success).toBe(false)
     expect(adminSubscriptionsQuerySchema.safeParse({ status: 'unknown' }).success).toBe(false)
   })
 
@@ -75,7 +75,7 @@ describe('admin subscriptions query schema', () => {
   })
 
   it('accepts all valid statuses', () => {
-    for (const status of ['trialing', 'active', 'paused', 'cancelled', 'expired']) {
+    for (const status of ['active', 'draft', 'cancelled', 'expired']) {
       expect(adminSubscriptionsQuerySchema.safeParse({ status }).success).toBe(true)
     }
   })
