@@ -301,10 +301,7 @@ function setPrice(fact: BrandFact, value: string | number) {
                         "
                       />
                     </UFormField>
-                    <UFormField
-                      :label="t('brand.validFromLabel')"
-                      :description="t('brand.validFromDescription')"
-                    >
+                    <UFormField :label="t('brand.validFromLabel')">
                       <UInput
                         type="date"
                         :model-value="fact.validFrom || ''"
@@ -317,10 +314,7 @@ function setPrice(fact: BrandFact, value: string | number) {
                         "
                       />
                     </UFormField>
-                    <UFormField
-                      :label="t('brand.validUntilLabel')"
-                      :description="t('brand.validUntilDescription')"
-                    >
+                    <UFormField :label="t('brand.validUntilLabel')">
                       <UInput
                         type="date"
                         :model-value="fact.validUntil || ''"
