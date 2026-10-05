@@ -837,17 +837,17 @@ export async function loadPreviousPageStyle(
     last_style_fetch_at: Date | null
     contact_sheet_path: string | null
   }>(
-    `SELECT brand.id AS brand_id,connection.id AS connection_id,
-            GREATEST(1,package.posts_included) AS style_fetch_post_count,
-            false AS is_trial,snapshot.summary AS snapshot_summary,
+    `SELECT brand.id AS brand_id,connection.id AS connection_id,plan.style_fetch_post_count,
+            plan.is_trial,snapshot.summary AS snapshot_summary,
             snapshot.source_revision AS snapshot_revision,snapshot.last_style_fetch_at,
             snapshot.contact_sheet_path
        FROM brands brand
-       JOIN custom_packages package
-         ON package.organization_id=brand.organization_id
-        AND package.status='active'
-        AND package.starts_at<=now()
-        AND package.ends_at>now()
+       JOIN subscriptions subscription
+         ON subscription.organization_id=brand.organization_id
+        AND subscription.status IN ('trialing','active','past_due')
+        AND subscription.current_period_start<=now()
+        AND subscription.current_period_end>now()
+       JOIN plans plan ON plan.code=subscription.plan_code AND plan.active=true
        LEFT JOIN meta_connections connection
          ON connection.business_id=brand.organization_id
         AND connection.brand_id=brand.id
