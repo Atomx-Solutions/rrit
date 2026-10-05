@@ -61,6 +61,13 @@ function createAuthClient(scope: AuthScope) {
         const result = await auth().signInWithPassword(input)
         return { data: result.data, ...errorResult(result.error) }
       },
+      async google(input: { callbackURL: string }) {
+        const result = await auth().signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: callbackUrl(input.callbackURL) },
+        })
+        return { data: result.data, ...errorResult(result.error) }
+      },
     },
     async handleCallback() {
       const url = new URL(window.location.href)

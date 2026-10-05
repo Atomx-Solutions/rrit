@@ -217,6 +217,24 @@ async function submit() {
     busy.value = false
   }
 }
+
+async function continueWithGoogle() {
+  if (busy.value || !available.value) return
+  error.value = ''
+  busy.value = true
+  try {
+    const result = await authClient.signIn.google({
+      // Supabase creates a new account for a first-time Google identity. Existing
+      // identities sign in, so the same provider flow serves both screens.
+      callbackURL: `/auth/callback?next=${props.mode === 'signup' ? '/onboarding' : '/app'}`,
+    })
+    if (result.error) error.value = errorText(result.error)
+  } catch (caught) {
+    error.value = errorText({ message: caught instanceof Error ? caught.message : '' })
+  } finally {
+    busy.value = false
+  }
+}
 </script>
 <template>
   <h1>{{ t(`auth.title.${mode}`) }}</h1>
@@ -318,6 +336,24 @@ async function submit() {
                 : t('auth.savePasswordButton')
       }}</UButton
     >
+    <div v-if="['login', 'signup'].includes(mode)" class="flex items-center gap-3">
+      <div class="h-px flex-1 bg-default" />
+      <span class="text-xs text-muted">{{ t('auth.or') }}</span>
+      <div class="h-px flex-1 bg-default" />
+    </div>
+    <UButton
+      v-if="['login', 'signup'].includes(mode)"
+      :disabled="!hydrated || !available"
+      :loading="busy"
+      block
+      size="lg"
+      color="neutral"
+      variant="outline"
+      @click="continueWithGoogle"
+    >
+      <img src="/google-logo.svg" alt="" class="size-5 shrink-0" />
+      {{ t('auth.continueWithGoogle') }}
+    </UButton>
   </UForm>
   <UButton
     v-if="(mode === 'reset' && success) || (mode === 'callback' && error)"
