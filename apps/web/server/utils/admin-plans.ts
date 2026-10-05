@@ -21,6 +21,10 @@ export const invoiceSettingsChangesSchema = nonEmpty({
   seller_fiscal_number: z.string().trim().max(40).optional(),
   vat_rate_basis_points: z.number().int().min(0).max(10_000).optional(),
 })
+export const trialPlanChangesSchema = nonEmpty({
+  posts_per_month: z.number().int().min(0).max(10_000).optional(),
+  active: z.boolean().optional(),
+})
 
 // Business-rule failures raised by the admin_update_* functions.
 const failures: Record<string, { statusCode: number; message: string }> = {
@@ -61,4 +65,7 @@ export function updateCreditPricing(actor: { id: string; email: string }, change
 }
 export function updateInvoiceSettings(actor: { id: string; email: string }, changes: Record<string, unknown>) {
   return rpc('admin_update_invoice_settings', { p_actor_id: actor.id, p_actor_email: actor.email, p_changes: changes })
+}
+export function updateTrialPlan(actor: { id: string; email: string }, changes: Record<string, unknown>) {
+  return rpc('admin_update_plan', { p_code: 'free-trial', p_actor_id: actor.id, p_actor_email: actor.email, p_changes: changes })
 }

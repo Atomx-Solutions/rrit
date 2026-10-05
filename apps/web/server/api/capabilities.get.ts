@@ -9,11 +9,17 @@ export default defineEventHandler(async () => {
     /* Registration remains unavailable without configuration. */
   }
   let durationHours: number | null = null
+  let trialPosts: number | null = null
   let databaseReady = false
   try {
-    await database().query('SELECT 1')
+    const db = database()
+    await db.query('SELECT 1')
     databaseReady = true
-    durationHours = (await trialPolicy()).duration_hours
+    durationHours = (await trialPolicy(db)).duration_hours
+    const trialPlan = await db.query<{ posts_per_month: number }>(
+      'SELECT posts_per_month FROM plans WHERE is_trial=true AND active=true LIMIT 1',
+    )
+    trialPosts = Number(trialPlan.rows[0]?.posts_per_month ?? 0)
   } catch {
     /* Readiness is explicit when the database is unavailable. */
   }
@@ -22,6 +28,7 @@ export default defineEventHandler(async () => {
     ...auth,
     emailVerificationRequired,
     trialHours: durationHours,
+    trialPosts,
     socialImport: metaConfigured(),
     publishing: metaConfigured() && process.env.PUBLISHING_ENABLED === 'true',
     ai:

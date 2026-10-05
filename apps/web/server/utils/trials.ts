@@ -274,11 +274,23 @@ export async function trialStatus(
   const paidAccess =
     (await customPackageAccess(businessId, now, now, db))
     || paidEntitlementAccess(paid.rows[0])
-  // A trial follows its package allowance (Free Trial: 3 posts), not the
-  // legacy app_settings limit.
-  // Without an active trial or a paid package the account has no monthly
-  // allowance — the legacy app_settings fallback (12) is misleading.
-  const trialLimits = { ...policy.limits, posts_per_month: state === 'active' ? policy.limits.posts_per_month : 0 }
+  // The Free Trial package, rather than the legacy trial setting, owns the
+  // post allowance. An inactive or missing trial package grants no posts.
+  const trialPlan = paidAccess || state !== 'active'
+    ? undefined
+    : (
+        await db.query<{ posts_per_month: number }>(
+          `SELECT plan.posts_per_month
+             FROM plans plan
+            WHERE plan.is_trial=true
+              AND plan.active=true
+            LIMIT 1`,
+        )
+      ).rows[0]
+  const trialLimits = {
+    ...policy.limits,
+    posts_per_month: state === 'active' && trialPlan ? Number(trialPlan.posts_per_month) : 0,
+  }
   return {
     state,
     startsAt: row?.starts_at?.toISOString() || null,

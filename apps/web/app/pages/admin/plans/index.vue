@@ -3,12 +3,14 @@ definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 
 type CreditPricing = { credit_price_cents: number, provider_cost_per_credit_micro_eur: number, low_credit_threshold: number }
 type InvoiceSettings = { number_prefix: string, seller_name: string, seller_address: string, seller_fiscal_number: string, vat_rate_basis_points: number }
+type TrialPlan = { code: string, name: string, posts_per_month: number, active: boolean, is_trial: boolean }
 
 const { t } = useI18n()
 const toast = useToast()
 const { onFormError, showError } = useFormFeedback()
 useSeoMeta({ title: () => t('admin.nav.billingSettings'), robots: 'noindex, nofollow' })
 const { data, error, refresh } = await useFetch<{
+  plans: TrialPlan[]
   credit_pricing: CreditPricing
   invoice_settings: InvoiceSettings
 }>('/api/admin/plans', { lazy: true, key: 'admin-billing-settings' })
@@ -28,6 +30,14 @@ function changed<T extends Record<string, unknown>>(current: T | undefined, next
 }
 
 const pricing = reactive({ credit_price: 0, provider_cost: 0, low_credit_threshold: 0 })
+const trial = reactive({ posts_per_month: 0, active: true })
+const freeTrial = computed(() => data.value?.plans.find(plan => plan.code === 'free-trial'))
+watch(freeTrial, (value) => {
+  if (!value) return
+  trial.posts_per_month = value.posts_per_month
+  trial.active = value.active
+}, { immediate: true })
+const trialChanges = computed(() => changed(freeTrial.value, trial))
 const creditsPerPost = ref(0)
 // What a post sells for. The public page quotes it before anyone fills in a
 // form, so it belongs beside the other prices rather than on a general
@@ -87,7 +97,21 @@ const pricingInvalid = computed(() =>
   || postPriceCents.value < 1,
 )
 const invoiceInvalid = computed(() => invoice.vat_percent < 0 || invoice.vat_percent > 100 || !invoice.seller_name.trim())
-const saving = reactive({ pricing: false, invoice: false })
+const saving = reactive({ pricing: false, invoice: false, trial: false })
+
+async function saveTrial() {
+  if (!Object.keys(trialChanges.value).length) return
+  saving.trial = true
+  try {
+    await $fetch('/api/admin/plans/trial', { method: 'PATCH', body: trialChanges.value })
+    toast.add({ title: t('admin.plans.saved'), color: 'success' })
+    await refresh()
+  } catch (problem) {
+    toast.add({ title: (problem as { data?: { message?: string } }).data?.message || t('admin.plans.saveFailed'), color: 'error' })
+  } finally {
+    saving.trial = false
+  }
+}
 
 async function saveSettings(kind: 'pricing' | 'invoice') {
   const body = kind === 'pricing' ? pricingChanges.value : invoiceChanges.value
@@ -117,6 +141,14 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
 
 <template>
   <AdminPage :title="t('admin.nav.billingSettings')">
+      <UCard v-if="freeTrial" class="shrink-0" :ui="cardUi">
+        <template #header><UUser :name="freeTrial.name" :description="t('admin.plans.trialDescription')" :avatar="{ icon: 'i-lucide-gift', size: 'sm' }" /></template>
+        <UForm :state="trial" class="grid gap-4 sm:grid-cols-2" @submit="saveTrial" @error="onFormError">
+          <UFormField name="posts_per_month" :label="t('admin.plans.posts')" :help="t('admin.plans.trialPostsHelp')"><UInputNumber v-model="trial.posts_per_month" :min="0" :max="10000" class="w-full" /></UFormField>
+          <UFormField name="active" :label="t('admin.plans.active')" :help="t('admin.plans.trialActiveHelp')"><USwitch v-model="trial.active" /></UFormField>
+          <UButton type="submit" class="sm:col-span-2 justify-self-start" :loading="saving.trial" :disabled="!Object.keys(trialChanges).length" :label="t('admin.plans.save')" />
+        </UForm>
+      </UCard>
       <UCard class="shrink-0" :ui="cardUi">
         <template #header><UUser :name="t('admin.plans.pricingTitle')" :description="t('admin.plans.pricingDescription')" :avatar="{ icon: 'i-lucide-coins', size: 'sm' }" /></template>
         <UForm :state="pricing" class="grid gap-4 sm:grid-cols-2" @submit="saveSettings('pricing')" @error="onFormError">
