@@ -88,12 +88,23 @@ export async function grantTrial(
   // starts once the organization aggregate exists.
   const organization = await client.query('SELECT id FROM organizations WHERE id=$1', [businessId])
   if (!organization.rowCount) return
-  const monthlyCredits = Number(policy.limits.posts_per_month) * 80
+  // The Free Trial package owns the post allowance, and the credits have to
+  // follow the same number. Reading the legacy app_settings limit here is what
+  // made a three-post trial arrive with twelve posts' worth of credits.
+  const trialPlan = await client.query<{ posts_per_month: number }>(
+    'SELECT posts_per_month FROM plans WHERE is_trial=true AND active=true LIMIT 1',
+  )
+  const trialPosts = Number(trialPlan.rows[0]?.posts_per_month ?? 0)
+  // No trial package means no allowance, so there is nothing to fund either.
+  if (!trialPosts) return
+  const monthlyCredits = trialPosts * 80
   await grantMonthlyCredits(client, {
     organizationId: businessId,
-    // credit_ledger.subscription_id is retained for historical compatibility;
-    // dynamic packages and trials use the organization as the grant owner.
-    subscriptionId: businessId,
+    // A trial has no subscription row, and credit_ledger.subscription_id still
+    // references one. The organization owns the grant, so the column stays
+    // null; the idempotency key falls back to the organization and keeps the
+    // exact value it had when the id was passed here.
+    subscriptionId: null,
     monthlyCredits,
     periodStart: granted.starts_at,
     periodEnd: granted.expires_at,
@@ -138,7 +149,7 @@ export async function claimSocialTrialIdentities(
   if (!revoked.rowCount) return
   await expireRemainingCredits(client, {
     organizationId: businessId,
-    subscriptionId: businessId,
+    subscriptionId: null,
     idempotencyKey: `trial-revoked:${businessId}`,
   })
 }

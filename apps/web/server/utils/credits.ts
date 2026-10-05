@@ -132,12 +132,12 @@ function exhausted() {
   return createError({ statusCode: 402, data: { code: 'CREDITS_EXHAUSTED' }, message: 'Kreditet kane perfunduar.' })
 }
 
-export async function grantMonthlyCredits(client: PoolClient, input: { organizationId: string; subscriptionId: string; monthlyCredits: number; periodStart: Date; periodEnd: Date }) {
+export async function grantMonthlyCredits(client: PoolClient, input: { organizationId: string; subscriptionId?: string | null; monthlyCredits: number; periodStart: Date; periodEnd: Date }) {
   positiveInteger(input.monthlyCredits, 'monthlyCredits')
   if (input.periodEnd <= input.periodStart) throw new Error('Credit period end must be after its start.')
   const balance = await lockBalance(client, input.organizationId)
   const periodKey = input.periodStart.toISOString()
-  const grant = await writeLedger(client, { organizationId: input.organizationId, subscriptionId: input.subscriptionId, eventType: 'grant', creditDelta: input.monthlyCredits, referenceType: 'subscription_period', referenceId: periodKey, idempotencyKey: `credit-grant:${input.subscriptionId}:${periodKey}` })
+  const grant = await writeLedger(client, { organizationId: input.organizationId, subscriptionId: input.subscriptionId, eventType: 'grant', creditDelta: input.monthlyCredits, referenceType: 'subscription_period', referenceId: periodKey, idempotencyKey: `credit-grant:${input.subscriptionId || input.organizationId}:${periodKey}` })
   if (!grant.rows.length) return toBalance(balance)
   const prior = Number(balance.remaining_credits)
   if (prior) await writeLedger(client, { organizationId: input.organizationId, subscriptionId: input.subscriptionId, eventType: 'expire', creditDelta: -prior, referenceType: 'subscription_period', referenceId: balance.period_start ? new Date(balance.period_start).toISOString() : undefined, idempotencyKey: `credit-expire:${input.organizationId}:${periodKey}` })
@@ -155,10 +155,10 @@ export async function grantAdditionalCredits(client: PoolClient, input: { organi
   if (!grant.rows.length) return toBalance(balance)
   return updateBalance(client, input.organizationId, input.credits, 0)
 }
-export async function expireRemainingCredits(client: PoolClient, input: { organizationId: string; subscriptionId: string; idempotencyKey: string }) {
+export async function expireRemainingCredits(client: PoolClient, input: { organizationId: string; subscriptionId?: string | null; idempotencyKey: string }) {
   const balance = await lockBalance(client, input.organizationId)
   const amount = Number(balance.remaining_credits)
-  if (amount) await writeLedger(client, { ...input, eventType: 'expire', creditDelta: -amount, referenceType: 'subscription', referenceId: input.subscriptionId })
+  if (amount) await writeLedger(client, { ...input, eventType: 'expire', creditDelta: -amount, referenceType: 'subscription', referenceId: input.subscriptionId || input.organizationId })
   const updated = await client.query<CreditBalanceRow>(
     `UPDATE credit_balances SET remaining_credits=0,reserved_credits=0,updated_at=now()
       WHERE organization_id=$1 RETURNING ${balanceColumns}`, [input.organizationId],
