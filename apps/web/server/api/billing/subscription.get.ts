@@ -3,22 +3,7 @@ import { creditPricing } from '../../utils/credits'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const { subscription, customPackage, packageProposal, creditPriceCents } = await withBusinessTransaction(user.id, async (client, business) => {
-    const result = await client.query<{
-      plan_code: string
-      billing_interval: 'monthly' | 'annual'
-      status: string
-      current_period_start: Date
-      current_period_end: Date
-      price_cents: number | null
-      pending_plan_code: string | null
-    }>(
-      `SELECT plan_code,billing_interval,status,current_period_start,current_period_end,
-              price_cents,pending_plan_code
-         FROM subscriptions
-        WHERE organization_id=$1 AND status IN ('trialing','active','past_due')`,
-      [business.id],
-    )
+  const { customPackage, packageProposal, creditPriceCents } = await withBusinessTransaction(user.id, async (client, business) => {
     // A custom package is a negotiated agreement that replaces plan purchase
     // while it runs. Row level security scopes this read to the caller's own
     // organization, so the query does not filter by id itself.
@@ -53,11 +38,12 @@ export default defineEventHandler(async (event) => {
       ends_at: Date
     }>(
       `SELECT name,posts_included,credits_included,price_cents,starts_at,ends_at
-         FROM custom_packages WHERE status='draft'
-         ORDER BY created_at DESC,id DESC LIMIT 1`,
+         FROM custom_packages
+        WHERE organization_id=$1 AND status='draft'
+        ORDER BY created_at DESC,id DESC LIMIT 1`,
+      [business.id],
     )
     return {
-      subscription: result.rows[0] || null,
       customPackage: custom.rows[0] || null,
       packageProposal: proposal.rows[0] || null,
       // What a credit costs the customer, so the page can price a top-up
@@ -96,14 +82,6 @@ export default defineEventHandler(async (event) => {
         ...usage,
       }
     })(),
-    subscription: subscription && {
-      planCode: subscription.plan_code,
-      interval: subscription.billing_interval,
-      status: subscription.status,
-      periodStart: new Date(subscription.current_period_start).toISOString(),
-      periodEnd: new Date(subscription.current_period_end).toISOString(),
-      price: subscription.price_cents === null ? null : subscription.price_cents / 100,
-      pendingPlanCode: subscription.pending_plan_code,
-    },
+    subscription: null,
   }
 })
