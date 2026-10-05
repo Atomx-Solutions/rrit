@@ -1823,5 +1823,19 @@
   "request.appCta": "Send request",
   "request.appRenewCta": "Change package",
   "request.appNote": "Reply within 24 hours.",
-  "monthly.photoLimitReached": "limit for {{count}} posts"
+  "monthly.photoLimitReached": "limit for {{count}} posts",
+  "join.title": "Accept invitation",
+  "join.checking": "Checking the invitation...",
+  "join.invalidTitle": "This invitation is not valid",
+  "join.invalidDescription": "The link may have expired or already been used. Ask for a new invitation.",
+  "join.heading": "Open the account for {{organization}}",
+  "join.description": "This invitation is for {{email}}. Set a password and you are in at once, with no verification email to wait for.",
+  "join.acceptFailedTitle": "The invitation was not accepted",
+  "join.acceptFailed": "The invitation was not accepted. Try again or contact the team.",
+  "join.passwordTitle": "Set your password",
+  "join.passwordDescription": "The invitation for {{organization}} already set the address. Choose a name and a password.",
+  "join.passwordSubmit": "Create the account",
+  "join.passwordFailed": "The account was not created. Try again.",
+  "onboarding.signOut": "Sign out",
+  "onboarding.signOutFailed": "Signing out did not complete. Try again."
 }

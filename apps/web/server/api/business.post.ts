@@ -65,8 +65,17 @@ export default defineEventHandler(async (event) => {
   try {
     await client.query('BEGIN')
     await setUserContext(client, user.id)
+    // An invited client already owns a business row, created on acceptance so
+    // the organization keeps the id its package is attached to. Onboarding is
+    // what fills that row, so the conflict updates it — but only while
+    // onboarding has never completed, so a later submission can never
+    // overwrite a workspace in use.
     const result = await client.query(
-      'INSERT INTO businesses (owner_id, slug, state) VALUES ($1, $2, $3) ON CONFLICT (owner_id) DO NOTHING RETURNING id',
+      `INSERT INTO businesses (owner_id, slug, state) VALUES ($1, $2, $3)
+       ON CONFLICT (owner_id) DO UPDATE
+         SET slug = EXCLUDED.slug, state = EXCLUDED.state, updated_at = now()
+         WHERE COALESCE((businesses.state->>'onboarding')::integer, 0) = 0
+       RETURNING id`,
       [user.id, slug, JSON.stringify(profile)],
     )
     const id =

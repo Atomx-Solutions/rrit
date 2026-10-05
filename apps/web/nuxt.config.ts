@@ -58,6 +58,9 @@ export default defineNuxtConfig({
     '/app': { ssr: false },
     '/app/**': { ssr: false, headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
     '/onboarding': { ssr: false },
+    // The invitation preview is a same-origin POST, and a server-rendered
+    // request carries no Origin header for requireSameOrigin to accept.
+    '/join': { ssr: false, headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
     '/admin/**': { ssr: false, headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
     '/**': {
       headers: {
