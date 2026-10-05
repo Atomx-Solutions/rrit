@@ -1008,6 +1008,8 @@
   "auth.privacy": "privacy policy",
   "auth.loginButton": "Log in",
   "auth.signupButton": "Create your business account",
+  "auth.or": "or",
+  "auth.continueWithGoogle": "Continue with Google",
   "auth.forgotButton": "Request recovery link",
   "auth.resendButton": "Send the link again",
   "auth.savePasswordButton": "Save password",

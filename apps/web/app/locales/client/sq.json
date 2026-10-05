@@ -1008,6 +1008,8 @@
   "auth.privacy": "privatësinë",
   "auth.loginButton": "Hyr në llogari",
   "auth.signupButton": "Krijo llogarinë e biznesit",
+  "auth.or": "ose",
+  "auth.continueWithGoogle": "Vazhdo me Google",
   "auth.forgotButton": "Kërko lidhjen e rikuperimit",
   "auth.resendButton": "Dërgo lidhjen sërish",
   "auth.savePasswordButton": "Ruaj fjalëkalimin",
