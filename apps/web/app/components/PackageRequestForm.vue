@@ -302,8 +302,7 @@ async function submit() {
       </div>
       <p class="request-estimate-total">{{ money(estimatedTotal) }}</p>
     </div>
-    <p v-if="postPrice > 0 && !lean" class="request-estimate-caveat">{{ t('request.estimateCaveat') }}</p>
-      <UButton type="submit" :loading="sending" :label="t(props.submitLabelKey || 'request.submit')" block />
+    <UButton type="submit" :loading="sending" :label="t(props.submitLabelKey || 'request.submit')" block />
     </UForm>
   </Transition>
 </template>

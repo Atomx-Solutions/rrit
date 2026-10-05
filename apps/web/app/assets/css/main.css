@@ -724,11 +724,6 @@ td {
   font-variant-numeric: tabular-nums;
   color: var(--ui-text-highlighted);
 }
-.request-estimate-caveat {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--ui-text-muted);
-}
 .package-request-enter-active,
 .package-request-leave-active {
   transition: opacity 220ms ease, transform 220ms ease;
