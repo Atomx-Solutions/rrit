@@ -502,6 +502,8 @@
   "admin.requests.platform.both": "Instagram + Facebook",
   "admin.settings.requestOptions": "Suggested amounts",
   "admin.settings.requestOptionsHint": "The numbers the public form offers, separated by commas. Visitors can still type any other number.",
+  "admin.settings.packageExpiryReminderDays": "Expiry reminder (days)",
+  "admin.settings.packageExpiryReminderDaysHint": "The client receives one email this many days before the package expires.",
   "admin.requests.name": "Name",
   "admin.requests.email": "Email",
   "admin.requests.phone": "Phone",

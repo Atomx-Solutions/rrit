@@ -11,6 +11,7 @@ export type PlatformSettings = {
   custom_package_credits_per_post: number
   // Amounts the public request form offers as a starting point.
   package_request_post_options: number[]
+  package_expiry_reminder_days: number
   updated_at: string
 }
 
@@ -22,6 +23,7 @@ export const platformSettingsChangesSchema = z.object({
   custom_package_post_price_cents: z.coerce.number().int().min(1).max(1_000_000).optional(),
   custom_package_credits_per_post: z.coerce.number().int().min(1).max(100_000).optional(),
   package_request_post_options: z.array(z.coerce.number().int().min(1).max(1000)).min(1).max(6).optional(),
+  package_expiry_reminder_days: z.coerce.number().int().min(1).max(365).optional(),
 }).strict().refine(value => Object.keys(value).length > 0)
 
 function normalize(value: unknown): PlatformSettings {
@@ -35,6 +37,7 @@ function normalize(value: unknown): PlatformSettings {
     package_request_post_options: Array.isArray(row.package_request_post_options)
       ? row.package_request_post_options.map(Number).filter(Number.isFinite)
       : [],
+    package_expiry_reminder_days: Number(row.package_expiry_reminder_days ?? 7) || 7,
     updated_at: typeof row.updated_at === 'string' ? row.updated_at : '',
   }
 }

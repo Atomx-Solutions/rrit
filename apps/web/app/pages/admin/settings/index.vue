@@ -4,7 +4,7 @@ const { t, locale, setLocale } = useI18n()
 const { onFormError, showError, watchError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.settings')} · Rrit Admin`, robots: 'noindex, nofollow' })
 
-type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, custom_package_post_price_cents: number, custom_package_credits_per_post: number, package_request_post_options: number[] }
+type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, custom_package_post_price_cents: number, custom_package_credits_per_post: number, package_request_post_options: number[], package_expiry_reminder_days: number }
 const toast = useToast()
 const { data, status, error, refresh } = await useFetch<Settings>('/api/admin/settings', { lazy: true })
 watch(error, (value) => {
@@ -47,12 +47,13 @@ async function save() {
 
 // The per-post rate behind custom package suggestions. It is a commercial
 // setting rather than an AI one, so it lives in its own card and saves alone.
-const packageForm = reactive({ post_price_euro: 1.5, credits_per_post: 80, post_options: '10, 20, 30' })
+const packageForm = reactive({ post_price_euro: 1.5, credits_per_post: 80, post_options: '10, 20, 30', expiry_reminder_days: 7 })
 watch(data, (value) => {
   if (!value) return
   packageForm.post_price_euro = value.custom_package_post_price_cents / 100
   packageForm.credits_per_post = value.custom_package_credits_per_post
   packageForm.post_options = value.package_request_post_options.join(', ')
+  packageForm.expiry_reminder_days = value.package_expiry_reminder_days
 }, { immediate: true })
 const packagePriceCents = computed(() => Math.round(packageForm.post_price_euro * 100))
 // Whatever the admin types, only whole positive numbers reach the setting.
@@ -68,7 +69,8 @@ const packageChanged = computed(() =>
   !!data.value
   && (packagePriceCents.value !== data.value.custom_package_post_price_cents
     || Number(packageForm.credits_per_post) !== data.value.custom_package_credits_per_post
-    || postOptions.value.join(',') !== data.value.package_request_post_options.join(',')))
+    || postOptions.value.join(',') !== data.value.package_request_post_options.join(',')
+    || Number(packageForm.expiry_reminder_days) !== data.value.package_expiry_reminder_days))
 const savingPackage = ref(false)
 async function savePackageRate() {
   if (!packageChanged.value) return
@@ -80,6 +82,7 @@ async function savePackageRate() {
       body: {
         custom_package_post_price_cents: packagePriceCents.value,
         custom_package_credits_per_post: Number(packageForm.credits_per_post),
+        package_expiry_reminder_days: Number(packageForm.expiry_reminder_days),
         ...(postOptions.value.length ? { package_request_post_options: postOptions.value } : {}),
       },
     })
@@ -131,6 +134,13 @@ const language = computed({
             :hint="t('admin.settings.requestOptionsHint')"
           >
             <UInput v-model="packageForm.post_options" :maxlength="60" class="w-full sm:w-64" />
+          </UFormField>
+          <UFormField
+            name="expiry_reminder_days"
+            :label="t('admin.settings.packageExpiryReminderDays')"
+            :hint="t('admin.settings.packageExpiryReminderDaysHint')"
+          >
+            <UInputNumber v-model="packageForm.expiry_reminder_days" :min="1" :max="365" class="w-full sm:w-48" />
           </UFormField>
           <UButton
             type="submit"

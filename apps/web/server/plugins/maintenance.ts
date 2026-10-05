@@ -17,8 +17,11 @@ export default defineNitroPlugin((nitro) => {
     running = true
     current = runRetentionBatch(worker.db)
       .then(() => undefined)
-      .catch(() => {
-        console.error('Retention maintenance failed; inspect database health.')
+      .catch((error) => {
+        console.error('Retention maintenance failed; inspect database health.', {
+          message: error instanceof Error ? error.message : String(error),
+          code: error && typeof error === 'object' && 'code' in error ? error.code : undefined,
+        })
       })
       .finally(() => {
         running = false

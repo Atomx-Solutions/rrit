@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
 import { expireCustomPackages } from './custom-packages'
+import { runPackageExpiryReminderBatch } from './package-expiry-reminders'
 
 const retentionPolicySchema = z.object({
   oauth_state_days: z.number().int().min(1).max(90),
@@ -73,7 +74,8 @@ export async function runRetentionBatch(db: Pool = database()) {
       [JSON.stringify(removed)],
     )
     await client.query('COMMIT')
-    return removed
+    const reminders = await runPackageExpiryReminderBatch(db)
+    return { ...removed, packageExpiryReminders: reminders.sent }
   } catch (error) {
     await client.query('ROLLBACK')
     throw error

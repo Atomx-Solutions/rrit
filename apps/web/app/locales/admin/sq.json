@@ -502,6 +502,8 @@
   "admin.requests.platform.both": "Instagram + Facebook",
   "admin.settings.requestOptions": "Sasitë e sugjeruara",
   "admin.settings.requestOptionsHint": "Numrat që i propozon forma publike, të ndarë me presje. Klienti mund të shkruajë çdo numër tjetër.",
+  "admin.settings.packageExpiryReminderDays": "Rikujtuesi para skadimit (ditë)",
+  "admin.settings.packageExpiryReminderDaysHint": "Klienti merr një email këtë numër ditësh para skadimit të paketës.",
   "admin.requests.name": "Emri",
   "admin.requests.email": "Email",
   "admin.requests.phone": "Telefoni",
