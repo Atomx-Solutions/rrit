@@ -353,7 +353,29 @@ async function continueWithGoogle() {
       variant="outline"
       @click="continueWithGoogle"
     >
-      <img src="/google-logo.svg" alt="" class="size-5 shrink-0" />
+      <svg
+        class="size-5 shrink-0"
+        viewBox="0 0 48 48"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          fill="#EA4335"
+          d="M24 9.5c3.54 0 6.72 1.22 9.22 3.62l6.86-6.86C35.92 2.36 30.43 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.99 6.2C12.43 13.72 17.75 9.5 24 9.5z"
+        />
+        <path
+          fill="#4285F4"
+          d="M46.98 24.55c0-1.57-.14-3.09-.4-4.55H24v8.6h12.91c-.56 2.96-2.22 5.47-4.74 7.15l7.68 5.96C44.33 37.58 46.98 31.57 46.98 24.55z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M10.55 28.58A14.5 14.5 0 0 1 9.75 24c0-1.59.27-3.13.8-4.58l-7.99-6.2A24 24 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.99-6.2z"
+        />
+        <path
+          fill="#34A853"
+          d="M24 48c6.48 0 11.92-2.13 15.89-5.8l-7.68-5.96c-2.13 1.43-4.86 2.27-8.21 2.27-6.25 0-11.57-4.22-13.45-9.93l-7.99 6.2C6.51 42.62 14.62 48 24 48z"
+        />
+      </svg>
       {{ t('auth.continueWithGoogle') }}
     </UButton>
   </UForm>

@@ -18,7 +18,6 @@ const { t } = useI18n()
           class="auth-story-image mt-8"
         />
       </div>
-      <p class="small">{{ t('public.inAlbanian') }}</p>
     </aside>
     <main class="auth-form">
       <ULink to="/" class="small muted block mb-8">← {{ t('public.backToRrit') }}</ULink><slot />
