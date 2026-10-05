@@ -1823,5 +1823,19 @@
   "request.appCta": "Dërgo kërkesën",
   "request.appRenewCta": "Ndrysho pakon",
   "request.appNote": "Përgjigje brenda 24 orësh.",
-  "monthly.photoLimitReached": "kufiri për {{count}} postime"
+  "monthly.photoLimitReached": "kufiri për {{count}} postime",
+  "join.title": "Pranimi i ftesës",
+  "join.checking": "Po kontrollojmë ftesën...",
+  "join.invalidTitle": "Ftesa nuk është e vlefshme",
+  "join.invalidDescription": "Linku mund të ketë skaduar ose të jetë përdorur. Kërko një ftesë të re.",
+  "join.heading": "Hap llogarinë për {{organization}}",
+  "join.description": "Ftesa është për {{email}}. Vendos një fjalëkalim dhe hyn menjëherë, pa pritur email verifikimi.",
+  "join.acceptFailedTitle": "Ftesa nuk u pranua",
+  "join.acceptFailed": "Ftesa nuk u pranua. Provo përsëri ose kontakto ekipin.",
+  "join.passwordTitle": "Vendos fjalëkalimin",
+  "join.passwordDescription": "Adresa u caktua nga ftesa për {{organization}}. Zgjidh vetëm emrin dhe fjalëkalimin.",
+  "join.passwordSubmit": "Krijo llogarinë",
+  "join.passwordFailed": "Llogaria nuk u krijua. Provo përsëri.",
+  "onboarding.signOut": "Dil nga llogaria",
+  "onboarding.signOutFailed": "Dalja nuk u krye. Provo përsëri."
 }

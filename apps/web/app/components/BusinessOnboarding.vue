@@ -1,9 +1,36 @@
 <script setup lang="ts">
 import { monthlyPlannerPath } from '~/utils/creation-route'
+import { authClient } from '~/utils/auth-client'
+import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 
-const { data, base, context, applyBusiness, commit, syncing } = useWorkspace()
+const { data, base, context, ready, applyBusiness, commit, syncing } = useWorkspace()
 const { setLocale, t } = useI18n()
 const step = ref(context.value ? Math.min(data.value.onboarding, 2) : 0)
+// The workspace only exists once the business row does. An invited client
+// arrives with one, so the logo is asked for on the first step; a self-service
+// signup creates its business when leaving that step, so for them the logo
+// stays where it was, right after.
+const hadWorkspace = Boolean(context.value)
+
+// Onboarding is the one signed-in screen with no way out. Somebody who opened
+// the wrong account, or whose workspace is gone, would otherwise be stuck here
+// through every reload.
+const leaving = ref(false)
+async function signOut() {
+  if (leaving.value) return
+  leaving.value = true
+  const result = await authClient.signOut()
+  if (result.error) {
+    error.value = t('onboarding.signOutFailed')
+    leaving.value = false
+    return
+  }
+  ready.value = false
+  context.value = null
+  clearNuxtData()
+  data.value = emptyWorkspace()
+  await navigateTo('/login')
+}
 const busy = ref(false)
 const error = ref('')
 const { onFormError, watchError } = useFormFeedback()
@@ -189,7 +216,19 @@ async function finishLater() {
 <template>
   <div class="space-y-6">
     <div>
-      <UBadge color="neutral" variant="outline">{{ t('onboarding.welcome') }}</UBadge>
+      <div class="flex items-start justify-between gap-3">
+        <UBadge color="neutral" variant="outline">{{ t('onboarding.welcome') }}</UBadge>
+        <UButton
+          type="button"
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-log-out"
+          :loading="leaving"
+          @click="signOut"
+          >{{ t('onboarding.signOut') }}</UButton
+        >
+      </div>
       <h1 class="mt-4">
         {{
           [
@@ -215,6 +254,7 @@ async function finishLater() {
     <span role="status" class="sr-only">{{ t('onboarding.stepStatus', { step: step + 1 }) }}: {{ steps[step] }}</span>
     <UForm :state="form" class="space-y-5" @submit="next" @error="onFormError">
       <template v-if="step === 0">
+        <LogoUpload v-if="hadWorkspace" />
         <UFormField :label="t('onboarding.businessName')" name="name" required
           ><UInput
             v-model="form.name"
@@ -326,7 +366,7 @@ async function finishLater() {
         </UFormField>
       </template>
       <template v-else-if="step === 1">
-        <LogoUpload />
+        <LogoUpload v-if="!hadWorkspace" />
         <SocialConnections compact />
         <UFormField :label="t('onboarding.networkProfileInstagram')" name="instagramUrl"
           ><UInput

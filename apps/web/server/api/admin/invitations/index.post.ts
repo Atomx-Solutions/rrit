@@ -1,0 +1,21 @@
+import {
+  createOrganizationInvitation,
+  invitationCreateSchema,
+} from '../../../utils/organization-invitations'
+
+// Opens an organization for a client who has no account yet. The superadmin can
+// attach the agreed package to it before the invitation is ever accepted.
+export default defineEventHandler(async (event) => {
+  requireSameOrigin(event)
+  const actor = await requireUser(event)
+  const values = invitationCreateSchema.safeParse(await boundedBody(event, 4096))
+  if (!values.success)
+    throw createError({
+      statusCode: 400,
+      message: 'Të dhënat e ftesës nuk janë të vlefshme.',
+      data: { code: 'INVITATION_INVALID' },
+    })
+  setHeader(event, 'Cache-Control', 'private, no-store')
+  setResponseStatus(event, 201)
+  return createOrganizationInvitation({ id: actor.id, email: actor.email }, values.data)
+})

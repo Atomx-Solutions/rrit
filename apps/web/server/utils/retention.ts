@@ -20,6 +20,26 @@ export async function retentionPolicy(db: Pool | PoolClient = database()) {
   return policy.data
 }
 
+// An invitation that was never accepted stops working at its expiry; closing it
+// keeps the superadmin list from offering a link the database would refuse.
+async function expireOrganizationInvitations(client: PoolClient) {
+  const result = await client.query<{ closed: number }>(
+    'SELECT public.expire_organization_invitations() AS closed',
+  )
+  return result.rows[0]?.closed || 0
+}
+
+// An organization opened for an invitation that was never accepted has no
+// member, no business and no package. Left alone it would accumulate in every
+// superadmin list, so it is removed once its invitation has been closed for a
+// while and nothing was ever attached to it.
+async function removeAbandonedInvitedOrganizations(client: PoolClient) {
+  const result = await client.query<{ removed: number }>(
+    'SELECT public.remove_abandoned_invited_organizations() AS removed',
+  )
+  return result.rows[0]?.removed || 0
+}
+
 export async function runRetentionBatch(db: Pool = database()) {
   const client = await db.connect()
   try {
@@ -69,6 +89,8 @@ export async function runRetentionBatch(db: Pool = database()) {
       removed[keys[index]!] = result.rowCount || 0
     }
     removed.expiredCustomPackages = await expireCustomPackages(client)
+    removed.expiredInvitations = await expireOrganizationInvitations(client)
+    removed.abandonedOrganizations = await removeAbandonedInvitedOrganizations(client)
     await client.query(
       "UPDATE maintenance_runs SET last_completed_at=now(),result=$1,failure=NULL WHERE name='retention'",
       [JSON.stringify(removed)],
