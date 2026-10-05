@@ -26,7 +26,7 @@ describe('entitlement fail-safe behavior', () => {
         }
         if (sql.includes('FROM entitlements')) return { rows: [] }
         if (sql.includes('FROM custom_packages')) return { rows: [] }
-        if (sql.includes('FROM subscriptions')) return { rows: [] }
+        if (sql.includes('FROM plans')) return { rows: [{ posts_per_month: 3 }] }
         if (sql.includes('FROM app_settings')) {
           return {
             rows: [

@@ -19,7 +19,6 @@ function claimClient(pageAlreadyUsed: boolean) {
     if (sql.startsWith('SELECT business_id FROM trial_claims'))
       return { rows: [{ business_id: trialOwner }] }
     if (sql.includes('UPDATE trial_grants')) return { rows: [{ business_id: newBusiness }], rowCount: 1 }
-    if (sql.includes('UPDATE subscriptions')) return { rows: [{ id: 'trial-subscription' }] }
     if (sql.includes('FROM credit_balances') || sql.startsWith('UPDATE credit_balances'))
       return {
         rows: [
@@ -38,14 +37,13 @@ function claimClient(pageAlreadyUsed: boolean) {
 }
 
 describe('trial abuse protection', () => {
-  it('revokes the trial, its subscription and its credits when the Meta page already used a trial', async () => {
+  it('revokes the trial and its credits when the Meta page already used a trial', async () => {
     const client = claimClient(true)
     await claimSocialTrialIdentities(client as never, newBusiness, [
       { kind: 'facebook_page', value: '113047871855212' },
     ])
     const statements = client.query.mock.calls.map(([sql]) => String(sql))
     expect(statements.some((sql) => sql.includes("SET status = 'revoked'"))).toBe(true)
-    expect(statements.some((sql) => sql.includes("SET status='cancelled'"))).toBe(true)
     expect(
       client.query.mock.calls.some(
         ([sql, values]) =>
