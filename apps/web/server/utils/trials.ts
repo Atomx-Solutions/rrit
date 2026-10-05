@@ -88,21 +88,13 @@ export async function grantTrial(
   // starts once the organization aggregate exists.
   const organization = await client.query('SELECT id FROM organizations WHERE id=$1', [businessId])
   if (!organization.rowCount) return
-  const subscription = await client.query<{ id: string; monthly_credits: number }>(
-    `INSERT INTO subscriptions
-      (organization_id,plan_code,billing_interval,status,current_period_start,current_period_end)
-     SELECT $1,code,'monthly','trialing',$2,$3
-       FROM plans
-      WHERE code='free-trial' AND active=true
-     ON CONFLICT DO NOTHING
-     RETURNING id,(SELECT monthly_credits FROM plans WHERE code='free-trial') AS monthly_credits`,
-    [businessId, granted.starts_at, granted.expires_at],
-  )
-  if (!subscription.rows[0]?.id) return
+  const monthlyCredits = Number(policy.limits.posts_per_month) * 80
   await grantMonthlyCredits(client, {
     organizationId: businessId,
-    subscriptionId: subscription.rows[0].id,
-    monthlyCredits: Number(subscription.rows[0].monthly_credits),
+    // credit_ledger.subscription_id is retained for historical compatibility;
+    // dynamic packages and trials use the organization as the grant owner.
+    subscriptionId: businessId,
+    monthlyCredits,
     periodStart: granted.starts_at,
     periodEnd: granted.expires_at,
   })
@@ -144,17 +136,11 @@ export async function claimSocialTrialIdentities(
     [businessId],
   )
   if (!revoked.rowCount) return
-  const trialSubscription = await client.query<{ id: string }>(
-    "UPDATE subscriptions SET status='cancelled',updated_at=now() WHERE organization_id=$1 AND status='trialing' RETURNING id",
-    [businessId],
-  )
-  const subscriptionId = trialSubscription.rows[0]?.id
-  if (subscriptionId)
-    await expireRemainingCredits(client, {
-      organizationId: businessId,
-      subscriptionId,
-      idempotencyKey: `trial-revoked:${subscriptionId}`,
-    })
+  await expireRemainingCredits(client, {
+    organizationId: businessId,
+    subscriptionId: businessId,
+    idempotencyKey: `trial-revoked:${businessId}`,
+  })
 }
 export interface TrialStatus {
   state: string
@@ -235,39 +221,6 @@ async function customPackageAccess(
   }
 }
 
-async function subscriptionAccess(
-  businessId: string,
-  coversFrom: Date,
-  coversUntil: Date,
-  db: Pool | PoolClient,
-): Promise<PlanningAccess | null> {
-  const result = await db.query<{
-    name: string
-    posts_per_month: number
-    current_period_end: Date
-  }>(
-    `SELECT plan.name,plan.posts_per_month,subscription.current_period_end
-       FROM subscriptions subscription
-       JOIN plans plan ON plan.code=subscription.plan_code
-      WHERE subscription.organization_id=$1
-        AND subscription.status IN ('active','past_due')
-        AND subscription.current_period_start<=$2
-        AND subscription.current_period_end>=$3
-      ORDER BY subscription.current_period_end DESC LIMIT 1`,
-    [businessId, coversFrom, coversUntil],
-  )
-  const row = result.rows[0]
-  if (!row) return null
-  const policy = await trialPolicy(db)
-  return {
-    paid: true,
-    features: [...entitlementFeatureSchema.options],
-    limits: { ...policy.limits, posts_per_month: Number(row.posts_per_month) },
-    plan: { name: row.name, version: 1 },
-    expiresAt: new Date(row.current_period_end).toISOString(),
-  }
-}
-
 // Future calendars use the entitlement that covers that complete billing
 // month, rather than today's trial/package. This prevents drafts beyond an
 // expiry date and snapshots the limits that actually govern the target month.
@@ -284,8 +237,6 @@ export async function paidAccessForPlanningMonth(
   // receives its exact quota window and rejects slots outside it.
   const custom = await customPackageAccess(businessId, start, end, db, true)
   if (custom) return custom
-  const subscription = await subscriptionAccess(businessId, start, end, db)
-  if (subscription) return subscription
   const paid = await db.query<PaidEntitlementRow>(
     `SELECT features,limits,plan_name,plan_version,valid_until
        FROM entitlements
@@ -322,29 +273,12 @@ export async function trialStatus(
   const now = new Date()
   const paidAccess =
     (await customPackageAccess(businessId, now, now, db))
-    || (await subscriptionAccess(businessId, now, now, db))
     || paidEntitlementAccess(paid.rows[0])
   // A trial follows its package allowance (Free Trial: 3 posts), not the
   // legacy app_settings limit.
-  const trialPlan = paidAccess
-    ? undefined
-    : (
-        await db.query<{ posts_per_month: number }>(
-          `SELECT plan.posts_per_month
-             FROM subscriptions subscription
-             JOIN plans plan ON plan.code=subscription.plan_code
-            WHERE subscription.organization_id=$1
-              AND subscription.status='trialing'
-              AND subscription.current_period_end>now()
-            LIMIT 1`,
-          [businessId],
-        )
-      ).rows[0]
   // Without an active trial or a paid package the account has no monthly
   // allowance — the legacy app_settings fallback (12) is misleading.
-  const trialLimits = trialPlan
-    ? { ...policy.limits, posts_per_month: Number(trialPlan.posts_per_month) }
-    : { ...policy.limits, posts_per_month: state === 'active' ? policy.limits.posts_per_month : 0 }
+  const trialLimits = { ...policy.limits, posts_per_month: state === 'active' ? policy.limits.posts_per_month : 0 }
   return {
     state,
     startsAt: row?.starts_at?.toISOString() || null,
@@ -415,7 +349,7 @@ export async function recordTrialPostUsage(
   if (!Number.isInteger(increment) || increment < 1)
     throw new Error('Trial post usage increment must be a positive integer.')
   const result = await db.query<{ posts_used: number }>(
-    "UPDATE trial_grants SET posts_used=posts_used+$2 WHERE business_id=$1 AND status='granted' AND NOT EXISTS (SELECT 1 FROM subscriptions WHERE organization_id=$1 AND status IN ('active','past_due')) RETURNING posts_used",
+    "UPDATE trial_grants SET posts_used=posts_used+$2 WHERE business_id=$1 AND status='granted' AND NOT EXISTS (SELECT 1 FROM custom_packages WHERE organization_id=$1 AND status='active' AND starts_at<=now() AND ends_at>now()) RETURNING posts_used",
     [businessId, increment],
   )
   return Number(result.rows[0]?.posts_used || 0)

@@ -27,7 +27,6 @@ watch(usageError, (value) => {
 
 const customPackage = computed(() => billing.value?.customPackage || null)
 const packageProposal = computed(() => billing.value?.packageProposal || null)
-const subscription = computed(() => billing.value?.subscription || null)
 const postsUsage = computed(() => usage.value?.usage.find(item => item.key === 'posts_per_month'))
 const creditPrice = computed(() => billing.value?.creditPrice || 0)
 // Credits are bought for the package that is running, so the offer only makes
@@ -187,11 +186,8 @@ async function declineProposal() {
     <UCard v-else :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
       <UIcon name="i-lucide-credit-card" class="size-5 shrink-0 text-muted mt-0.5" />
       <div class="space-y-1">
-        <h2 class="text-sm font-semibold">{{ t('billing.serviceActive') }}</h2>
-        <p v-if="subscription" class="text-sm font-medium">{{ t('billing.currentPlan', { plan: subscription.planCode }) }}</p>
-        <p v-if="subscription" class="text-xs text-muted">
-          {{ t('billing.validUntil', { date: formatPeriodDate(subscription.periodEnd), interval: subscription.interval === 'annual' ? t('billing.annual').toLowerCase() : t('billing.monthly').toLowerCase() }) }}
-        </p>
+        <h2 class="text-sm font-semibold">{{ t('workspace.serviceInactive') }}</h2>
+        <p class="text-sm text-muted">{{ t('billing.customPackageContact') }}</p>
       </div>
     </UCard>
 

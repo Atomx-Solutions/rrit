@@ -68,16 +68,18 @@ export async function creditsForCost(client: Pick<PoolClient, 'query'>, costMicr
 }
 /**
  * What the low-credit reminder needs: the configured threshold and whether the
- * organization has a package that can buy top-ups (the same subscriptions the
- * top-up endpoint accepts), or must choose a package first.
+ * organization has an active dynamic package that can buy top-ups, or must
+ * choose a package first.
  */
 export async function lowCreditStatus(client: Pick<PoolClient, 'query'>, organizationId: string) {
   const result = await client.query<{ low_credit_threshold: number; has_active_package: boolean }>(
     `SELECT p.low_credit_threshold,
             EXISTS (
-              SELECT 1 FROM subscriptions s
-               WHERE s.organization_id=$1 AND s.status IN ('trialing','active','past_due')
-                 AND s.current_period_end > now()
+              SELECT 1 FROM custom_packages package
+               WHERE package.organization_id=$1
+                 AND package.status='active'
+                 AND package.starts_at <= now()
+                 AND package.ends_at > now()
             ) AS has_active_package
        FROM credit_pricing p WHERE p.singleton=true`,
     [organizationId],
