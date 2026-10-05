@@ -36,6 +36,7 @@ const schema = z
     path: ['confirm'],
   })
 const busy = ref(false)
+const googleBusy = ref(false)
 const error = ref('')
 const success = ref('')
 const showPassword = ref(false)
@@ -219,9 +220,9 @@ async function submit() {
 }
 
 async function continueWithGoogle() {
-  if (busy.value || !available.value) return
+  if (busy.value || googleBusy.value || !available.value) return
   error.value = ''
-  busy.value = true
+  googleBusy.value = true
   try {
     const result = await authClient.signIn.google({
       // Supabase creates a new account for a first-time Google identity. Existing
@@ -232,7 +233,7 @@ async function continueWithGoogle() {
   } catch (caught) {
     error.value = errorText({ message: caught instanceof Error ? caught.message : '' })
   } finally {
-    busy.value = false
+    googleBusy.value = false
   }
 }
 </script>
@@ -343,8 +344,9 @@ async function continueWithGoogle() {
     </div>
     <UButton
       v-if="['login', 'signup'].includes(mode)"
-      :disabled="!hydrated || !available"
-      :loading="busy"
+      type="button"
+      :disabled="!hydrated || !available || busy"
+      :loading="googleBusy"
       block
       size="lg"
       color="neutral"
