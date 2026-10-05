@@ -1648,6 +1648,8 @@
   "request.estimatePerPost": "{{price}} per post",
   "request.estimateCaveat": "Calculated at the current price. The team confirms the final price in the offer.",
   "landing.tryThreePostsFree": "Try 3 posts free",
+  "landing.tryPostsFree": "Try {{count}} posts free",
+  "landing.tryFreeTrial": "Try free",
   "landing.offerByPostVolume": "Your offer is based on the number of posts you need each month.",
   "landing.heroDescription": "You have a business to run. Give your posts less of your day.",
   "landing.heroDetail": "Prepare, approve and schedule for Facebook and Instagram. In one place. In Albanian.",

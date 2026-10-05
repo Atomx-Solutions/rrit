@@ -1648,6 +1648,8 @@
   "request.estimatePerPost": "{{price}} për postim",
   "request.estimateCaveat": "Kjo është llogaritje me çmimin aktual. Çmimin përfundimtar e konfirmon ekipi në ofertë.",
   "landing.tryThreePostsFree": "Provo 3 postime falas",
+  "landing.tryPostsFree": "Provo {{count}} postime falas",
+  "landing.tryFreeTrial": "Provoje falas",
   "landing.offerByPostVolume": "Oferta përcaktohet sipas numrit të postimeve që të duhen çdo muaj.",
   "landing.heroDescription": "Ti ke biznesin për të mbajtur. Jepu postimeve më pak nga dita jote.",
   "landing.heroDetail": "Përgatit, mirato dhe planifiko për Facebook e Instagram. Në një vend. Në shqip.",

@@ -117,7 +117,7 @@ describe('trial post allowance', () => {
             },
           ],
         }
-      if (sql.includes("status='trialing'")) return { rows: [{ posts_per_month: 3 }] }
+      if (sql.includes('FROM plans')) return { rows: [{ posts_per_month: 3 }] }
       return { rows: [] }
     })
 

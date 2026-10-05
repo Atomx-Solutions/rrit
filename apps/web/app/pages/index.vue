@@ -6,7 +6,13 @@ const landingRoot = ref<HTMLElement>()
 useLandingMotion(landingRoot)
 const { t } = useI18n()
 const { capabilities } = useLandingOffer()
-const { to: trialCtaPath, labelKey: trialCtaLabelKey } = publicTrialCta
+const { to: trialCtaPath } = publicTrialCta
+const trialCtaLabel = computed(() => {
+  const posts = capabilities.value?.trialPosts
+  return posts && posts > 0
+    ? t('landing.tryPostsFree', { count: posts })
+    : t('landing.tryFreeTrial')
+})
 useSeoMeta({
   title: t('landing.seoTitle'),
   description: t('landing.seoDescription'),
@@ -52,7 +58,7 @@ const questions = computed(() => [
               size="xl"
               trailing-icon="i-lucide-arrow-up-right"
               class="landing-primary-button"
-              >{{ t(trialCtaLabelKey) }}</UButton
+              >{{ trialCtaLabel }}</UButton
             >
             <UButton to="#perse" variant="link" color="neutral" size="lg">{{ t('landing.seeHowItWorks') }}</UButton>
           </div>
@@ -99,7 +105,7 @@ const questions = computed(() => [
             size="lg"
             trailing-icon="i-lucide-arrow-up-right"
             class="landing-primary-button"
-          >{{ t(trialCtaLabelKey) }}</UButton>
+          >{{ trialCtaLabel }}</UButton>
         </div>
       </UContainer>
     </section>
@@ -165,7 +171,7 @@ const questions = computed(() => [
             variant="link"
             class="landing-final-action"
           >
-            {{ t(trialCtaLabelKey) }}
+            {{ trialCtaLabel }}
             <template #trailing>
               <span class="landing-final-arrow" aria-hidden="true">
                 <UIcon name="i-lucide-arrow-up-right" />
