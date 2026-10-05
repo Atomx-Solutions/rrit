@@ -68,6 +68,20 @@ const moneyBars = computed(() => {
   const largest = Math.max(1, ...bars.map(bar => bar.cents))
   return bars.map(bar => ({ ...bar, value: euro.format(bar.cents / 100), percent: Math.round((Math.max(0, bar.cents) / largest) * 100) }))
 })
+const revenueSplit = computed(() => {
+  const overview = data.value
+  if (!overview) return { packageCents: 0, creditCents: 0, total: 0, packagePercent: 0, creditPercent: 0 }
+  const packageCents = overview.sales.plans_this_month_cents
+  const creditCents = overview.sales.credits_this_month_cents
+  const total = Math.max(0, packageCents + creditCents)
+  return {
+    packageCents,
+    creditCents,
+    total,
+    packagePercent: total ? Math.round((packageCents / total) * 100) : 0,
+    creditPercent: total ? Math.round((creditCents / total) * 100) : 0,
+  }
+})
 
 const columns = computed<TableColumn<NewOrganization>[]>(() => [
   { accessorKey: 'name', header: t('admin.overview.name') },
@@ -92,6 +106,7 @@ function onSelect(_event: Event, row: TableRow<NewOrganization>) {
 
 <template>
   <AdminPage :title="t('admin.nav.overview')">
+    <div class="space-y-4 p-4 sm:space-y-5 sm:p-6 lg:p-8">
     <!-- Red below the critical amount, amber while getting close. -->
       <UAlert
         v-if="balance && balance.level !== 'ok'"
@@ -139,13 +154,35 @@ function onSelect(_event: Event, row: TableRow<NewOrganization>) {
         <template #header>
           <UUser :name="t('admin.overview.salesTitle')" />
         </template>
-        <UFieldGroup v-for="bar in moneyBars" :key="bar.label" orientation="vertical" class="w-full gap-1.5">
-          <UFieldGroup class="flex w-full items-center justify-between gap-3">
-            <UUser :name="bar.label" :avatar="{ icon: bar.icon, size: 'xs' }" :ui="{ name: 'text-sm truncate' }" />
-            <UBadge color="neutral" variant="soft" class="tabular-nums" :label="bar.value" />
-          </UFieldGroup>
-          <UProgress :model-value="bar.percent" :color="bar.color" size="md" :aria-label="`${bar.label}: ${bar.value}`" />
-        </UFieldGroup>
+        <div class="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+          <div class="relative size-36 shrink-0" role="img" :aria-label="`${t('admin.overview.salesPlans')}: ${euro.format(revenueSplit.packageCents / 100)}; ${t('admin.overview.salesCredits')}: ${euro.format(revenueSplit.creditCents / 100)}`">
+            <svg viewBox="0 0 120 120" class="size-full -rotate-90" aria-hidden="true">
+              <circle cx="60" cy="60" r="46" fill="none" class="stroke-default" stroke-width="14" />
+              <circle cx="60" cy="60" r="46" fill="none" class="stroke-primary" stroke-width="14" pathLength="100" :stroke-dasharray="`${revenueSplit.packagePercent} ${100 - revenueSplit.packagePercent}`" />
+              <circle cx="60" cy="60" r="46" fill="none" class="stroke-info" stroke-width="14" pathLength="100" :stroke-dasharray="`${revenueSplit.creditPercent} ${100 - revenueSplit.creditPercent}`" :stroke-dashoffset="-revenueSplit.packagePercent" />
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span class="text-lg font-semibold tabular-nums">{{ euro.format(revenueSplit.total / 100) }}</span>
+              <span class="text-xs text-muted">{{ t('admin.overview.thisMonth') }}</span>
+            </div>
+          </div>
+          <div class="min-w-0 flex-1 space-y-3">
+            <div
+              v-for="item in [
+                { label: t('admin.overview.salesPlans'), value: revenueSplit.packageCents, percent: revenueSplit.packagePercent, color: 'primary' },
+                { label: t('admin.overview.salesCredits'), value: revenueSplit.creditCents, percent: revenueSplit.creditPercent, color: 'info' },
+              ]"
+              :key="item.label"
+              class="flex items-center justify-between gap-3"
+            >
+              <div class="flex min-w-0 items-center gap-2">
+                <span class="size-2.5 shrink-0 rounded-full" :class="item.color === 'primary' ? 'bg-primary' : 'bg-info'" />
+                <span class="truncate text-sm">{{ item.label }}</span>
+              </div>
+              <span class="shrink-0 text-sm tabular-nums">{{ euro.format(item.value / 100) }} · {{ item.percent }}%</span>
+            </div>
+          </div>
+        </div>
       </UCard>
 
       <UCard :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-0 sm:p-0' }">
@@ -177,5 +214,6 @@ function onSelect(_event: Event, row: TableRow<NewOrganization>) {
       </UCard>
       </UPageGrid>
 
+    </div>
   </AdminPage>
 </template>

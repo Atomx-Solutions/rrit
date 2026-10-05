@@ -90,12 +90,13 @@ export async function adminOverview() {
   } catch {
     // Without a configured key no call can be attributed to the platform.
   }
-  const [kpis, sales, aiCosts] = await Promise.all([
+  const [kpis, sales, aiCosts, customPackages] = await Promise.all([
     adminServiceClient().rpc('admin_overview_kpis'),
     adminServiceClient().rpc('admin_revenue_by_source'),
     adminAiCosts(adminAiCostsRange({})!, keyFingerprint),
+    adminServiceClient().from('custom_packages').select('price_cents, status, starts_at, ends_at, created_at'),
   ])
-  const failed = kpis.error || sales.error
+  const failed = kpis.error || sales.error || customPackages.error
   if (failed) {
     console.error('Admin overview query failed.', { code: failed.code, message: failed.message })
     throw createError({ statusCode: 502, message: 'Statistikat administrative nuk u ngarkuan.' })
@@ -107,16 +108,25 @@ export async function adminOverview() {
   // provider charged. Credits included in plans are paid for by the plan price,
   // so valuing them at the credit price would count money never collected.
   const creditSalesCents = number(record(sales.data).credits_this_month_cents)
+  const packageRows = customPackages.data ?? []
+  const now = Date.now()
+  const inForce = packageRows.filter((pkg) => pkg.status === 'active'
+    && new Date(pkg.starts_at).getTime() <= now
+    && new Date(pkg.ends_at).getTime() > now)
+  const packageMrrCents = inForce.reduce((sum, pkg) => sum + number(pkg.price_cents), 0)
+  const packageRevenueTotalCents = number(record(sales.data).plans_total_cents)
+  const packageRevenueMonthCents = number(record(sales.data).plans_this_month_cents)
+  const creditRevenueTotalCents = number(record(sales.data).credits_total_cents)
+  const creditRevenueMonthCents = number(record(sales.data).credits_this_month_cents)
   // Every revenue figure here is net of VAT: VAT is collected for the state,
   // not earned. Monthly revenue is what was invoiced this month (an annual plan
   // counts in full in its purchase month), net of credit notes.
-  const monthSalesCents = number(record(sales.data).plans_this_month_cents) + number(record(sales.data).credits_this_month_cents)
-  const totalSalesCents = number(record(sales.data).plans_total_cents) + number(record(sales.data).credits_total_cents)
   return normalizeAdminOverview({
     ...overview,
-    subscriptions: { ...record(overview.subscriptions), mrr_cents: monthSalesCents },
-    revenue: { ...record(overview.revenue), total_cents: totalSalesCents, this_month_cents: monthSalesCents },
-    sales: sales.data,
+    organizations: { ...record(overview.organizations), active: inForce.length },
+    subscriptions: { ...record(overview.subscriptions), active: inForce.length, mrr_cents: packageMrrCents },
+    revenue: { ...record(overview.revenue), total_cents: packageRevenueTotalCents + creditRevenueTotalCents, this_month_cents: packageRevenueMonthCents + creditRevenueMonthCents },
+    sales: { ...record(sales.data), plans_total_cents: packageRevenueTotalCents, plans_this_month_cents: packageRevenueMonthCents },
     ai: {
       ...record(overview.ai),
       cost_micro_eur_this_month: costMicroEur,

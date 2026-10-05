@@ -56,7 +56,7 @@ export async function changeAdminSubscription(input: {
 export const adminSubscriptionsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(100).optional(),
-  status: z.enum(['trialing', 'active', 'paused', 'past_due', 'cancelled', 'expired']).optional(),
+  status: z.enum(['active', 'draft', 'cancelled', 'expired']).optional(),
   plan: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/).optional(),
   expiring_days: z.coerce.number().int().min(1).max(365).optional(),
 })
@@ -95,16 +95,59 @@ export function normalizeAdminSubscriptions(value: unknown, query: AdminSubscrip
 }
 
 export async function adminListSubscriptions(query: AdminSubscriptionsQuery) {
-  const { data, error } = await adminServiceClient().rpc('admin_list_subscriptions', {
-    p_page: query.page ?? 1,
-    p_per_page: query.per_page ?? 50,
-    p_status: query.status ?? null,
-    p_plan: query.plan ?? null,
-    p_expiring_days: query.expiring_days ?? null,
-  })
+  // This admin page is the custom-package ledger. It must not read
+  // `subscriptions`, invoices, or credit top-ups: those are separate billing
+  // concerns and are intentionally not rows in this list.
+  const { data: packages, error } = await adminServiceClient()
+    .from('custom_packages')
+    .select('id, organization_id, name, price_cents, starts_at, ends_at, status, organizations!inner(name)', { count: 'exact' })
+    .order('ends_at', { ascending: true })
+
   if (error) {
     console.error('Admin subscriptions query failed.', { code: error.code, message: error.message })
     throw createError({ statusCode: 502, message: 'Abonimet nuk u ngarkuan.' })
   }
-  return normalizeAdminSubscriptions(data, query)
+
+  const now = Date.now()
+  const rows = (packages ?? []).map((item) => {
+    const startsAt = new Date(item.starts_at).getTime()
+    const endsAt = new Date(item.ends_at).getTime()
+    const status = item.status === 'active' && startsAt <= now && endsAt > now
+      ? 'active'
+      : item.status === 'active' ? 'expired' : item.status
+    const organization = Array.isArray(item.organizations) ? item.organizations[0] : item.organizations
+    return {
+      id: item.id,
+      organization_id: item.organization_id,
+      organization_name: organization?.name || item.organization_id,
+      plan_code: 'custom_package',
+      plan_name: item.name,
+      billing_interval: 'monthly' as const,
+      status,
+      current_period_start: item.starts_at,
+      current_period_end: item.ends_at,
+      price_cents: item.price_cents,
+      cancel_at_period_end: false,
+      paused_at: null,
+      paused_by: null,
+      days_until_expiry: Math.max(0, Math.ceil((endsAt - now) / 86400000)),
+    }
+  }).filter((item) => {
+    if (query.status && item.status !== query.status) return false
+    if (query.expiring_days) {
+      const end = new Date(item.current_period_end).getTime()
+      if (end < now || end >= now + query.expiring_days * 86400000) return false
+    }
+    return true
+  })
+
+  const page = query.page ?? 1
+  const perPage = query.per_page ?? 50
+  const start = (page - 1) * perPage
+  return normalizeAdminSubscriptions({
+    items: rows.slice(start, start + perPage),
+    total: rows.length,
+    page,
+    per_page: perPage,
+  }, query)
 }
