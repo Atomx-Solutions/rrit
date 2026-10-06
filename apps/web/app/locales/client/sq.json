@@ -1279,7 +1279,7 @@
   "tiktok.videoPrepared": "Videoja TikTok është gati për gjenerim.", "tiktok.videoReady": "Videoja TikTok është gati për shikim.", "tiktok.videoFailed": "Videoja TikTok nuk u gjenerua.",
   "tiktok.videoSourceHint": "Përdoret vetëm fotografia origjinale e ngarkuar. Logoja jote shtohet veçmas kur është në dispozicion.", "tiktok.videoReadyHint": "Videoja është gati. Kontrolloje para se ta dërgosh në TikTok.",
   "tiktok.previewTitle": "Parapamja e videos TikTok", "tiktok.previewDescription": "1080 × 1920, 30 fps. Muzika zgjidhet në TikTok.",
-  "tiktok.includeVideos": "Gjenero video për TikTok", "tiktok.includeVideosHint": "Përgatit nga një video për secilin postim pasi draftet të jenë gati.",
+  "tiktok.includeVideos": "Gjenero video për TikTok", "tiktok.includeVideosHint": "Një video për çdo postim.",
   "tiktok.videoQuantity": "Numri i videove TikTok",
   "admin.plans.tiktokVideoCredits": "Kreditë për video TikTok", "admin.plans.tiktokVideoCreditsHelp": "Kreditë që merren nga wallet-i i biznesit për çdo video TikTok të gjeneruar.",
   "social.statusLoadError": "Gjendja e lidhjes nuk u ngarkua.",

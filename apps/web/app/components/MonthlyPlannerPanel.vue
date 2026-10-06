@@ -70,8 +70,7 @@ const phases = [
 
 const plan = computed(() => planner.value?.plan)
 const selectedQuantity = ref(1)
-const includeTikTokVideos = ref(false)
-const selectedVideoQuantity = ref(1)
+const selectedVideoQuantity = ref(0)
 // Which platforms this request is for. Both selected is the absence of a
 // restriction, which is how the planner behaved before the choice existed.
 type PlannerChannel = 'Instagram' | 'Facebook'
@@ -272,7 +271,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
         action,
         month: props.month,
         ...(action === 'generate'
-          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), includeTikTokVideos: includeTikTokVideos.value, videoQuantity: includeTikTokVideos.value ? selectedVideoQuantity.value : 0 }
+          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), includeTikTokVideos: selectedVideoQuantity.value > 0, videoQuantity: selectedVideoQuantity.value }
           : {}),
         ...(action === 'prepare'
           ? {
@@ -280,8 +279,8 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
               quantity: selectedQuantity.value,
               channelCounts: requestedChannelCounts(),
-              includeTikTokVideos: includeTikTokVideos.value,
-              videoQuantity: includeTikTokVideos.value ? selectedVideoQuantity.value : 0,
+              includeTikTokVideos: selectedVideoQuantity.value > 0,
+              videoQuantity: selectedVideoQuantity.value,
             }
           : {}),
       },
@@ -1017,15 +1016,15 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
             <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="w-24 shrink-0" />
           </div>
-          <div class="flex min-w-0 items-start gap-3 rounded-xl border border-default bg-default px-4 py-3">
-            <UIcon name="i-lucide-clapperboard" class="mt-0.5 size-5 shrink-0 text-primary" />
+          <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
+            <UIcon name="i-lucide-clapperboard" class="size-5 shrink-0 text-primary" />
             <div class="min-w-0 flex-1">
-              <UCheckbox v-model="includeTikTokVideos" :label="t('tiktok.includeVideos')" :description="t('tiktok.includeVideosHint')" />
+              <p class="text-sm font-medium text-highlighted">{{ t('tiktok.includeVideos') }}</p>
+              <p class="truncate text-xs text-muted">{{ t('tiktok.includeVideosHint') }}</p>
             </div>
             <UInputNumber
-              v-if="includeTikTokVideos"
               v-model="selectedVideoQuantity"
-              :min="1"
+              :min="0"
               :max="selectedQuantity"
               class="w-24 shrink-0"
               :aria-label="t('tiktok.videoQuantity')"

@@ -1279,7 +1279,7 @@
   "tiktok.videoPrepared": "The TikTok video is ready to generate.", "tiktok.videoReady": "The TikTok video is ready for preview.", "tiktok.videoFailed": "The TikTok video could not be generated.",
   "tiktok.videoSourceHint": "Only the original uploaded photo is used. Your logo is added separately when available.", "tiktok.videoReadyHint": "Video is ready. Review it before sending it to TikTok.",
   "tiktok.previewTitle": "TikTok video preview", "tiktok.previewDescription": "1080 × 1920, 30 fps. Music is selected in TikTok.",
-  "tiktok.includeVideos": "Generate TikTok videos", "tiktok.includeVideosHint": "Prepare one video for each selected post after the drafts are ready.",
+  "tiktok.includeVideos": "Generate TikTok videos", "tiktok.includeVideosHint": "One video per selected post.",
   "tiktok.videoQuantity": "Number of TikTok videos",
   "admin.plans.tiktokVideoCredits": "TikTok video credits", "admin.plans.tiktokVideoCreditsHelp": "Credits charged from the business wallet for each generated TikTok video.",
   "social.statusLoadError": "Connection status could not be loaded.",
