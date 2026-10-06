@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { z } from 'zod'
 import { factInputProblem, type BrandFact } from '~~/shared/schemas/business-brain'
-import { eventResearchCategoryKeys } from '~~/shared/schemas/workspace'
+import { eventResearchCategoryKeys, videoDeliverablesDefault } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base, syncing, commit, notify } = useWorkspace()
 const { t } = useI18n()
@@ -11,6 +11,9 @@ const { form, clear, recovered, localError } = useDraft(
   structuredClone(toRaw(data.value.brand)),
 )
 const eventCategories = eventResearchCategoryKeys
+// A draft saved before this permission existed has no value for it, so the
+// recovered form is brought up to the current brand shape before it is bound.
+if (!form.videoDeliverables) form.videoDeliverables = { ...videoDeliverablesDefault }
 const baseline = ref(JSON.stringify(form))
 const saved = ref(false)
 const formError = ref('')
@@ -419,6 +422,33 @@ function setPrice(fact: BrandFact, value: string | number) {
                     :description="t(`brand.eventCategoryHint.${category}`)"
                   />
                 </div>
+              </div>
+            </template>
+          </UAccordion>
+          <UAccordion :items="[{ label: t('brand.videoDeliverables'), slot: 'videos' }]">
+            <template #videos>
+              <div class="space-y-3 pb-4">
+                <p class="text-sm text-muted leading-relaxed">
+                  {{ t('brand.videoDeliverablesDescription') }}
+                </p>
+                <UCheckbox
+                  v-model="form.videoDeliverables.enabled"
+                  :label="t('brand.videoDeliverablesEnabled')"
+                  :description="t('brand.videoDeliverablesEnabledHint')"
+                />
+                <UFormField
+                  class="ps-6"
+                  :label="t('brand.videoShare')"
+                  :description="t('brand.videoShareHint')"
+                >
+                  <UInput
+                    v-model.number="form.videoDeliverables.maxSharePercent"
+                    type="number"
+                    min="1"
+                    max="100"
+                    :disabled="!form.videoDeliverables.enabled"
+                  />
+                </UFormField>
               </div>
             </template>
           </UAccordion>

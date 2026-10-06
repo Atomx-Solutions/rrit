@@ -125,6 +125,13 @@ async function confirmRequest() {
   await act(requestAction.value)
 }
 const remainingPosts = computed(() => planner.value?.usage?.remaining || 0)
+// Videos are bought separately from posts, so the batch can never carry more of
+// them than the package has left, nor more than there are posts to attach to.
+const remainingVideos = computed(() => planner.value?.videoUsage?.remaining || 0)
+const maxVideosThisBatch = computed(() => Math.min(selectedQuantity.value, remainingVideos.value))
+watch(maxVideosThisBatch, (max) => {
+  if (selectedVideoQuantity.value > max) selectedVideoQuantity.value = max
+})
 watch(remainingPosts, (remaining) => {
   selectedQuantity.value = Math.max(1, Math.min(selectedQuantity.value, remaining || 1))
 }, { immediate: true })
@@ -1020,12 +1027,12 @@ onBeforeUnmount(() => clearInterval(timer))
             <UIcon name="i-lucide-clapperboard" class="size-5 shrink-0 text-primary" />
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-highlighted">{{ t('tiktok.includeVideos') }}</p>
-              <p class="truncate text-xs text-muted">{{ t('tiktok.includeVideosHint') }}</p>
+              <p class="truncate text-xs text-muted">{{ t('tiktok.videosRemaining', { count: remainingVideos }) }}</p>
             </div>
             <UInputNumber
               v-model="selectedVideoQuantity"
               :min="0"
-              :max="selectedQuantity"
+              :max="maxVideosThisBatch"
               class="w-24 shrink-0"
               :aria-label="t('tiktok.videoQuantity')"
             />

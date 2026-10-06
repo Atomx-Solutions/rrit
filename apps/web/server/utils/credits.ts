@@ -63,6 +63,18 @@ export async function creditPricing(client: Pick<PoolClient, 'query'>): Promise<
   if (!creditPriceCents || !providerCostPerCreditMicroEur) throw new Error('Credit pricing is not configured.')
   return { creditPriceCents, providerCostPerCreditMicroEur }
 }
+/**
+ * Credits one rendered video costs. The column is NOT NULL with its own database
+ * default, so an absent row means pricing is not configured rather than free.
+ */
+export async function tiktokVideoCredits(client: Pick<PoolClient, 'query'>) {
+  const result = await client.query<{ tiktok_video_credits: number }>(
+    'SELECT tiktok_video_credits FROM credit_pricing WHERE singleton=true',
+  )
+  const credits = Number(result.rows[0]?.tiktok_video_credits)
+  if (!credits) throw new Error('TikTok video credit pricing is not configured.')
+  return credits
+}
 export async function creditsForCost(client: Pick<PoolClient, 'query'>, costMicroEur: number) {
   return creditsForProviderCost(costMicroEur, (await creditPricing(client)).providerCostPerCreditMicroEur)
 }

@@ -10,19 +10,28 @@ export default defineEventHandler(async (event) => {
     const custom = await client.query<{
       name: string
       posts_included: number
+      videos_included: number
       price_cents: number
       starts_at: Date
       ends_at: Date
       used_posts: number
+      used_videos: number
     }>(
-      `SELECT package.name,package.posts_included,package.price_cents,package.starts_at,package.ends_at,
+      `SELECT package.name,package.posts_included,package.videos_included,package.price_cents,package.starts_at,package.ends_at,
               (
                 SELECT count(*)::integer
                 FROM posts
                 WHERE business_id=$1
                   AND created_at >= package.starts_at
                   AND created_at < package.ends_at
-              ) AS used_posts
+              ) AS used_posts,
+              (
+                SELECT count(*)::integer
+                FROM tiktok_video_renders
+                WHERE business_id=$1
+                  AND created_at >= package.starts_at
+                  AND created_at < package.ends_at
+              ) AS used_videos
          FROM custom_packages AS package
         WHERE status='active' AND starts_at<=now() AND ends_at>now()
         ORDER BY ends_at DESC
@@ -32,12 +41,13 @@ export default defineEventHandler(async (event) => {
     const proposal = await client.query<{
       name: string
       posts_included: number
+      videos_included: number
       credits_included: number
       price_cents: number
       starts_at: Date
       ends_at: Date
     }>(
-      `SELECT name,posts_included,credits_included,price_cents,starts_at,ends_at
+      `SELECT name,posts_included,videos_included,credits_included,price_cents,starts_at,ends_at
          FROM custom_packages
         WHERE organization_id=$1 AND status='draft'
         ORDER BY created_at DESC,id DESC LIMIT 1`,
@@ -56,9 +66,10 @@ export default defineEventHandler(async (event) => {
     creditPrice: creditPriceCents / 100,
     packageProposal: packageProposal && {
       name: packageProposal.name,
+      // The page states what the offer actually carries, so each kind is sent
+      // on its own rather than being inferred from the absence of another.
       postsIncluded: packageProposal.posts_included,
-      // A proposal with no posts is a credit top-up for the running package,
-      // so the page can say what is actually being offered.
+      videosIncluded: packageProposal.videos_included,
       creditsIncluded: packageProposal.credits_included,
       price: packageProposal.price_cents / 100,
       startsAt: new Date(packageProposal.starts_at).toISOString(),
@@ -76,6 +87,9 @@ export default defineEventHandler(async (event) => {
       return {
         name: customPackage.name,
         postsIncluded: customPackage.posts_included,
+        videosIncluded: customPackage.videos_included,
+        usedVideos: customPackage.used_videos,
+        remainingVideos: Math.max(0, customPackage.videos_included - customPackage.used_videos),
         price: customPackage.price_cents / 100,
         startsAt,
         endsAt,

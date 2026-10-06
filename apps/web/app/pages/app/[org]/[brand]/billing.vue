@@ -8,10 +8,14 @@ useSeoMeta({ title: () => `${t('nav.billing')} · Rrit` })
 const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { key: 'usage' })
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { key: 'billing-subscription' })
 const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { key: 'billing-details' })
+const { data: platformPricing } = await useFetch<{ videoPriceCents: number }>('/api/package-requests', { key: 'package-pricing' })
 
 const detailsForm = reactive({ legalName: '', address: '', city: '', country: '', fiscalNumber: '' })
 const savingDetails = ref(false)
 const requestOpen = ref(false)
+const videoRequestOpen = ref(false)
+const videosRequested = ref(1)
+const sendingVideoRequest = ref(false)
 const creditRequestOpen = ref(false)
 const creditsRequested = ref(500)
 const creditMessage = ref('')
@@ -27,12 +31,46 @@ watch(usageError, (value) => {
 
 const customPackage = computed(() => billing.value?.customPackage || null)
 const packageProposal = computed(() => billing.value?.packageProposal || null)
-const postsUsage = computed(() => usage.value?.usage.find(item => item.key === 'posts_per_month'))
+// The offer names only what it actually carries, so a video offer never reads
+// as a credit top-up and a post package never claims videos it does not have.
+const proposalSummary = computed(() => {
+  const proposal = packageProposal.value
+  if (!proposal) return ''
+  const parts: string[] = []
+  if (proposal.postsIncluded > 0)
+    parts.push(t('billing.customPackagePosts', { count: proposal.postsIncluded }))
+  if ((proposal.videosIncluded ?? 0) > 0)
+    parts.push(t('billing.proposalVideos', { count: proposal.videosIncluded }))
+  if (proposal.creditsIncluded > 0)
+    parts.push(t('billing.proposalCredits', { count: proposal.creditsIncluded }))
+  // Only posts and videos carry a period of their own; credits join the package
+  // that is already running, so dates would be misleading on a pure top-up.
+  if (proposal.postsIncluded > 0 || (proposal.videosIncluded ?? 0) > 0)
+    parts.push(t('billing.customPackagePeriod', {
+      start: formatPeriodDate(proposal.startsAt),
+      end: formatPeriodDate(proposal.endsAt),
+    }))
+  return parts.join(' · ')
+})
+const postsUsage = computed(() => usage.value?.usage.find((item: { key: string }) => item.key === 'posts_per_month'))
 const creditPrice = computed(() => billing.value?.creditPrice || 0)
 // Credits are bought for the package that is running, so the offer only makes
 // sense to someone who has one.
 const canBuyCredits = computed(() => !!customPackage.value)
 const creditEstimate = computed(() => creditsRequested.value * creditPrice.value)
+const videoPrice = computed(() => (platformPricing.value?.videoPriceCents ?? 200) / 100)
+const videoEstimate = computed(() => videosRequested.value * videoPrice.value)
+async function sendVideoRequest() {
+  if (sendingVideoRequest.value || videosRequested.value < 1) return
+  sendingVideoRequest.value = true
+  try {
+    await $fetch('/api/billing/package-request', { method: 'POST', body: { postsRequested: 0, creditsRequested: 0, videosRequested: videosRequested.value } })
+    videoRequestOpen.value = false
+    showSuccess(t('billing.videoRequestSent'))
+  } catch (error) {
+    showError((error as { data?: { message?: string } }).data?.message || t('billing.videoRequestFailed'))
+  } finally { sendingVideoRequest.value = false }
+}
 async function sendCreditRequest() {
   if (sendingCreditRequest.value || creditsRequested.value < 1) return
   sendingCreditRequest.value = true
@@ -98,7 +136,7 @@ function usageValue(key: string, value: number) {
   return new Intl.NumberFormat('sq-AL').format(value)
 }
 const usageLabels: Record<string, string> = {
-  posts_per_month: 'billing.usagePosts', ai_requests_per_day: 'billing.usageAi',
+  posts_per_month: 'billing.usagePosts', videos_per_month: 'billing.usageVideos', ai_requests_per_day: 'billing.usageAi',
   media_storage_bytes: 'billing.usageStorage', social_accounts: 'billing.usageSocial', members: 'billing.usageMembers',
 }
 async function saveDetails() {
@@ -154,8 +192,7 @@ async function declineProposal() {
         <div class="space-y-1">
           <div class="flex items-center gap-2"><UIcon name="i-lucide-handshake" class="size-5 text-primary" /><h2 class="text-sm font-semibold">{{ t('billing.packageProposalTitle') }}</h2></div>
           <p class="text-sm font-medium">{{ packageProposal.name }} · €{{ packageProposal.price.toFixed(2) }}</p>
-          <p v-if="packageProposal.postsIncluded > 0" class="text-xs text-muted">{{ t('billing.customPackagePosts', { count: packageProposal.postsIncluded }) }}<template v-if="packageProposal.creditsIncluded > 0"> · {{ t('billing.proposalCredits', { count: packageProposal.creditsIncluded }) }}</template> · {{ t('billing.customPackagePeriod', { start: formatPeriodDate(packageProposal.startsAt), end: formatPeriodDate(packageProposal.endsAt) }) }}</p>
-          <p v-else class="text-xs text-muted">{{ t('billing.proposalCreditsOnly', { count: packageProposal.creditsIncluded }) }}</p>
+          <p class="text-xs text-muted">{{ proposalSummary }}</p>
         </div>
         <div class="flex gap-2">
           <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click="declineProposal" />
@@ -169,12 +206,16 @@ async function declineProposal() {
       <div class="space-y-1">
         <h2 class="text-sm font-semibold">{{ t('billing.customPackageActive') }}</h2>
         <p class="text-sm font-medium">{{ customPackage.name }}</p>
-        <p class="text-sm text-muted">{{ t('billing.customPackagePosts', { count: customPackage.postsIncluded }) }}</p>
+        <p v-if="customPackage.postsIncluded > 0" class="text-sm text-muted">{{ t('billing.customPackagePosts', { count: customPackage.postsIncluded }) }}</p>
+        <p v-if="(customPackage.videosIncluded ?? 0) > 0" class="text-sm text-muted">{{ t('billing.proposalVideos', { count: customPackage.videosIncluded }) }}</p>
         <p class="text-xs text-muted" data-testid="custom-package-end">
           {{ t('billing.customPackagePeriod', { start: formatPeriodDate(customPackage.startsAt), end: formatPeriodDate(customPackage.endsAt) }) }}
         </p>
-        <p class="text-xs text-muted" data-testid="custom-package-usage">
+        <p v-if="customPackage.postsIncluded > 0" class="text-xs text-muted" data-testid="custom-package-usage">
           {{ t('billing.customPackageUsage', { used: customPackage.usedPosts, included: customPackage.postsIncluded, remaining: customPackage.remainingPosts }) }}
+        </p>
+        <p v-if="(customPackage.videosIncluded ?? 0) > 0" class="text-xs text-muted" data-testid="custom-package-video-usage">
+          {{ t('billing.customPackageVideoUsage', { used: customPackage.usedVideos, included: customPackage.videosIncluded, remaining: customPackage.remainingVideos }) }}
         </p>
         <p class="text-xs text-muted" data-testid="custom-package-days-remaining">
           {{ t('billing.customPackageDaysRemaining', { count: customPackage.remainingDays }) }}
@@ -223,6 +264,27 @@ async function declineProposal() {
             <PackageRequestForm endpoint="/api/billing/package-request" compact contact-known @sent="requestOpen = false" />
           </template>
         </UModal>
+      </div>
+      <USeparator class="my-5" />
+      <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div class="flex gap-4">
+          <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <UIcon name="i-lucide-clapperboard" class="size-5" />
+          </div>
+          <div class="space-y-2">
+            <h2 class="text-base font-semibold">{{ t('billing.videos') }}</h2>
+            <p class="text-sm font-medium">{{ t('billing.needMoreVideos') }}</p>
+            <p class="text-sm text-muted leading-relaxed">{{ t('billing.videosDescription') }}</p>
+          </div>
+        </div>
+        <UButton
+          color="primary"
+          variant="outline"
+          icon="i-lucide-clapperboard"
+          :label="t('billing.requestVideos')"
+          class="self-start justify-center whitespace-nowrap sm:w-52 sm:self-auto"
+          @click="videoRequestOpen = true"
+        />
       </div>
       <!-- Credits are bought the same way a package is, so the two live in one
            card. The balance is not repeated here: the header already carries
@@ -273,6 +335,16 @@ async function declineProposal() {
           <UButton :loading="sendingCreditRequest" :disabled="creditsRequested < 1" :label="t('billing.buyCreditsSubmit')" @click="sendCreditRequest" />
         </div>
       </template>
+    </UModal>
+
+    <UModal v-model:open="videoRequestOpen" :title="t('billing.requestVideosTitle')" :description="t('billing.requestVideosDescription')">
+      <template #body>
+        <div class="space-y-4">
+          <UFormField :label="t('billing.videoQuantity')"><UInputNumber v-model="videosRequested" :min="1" :max="1000" class="w-44" /></UFormField>
+          <p class="text-sm text-muted">{{ t('billing.videoPriceEstimate', { amount: videoEstimate.toFixed(2), unit: videoPrice.toFixed(2) }) }}</p>
+        </div>
+      </template>
+      <template #footer><div class="flex w-full justify-end gap-2"><UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="videoRequestOpen = false" /><UButton :loading="sendingVideoRequest" :disabled="videosRequested < 1" :label="t('billing.requestVideosSubmit')" @click="sendVideoRequest" /></div></template>
     </UModal>
 
     <template v-if="usage">

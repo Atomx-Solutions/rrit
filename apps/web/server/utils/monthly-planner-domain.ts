@@ -5,6 +5,7 @@ import {
   type SlotBrief,
 } from '../../shared/schemas/monthly-plan'
 import type { Workspace } from '../../shared/schemas/workspace'
+import { videoSlotAllowance } from '../../shared/schemas/workspace'
 import { dayInZone } from '../../shared/utils/calendar'
 import { zonedToIso } from '../../shared/utils/format'
 import {
@@ -704,6 +705,20 @@ export function validateEditorialPlan(
           .map((channel) => `${channel} ${channelCounts[channel] || 0}`)
           .join(', ')}.`,
       ])
+  }
+  // The video allowance is a money boundary, not a style note: rendering a video
+  // spends credits, so the share the business granted is enforced here rather
+  // than trusted to the model. A surplus video slot is demoted instead of
+  // failing the batch, because the slot is a complete static post either way and
+  // discarding a batch the business already paid for would cost it more than the
+  // flag is worth. A demoted slot simply reaches the business as the static post
+  // it already is, which is why nothing extra has to be reported.
+  const videoAllowance = videoSlotAllowance(evidence.brand.videoDeliverables, plan.slots.length)
+  let videosKept = 0
+  for (const slot of plan.slots) {
+    if (slot.deliverable !== 'video') continue
+    if (videosKept < videoAllowance) videosKept += 1
+    else slot.deliverable = 'static_post'
   }
   return plan
 }

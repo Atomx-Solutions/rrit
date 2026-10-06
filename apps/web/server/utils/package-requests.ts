@@ -34,8 +34,9 @@ export const appPackageRequestSchema = packageRequestSchema
     // request at all.
     postsRequested: z.number().int().min(0).max(1000).default(0),
     creditsRequested: z.number().int().min(0).max(10_000_000).default(0),
+    videosRequested: z.number().int().min(0).max(1000).default(0),
   })
-  .refine((value) => value.postsRequested > 0 || value.creditsRequested > 0, {
+  .refine((value) => value.postsRequested > 0 || value.creditsRequested > 0 || value.videosRequested > 0, {
     message: 'Kërko postime ose kredite.',
     path: ['postsRequested'],
   })
@@ -68,6 +69,11 @@ export async function packageRequestPostPrice() {
     ),
   )
   return Number(result.rows[0]?.package_request_post_price_cents ?? 0)
+}
+
+export async function packageRequestVideoPrice() {
+  const result = await withUserTransaction('', client => client.query<{ package_request_video_price_cents: number }>('SELECT package_request_video_price_cents() AS package_request_video_price_cents'))
+  return Number(result.rows[0]?.package_request_video_price_cents ?? 200)
 }
 
 /**
@@ -114,7 +120,7 @@ export async function submitPackageRequest(input: {
   try {
     return await withUserTransaction(input.userId ?? '', async (client) => {
       const result = await client.query<{ submit_package_request: string }>(
-        'SELECT submit_package_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+        'SELECT submit_package_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)',
         [
           values.contactName,
           values.contactEmail,
@@ -128,6 +134,7 @@ export async function submitPackageRequest(input: {
           values.industry ?? null,
           values.platform ?? null,
           'creditsRequested' in values ? values.creditsRequested : 0,
+          'videosRequested' in values ? values.videosRequested : 0,
         ],
       )
       return { id: result.rows[0]!.submit_package_request }

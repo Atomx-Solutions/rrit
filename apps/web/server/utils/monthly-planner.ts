@@ -8,7 +8,13 @@ import {
   researchSchema,
   type PageStyleAnalysis,
 } from '../../shared/schemas/monthly-plan'
-import { permittedEventCategories, postSchema } from '../../shared/schemas/workspace'
+import {
+  permittedEventCategories,
+  postSchema,
+  tiktokVideoDurationSeconds,
+  tiktokVideoFormat,
+  videoSlotAllowance,
+} from '../../shared/schemas/workspace'
 import {
   emptyPlannerBrain,
   factIsUsable,
@@ -1324,6 +1330,10 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         // Omitted entirely when the permission is off, so the model never sees
         // a category it is not allowed to research.
         ...(eventWindow ? { eventResearch: { ...eventWindow, categories: eventCategories } } : {}),
+        // Video is the second permission, read from the same snapshot for the
+        // same reason. Omitted entirely when it is off, so a business that
+        // plans only static posts is never told that motion exists.
+        ...(plan.evidence.brand.videoDeliverables?.enabled ? { videoDeliverables: { enabled: true } } : {}),
       },
     })
     const research = researchFromResponse(
@@ -1362,6 +1372,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           plan.evidence.capturedAt,
         )
       : null
+    const videoSlots = videoSlotAllowance(plan.evidence.brand.videoDeliverables, batchCount)
     const baseEarliestPublishableDate = earliestPlanningDate(
       plan.evidence.timezone,
       plan.evidence.capturedAt,
@@ -1454,6 +1465,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           ...(planningEventWindow
             ? { eventResearch: { ...planningEventWindow, categories: planningEventCategories } }
             : {}),
+          // Planning learns the video permission the research stage ran under,
+          // together with the share of this batch it may spend on motion.
+          ...(videoSlots ? { videoDeliverables: { maxSlots: videoSlots } } : {}),
           contactSheet: planningAssets.map((asset, index) => ({
             photo: index + 1,
             ...plan.evidence.assets.find((item) => item.id === asset.id),
@@ -1902,6 +1916,16 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           throw new PlannerFailure('QUOTA_EXCEEDED')
         const postId = randomUUID()
         if (!previousPageStyle) throw new PlannerFailure('GENERATION_FAILED')
+        // Resolved with the same tag filter the render endpoint enforces, so a
+        // brief never names a logo that the render would then refuse.
+        const videoBriefLogoId = slot.deliverable === 'video'
+          ? (await plannerStep('content.persist.video_logo', () =>
+              client.query<{ id: string }>(
+                "SELECT id FROM assets WHERE business_id=$1 AND rights=true AND kind='brand' AND tags ? 'logo' ORDER BY created_at DESC LIMIT 1",
+                [plan.business_id],
+              ),
+            )).rows[0]?.id || null
+          : null
         const provenance = {
           planId: plan.id,
           slot: plan.completed_count,
@@ -1951,6 +1975,26 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
               plan.evidence.timezone,
             ),
             publicationMode: 'manual',
+            // A video slot is this same static post plus a ready motion brief.
+            // The brief points at the original owned photograph rather than the
+            // generated creative, because that photograph is what becomes the
+            // first frame. Rendering stays an explicit, credit-spending action
+            // the business takes itself: planning only prepares it.
+            ...(slot.deliverable === 'video'
+              ? {
+                  tiktokVideo: {
+                    status: 'brief_ready' as const,
+                    sourceAssetIds: [content.assetId],
+                    ...(videoBriefLogoId ? { logoAssetId: videoBriefLogoId } : {}),
+                    hook: slot.hook.slice(0, 140),
+                    overlays: [slot.assetDirection.slice(0, 120)],
+                    cta: content.creative.cta.slice(0, 120),
+                    durationSeconds: tiktokVideoDurationSeconds,
+                    format: tiktokVideoFormat,
+                    createdAt: new Date().toISOString(),
+                  },
+                }
+              : {}),
             // Subjective QA findings remain user-reviewable; only a concrete
             // factual-safety failure prevents approval without correction.
             policy: quality.factuality ? 'warn' : 'block',

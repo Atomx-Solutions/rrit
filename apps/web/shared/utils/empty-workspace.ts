@@ -1,4 +1,5 @@
 import type { Workspace } from '../schemas/workspace'
+import { videoDeliverablesDefault } from '../schemas/workspace'
 export function emptyWorkspace(name = '', email = ''): Workspace {
   return {
     revision: 0,
@@ -20,6 +21,7 @@ export function emptyWorkspace(name = '', email = ''): Workspace {
         enabled: false,
         categories: { publicEvents: true, seasonalEvents: true, industryTrends: true },
       },
+      videoDeliverables: videoDeliverablesDefault,
       facts: [],
     },
     preferences: {

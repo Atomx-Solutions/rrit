@@ -32,6 +32,38 @@ export const eventResearchSchema = z.object({
   }),
 })
 export type EventResearch = z.infer<typeof eventResearchSchema>
+
+// Whether this business lets the monthly pipeline plan vertical videos next to
+// its feed posts. Like event research this is the business's own permission, not
+// an application category: rendering a video spends credits, so a business that
+// was planning only static posts must never silently start receiving motion
+// briefs it did not ask for. Off by default for exactly that reason.
+export const videoDeliverablesDefault = {
+  enabled: false,
+  // The largest share of a batch's slots that may be planned as video. The
+  // business decides how much of its month is motion; this is only the value a
+  // business that never touched the setting starts from.
+  maxSharePercent: 25,
+} as const
+export const videoDeliverablesSchema = z.object({
+  enabled: z.boolean().default(videoDeliverablesDefault.enabled),
+  maxSharePercent: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(videoDeliverablesDefault.maxSharePercent),
+})
+export type VideoDeliverables = z.infer<typeof videoDeliverablesSchema>
+// Read once, when a stage runs. A disabled switch is the same answer as a zero
+// allowance: there is nothing to plan.
+export function videoSlotAllowance(
+  deliverables: VideoDeliverables | undefined,
+  slotCount: number,
+) {
+  if (!deliverables?.enabled || slotCount < 1) return 0
+  return Math.max(1, Math.floor((slotCount * deliverables.maxSharePercent) / 100))
+}
 export const eventResearchCategoryKeys = ['publicEvents', 'seasonalEvents', 'industryTrends'] as const
 export type EventResearchCategory = (typeof eventResearchCategoryKeys)[number]
 // The permission is read once, when the research stage runs. An empty list is
@@ -41,6 +73,11 @@ export function permittedEventCategories(events: EventResearch | undefined) {
   return eventResearchCategoryKeys.filter((key) => events.categories[key])
 }
 
+// The shape of every vertical video this application renders. It is one canvas
+// and one length, defined once: the motion brief carries them to the provider
+// call, so neither the brief endpoint nor the monthly planner restates them.
+export const tiktokVideoFormat = '1080x1920' as const
+export const tiktokVideoDurationSeconds = 12
 export const postSchema = z.object({
   id: z.string(),
   title: z.string().min(3).max(120),
@@ -71,7 +108,7 @@ export const postSchema = z.object({
     overlays: z.array(z.string().max(120)).max(4),
     cta: z.string().max(120),
     durationSeconds: z.number().int().min(6).max(30),
-    format: z.literal('1080x1920'),
+    format: z.literal(tiktokVideoFormat),
     strategyVersion: z.number().int().positive().optional(),
     createdAt: z.iso.datetime(),
   }).optional(),
@@ -124,6 +161,7 @@ export const workspaceSchema = z.object({
       enabled: false,
       categories: { publicEvents: true, seasonalEvents: true, industryTrends: true },
     }),
+    videoDeliverables: videoDeliverablesSchema.default(videoDeliverablesDefault),
     facts: z.array(brandFactSchema),
     guardrails: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
     brainVersion: z.number().int().nonnegative().optional(),

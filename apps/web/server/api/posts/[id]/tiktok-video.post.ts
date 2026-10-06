@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { postSchema } from '../../../../shared/schemas/workspace'
+import {
+  postSchema,
+  tiktokVideoDurationSeconds,
+  tiktokVideoFormat,
+} from '../../../../shared/schemas/workspace'
 
 const paramsSchema = z.object({ id: z.uuid() })
 
@@ -23,8 +27,9 @@ export default defineEventHandler(async (event) => {
     const hook = post.title.slice(0, 120)
     post.tiktokVideo = {
       status: 'brief_ready', sourceAssetIds: selected.map((asset) => asset.id), logoAssetId: logo.rows[0]?.id,
-      hook, overlays: [post.pillar.slice(0, 120)], cta: post.caption.slice(0, 120), durationSeconds: 12,
-      format: '1080x1920', createdAt: new Date().toISOString(),
+      hook, overlays: [post.pillar.slice(0, 120)], cta: post.caption.slice(0, 120),
+      durationSeconds: tiktokVideoDurationSeconds, format: tiktokVideoFormat,
+      createdAt: new Date().toISOString(),
     }
     await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(post), id, business.id])
     return { brief: post.tiktokVideo }

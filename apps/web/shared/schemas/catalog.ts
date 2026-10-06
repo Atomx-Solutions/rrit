@@ -10,6 +10,9 @@ export const entitlementFeatureSchema = z.enum([
 ])
 export const planLimitsSchema = z.object({
   posts_per_month: z.number().int().nonnegative(),
+  // Added after the first plans shipped, so entitlement rows granted before it
+  // still parse. No allowance until a plan is actually given one.
+  videos_per_month: z.number().int().nonnegative().default(0),
   ai_requests_per_day: z.number().int().nonnegative(),
   media_storage_bytes: z.number().int().nonnegative(),
   social_accounts: z.number().int().nonnegative(),

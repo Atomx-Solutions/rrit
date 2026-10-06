@@ -57,6 +57,11 @@ export const algorithmGoalSchema = z.enum([
   'clicks',
 ])
 export const timingBasisSchema = z.enum(['social_history', 'platform_history', 'no_data'])
+// What this slot produces. A video slot is still a static 4:5 feed post: the
+// photograph it selects is additionally chosen to be animated into a vertical
+// video afterward, so the slot carries a motion brief alongside the post. Older
+// plans were all static, which is why this defaults rather than being required.
+export const slotDeliverableSchema = z.enum(['static_post', 'video'])
 export const slotBriefSchema = z.object({
   day: z.number().int().min(1).max(31),
   time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
@@ -64,6 +69,7 @@ export const slotBriefSchema = z.object({
   topic: z.string().min(5).max(200),
   pillar: z.string().min(2).max(80),
   intent: contentIntentSchema,
+  deliverable: slotDeliverableSchema.default('static_post'),
   hook: z.string().min(5).max(180),
   purpose: z.string().min(10).max(600),
   assetDirection: z.string().min(10).max(400),
@@ -112,6 +118,7 @@ export const editorialPlanSchema = z.object({
 export const slotBriefGenerationSchema = slotBriefSchema.extend({
   audienceId: z.uuid().nullable(),
   offerId: z.uuid().nullable(),
+  deliverable: slotDeliverableSchema,
 })
 export const editorialPlanGenerationSchema = editorialPlanSchema.extend({
   styleProfile: styleProfileGenerationSchema,

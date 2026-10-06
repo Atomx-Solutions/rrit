@@ -47,6 +47,7 @@ const form = reactive({
   industry: '',
   platform: 'both' as 'instagram' | 'facebook' | 'both',
   postsRequested: 20,
+  videosRequested: 0,
   message: '',
 })
 if (postsModel.value > 0) form.postsRequested = postsModel.value
@@ -88,10 +89,12 @@ const schema = computed(() =>
   props.contactKnown
     ? z.object({
         postsRequested: z.number().int().min(1, t('request.postsRequired')).max(1000),
+        videosRequested: z.number().int().min(0).max(1000),
         message: z.string().trim().max(2000),
       })
     : z.object({
         postsRequested: z.number().int().min(1, t('request.postsRequired')).max(1000),
+        videosRequested: z.number().int().min(0).max(1000),
         contactName: z.string().trim().min(2, t('request.nameRequired')).max(120),
         contactEmail: z.email(t('request.emailInvalid')).max(320),
         phone: phoneField,
@@ -152,6 +155,7 @@ async function submit() {
       method: 'POST',
       body: {
         postsRequested: form.postsRequested,
+        videosRequested: form.videosRequested,
         ...(props.contactKnown
           ? (message ? { message } : {})
           : {
@@ -221,6 +225,9 @@ async function submit() {
           class="w-full"
         />
       </div>
+    </UFormField>
+    <UFormField name="videosRequested" :label="t('request.videos')">
+      <UInputNumber v-model="form.videosRequested" :min="0" :max="1000" class="w-full" />
     </UFormField>
     <UFormField v-if="contactKnown" name="message" :label="t('request.message')">
       <UTextarea

@@ -24,6 +24,7 @@ export const invoiceSettingsChangesSchema = nonEmpty({
 })
 export const trialPlanChangesSchema = nonEmpty({
   posts_per_month: z.number().int().min(0).max(10_000).optional(),
+  videos_per_month: z.number().int().min(0).max(10_000).optional(),
   active: z.boolean().optional(),
 })
 
