@@ -7,6 +7,7 @@ const { data, base } = useWorkspace()
 const { t, locale } = useI18n()
 useSeoMeta({ title: () => `${t('overview.title')} · Rrit` })
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
+const { data: tiktok } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
 const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
 const upcoming = computed(() =>
   data.value.posts
@@ -283,7 +284,7 @@ const summaries = computed(() => [
         </p>
       </div>
     </UCard>
-    <UPageGrid class="grid-cols-1 lg:grid-cols-2 gap-5">
+    <UPageGrid class="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
       <UCard :ui="{ body: 'p-5 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-5">
           <h2 class="text-sm font-semibold">{{ t('overview.nextCalendarPost') }}</h2>
@@ -322,6 +323,14 @@ const summaries = computed(() => [
           trailing-icon="i-lucide-arrow-right"
           >{{ t('nav.calendar') }}</UButton
         >
+      </UCard>
+      <UCard :ui="{ body: 'p-5 sm:p-6' }">
+        <div class="flex justify-between items-center gap-3 mb-4">
+          <div class="flex items-center gap-2"><TikTokMark class="size-5" /><h2 class="text-sm font-semibold">TikTok</h2></div>
+          <UBadge color="neutral" variant="outline" size="sm">{{ tiktok?.connection?.status === 'connected' ? t('tiktok.connected') : t('tiktok.notConnected') }}</UBadge>
+        </div>
+        <p class="text-sm text-muted leading-relaxed max-w-lg">{{ tiktok?.connection?.status === 'connected' ? t('overview.tiktokConnected') : t('overview.tiktokDescription') }}</p>
+        <UButton :to="`${base}/social-posts`" variant="outline" color="neutral" size="sm" class="mt-5" trailing-icon="i-lucide-arrow-right">{{ t('nav.viewPosts') }}</UButton>
       </UCard>
       <UCard :ui="{ body: 'p-5 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-4">

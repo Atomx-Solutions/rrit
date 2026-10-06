@@ -63,6 +63,18 @@ export const postSchema = z.object({
   campaignId: z.string().optional(),
   providerPostId: z.string().optional(),
   publishedAt: z.string().optional(),
+  tiktokVideo: z.object({
+    status: z.enum(['brief_ready', 'rendering', 'ready', 'failed']),
+    sourceAssetIds: z.array(z.uuid()).min(1),
+    logoAssetId: z.uuid().optional(),
+    hook: z.string().max(140),
+    overlays: z.array(z.string().max(120)).max(4),
+    cta: z.string().max(120),
+    durationSeconds: z.number().int().min(6).max(30),
+    format: z.literal('1080x1920'),
+    strategyVersion: z.number().int().positive().optional(),
+    createdAt: z.iso.datetime(),
+  }).optional(),
 })
 export const campaignSchema = z.object({
   id: z.string(),

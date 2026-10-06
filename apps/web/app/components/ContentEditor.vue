@@ -47,6 +47,14 @@ const saving = ref(false)
 const savedAt = ref('')
 const error = ref('')
 const imagePreviewOpen = ref(false)
+const tiktokPreviewOpen = ref(false)
+const tiktokBusy = ref(false)
+const tiktokRender = ref<{
+  id: string
+  status: 'rendering' | 'ready' | 'failed'
+  failureReason: string | null
+  previewUrl: string | null
+} | null>(null)
 const checking = ref(false)
 const confirmed = ref(false)
 const publishOpen = ref(false)
@@ -163,9 +171,63 @@ async function refreshPublication() {
     /* Keep the last confirmed status; the user can refresh. */
   }
 }
+async function refreshTikTokVideo() {
+  if (!post.value) return
+  try {
+    const result = await $fetch(`/api/posts/${post.value.id}/tiktok-video`)
+    tiktokRender.value = result.render || null
+  } catch {
+    // Video state is optional; do not interrupt normal post editing.
+  }
+}
+async function prepareTikTokVideo() {
+  if (!post.value || tiktokBusy.value || dirty.value) return
+  tiktokBusy.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/posts/${post.value.id}/tiktok-video`, { method: 'POST', body: {}, retry: 0 })
+    await initLive()
+    await refreshTikTokVideo()
+    notify(t('tiktok.videoPrepared'))
+  } catch (problem) {
+    error.value = (problem as { data?: { message?: string } }).data?.message || t('tiktok.videoFailed')
+  } finally {
+    tiktokBusy.value = false
+  }
+}
+async function renderTikTokVideo() {
+  if (!post.value || tiktokBusy.value || dirty.value) return
+  tiktokBusy.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/posts/${post.value.id}/tiktok-video-render`, { method: 'POST', body: {}, retry: 0 })
+    await initLive()
+    await refreshTikTokVideo()
+    notify(t('tiktok.videoReady'))
+  } catch (problem) {
+    error.value = (problem as { data?: { message?: string } }).data?.message || t('tiktok.videoFailed')
+  } finally {
+    tiktokBusy.value = false
+  }
+}
+async function sendTikTokVideo() {
+  if (!post.value || tiktokBusy.value) return
+  tiktokBusy.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/posts/${post.value.id}/tiktok-video-upload`, { method: 'POST', body: {}, retry: 0 })
+    tiktokPreviewOpen.value = false
+    notify(t('tiktok.uploadSucceeded'))
+  } catch (problem) {
+    error.value = (problem as { data?: { message?: string } }).data?.message || t('tiktok.uploadFailed')
+  } finally {
+    tiktokBusy.value = false
+  }
+}
 onMounted(() => {
   publicationTimer = setInterval(refreshPublication, 10000)
   void refreshPublication()
+  void refreshTikTokVideo()
 })
 onBeforeUnmount(() => clearInterval(publicationTimer))
 const scheduleOpen = ref(false)
@@ -453,14 +515,45 @@ onBeforeUnmount(() => {
           <USeparator class="divider" style="margin: 0" />
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h3>{{ t('content.postPhoto') }}</h3>
-            <CreativeEditor
-              v-if="post?.aiProvenance"
-              :post="post"
-              :disabled="!editable || dirty || syncing"
-              @saved="creativeSaved"
-            />
-            <PhotoUpload v-if="editable" @uploaded="form.image = $event" />
+            <div class="flex flex-wrap items-center gap-2">
+              <CreativeEditor
+                v-if="post?.aiProvenance"
+                :post="post"
+                :disabled="!editable || dirty || syncing"
+                @saved="creativeSaved"
+              />
+              <PhotoUpload v-if="editable" @uploaded="form.image = $event" />
+              <UButton
+                v-if="post && !post.tiktokVideo"
+                size="sm"
+                variant="outline"
+                color="neutral"
+                icon="i-lucide-clapperboard"
+                :loading="tiktokBusy"
+                :disabled="dirty || syncing || !editable"
+                @click="prepareTikTokVideo"
+              >{{ t('tiktok.prepareVideo') }}</UButton>
+              <UButton
+                v-else-if="post?.tiktokVideo && post.tiktokVideo.status !== 'ready'"
+                size="sm"
+                icon="i-lucide-play"
+                :loading="tiktokBusy"
+                :disabled="dirty || syncing || !editable"
+                @click="renderTikTokVideo"
+              >{{ t('tiktok.generateVideo') }}</UButton>
+              <UButton
+                v-if="tiktokRender?.status === 'ready'"
+                size="sm"
+                variant="outline"
+                color="neutral"
+                icon="i-lucide-eye"
+                @click="tiktokPreviewOpen = true"
+              >{{ t('tiktok.previewVideo') }}</UButton>
+            </div>
           </div>
+          <p v-if="post?.tiktokVideo" class="text-sm text-muted">
+            {{ tiktokRender?.status === 'ready' ? t('tiktok.videoReadyHint') : t('tiktok.videoSourceHint') }}
+          </p>
           <div
             v-if="form.image"
             class="shrink-0"
@@ -720,6 +813,27 @@ onBeforeUnmount(() => {
             fit="contain"
             class="size-full !bg-transparent"
           />
+        </div>
+      </template>
+    </UModal>
+    <UModal
+      v-model:open="tiktokPreviewOpen"
+      :title="t('tiktok.previewTitle')"
+      :description="t('tiktok.previewDescription')"
+      :ui="{ content: 'sm:max-w-md' }"
+    >
+      <template #body>
+        <video
+          v-if="tiktokRender?.previewUrl"
+          :src="tiktokRender.previewUrl"
+          controls
+          playsinline
+          class="mx-auto max-h-[72vh] w-full rounded-lg bg-black"
+        />
+        <div class="mt-4 flex justify-end">
+          <UButton icon="i-lucide-send" :loading="tiktokBusy" @click="sendTikTokVideo">
+            {{ t('tiktok.send') }}
+          </UButton>
         </div>
       </template>
     </UModal>

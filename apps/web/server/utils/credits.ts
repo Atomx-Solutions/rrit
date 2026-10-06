@@ -211,3 +211,10 @@ export async function consumeCredits(client: PoolClient, input: { organizationId
   if (!ledger.rows.length) return toBalance(balance)
   return updateBalance(client, input.organizationId, -input.credits, 0)
 }
+export async function refundCredits(client: PoolClient, input: { organizationId: string; credits: number; referenceType: string; referenceId: string; idempotencyKey: string }) {
+  positiveInteger(input.credits, 'credits')
+  await lockBalance(client, input.organizationId)
+  const ledger = await writeLedger(client, { ...input, eventType: 'refund', usageKind: 'generation', creditDelta: input.credits })
+  if (!ledger.rows.length) return creditBalanceSnapshot(client, input.organizationId)
+  return updateBalance(client, input.organizationId, input.credits, 0)
+}

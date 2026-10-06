@@ -18,6 +18,8 @@ export default defineEventHandler(async (event) => {
       photoMode: z.enum(['auto', 'selected']).optional(),
       selectedAssetIds: z.array(z.uuid()).max(100).optional(),
       quantity: z.number().int().min(1).max(100).optional(),
+      includeTikTokVideos: z.boolean().optional(),
+      videoQuantity: z.number().int().min(0).max(100).optional(),
       channelCounts: z
         .object({
           Instagram: z.number().int().min(0).max(100).optional(),

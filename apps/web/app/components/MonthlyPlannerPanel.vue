@@ -70,6 +70,8 @@ const phases = [
 
 const plan = computed(() => planner.value?.plan)
 const selectedQuantity = ref(1)
+const includeTikTokVideos = ref(false)
+const selectedVideoQuantity = ref(1)
 // Which platforms this request is for. Both selected is the absence of a
 // restriction, which is how the planner behaved before the choice existed.
 type PlannerChannel = 'Instagram' | 'Facebook'
@@ -132,10 +134,14 @@ watch(remainingPosts, (remaining) => {
 watch(selectedQuantity, (quantity) => {
   if (selectedPhotoIds.value.length > quantity)
     selectedPhotoIds.value = selectedPhotoIds.value.slice(0, quantity)
+  selectedVideoQuantity.value = Math.min(selectedVideoQuantity.value, quantity)
 })
 const active = computed(() => ['queued', 'running'].includes(plan.value?.status || ''))
 const blocked = computed(() => plan.value?.status === 'blocked')
 const ready = computed(() => plan.value?.status === 'review')
+const tiktokTargetPost = computed(() =>
+  workspace.value.posts.find((post) => ['draft', 'review'].includes(post.status) && post.image),
+)
 // Everything the customer asked for is produced, and the package still owes
 // posts. This is a resting state with two next steps: look at what arrived, or
 // ask for more.
@@ -266,7 +272,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
         action,
         month: props.month,
         ...(action === 'generate'
-          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts() }
+          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), includeTikTokVideos: includeTikTokVideos.value, videoQuantity: includeTikTokVideos.value ? selectedVideoQuantity.value : 0 }
           : {}),
         ...(action === 'prepare'
           ? {
@@ -274,6 +280,8 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
               quantity: selectedQuantity.value,
               channelCounts: requestedChannelCounts(),
+              includeTikTokVideos: includeTikTokVideos.value,
+              videoQuantity: includeTikTokVideos.value ? selectedVideoQuantity.value : 0,
             }
           : {}),
       },
@@ -739,6 +747,15 @@ onBeforeUnmount(() => clearInterval(timer))
           <UButton :to="`${base}/content`" trailing-icon="i-lucide-arrow-right">
             {{ t('legacy.reviewPosts') }}
           </UButton>
+          <UButton
+            v-if="tiktokTargetPost"
+            :to="`${base}/content/${tiktokTargetPost.id}?tiktok=1`"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-clapperboard"
+          >
+            {{ t('tiktok.generateVideo') }}
+          </UButton>
         </div>
       </div>
       <div
@@ -989,20 +1006,40 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ t('legacy.monthlyProcess') }}
           </p>
         </div>
-        <div class="flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
-          <div class="flex min-w-0 items-center gap-2.5">
+        <div class="grid w-full gap-3 md:grid-cols-3">
+          <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
             <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <UIcon name="i-lucide-sparkles" class="size-4" />
             </div>
-            <div>
+            <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
               <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
             </div>
+            <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="w-24 shrink-0" />
           </div>
-          <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
-          <UButton :loading="busy" :disabled="remainingPosts < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
-          {{ extendable ? t('monthly.generateMore', { count: selectedQuantity }) : t('legacy.prepareMonth') }}
-          </UButton>
+          <div class="flex min-w-0 items-start gap-3 rounded-xl border border-default bg-default px-4 py-3">
+            <UIcon name="i-lucide-clapperboard" class="mt-0.5 size-5 shrink-0 text-primary" />
+            <div class="min-w-0 flex-1">
+              <UCheckbox v-model="includeTikTokVideos" :label="t('tiktok.includeVideos')" :description="t('tiktok.includeVideosHint')" />
+            </div>
+            <UInputNumber
+              v-if="includeTikTokVideos"
+              v-model="selectedVideoQuantity"
+              :min="1"
+              :max="selectedQuantity"
+              class="w-24 shrink-0"
+              :aria-label="t('tiktok.videoQuantity')"
+            />
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-highlighted">{{ t('monthly.readyToPrepare') }}</p>
+              <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
+            </div>
+            <UButton :loading="busy" :disabled="remainingPosts < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
+              {{ extendable ? t('monthly.generateMore', { count: selectedQuantity }) : t('legacy.prepareMonth') }}
+            </UButton>
+          </div>
         </div>
       </div>
     </div>

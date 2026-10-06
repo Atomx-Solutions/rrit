@@ -58,6 +58,17 @@ export async function uploadAsset(path: string, bytes: Buffer) {
   if (error) throw createError({ statusCode: 502, message: 'Fotografia nuk u ruajt në storage.' })
 }
 
+// Video renders are private derived assets, not gallery photos. Keep their MIME
+// type explicit so storage and future signed-download routes never mislabel MP4.
+export async function uploadBinaryAsset(path: string, bytes: Buffer, contentType: string) {
+  const { error } = await storageClient().storage.from(assetBucket()).upload(path, bytes, {
+    contentType,
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw createError({ statusCode: 502, message: 'Videoja nuk u ruajt në storage.' })
+}
+
 export async function downloadAsset(path: string, maxBytes = MAX_ASSET_BYTES) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), assetDownloadTimeoutMs())
