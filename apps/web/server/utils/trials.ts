@@ -97,7 +97,15 @@ export async function grantTrial(
   const trialPosts = Number(trialPlan.rows[0]?.posts_per_month ?? 0)
   // No trial package means no allowance, so there is nothing to fund either.
   if (!trialPosts) return
-  const monthlyCredits = trialPosts * 80
+  // What a post is worth is a platform setting the superadmin edits, the same
+  // rate custom packages are priced in. A trial funds its posts at that rate
+  // rather than at one written into the application.
+  const rate = await client.query<{ credits_per_post: number }>(
+    'SELECT public.credits_per_post() AS credits_per_post',
+  )
+  const creditsPerPost = Number(rate.rows[0]?.credits_per_post ?? 0)
+  if (!creditsPerPost) return
+  const monthlyCredits = trialPosts * creditsPerPost
   await grantMonthlyCredits(client, {
     organizationId: businessId,
     // A trial has no subscription row, and credit_ledger.subscription_id still
