@@ -100,10 +100,13 @@ export function useWorkspace() {
           return false
         }
       }
+      const serverMessage = problem.data?.message
       storageError.value =
         problem.statusCode === 401
           ? t('workspace.sessionExpired')
-          : problem.data?.message || t('workspace.saveFailed')
+          : serverMessage === 'Kërkesa nuk u pranua.'
+            ? t('workspace.requestRejected')
+            : serverMessage || t('workspace.saveFailed')
       toast?.add({
         title: t('common.formError'),
         description: storageError.value,

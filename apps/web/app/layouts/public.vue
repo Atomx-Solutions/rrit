@@ -4,9 +4,14 @@ const { t, locale, setLocale } = useI18n()
 const languageOptions = computed(() => [
   { label: `SQ ${t('public.albanian')}`, value: 'sq-XK' },
   { label: `EN ${t('public.english')}`, value: 'en-US' },
+  { label: `DE ${t('public.german')}`, value: 'de-DE' },
 ])
-const languageLabel = computed(() => locale.value === 'en-US' ? t('public.english') : t('public.albanian'))
-const languageFlag = computed(() => locale.value === 'en-US' ? 'i-flag-gb-4x3' : 'i-flag-al-4x3')
+const languageLabel = computed(() => locale.value === 'de-DE'
+  ? t('public.german')
+  : locale.value === 'en-US' ? t('public.english') : t('public.albanian'))
+const languageFlag = computed(() => locale.value === 'de-DE'
+  ? 'i-flag-de-4x3'
+  : locale.value === 'en-US' ? 'i-flag-gb-4x3' : 'i-flag-al-4x3')
 const language = computed({
   get: () => locale.value,
   set: (value: string) => setLocale(value),
@@ -152,7 +157,6 @@ const year = new Date().getFullYear()
       </template>
       <template #left>© {{ year }} Rrit</template>
       <UNavigationMenu :items="legal" />
-      <template #right>{{ t('public.forKosovoBusinesses') }}</template>
     </UFooter>
   </div>
 </template>

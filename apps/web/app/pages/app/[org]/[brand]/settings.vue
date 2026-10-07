@@ -47,14 +47,14 @@ const schema = z.object({
       return false
     }
   }, t('settings.timezoneInvalid')),
-  locale: z.enum(['sq-XK', 'en-US']),
+  locale: z.enum(['sq-XK', 'en-US', 'de-DE']),
   currency: z.literal('EUR'),
 })
 async function save() {
   formError.value = ''
   const snapshot = { ...form }
   if (await commit((d) => (d.preferences = snapshot))) {
-    notify()
+    notify(t('common.saved'))
     baseline.value = JSON.stringify(snapshot)
     saved.value = true
     formError.value = ''
@@ -152,6 +152,7 @@ async function saveAndLeave() {
               :items="[
                 { label: t('settings.albanianKosovo'), value: 'sq-XK' },
                 { label: t('settings.englishUnitedStates'), value: 'en-US' },
+                { label: t('settings.germanGermany'), value: 'de-DE' },
               ]"
             /></UFormField
 ><UFormField :label="t('settings.timezone')" name="timezone" class="field"

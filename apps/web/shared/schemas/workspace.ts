@@ -124,7 +124,7 @@ export const workspaceSchema = z.object({
     name: z.string(),
     email: z.string(),
     timezone: z.string(),
-    locale: z.enum(['sq-XK', 'en-US']).default('sq-XK'),
+    locale: z.enum(['sq-XK', 'en-US', 'de-DE']).default('sq-XK'),
     currency: z.enum(['ALL', 'EUR']).transform(() => 'EUR' as const),
   }),
   onboarding: z.number().min(0).max(4),
