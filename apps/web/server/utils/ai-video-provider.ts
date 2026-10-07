@@ -32,25 +32,36 @@ function canvas(format: string) {
   return { aspectRatio: `${width / gcd}:${height / gcd}`, resolution: `${Math.min(width, height)}p` }
 }
 
-export async function generateAiVideo(input: {
-  image: Buffer
+// RRIT's provider-independent video request. The planner and renderer build
+// this shape; adapters convert it into provider-specific payloads. Adding a
+// future provider only means adding another adapter — the rest of the
+// pipeline keeps speaking this type.
+export type VideoProviderRequest = {
+  firstFrame: Buffer
   prompt: string
   durationSeconds: number
-  format: string
-}) {
+  aspectRatio: string
+  resolution: string
+}
+
+export type VideoProviderResult = { bytes: Buffer; costUsd: number | null }
+
+// OpenRouter is the only adapter today. The function is kept narrow so the
+// OpenRouter-specific field names (`frame_images`, `polling_url`,
+// `unsigned_urls`, `generate_audio`) never leak back into RRIT's own code.
+async function openrouterAdapter(request: VideoProviderRequest): Promise<VideoProviderResult | null> {
   const provider = config()
   if (!provider) return null
-  const { aspectRatio, resolution } = canvas(input.format)
-  const imageDataUrl = `data:image/jpeg;base64,${input.image.toString('base64')}`
+  const imageDataUrl = `data:image/jpeg;base64,${request.firstFrame.toString('base64')}`
   const response = await fetch(`${provider.baseUrl}/videos`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: provider.model,
-      prompt: input.prompt,
-      duration: input.durationSeconds,
-      aspect_ratio: aspectRatio,
-      resolution,
+      prompt: request.prompt,
+      duration: request.durationSeconds,
+      aspect_ratio: request.aspectRatio,
+      resolution: request.resolution,
       generate_audio: false,
       frame_images: [{ type: 'image_url', image_url: { url: imageDataUrl }, frame_type: 'first_frame' }],
     }),
@@ -79,4 +90,24 @@ export async function generateAiVideo(input: {
   const video = await fetch(contentUrl, { headers: { Authorization: `Bearer ${provider.key}` }, signal: AbortSignal.timeout(120000), redirect: 'error' })
   if (!video.ok) throw createError({ statusCode: 502, message: 'server.VIDEO_DOWNLOAD_FAILED' })
   return { bytes: Buffer.from(await video.arrayBuffer()), costUsd: completed.usage?.cost ?? null }
+}
+
+// RRIT entry point. Builds the provider-independent request from the
+// (image, prompt, duration, format) tuple callers already have, then hands it
+// to the single configured adapter. Keeps the renderer blind to which
+// provider is in use so a future adapter is a one-file addition.
+export async function generateAiVideo(input: {
+  image: Buffer
+  prompt: string
+  durationSeconds: number
+  format: string
+}): Promise<VideoProviderResult | null> {
+  const { aspectRatio, resolution } = canvas(input.format)
+  return openrouterAdapter({
+    firstFrame: input.image,
+    prompt: input.prompt,
+    durationSeconds: input.durationSeconds,
+    aspectRatio,
+    resolution,
+  })
 }

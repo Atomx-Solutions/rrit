@@ -3,6 +3,7 @@ import {
   contentIntentSchema,
   monthlyPostProvenanceSchema,
   plannedCreativeLayoutSchema,
+  shotDirectionSchema,
 } from './monthly-plan'
 import { brandFactSchema } from './business-brain'
 
@@ -110,9 +111,18 @@ export const postSchema = z.object({
     purpose: z.string().max(600).optional(),
     assetDirection: z.string().max(400).optional(),
     visualLayout: plannedCreativeLayoutSchema.optional(),
+    // Strategy's structured shot direction for this video, carried from the
+    // slot so the planner's VideoCreativePlan can be rebuilt deterministically
+    // at render time without reading the editorial plan again.
+    shot: shotDirectionSchema.optional(),
     durationSeconds: z.number().int().min(6).max(30),
     format: z.literal(videoFormat),
     strategyVersion: z.number().int().positive().optional(),
+    // Deterministic branded end-card asset rendered after the mp4. Optional
+    // so legacy videos (and video posts that fail end-card generation) still
+    // parse and play. Points at an `assets` row whose `creative_provenance`
+    // flags it as a video end-card so it is excluded from source-photo pickers.
+    endCardAssetId: z.uuid().optional(),
     createdAt: z.iso.datetime(),
   }).optional(),
 })
@@ -155,6 +165,24 @@ export const workspaceSchema = z.object({
     voice: z.string(),
     audience: z.string(),
     color: z.string(),
+    // Optional typography and palette anchors for deterministic brand
+    // composition (end-card, overlays). Everything is optional so a workspace
+    // that never configures these still renders a reasonable end-card from
+    // `brand.color` + the application defaults.
+    typography: z
+      .object({
+        family: z.string().min(1).max(80).default('Inter'),
+        weightHook: z.number().int().min(300).max(900).default(700),
+        weightCta: z.number().int().min(300).max(900).default(600),
+      })
+      .partial()
+      .optional(),
+    palette: z
+      .object({
+        primary: z.string().min(3).max(16).optional(),
+        onPrimary: z.string().min(3).max(16).optional(),
+      })
+      .optional(),
     facebookUrl: z.string().default(''),
     instagramUrl: z.string().default(''),
     goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),

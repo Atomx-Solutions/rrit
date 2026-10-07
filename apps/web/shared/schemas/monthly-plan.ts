@@ -62,6 +62,30 @@ export const timingBasisSchema = z.enum(['social_history', 'platform_history', '
 // video afterward, so the slot carries a motion brief alongside the post. Older
 // plans were all static, which is why this defaults rather than being required.
 export const slotDeliverableSchema = z.enum(['static_post', 'video'])
+// Structured shot direction for a video slot. Strategy picks each enum from
+// the actual photograph and the content intent; the planner's deterministic
+// Video Creative Plan reads these to decide subject-safe and text-safe
+// zones, and the prompt builder templates them into natural language so the
+// provider receives a camera idea and a composition anchor rather than
+// prose alone. Every field is optional with a safe default so legacy video
+// briefs keep rendering.
+export const shotCameraSchema = z.enum([
+  'static',
+  'slow_push',
+  'slow_pull',
+  'arc',
+  'parallax_drift',
+  'handheld_settle',
+])
+export const shotPacingSchema = z.enum(['calm', 'measured', 'punchy'])
+export const shotSubjectAnchorSchema = z.enum(['left', 'centre', 'right'])
+export const shotTextZoneSchema = z.enum(['top', 'bottom', 'left', 'right', 'full'])
+export const shotDirectionSchema = z.object({
+  camera: shotCameraSchema,
+  pacing: shotPacingSchema,
+  subjectAnchor: shotSubjectAnchorSchema,
+  textZone: shotTextZoneSchema,
+})
 export const slotBriefSchema = z.object({
   day: z.number().int().min(1).max(31),
   time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
@@ -89,6 +113,9 @@ export const slotBriefSchema = z.object({
   // reached generation still parse and finish.
   audienceId: z.uuid().nullable().default(null),
   offerId: z.uuid().nullable().default(null),
+  // Structured shot direction for video slots. Optional with safe defaults so
+  // older plans and non-video slots parse without emitting it.
+  shot: shotDirectionSchema.optional(),
 })
 export const styleProfileSchema = z.object({
   palette: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
@@ -269,6 +296,7 @@ export const monthlyPostProvenanceSchema = z.object({
   promptVersion: z.string(),
 })
 export type SlotBrief = z.infer<typeof slotBriefSchema>
+export type ShotDirection = z.infer<typeof shotDirectionSchema>
 export type Research = z.infer<typeof researchSchema>
 export type ResearchOccasion = z.infer<typeof researchOccasionSchema>
 export type Creative = z.infer<typeof creativeSchema>

@@ -14,7 +14,13 @@ const viewerPost = computed(() => props.posts[viewerIndex.value] || null)
 // finished render. The map keeps the resolution per post so flipping back and
 // forth in the viewer does not re-fetch what is already known.
 const videoPreviews = ref<Record<string, string | null>>({})
+const embeddedEndCards = ref<Record<string, boolean>>({})
 const resolvingVideo = ref(false)
+const viewerLegacyCardVisible = ref(false)
+function handleViewerVideoEnded() {
+  const post = viewerPost.value
+  if (post?.video?.endCardAssetId && !embeddedEndCards.value[post.id]) viewerLegacyCardVisible.value = true
+}
 const viewerVideoUrl = computed(() => {
   const post = viewerPost.value
   if (!post || post.video?.status !== 'ready') return null
@@ -26,10 +32,11 @@ async function resolveViewerVideo() {
   if (post.id in videoPreviews.value) return
   resolvingVideo.value = true
   try {
-    const response = await $fetch<{ render: { previewUrl: string | null } | null }>(
+    const response = await $fetch<{ render: { previewUrl: string | null; endCardEmbedded: boolean } | null }>(
       `/api/posts/${post.id}/video`,
     )
     videoPreviews.value[post.id] = response.render?.previewUrl || null
+    embeddedEndCards.value[post.id] = response.render?.endCardEmbedded || false
   } catch {
     videoPreviews.value[post.id] = null
   } finally {
@@ -40,12 +47,14 @@ function openViewer(post: Post) {
   const index = props.posts.findIndex((item) => item.id === post.id)
   if (index < 0) return
   viewerIndex.value = index
+  viewerLegacyCardVisible.value = false
   viewerOpen.value = true
   resolveViewerVideo()
 }
 function moveViewer(offset: number) {
   if (!props.posts.length) return
   viewerIndex.value = (viewerIndex.value + offset + props.posts.length) % props.posts.length
+  viewerLegacyCardVisible.value = false
   resolveViewerVideo()
 }
 async function downloadViewerPost() {
@@ -208,19 +217,29 @@ const columns = computed<TableColumn<Post>[]>(() => [
             :aria-label="t('content.previousPostPhoto')"
             @click="moveViewer(-1)"
           />
-          <!-- A ready video plays here with the first-frame still as its
-               poster; while the mp4 url resolves, or if the brief says the
-               render is not ready, the existing image fallback stays. -->
-          <video
-            v-if="viewerVideoUrl"
-            :src="viewerVideoUrl"
-            :poster="viewerPost.image"
-            controls
-            playsinline
-            class="h-full w-auto max-w-full rounded-xl bg-black ring-1 ring-default"
-          />
+          <!-- New MP4s contain the card; historical raw renders retain their
+               separate card in Gallery until they are recomposed. -->
+          <template v-if="viewerVideoUrl">
+            <video
+              v-show="!viewerLegacyCardVisible"
+              :src="viewerVideoUrl"
+              :poster="viewerPost.image"
+              controls
+              playsinline
+              class="h-full w-auto max-w-full rounded-xl bg-black ring-1 ring-default"
+              @ended="handleViewerVideoEnded"
+            />
+            <MediaImage
+              v-if="viewerLegacyCardVisible && viewerPost.video?.endCardAssetId"
+              :src="`/api/media/${viewerPost.video.endCardAssetId}`"
+              :alt="viewerPost.title"
+              fit="natural"
+              :surface="false"
+              class="h-full w-auto max-w-full rounded-xl ring-1 ring-default"
+            />
+          </template>
           <MediaImage
-            v-else
+            v-if="!viewerVideoUrl"
             :src="viewerPost.image"
             :alt="viewerPost.title"
             fit="natural"

@@ -6,6 +6,7 @@ import { setTenantContext } from './database'
 import { blockingPostChecks, localPostChecks, postContentVersion, providerPostChecks } from './post-validation'
 import { requireEntitlement, trialStatus } from './trials'
 import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
+import { hasComposedEndCard } from './video-compose'
 
 export async function requirePublishingWorker(db: Pool | PoolClient = database()) {
   if (!metaConfigured() || process.env.PUBLISHING_ENABLED !== 'true')
@@ -551,11 +552,13 @@ async function runOnePublishingJob(db: Pool) {
     // row here is a real fault rather than a wait.
     let videoUrl: string | null = null
     if (post.video) {
-      const render = await db.query<{ id: string }>(
-        "SELECT id FROM video_renders WHERE post_id=$1 AND business_id=$2 AND status='ready' AND storage_path IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+      const render = await db.query<{ id: string; status: string; storage_path: string | null; duration_seconds: number }>(
+        'SELECT id,status,storage_path,duration_seconds FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
         [job.post_id, job.business_id],
       )
-      if (!render.rows[0]) throw new Error('video_render_missing')
+      if (!render.rows[0] || render.rows[0].status !== 'ready' || !render.rows[0].storage_path
+        || !hasComposedEndCard(render.rows[0].duration_seconds, post.video.durationSeconds))
+        throw new Error('video_render_missing')
       videoUrl = publicVideoUrl(render.rows[0].id)
     }
     let providerId: string | undefined

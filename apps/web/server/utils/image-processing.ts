@@ -352,6 +352,113 @@ export async function prepareVideoFirstFrame(image: Buffer, target: { width: num
   }
 }
 
+/**
+ * Deterministic branded end-card for a video post.
+ *
+ * Composes a 9:16 image (default 1080x1920) with the brand's primary colour as
+ * the background, the approved logo centred in the upper third when present,
+ * the business name as a headline and the approved CTA as a secondary line.
+ * No AI call. Reuses existing sharp + logo infrastructure.
+ *
+ * SVG text is used instead of sharp's text input so the composition is a single
+ * atomic rasterisation that works on any sharp install, with no fontconfig or
+ * Pango prerequisites. The font-family falls back through a safe stack when a
+ * specific brand font is not installed on the server.
+ */
+export async function buildVideoEndCard(input: {
+  businessName: string
+  cta: string
+  primaryColor?: string
+  onPrimary?: string
+  fontFamily?: string
+  weightHook?: number
+  weightCta?: number
+  logo?: Buffer
+  target?: { width: number; height: number }
+}) {
+  const width = input.target?.width ?? 1080
+  const height = input.target?.height ?? 1920
+  const primary = sanitizeHex(input.primaryColor) || '#0F172A'
+  const onPrimary = sanitizeHex(input.onPrimary) || readableOn(primary)
+  const fontStack = (input.fontFamily?.trim() || 'Inter')
+    .replace(/["<>]/g, '')
+  const weightHook = clampWeight(input.weightHook, 700)
+  const weightCta = clampWeight(input.weightCta, 600)
+  // Wrap complete approved strings inside the phone-safe centre. Never crop
+  // their content to make it fit: the end-card is the exact-copy renderer.
+  const textBlock = (value: string, centreY: number, maxSize: number, boxHeight: number) => {
+    const maxChars = Math.max(12, Math.floor(width * 0.82 / (maxSize * 0.55)))
+    const words = value.split(/\s+/).filter(Boolean)
+    const lines: string[] = []
+    let line = ''
+    for (const word of words) {
+      if (line && `${line} ${word}`.length > maxChars) {
+        lines.push(line)
+        line = word
+      } else line = line ? `${line} ${word}` : word
+    }
+    if (line) lines.push(line)
+    if (!lines.length) lines.push('')
+    const longest = Math.max(...lines.map(part => Array.from(part).length), 1)
+    const fontSize = Math.max(1, Math.floor(Math.min(maxSize, width * 0.82 / (longest * 0.55), boxHeight / (lines.length * 1.2))))
+    const step = fontSize * 1.2
+    const firstY = centreY - (lines.length - 1) * step / 2
+    return { fontSize, tspans: lines.map((part, index) => `<tspan x="${width / 2}" y="${Math.round(firstY + index * step)}">${escapeXml(part)}</tspan>`).join('') }
+  }
+  const headline = textBlock(input.businessName, height * 0.61, 72, height * 0.17)
+  const cta = textBlock(input.cta, height * 0.75, 48, height * 0.19)
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="${width}" height="${height}" fill="${primary}"/>
+  <text font-family="${fontStack}, 'Helvetica Neue', Arial, sans-serif" font-size="${headline.fontSize}" font-weight="${weightHook}" fill="${onPrimary}" text-anchor="middle">${headline.tspans}</text>
+  <text font-family="${fontStack}, 'Helvetica Neue', Arial, sans-serif" font-size="${cta.fontSize}" font-weight="${weightCta}" fill="${onPrimary}" fill-opacity="0.85" text-anchor="middle">${cta.tspans}</text>
+</svg>`
+  const background = await sharp(Buffer.from(svg)).jpeg({ quality: 92, mozjpeg: true }).toBuffer()
+  if (!input.logo) return background
+  const resizedLogo = await sharp(await removeLogoBackground(input.logo))
+    .resize(Math.round(width * 0.4), Math.round(height * 0.2), {
+      fit: 'inside',
+      withoutEnlargement: true,
+      kernel: sharp.kernel.lanczos3,
+    })
+    .png()
+    .toBuffer()
+  const logoMeta = await sharp(resizedLogo).metadata()
+  const logoWidth = logoMeta.width || 0
+  const logoHeight = logoMeta.height || 0
+  if (!logoWidth || !logoHeight) throw new Error('Approved logo could not be composed')
+  const left = Math.round((width - logoWidth) / 2)
+  const top = Math.round(height * 0.3 - logoHeight / 2)
+  return sharp(background)
+    .composite([{ input: resizedLogo, left, top }])
+    .jpeg({ quality: 92, mozjpeg: true })
+    .toBuffer()
+}
+
+function sanitizeHex(value?: string) {
+  if (!value) return undefined
+  const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(value.trim())
+  if (!match) return undefined
+  const hex = match[1]!
+  return `#${hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex}`.toLowerCase()
+}
+
+function readableOn(hex: string) {
+  const normalized = hex.replace('#', '')
+  const r = parseInt(normalized.slice(0, 2), 16)
+  const g = parseInt(normalized.slice(2, 4), 16)
+  const b = parseInt(normalized.slice(4, 6), 16)
+  // ITU-R BT.601 luma; dark backgrounds get white text, light backgrounds get
+  // near-black. Deterministic and perfectly inverse-of-background.
+  const luma = 0.299 * r + 0.587 * g + 0.114 * b
+  return luma < 140 ? '#ffffff' : '#0f172a'
+}
+
+function clampWeight(value: number | undefined, fallback: number) {
+  if (!value || !Number.isInteger(value)) return fallback
+  return Math.max(300, Math.min(900, value))
+}
+
 // The sheet is internal model context, never a customer-facing post design.
 export async function assetContactSheet(assets: { id: string; bytes: Buffer }[]) {
   if (!assets.length || assets.length > 40) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
