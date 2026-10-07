@@ -3,12 +3,17 @@ export const contentFormatRegistry = {
     channels: {
       Facebook: { supported: true, mediaFit: 'natural' },
       Instagram: { supported: true, mediaFit: 'natural' },
+      // The photograph a TikTok video is animated from is held as a static
+      // post, which is why the format is supported here even though what
+      // reaches TikTok is the rendered video rather than the photograph.
+      TikTok: { supported: true, mediaFit: 'natural' },
     },
   },
   carousel: {
     channels: {
       Facebook: { supported: false, mediaFit: 'natural' },
       Instagram: { supported: false, mediaFit: 'natural' },
+      TikTok: { supported: false, mediaFit: 'natural' },
     },
   },
 } as const

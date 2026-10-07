@@ -55,6 +55,14 @@ export async function queuePublication(
   runAt: string,
   logicalKey = publicationLogicalKey(businessId, post.id, post.version),
 ) {
+  // This queue publishes to Meta only. A TikTok video reaches TikTok through
+  // its own draft upload, so it must never enter a Meta job, where the Facebook
+  // branch would otherwise take it by default.
+  if (post.channel === 'TikTok')
+    throw createError({
+      statusCode: 422,
+      message: 'Videoja TikTok dërgohet nga TikTok, jo nga publikimi në Meta.',
+    })
   if (post.publicationMode !== 'automatic')
     throw createError({
       statusCode: 422,

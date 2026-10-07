@@ -17,8 +17,8 @@ export default defineEventHandler(async (event) => {
       month: monthSchema.optional(),
       photoMode: z.enum(['auto', 'selected']).optional(),
       selectedAssetIds: z.array(z.uuid()).max(100).optional(),
+      selectedVideoAssetIds: z.array(z.uuid()).max(100).optional(),
       quantity: z.number().int().min(1).max(100).optional(),
-      includeTikTokVideos: z.boolean().optional(),
       videoQuantity: z.number().int().min(0).max(100).optional(),
       channelCounts: z
         .object({
@@ -49,6 +49,7 @@ export default defineEventHandler(async (event) => {
           input.data.month,
           input.data.quantity,
           input.data.channelCounts,
+          input.data.videoQuantity,
         )
       }
       if (input.data.action === 'reset') {
@@ -73,21 +74,25 @@ export default defineEventHandler(async (event) => {
       }
       const photoMode = input.data.photoMode || 'auto'
       const selectedAssetIds = photoMode === 'selected' ? input.data.selectedAssetIds || [] : []
+      const selectedVideoAssetIds =
+        photoMode === 'selected' ? input.data.selectedVideoAssetIds || [] : []
       if (photoMode === 'selected' && !selectedAssetIds.length)
         throw new PlannerFailure('PHOTO_PREFERENCE_REQUIRED')
       await client.query(
         `INSERT INTO monthly_planner_settings(
-          business_id,enabled,photo_mode,preferred_asset_ids,configured_at
-        ) VALUES($1,true,$2,$3,now())
+          business_id,enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at
+        ) VALUES($1,true,$2,$3,$4,now())
         ON CONFLICT(business_id) DO UPDATE
           SET enabled=true,photo_mode=EXCLUDED.photo_mode,
               preferred_asset_ids=EXCLUDED.preferred_asset_ids,
+              preferred_video_asset_ids=EXCLUDED.preferred_video_asset_ids,
               configured_at=now(),updated_at=now()`,
-        [business.id, photoMode, selectedAssetIds],
+        [business.id, photoMode, selectedAssetIds, selectedVideoAssetIds],
       )
       return ensureMonthlyPlan(client, business.id, user.id, input.data.month, {
         requeueCancelled: true,
         quantity: input.data.quantity,
+        videoQuantity: input.data.videoQuantity,
         channelCounts: input.data.channelCounts,
       })
     })

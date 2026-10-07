@@ -436,19 +436,6 @@ function setPrice(fact: BrandFact, value: string | number) {
                   :label="t('brand.videoDeliverablesEnabled')"
                   :description="t('brand.videoDeliverablesEnabledHint')"
                 />
-                <UFormField
-                  class="ps-6"
-                  :label="t('brand.videoShare')"
-                  :description="t('brand.videoShareHint')"
-                >
-                  <UInput
-                    v-model.number="form.videoDeliverables.maxSharePercent"
-                    type="number"
-                    min="1"
-                    max="100"
-                    :disabled="!form.videoDeliverables.enabled"
-                  />
-                </UFormField>
               </div>
             </template>
           </UAccordion>

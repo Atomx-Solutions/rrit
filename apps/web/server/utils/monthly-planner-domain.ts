@@ -5,7 +5,6 @@ import {
   type SlotBrief,
 } from '../../shared/schemas/monthly-plan'
 import type { Workspace } from '../../shared/schemas/workspace'
-import { videoSlotAllowance } from '../../shared/schemas/workspace'
 import { dayInZone } from '../../shared/utils/calendar'
 import { zonedToIso } from '../../shared/utils/format'
 import {
@@ -157,7 +156,11 @@ export function plannerEvidence(
   workspace: Workspace,
   now = new Date(),
   month = planningMonth(workspace.preferences.timezone, now),
-  photoSelection: { mode: 'auto' | 'selected'; selectedAssetIds: string[] } = {
+  photoSelection: {
+    mode: 'auto' | 'selected'
+    selectedAssetIds: string[]
+    selectedVideoAssetIds?: string[]
+  } = {
     mode: 'auto',
     selectedAssetIds: [],
   },
@@ -185,21 +188,28 @@ export function plannerEvidence(
     )
   const eligibleAssetIds = new Set(assets.map((asset) => asset.id))
   const selectedAssetIds = [...new Set(photoSelection.selectedAssetIds)]
+  // Photographs chosen for motion are tracked apart from the feed selection,
+  // but the two lists may overlap: a photograph chosen for both produces one
+  // feed post and one video from the same source.
+  const selectedVideoAssetIds = [...new Set(photoSelection.selectedVideoAssetIds || [])]
   if (
     photoSelection.mode === 'selected' &&
-    (!selectedAssetIds.length || selectedAssetIds.some((id) => !eligibleAssetIds.has(id)))
+    (!selectedAssetIds.length ||
+      [...selectedAssetIds, ...selectedVideoAssetIds].some((id) => !eligibleAssetIds.has(id)))
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]))
   const generationAssets =
     photoSelection.mode === 'selected'
-      ? selectedAssetIds.map((id) => assetsById.get(id)!)
+      ? [...new Set([...selectedAssetIds, ...selectedVideoAssetIds])].map(
+          (id) => assetsById.get(id)!,
+        )
       : assets
   const localTimingSamples = workspace.posts
-    .filter((post) => post.status === 'published' && post.publishedAt)
+    .filter((post) => post.status === 'published' && post.publishedAt && post.channel !== 'TikTok')
     .map((post) => ({
       source: 'platform' as const,
-      channel: post.channel,
+      channel: post.channel as PlannerChannel,
       publishedAt: post.publishedAt!,
     }))
   const observedTiming = [...timingSamples, ...localTimingSamples]
@@ -244,6 +254,7 @@ export function plannerEvidence(
     photoSelection: {
       mode: photoSelection.mode,
       selectedAssetIds: photoSelection.mode === 'selected' ? selectedAssetIds : [],
+      selectedVideoAssetIds: photoSelection.mode === 'selected' ? selectedVideoAssetIds : [],
     },
     recentPosts: workspace.posts
       .slice(0, 30)
@@ -495,7 +506,10 @@ export function normalizeEditorialPlanResponse(
   const sourceByCanonicalUrl = new Map(
     research.sources.map((source) => [canonicalSourceUrl(source.url), source.url]),
   )
-  const selectedAssets = new Set(evidence.photoSelection?.selectedAssetIds || [])
+  const selectedAssets = new Set([
+    ...(evidence.photoSelection?.selectedAssetIds || []),
+    ...(evidence.photoSelection?.selectedVideoAssetIds || []),
+  ])
   const timingEvidence = evidence.timingEvidence || { samples: [] }
 
   function supportedTimingBasis(slot: { timingBasis?: 'social_history' | 'platform_history' | 'no_data'; channel: string; time: string }) {
@@ -571,6 +585,7 @@ export function validateEditorialPlan(
   // uniqueness checks without being revalidated themselves.
   existingSlots: SlotBrief[] = [],
   channelCounts: PlannerChannelCounts = {},
+  videoSlots = 0,
 ) {
   const plan = editorialPlanSchema.parse(value)
   const earliestDate = earliestPlanningDate(evidence.timezone, evidence.capturedAt)
@@ -588,9 +603,12 @@ export function validateEditorialPlan(
   const intents = new Map<string, number>()
   const layouts = new Map<string, number>()
   const algorithmGoals = new Map<string, number>()
-  const requiredAssets = new Map<string, number>()
+  const requiredPostAssets = new Map<string, number>()
+  const requiredVideoAssets = new Map<string, number>()
   const photoSelection = evidence.photoSelection || { mode: 'auto' as const, selectedAssetIds: [] }
-  const selectedAssets = new Set(photoSelection.selectedAssetIds)
+  const postAssets = new Set(photoSelection.selectedAssetIds)
+  const videoAssets = new Set(photoSelection.selectedVideoAssetIds || [])
+  const selectedAssets = new Set([...postAssets, ...videoAssets])
   const timingEvidence = evidence.timingEvidence || {
     samples: [],
     socialHistory: 0,
@@ -667,7 +685,12 @@ export function validateEditorialPlan(
     layouts.set(slot.visualLayout, (layouts.get(slot.visualLayout) || 0) + 1)
     algorithmGoals.set(slot.algorithmGoal, (algorithmGoals.get(slot.algorithmGoal) || 0) + 1)
     if (slot.requiredAssetId)
-      requiredAssets.set(slot.requiredAssetId, (requiredAssets.get(slot.requiredAssetId) || 0) + 1)
+      (slot.deliverable === 'video' ? requiredVideoAssets : requiredPostAssets).set(
+        slot.requiredAssetId,
+        ((slot.deliverable === 'video' ? requiredVideoAssets : requiredPostAssets).get(
+          slot.requiredAssetId,
+        ) || 0) + 1,
+      )
   }
   const minimumIntents = Math.min(count, count >= 10 ? 5 : count >= 6 ? 4 : count >= 3 ? 3 : count)
   const minimumLayouts = Math.min(count, count >= 10 ? 5 : count >= 6 ? 4 : count >= 3 ? 3 : count)
@@ -682,17 +705,29 @@ export function validateEditorialPlan(
     throw new PlannerFailure('REPETITIVE_PLAN', [
       `Shpërndaji ${count} postimet në të paktën ${minimumIntents} intent-e dhe ${minimumLayouts} layout-e, pa dominuar njëri ritmin mujor.`,
     ])
-  if (
-    photoSelection.mode === 'selected' &&
-    [...selectedAssets].some((id) => requiredAssets.get(id) !== 1)
-  )
-    throw new PlannerFailure('PHOTO_SELECTION_MISSING', [
-      `Caktoje secilën fotografi të zgjedhur ekzaktësisht një herë: ${[...selectedAssets].join(', ')}.`,
-    ])
+  if (photoSelection.mode === 'selected') {
+    if (
+      [...postAssets].some((id) => requiredPostAssets.get(id) !== 1) ||
+      [...videoAssets].some((id) => requiredVideoAssets.get(id) !== 1)
+    )
+      throw new PlannerFailure('PHOTO_SELECTION_MISSING', [
+        `Cakto secilën fotografi të zgjedhur për postim ekzaktësisht një herë te një slot static_post (${[...postAssets].join(', ') || '—'}), dhe secilën të zgjedhur për video ekzaktësisht një herë te një slot video (${[...videoAssets].join(', ') || '—'}).`,
+      ])
+    const misplaced = plan.slots.some(
+      (slot) =>
+        !!slot.requiredAssetId &&
+        !(slot.deliverable === 'video' ? videoAssets : postAssets).has(slot.requiredAssetId),
+    )
+    if (misplaced)
+      throw new PlannerFailure('PHOTO_SELECTION_MISSING', [
+        'Çdo slot duhet të përdorë një fotografi të zgjedhur pikërisht për llojin e tij.',
+      ])
+  }
   // The platform split the customer asked for is a promise about this batch,
   // so it is checked over the batch as a whole rather than slot by slot.
   if (channelCountsTotal(channelCounts)) {
     const planned = plan.slots.reduce<Record<string, number>>((totals, slot) => {
+      if (slot.deliverable === 'video') return totals
       totals[slot.channel] = (totals[slot.channel] || 0) + 1
       return totals
     }, {})
@@ -706,20 +741,27 @@ export function validateEditorialPlan(
           .join(', ')}.`,
       ])
   }
-  // The video allowance is a money boundary, not a style note: rendering a video
-  // spends credits, so the share the business granted is enforced here rather
-  // than trusted to the model. A surplus video slot is demoted instead of
+  // The video count is a money boundary, not a style note: each video is a
+  // deliverable the business bought, so the figure is enforced here rather than
+  // trusted to the model. A surplus is demoted, because the slot is a complete
+  // piece of work either way and discarding a batch already paid for would cost
+  // the business more than the flag is worth. A shortfall cannot be repaired
+  // the same way — a static slot has not been planned to carry motion — so it
+  // is sent back for a replanning that honours the split. A surplus video slot is demoted instead of
   // failing the batch, because the slot is a complete static post either way and
   // discarding a batch the business already paid for would cost it more than the
   // flag is worth. A demoted slot simply reaches the business as the static post
   // it already is, which is why nothing extra has to be reported.
-  const videoAllowance = videoSlotAllowance(evidence.brand.videoDeliverables, plan.slots.length)
   let videosKept = 0
   for (const slot of plan.slots) {
     if (slot.deliverable !== 'video') continue
-    if (videosKept < videoAllowance) videosKept += 1
+    if (videosKept < videoSlots) videosKept += 1
     else slot.deliverable = 'static_post'
   }
+  if (videosKept < videoSlots)
+    throw new PlannerFailure('UNGROUNDED_PLAN', [
+      `Planifiko saktësisht ${videoSlots} slote si deliverable video, me fotografi të vetat; të tjerat si static_post.`,
+    ])
   return plan
 }
 export const plannerMessages: Record<string, string> = {
@@ -730,6 +772,8 @@ export const plannerMessages: Record<string, string> = {
   ENTITLEMENT_REQUIRED: 'Planifikimi me AI kërkon një paketë aktive me AI.',
   QUOTA_EXCEEDED: 'Kufiri i paketës është arritur. Draftet e krijuara mbeten të ruajtura.',
   QUANTITY_EXCEEDS_REMAINING: 'Sasia e zgjedhur tejkalon postimet e mbetura në paketë.',
+  VIDEO_QUANTITY_EXCEEDS_REMAINING: 'Sasia e videove tejkalon videot e mbetura në paketë.',
+  VIDEO_DELIVERABLES_DISABLED: 'Aktivizo videot te profili i biznesit para se të kërkosh video.',
   BUDGET_EXCEEDED: 'Përgatitja u ndal te kufiri i kostos. Draftet mbeten të ruajtura.',
   PROVIDER_UNCERTAIN:
     'Lidhja me shërbimin AI u ndërpre. Platforma po vazhdon automatikisht nga e njëjta fazë.',
@@ -778,7 +822,7 @@ export const plannerMessages: Record<string, string> = {
   PLAN_RESET_UNSAFE:
     'Plani ka postime të miratuara ose të publikuara dhe nuk mund të pastrohet automatikisht.',
   BUDGET_ESTIMATE_EXCEEDED:
-    'Kostoja e shërbimit tejkaloi rezervimin. Platforma duhet të rishikojë kufijtë përpara vazhdimit.',
+    'Kostoja e shërbima bazohet i rezervimin. Platforma duhet të rishikojë kufijtë përpara vazhdimit.',
 }
 
 /**

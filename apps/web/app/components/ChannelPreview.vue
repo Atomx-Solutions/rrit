@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
-defineProps<{ channel: 'Instagram' | 'Facebook'; name: string; image: string; caption: string }>()
+defineProps<{ channel: 'Instagram' | 'Facebook' | 'TikTok'; name: string; image: string; caption: string }>()
 </script>
 <template>
   <UCard
@@ -18,7 +18,7 @@ defineProps<{ channel: 'Instagram' | 'Facebook'; name: string; image: string; ca
         </p>
       </div>
       <UIcon
-        :name="channel === 'Instagram' ? 'i-lucide-instagram' : 'i-lucide-facebook'"
+        :name="channel === 'Instagram' ? 'i-lucide-instagram' : channel === 'TikTok' ? 'i-lucide-music' : 'i-lucide-facebook'"
         class="size-4 text-muted shrink-0"
       />
     </header>

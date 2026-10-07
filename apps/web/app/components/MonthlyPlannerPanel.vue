@@ -35,25 +35,41 @@ const photoPageCount = computed(() => Math.max(1, Math.ceil(photoTotal.value / p
 const selectedPhotoIds = ref<string[]>([
   ...(planner.value?.photoPreference?.selectedAssetIds || []),
 ].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
+// A TikTok video is a deliverable of its own, so the photograph it animates is
+// chosen apart from the ones the feed posts use. The two lists never overlap.
+const selectedVideoPhotoIds = ref<string[]>([
+  ...(planner.value?.photoPreference?.selectedVideoAssetIds || []),
+].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
 watch(
   originalPhotos,
   (photos) => {
     const allowed = new Set(photos.map((photo) => photo.id))
     selectedPhotoIds.value = selectedPhotoIds.value.filter((id) => allowed.has(id))
+    selectedVideoPhotoIds.value = selectedVideoPhotoIds.value.filter((id) => allowed.has(id))
   },
   { immediate: true },
 )
-
-function togglePhoto(id: string) {
-  if (selectedPhotoIds.value.includes(id)) {
-    selectedPhotoIds.value = selectedPhotoIds.value.filter(item => item !== id)
+function photoChosen(id: string, kind: 'post' | 'video') {
+  return (kind === 'video' ? selectedVideoPhotoIds : selectedPhotoIds).value.includes(id)
+}
+function photoRoleFull(kind: 'post' | 'video') {
+  return kind === 'video'
+    ? selectedVideoPhotoIds.value.length >= selectedVideoQuantity.value
+    : selectedPhotoIds.value.length >= selectedQuantity.value
+}
+// The two choices are independent, so each has its own control on the tile. A
+// photograph carrying both produces a feed post and a TikTok video from the
+// same source. Choosing more than the month will produce is a selection the
+// planner has to reject later, so a full role refuses the click while the
+// person can still act on it.
+function togglePhoto(id: string, kind: 'post' | 'video') {
+  const list = kind === 'video' ? selectedVideoPhotoIds : selectedPhotoIds
+  if (list.value.includes(id)) {
+    list.value = list.value.filter((item) => item !== id)
     return
   }
-  // One photo is used per post, so choosing more than the month will produce is
-  // a selection the planner has to reject later. Stopping it at the click says
-  // so while the person can still act on it.
-  if (selectedPhotoIds.value.length >= selectedQuantity.value) return
-  selectedPhotoIds.value = [...selectedPhotoIds.value, id]
+  if (photoRoleFull(kind)) return
+  list.value = [...list.value, id]
 }
 
 function openReport(type: 'research' | 'strategy') {
@@ -125,22 +141,25 @@ async function confirmRequest() {
   await act(requestAction.value)
 }
 const remainingPosts = computed(() => planner.value?.usage?.remaining || 0)
-// Videos are bought separately from posts, so the batch can never carry more of
-// them than the package has left, nor more than there are posts to attach to.
+// A video is a deliverable of its own with its own photograph, so the only
+// bound on it is the videos the package has left; it does not borrow a post.
 const remainingVideos = computed(() => planner.value?.videoUsage?.remaining || 0)
-const maxVideosThisBatch = computed(() => Math.min(selectedQuantity.value, remainingVideos.value))
+const maxVideosThisBatch = computed(() => remainingVideos.value)
 watch(maxVideosThisBatch, (max) => {
   if (selectedVideoQuantity.value > max) selectedVideoQuantity.value = max
 })
 watch(remainingPosts, (remaining) => {
   selectedQuantity.value = Math.max(1, Math.min(selectedQuantity.value, remaining || 1))
 }, { immediate: true })
-// Lowering the post count leaves photos chosen that no longer have a post to go
+// Lowering a count leaves photos chosen that no longer have a deliverable to go
 // with, so the extras are released rather than left to fail at submission.
+watch(selectedVideoQuantity, (quantity) => {
+  if (selectedVideoPhotoIds.value.length > quantity)
+    selectedVideoPhotoIds.value = selectedVideoPhotoIds.value.slice(0, quantity)
+})
 watch(selectedQuantity, (quantity) => {
   if (selectedPhotoIds.value.length > quantity)
     selectedPhotoIds.value = selectedPhotoIds.value.slice(0, quantity)
-  selectedVideoQuantity.value = Math.min(selectedVideoQuantity.value, quantity)
 })
 const active = computed(() => ['queued', 'running'].includes(plan.value?.status || ''))
 const blocked = computed(() => plan.value?.status === 'blocked')
@@ -278,15 +297,16 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
         action,
         month: props.month,
         ...(action === 'generate'
-          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), includeTikTokVideos: selectedVideoQuantity.value > 0, videoQuantity: selectedVideoQuantity.value }
+          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), videoQuantity: selectedVideoQuantity.value }
           : {}),
         ...(action === 'prepare'
           ? {
               photoMode: photoMode.value,
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
+              selectedVideoAssetIds:
+                photoMode.value === 'selected' ? selectedVideoPhotoIds.value : [],
               quantity: selectedQuantity.value,
               channelCounts: requestedChannelCounts(),
-              includeTikTokVideos: selectedVideoQuantity.value > 0,
               videoQuantity: selectedVideoQuantity.value,
             }
           : {}),
@@ -298,6 +318,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       resetOpen.value = false
       photoMode.value = 'auto'
       selectedPhotoIds.value = []
+      selectedVideoPhotoIds.value = []
       await initLive()
     }
   } catch (problem) {
@@ -919,29 +940,25 @@ onBeforeUnmount(() => clearInterval(timer))
                 {{ t('monthly.clickToSelect') }}
               </UBadge>
             </div>
+            <!--
+              The two choices sit under the photograph rather than on top of it:
+              a phone tile is small enough that overlaid controls cover the very
+              thing being chosen. Two columns on a phone keep each tile and each
+              tap target comfortable; the denser grids return with the width.
+            -->
             <div
               v-if="originalPhotos.length"
-              class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
+              class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
             >
-              <UButton
+              <div
                 v-for="asset in paginatedOriginalPhotos"
                 :key="asset.id"
-                type="button"
-                color="neutral"
-                variant="outline"
-                class="group relative !flex w-full min-w-0 !flex-col !items-stretch !justify-start overflow-hidden rounded-xl border bg-elevated !p-0 text-left transition"
+                class="group flex w-full min-w-0 flex-col overflow-hidden rounded-xl border bg-elevated text-left transition"
                 :class="
-                  selectedPhotoIds.includes(asset.id)
+                  photoChosen(asset.id, 'post') || photoChosen(asset.id, 'video')
                     ? 'border-primary ring-2 ring-primary/20'
                     : 'border-default hover:border-primary/40 hover:shadow-sm'
                 "
-                :aria-pressed="selectedPhotoIds.includes(asset.id)"
-                :aria-label="t('gallery.selectPhoto', { name: asset.name })"
-                :disabled="
-                  !selectedPhotoIds.includes(asset.id)
-                    && selectedPhotoIds.length >= selectedQuantity
-                "
-                @click="togglePhoto(asset.id)"
               >
                 <MediaImage
                   :src="asset.url"
@@ -949,17 +966,26 @@ onBeforeUnmount(() => clearInterval(timer))
                   fit="cover"
                   class="aspect-square w-full bg-elevated"
                 />
-                <span class="block truncate px-2 py-1.5 text-[11px] font-medium">{{ asset.name }}</span>
-                <span
-                  class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition group-hover:opacity-100"
-                />
-                <span
-                  v-if="selectedPhotoIds.includes(asset.id)"
-                  class="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-primary text-white shadow-lg"
-                >
-                  <UIcon name="i-lucide-check" class="size-3.5" />
-                </span>
-              </UButton>
+                <span class="block truncate px-2 pt-1.5 text-[11px] font-medium">{{ asset.name }}</span>
+                <div class="grid grid-cols-2 gap-1 p-1.5">
+                  <UButton
+                    v-for="kind in (['post', 'video'] as const)"
+                    :key="kind"
+                    type="button"
+                    block
+                    size="xs"
+                    class="justify-center py-2 sm:py-1.5"
+                    :color="photoChosen(asset.id, kind) ? 'primary' : 'neutral'"
+                    :variant="photoChosen(asset.id, kind) ? 'solid' : 'soft'"
+                    :icon="kind === 'video' ? 'i-lucide-clapperboard' : 'i-lucide-image'"
+                    :aria-pressed="photoChosen(asset.id, kind)"
+                    :title="kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')"
+                    :aria-label="`${asset.name} — ${kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')}`"
+                    :disabled="!photoChosen(asset.id, kind) && photoRoleFull(kind)"
+                    @click="togglePhoto(asset.id, kind)"
+                  />
+                </div>
+              </div>
             </div>
             <div
               v-if="photoTotal > photoPageSize"
@@ -992,11 +1018,20 @@ onBeforeUnmount(() => clearInterval(timer))
             :title="t('monthly.noOriginalPhotosTitle')"
             :description="t('monthly.noOriginalPhotosDescription')"
           />
-          <p v-if="photoMode === 'selected' && selectedPhotoIds.length" class="mt-2 text-xs text-muted">
+          <p
+            v-if="photoMode === 'selected' && (selectedPhotoIds.length || selectedVideoPhotoIds.length)"
+            class="mt-2 text-xs text-muted"
+          >
             {{ t('monthly.photosIncluded', { count: selectedPhotoIds.length }) }}
+            <template v-if="selectedVideoPhotoIds.length">
+              · {{ t('monthly.photosForVideo', { count: selectedVideoPhotoIds.length }) }}
+            </template>
             <template v-if="selectedPhotoIds.length >= selectedQuantity">
               · {{ t('monthly.photoLimitReached', { count: selectedQuantity }) }}
             </template>
+          </p>
+          <p v-if="photoMode === 'selected' && selectedVideoQuantity" class="mt-1 text-xs text-muted">
+            {{ t('monthly.photoRoleHint') }}
           </p>
         </div>
       </div>

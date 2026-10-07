@@ -362,12 +362,13 @@ export async function postsCountedForLimit(
     ? await db.query<{ count: number }>(
         `SELECT count(*)::integer AS count
            FROM posts
-          WHERE business_id=$1 AND created_at>=$2 AND created_at<$3`,
+          WHERE business_id=$1 AND created_at>=$2 AND created_at<$3
+            AND payload->>'channel' <> 'TikTok'`,
         [businessId, quotaPeriod.startsAt, quotaPeriod.endsAt],
       )
     : paid
     ? await db.query<{ count: number }>(
-        'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
+        "SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date AND payload->>'channel' <> 'TikTok'",
         [businessId, `${month}-01`],
       )
     : await db.query<{ count: number }>(

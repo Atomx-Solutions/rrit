@@ -499,6 +499,7 @@ onBeforeUnmount(() => {
           >
           <div class="actions">
             <CaptionAssistant
+              v-if="form.channel !== 'TikTok'"
               :caption="form.caption"
               :channel="form.channel"
               :disabled="!editable"

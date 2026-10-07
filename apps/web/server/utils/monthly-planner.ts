@@ -13,7 +13,6 @@ import {
   postSchema,
   tiktokVideoDurationSeconds,
   tiktokVideoFormat,
-  videoSlotAllowance,
 } from '../../shared/schemas/workspace'
 import {
   emptyPlannerBrain,
@@ -25,9 +24,11 @@ import {
 import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
 import { loadBrandLogo, type BrandLogoAsset } from './brand-assets'
+import { renderTikTokVideoForPost } from './tiktok-video-render'
 import {
   paidAccessForPlanningMonth,
   postsCountedForLimit,
+  videosCountedForLimit,
   recordTrialPostUsage,
   trialStatus,
 } from './trials'
@@ -166,6 +167,36 @@ async function plannerBrainFor(client: PoolClient, businessId: string, businessS
   return loadPlannerBrain(client, businessId, brand.id)
 }
 
+/**
+ * How many videos this batch may be asked for.
+ *
+ * Videos are a package allowance of their own, and each one is a post that is
+ * additionally animated, so a request is held against both the videos left in
+ * the package and the posts this batch is producing. An over-request is refused
+ * rather than trimmed, for the same reason an over-request of posts is: the
+ * business should learn its figure was impossible before the batch runs on a
+ * number it never chose.
+ */
+async function requestedPlannerVideos(
+  client: PoolClient,
+  businessId: string,
+  access: { limits: { videos_per_month?: number }; quotaPeriod?: { startsAt: Date; endsAt: Date } },
+  quantity: number | undefined,
+  videoDeliverables: { enabled: boolean } | undefined,
+) {
+  if (!quantity) return 0
+  // The brand profile decides whether this business does motion at all. Asking
+  // for a video while it is off is refused rather than quietly turned into an
+  // extra static post the business never asked for and cannot pay for from the
+  // post allowance.
+  if (!videoDeliverables?.enabled) throw new PlannerFailure('VIDEO_DELIVERABLES_DISABLED')
+  const used = await videosCountedForLimit(client, businessId, access.quotaPeriod)
+  const remaining = Math.max(0, (access.limits.videos_per_month || 0) - used)
+  if (!Number.isInteger(quantity) || quantity < 0 || quantity > remaining)
+    throw new PlannerFailure('VIDEO_QUANTITY_EXCEEDS_REMAINING')
+  return quantity
+}
+
 export async function ensureMonthlyPlan(
   client: PoolClient,
   businessId: string,
@@ -174,6 +205,7 @@ export async function ensureMonthlyPlan(
   options: {
     requeueCancelled?: boolean
     quantity?: number
+    videoQuantity?: number
     channelCounts?: PlannerChannelCounts
   } = {},
 ) {
@@ -207,12 +239,13 @@ export async function ensureMonthlyPlan(
       month,
       options.quantity,
       options.channelCounts,
+      options.videoQuantity,
     )
   if (prior.rows[0] && (prior.rows[0].status !== 'cancelled' || !options.requeueCancelled))
     return prior.rows[0] as { id: string; status: string }
   const settings = await plannerStep('ensure.settings', () =>
     client.query(
-      'SELECT enabled,photo_mode,preferred_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
       [businessId],
     ),
   )
@@ -231,14 +264,31 @@ export async function ensureMonthlyPlan(
   // `target` is the month's whole quota and `generate` is only what the
   // customer has asked for right now. A plan created by the worker's own
   // rotation asks for nothing, so it costs nothing until the customer does.
-  const target = remaining
-  const generate =
+  const generatePosts =
     options.quantity === undefined ? 0 : requestedPlannerPosts(options.quantity, remaining)
+  const generateVideos = await plannerStep('ensure.video_request', () =>
+    requestedPlannerVideos(
+      client,
+      businessId,
+      access,
+      options.videoQuantity,
+      workspace.brand.videoDeliverables,
+    ),
+  )
+  // A video is a deliverable of its own with its own photograph, so the batch
+  // the planner produces is the posts plus the videos. The two allowances stay
+  // separate: each was already checked against the quota it belongs to.
+  const target = remaining + generateVideos
+  const generate = generatePosts + generateVideos
   const photoSelection = {
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
+    selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
   }
-  if (photoSelection.selectedAssetIds.length > target)
+  if (
+    photoSelection.selectedAssetIds.length > remaining ||
+    photoSelection.selectedVideoAssetIds.length > generateVideos
+  )
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
   // Nothing requested means nothing queued: the plan waits in 'idle' until a
   // request arrives, so no provider call is ever made on the worker's behalf.
@@ -264,21 +314,23 @@ export async function ensureMonthlyPlan(
     JSON.stringify({ plan: access.plan, limits: access.limits, paid: access.paid }),
     generate,
     queuedStatus,
-    JSON.stringify(normalizedChannelCounts(options.channelCounts, generate)),
+    JSON.stringify(normalizedChannelCounts(options.channelCounts, generatePosts)),
+    generateVideos,
   ]
   const created = await plannerStep('ensure.plan_insert', () =>
     prior.rows[0]
       ? client.query(
           `UPDATE monthly_plans
               SET status=$8,stage='research',target_count=$3,generate_count=$7,completed_count=0,batch_start=0,batch_channel_counts=$9,
+                  batch_video_count=$10,
                   evidence=$4,evidence_hash=$5,entitlement_snapshot=$6,research=NULL,
                   editorial_plan=NULL,error_code=NULL,next_run_at=now(),updated_at=now()
-            WHERE id=$10 AND business_id=$1 AND month=$2::date RETURNING id,status`,
+            WHERE id=$11 AND business_id=$1 AND month=$2::date RETURNING id,status`,
           [...values, prior.rows[0].id],
         )
       : client.query(
-          `INSERT INTO monthly_plans(business_id,month,target_count,evidence,evidence_hash,entitlement_snapshot,generate_count,status,batch_channels)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,status`,
+          `INSERT INTO monthly_plans(business_id,month,target_count,evidence,evidence_hash,entitlement_snapshot,generate_count,status,batch_channels,batch_video_count)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,status`,
           values,
         ),
   )
@@ -310,6 +362,7 @@ export async function requestMonthlyPosts(
   month: string,
   quantity: number,
   channelCounts?: PlannerChannelCounts,
+  videoQuantity?: number,
 ) {
   if (!monthlyAiConfigured()) throw new PlannerFailure('CONFIGURATION_REQUIRED')
   const { workspace, slug } = await loadWorkspace(client, businessId, ownerId)
@@ -329,7 +382,7 @@ export async function requestMonthlyPosts(
   if (!['idle', 'review', 'queued'].includes(prior.status))
     throw new PlannerFailure('PLAN_NOT_RESTARTABLE')
   const settings = await client.query(
-    'SELECT enabled,photo_mode,preferred_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
     [businessId],
   )
   if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
@@ -346,12 +399,24 @@ export async function requestMonthlyPosts(
   )
   const remaining = remainingMonthlyPosts(access.limits.posts_per_month, existing)
   if (remaining < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
-  const added = requestedPlannerPosts(quantity, remaining)
+  const addedPosts = requestedPlannerPosts(quantity, remaining)
+  const addedVideos = await requestedPlannerVideos(
+    client,
+    businessId,
+    access,
+    videoQuantity,
+    workspace.brand.videoDeliverables,
+  )
+  const added = addedPosts + addedVideos
   const photoSelection = {
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
+    selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
   }
-  if (photoSelection.selectedAssetIds.length > added)
+  if (
+    photoSelection.selectedAssetIds.length > addedPosts ||
+    photoSelection.selectedVideoAssetIds.length > addedVideos
+  )
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
   const businessBrain = await plannerBrainFor(client, businessId, slug)
@@ -365,12 +430,12 @@ export async function requestMonthlyPosts(
   )
   // The quota is re-read rather than trusted: posts may have been created or
   // removed by hand since the plan was opened.
-  const target = prior.completed_count + remaining
+  const target = prior.completed_count + remaining + addedVideos
   const generate = Math.min(prior.generate_count + added, target)
   const updated = await client.query(
     `UPDATE monthly_plans
         SET status='queued',stage=$3,target_count=$4,generate_count=$5,
-            batch_start=completed_count,batch_channel_counts=$9,
+            batch_start=completed_count,batch_channel_counts=$9,batch_video_count=$10,
             evidence=$6,evidence_hash=$7,entitlement_snapshot=$8,
             error_code=NULL,next_run_at=now(),updated_at=now()
       WHERE id=$1 AND business_id=$2 RETURNING id,status`,
@@ -383,7 +448,8 @@ export async function requestMonthlyPosts(
       JSON.stringify(evidence),
       evidenceHash(evidence),
       JSON.stringify({ plan: access.plan, limits: access.limits, paid: access.paid }),
-      JSON.stringify(normalizedChannelCounts(channelCounts, added)),
+      JSON.stringify(normalizedChannelCounts(channelCounts, addedPosts)),
+      addedVideos,
     ],
   )
   await client.query(
@@ -450,7 +516,7 @@ export async function restartMonthlyPlan(
   if (['BUDGET_ESTIMATE_EXCEEDED', 'PROVIDER_RETRY_EXHAUSTED'].includes(prior.error_code || ''))
     throw new PlannerFailure('PLAN_RECONCILIATION_REQUIRED')
   const settings = await client.query(
-    'SELECT enabled,photo_mode,preferred_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
     [businessId],
   )
   if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
@@ -481,6 +547,7 @@ export async function restartMonthlyPlan(
   const photoSelection = {
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
+    selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
   }
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
@@ -583,6 +650,7 @@ interface PlanRow {
   target_count: number
   generate_count: number
   batch_channel_counts: PlannerChannelCounts
+  batch_video_count: number
   completed_count: number
   evidence: PlannerEvidence
   evidence_hash: string
@@ -771,6 +839,10 @@ async function loadPlannerTimingSamples(
   })
   const platform = workspace.posts.flatMap((post) => {
     if (post.status !== 'published' || !post.publishedAt) return []
+    // Posting-time evidence is about the feed. A TikTok video is published from
+    // TikTok on its own rhythm, so it teaches nothing about when a Meta post
+    // should go out.
+    if (post.channel === 'TikTok') return []
     return [{ source: 'platform' as const, channel: post.channel, publishedAt: post.publishedAt }]
   })
   return [...imported, ...platform].slice(0, 240)
@@ -1372,7 +1444,10 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           plan.evidence.capturedAt,
         )
       : null
-    const videoSlots = videoSlotAllowance(plan.evidence.brand.videoDeliverables, batchCount)
+    // Exactly what the business asked for on the planner. A video is its own
+    // deliverable with its own photograph, so it is not a share of the posts;
+    // the brand switch only decides whether motion is offered at all.
+    const videoSlots = Math.min(plan.batch_video_count, batchCount)
     const baseEarliestPublishableDate = earliestPlanningDate(
       plan.evidence.timezone,
       plan.evidence.capturedAt,
@@ -1466,12 +1541,22 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ? { eventResearch: { ...planningEventWindow, categories: planningEventCategories } }
             : {}),
           // Planning learns the video permission the research stage ran under,
-          // together with the share of this batch it may spend on motion.
-          ...(videoSlots ? { videoDeliverables: { maxSlots: videoSlots } } : {}),
+          // together with exactly how many of this batch's slots the business
+          // bought as video.
+          ...(videoSlots ? { videoDeliverables: { exactSlots: videoSlots } } : {}),
           contactSheet: planningAssets.map((asset, index) => ({
             photo: index + 1,
             ...plan.evidence.assets.find((item) => item.id === asset.id),
             selectedByUser: (plan.evidence.photoSelection?.selectedAssetIds || []).includes(
+              asset.id,
+            ),
+            // The two marks the business set on this photograph. They are
+            // independent: one carrying both owes the plan a feed post and a
+            // video, built from the same source.
+            chosenForPost: (plan.evidence.photoSelection?.selectedAssetIds || []).includes(
+              asset.id,
+            ),
+            chosenForVideo: (plan.evidence.photoSelection?.selectedVideoAssetIds || []).includes(
               asset.id,
             ),
           })),
@@ -1518,6 +1603,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           accessDates.latest,
           plannedSoFar,
           plan.batch_channel_counts || {},
+          videoSlots,
         )
       } catch (error) {
         // A valid provider payload may still invent timing evidence or fail a
@@ -1961,7 +2047,11 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             id: postId,
             title: content.title,
             caption: `${content.caption}\n\n${content.hashtags.join(' ')}`,
-            channel: slot.channel,
+            // A video slot is a TikTok deliverable of its own. Holding it on
+            // its own channel is what keeps it out of the feed's platform
+            // split, out of the Meta publishing queue and out of the post
+            // allowance, which it was never bought from.
+            channel: slot.deliverable === 'video' ? 'TikTok' : slot.channel,
             format: 'static',
             image: `/api/media/${assetId}`,
             pillar: slot.pillar,
@@ -1975,11 +2065,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
               plan.evidence.timezone,
             ),
             publicationMode: 'manual',
-            // A video slot is this same static post plus a ready motion brief.
             // The brief points at the original owned photograph rather than the
             // generated creative, because that photograph is what becomes the
-            // first frame. Rendering stays an explicit, credit-spending action
-            // the business takes itself: planning only prepares it.
+            // first frame.
             ...(slot.deliverable === 'video'
               ? {
                   tiktokVideo: {
@@ -2075,10 +2163,32 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             [plan.business_id, postId],
           ),
         )
-        return true
+        // The id of the post that was committed, so the caller can finish the
+        // deliverable outside this transaction.
+        return postId
         }),
       )
       if (!committed) await removeAsset(storagePath)
+      // A video is produced in the same run as the posts, because its
+      // photograph is its first frame and has to exist first. The render opens
+      // its own transactions, so it waits until this one has committed.
+      if (committed && slot.deliverable === 'video') {
+        try {
+          await plannerStep('content.tiktok_video_render', () =>
+            renderTikTokVideoForPost(plan.owner_id, committed),
+          )
+        } catch (error) {
+          // The post is delivered and its brief is durable, so a render that
+          // fails here leaves something the business can start again from the
+          // editor. Losing the rest of a batch it has paid for would cost it
+          // more than stopping is worth.
+          console.error('The monthly planner could not render a TikTok video', {
+            planId: plan.id,
+            postId: committed,
+            error,
+          })
+        }
+      }
     } catch (error) {
       try {
         await removeAsset(storagePath)
