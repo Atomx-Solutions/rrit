@@ -75,6 +75,7 @@ import {
   packageMonthWindow,
   channelCountsTotal,
   normalizedChannelCounts,
+  normalizedVideoChannelCounts,
   plannerChannels,
   plannerVoice,
   planningMonth,
@@ -84,6 +85,7 @@ import {
   validateEditorialPlan,
   type PlannerChannel,
   type PlannerChannelCounts,
+  type PlannerVideoChannelCounts,
   type PlannerEvidence,
   type PlannerTimingSample,
 } from './monthly-planner-domain'
@@ -184,14 +186,10 @@ async function requestedPlannerVideos(
   businessId: string,
   access: { limits: { videos_per_month?: number }; quotaPeriod?: { startsAt: Date; endsAt: Date } },
   quantity: number | undefined,
-  videoDeliverables: { enabled: boolean } | undefined,
 ) {
   if (!quantity) return 0
-  // The brand profile decides whether this business does motion at all. Asking
-  // for a video while it is off is refused rather than quietly turned into an
-  // extra static post the business never asked for and cannot pay for from the
-  // post allowance.
-  if (!videoDeliverables?.enabled) throw new PlannerFailure('VIDEO_DELIVERABLES_DISABLED')
+  // The explicit request authorizes a video even when the optional profile
+  // preference has never been enabled.
   const used = await videosCountedForLimit(client, businessId, access.quotaPeriod)
   const remaining = Math.max(0, (access.limits.videos_per_month || 0) - used)
   if (!Number.isInteger(quantity) || quantity < 0 || quantity > remaining)
@@ -209,6 +207,7 @@ export async function ensureMonthlyPlan(
     quantity?: number
     videoQuantity?: number
     channelCounts?: PlannerChannelCounts
+    videoChannelCounts?: PlannerVideoChannelCounts
   } = {},
 ) {
   if (!monthlyAiConfigured()) throw new PlannerFailure('CONFIGURATION_REQUIRED')
@@ -242,6 +241,7 @@ export async function ensureMonthlyPlan(
       options.quantity,
       options.channelCounts,
       options.videoQuantity,
+      options.videoChannelCounts,
     )
   if (prior.rows[0] && (prior.rows[0].status !== 'cancelled' || !options.requeueCancelled))
     return prior.rows[0] as { id: string; status: string }
@@ -274,7 +274,6 @@ export async function ensureMonthlyPlan(
       businessId,
       access,
       options.videoQuantity,
-      workspace.brand.videoDeliverables,
     ),
   )
   // A video is a deliverable of its own with its own photograph, so the batch
@@ -306,7 +305,9 @@ export async function ensureMonthlyPlan(
     photoSelection,
     timingSamples,
     businessBrain,
+    normalizedVideoChannelCounts(options.videoChannelCounts, generateVideos),
   )
+  if (generateVideos) evidence.brand.videoDeliverables = { enabled: true }
   const values = [
     businessId,
     `${month}-01`,
@@ -365,6 +366,7 @@ export async function requestMonthlyPosts(
   quantity: number,
   channelCounts?: PlannerChannelCounts,
   videoQuantity?: number,
+  videoChannelCounts?: PlannerVideoChannelCounts,
 ) {
   if (!monthlyAiConfigured()) throw new PlannerFailure('CONFIGURATION_REQUIRED')
   const { workspace, slug } = await loadWorkspace(client, businessId, ownerId)
@@ -407,7 +409,6 @@ export async function requestMonthlyPosts(
     businessId,
     access,
     videoQuantity,
-    workspace.brand.videoDeliverables,
   )
   const added = addedPosts + addedVideos
   const photoSelection = {
@@ -429,7 +430,9 @@ export async function requestMonthlyPosts(
     photoSelection,
     timingSamples,
     businessBrain,
+    normalizedVideoChannelCounts(videoChannelCounts, addedVideos),
   )
+  if (addedVideos) evidence.brand.videoDeliverables = { enabled: true }
   // The quota is re-read rather than trusted: posts may have been created or
   // removed by hand since the plan was opened.
   const target = prior.completed_count + remaining + addedVideos
@@ -633,7 +636,8 @@ export async function resetMonthlyPlan(
   )
   await client.query(
     `UPDATE monthly_planner_settings
-      SET configured_at=NULL,photo_mode='auto',preferred_asset_ids='{}',updated_at=now()
+      SET configured_at=NULL,photo_mode='auto',preferred_asset_ids='{}',
+          preferred_video_asset_ids='{}',updated_at=now()
       WHERE business_id=$1`,
     [businessId],
   )
@@ -1552,6 +1556,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           // together with exactly how many of this batch's slots the business
           // bought as video.
           ...(videoSlots ? { videoDeliverables: { exactSlots: videoSlots } } : {}),
+          ...(Object.keys(plan.evidence.videoChannelCounts || {}).length
+            ? { videoChannelPlan: plan.evidence.videoChannelCounts }
+            : {}),
           contactSheet: planningAssets.map((asset, index) => ({
             photo: index + 1,
             ...plan.evidence.assets.find((item) => item.id === asset.id),
@@ -2003,7 +2010,8 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           ),
         )
         if (
-          !remainingMonthlyPosts(currentAccess.limits.posts_per_month, countedPosts) ||
+          (slot.deliverable !== 'video' &&
+            !remainingMonthlyPosts(currentAccess.limits.posts_per_month, countedPosts)) ||
           Number(usage.rows[0]?.bytes || 0) + creative.length >
             currentAccess.limits.media_storage_bytes
         )
@@ -2234,6 +2242,7 @@ export async function runMonthlyPlannerTick(
           SET last_seen_at=now(),lease_owner=EXCLUDED.lease_owner,lease_until=EXCLUDED.lease_until
         WHERE worker_heartbeats.lease_until IS NULL
           OR worker_heartbeats.lease_until<now()
+          OR worker_heartbeats.last_seen_at<now()-interval '2 minutes'
         RETURNING name`,
       [leaseOwner],
     ),

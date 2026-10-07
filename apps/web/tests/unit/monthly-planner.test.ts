@@ -13,6 +13,7 @@ import {
   packageMonthWindow,
   plannerChannels,
   normalizedChannelCounts,
+  normalizedVideoChannelCounts,
   soleChannel,
   channelCountsTotal,
   feedCreativeGeometry,
@@ -44,6 +45,12 @@ import { aiProviderJsonSchema } from '../../server/utils/ai-provider'
 import { z } from 'zod'
 
 afterEach(() => vi.unstubAllEnvs())
+describe('video platform requests', () => {
+  it('keeps a single requested TikTok video separate from feed posts', () => {
+    expect(normalizedVideoChannelCounts({ TikTok: 1 }, 1)).toEqual({ TikTok: 1 })
+    expect(() => normalizedVideoChannelCounts({ TikTok: 1 }, 2)).toThrowError(PlannerFailure)
+  })
+})
 const now = new Date('2026-09-09T08:00:00Z')
 function researchFixture(): ProviderResponse {
   return {
@@ -225,6 +232,20 @@ describe('monthly evidence and provider boundaries', () => {
     expect(normalized.slots[0]!.timingBasis).toBe('no_data')
     expect(normalized.slots[0]!.timingRationale).toContain('Nuk ka të dhëna')
     expect(() => validateEditorialPlan(normalized, evidence, research, '2026-09', 1)).not.toThrow()
+  })
+  it('keeps the requested video platform separate from the post platform', () => {
+    const evidence = plannerEvidence(createDemo(), now, '2026-09', undefined, [], {}, { TikTok: 1 })
+    const research = researchFromResponse(researchFixture(), now)
+    const post = editorialFixture().slots[0]!
+    const plan = {
+      ...editorialFixture(),
+      slots: [
+        { ...post, channel: 'Facebook', deliverable: 'static_post' },
+        { ...post, day: 16, channel: 'Facebook', deliverable: 'video', topic: 'Video topic', hook: 'Video hook' },
+      ],
+    }
+    const normalized = normalizeEditorialPlanResponse(plan, evidence, research, 2, '2026-09', { Instagram: 1 })
+    expect(normalized.slots.map((slot) => slot.channel)).toEqual(['Instagram', 'TikTok'])
   })
   it('fails closed when provider configuration is incomplete', () => {
     vi.stubEnv('AI_MONTHLY_PLANNER_ENABLED', 'true')

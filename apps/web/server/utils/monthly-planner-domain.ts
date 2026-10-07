@@ -24,6 +24,22 @@ export type PlannerChannel = (typeof plannerChannels)[number]
 // How many of a batch's posts each platform gets. An empty object is the
 // absence of a request, not a request for nothing.
 export type PlannerChannelCounts = Partial<Record<PlannerChannel, number>>
+export const plannerVideoChannels = ['Instagram', 'Facebook', 'TikTok'] as const
+export type PlannerVideoChannel = (typeof plannerVideoChannels)[number]
+export type PlannerVideoChannelCounts = Partial<Record<PlannerVideoChannel, number>>
+
+export function normalizedVideoChannelCounts(counts: PlannerVideoChannelCounts | undefined, quantity: number) {
+  if (!counts) return {}
+  const entries = plannerVideoChannels.flatMap((channel) => {
+    const value = counts[channel]
+    if (value === undefined) return []
+    if (!Number.isInteger(value) || value < 0) throw new PlannerFailure('INVALID_CHANNEL_SPLIT')
+    return value > 0 ? ([[channel, value]] as const) : []
+  })
+  if (entries.reduce((total, [, value]) => total + value, 0) !== quantity)
+    throw new PlannerFailure('INVALID_CHANNEL_SPLIT')
+  return Object.fromEntries(entries) as PlannerVideoChannelCounts
+}
 
 export function channelCountsTotal(counts: PlannerChannelCounts | undefined) {
   return plannerChannels.reduce((total, channel) => total + (counts?.[channel] || 0), 0)
@@ -54,6 +70,10 @@ export function normalizedChannelCounts(
 /** The single platform a distribution leaves, when it leaves only one. */
 export function soleChannel(counts: PlannerChannelCounts | undefined) {
   const used = plannerChannels.filter((channel) => (counts?.[channel] || 0) > 0)
+  return used.length === 1 ? used[0]! : undefined
+}
+export function soleVideoChannel(counts: PlannerVideoChannelCounts | undefined) {
+  const used = plannerVideoChannels.filter((channel) => (counts?.[channel] || 0) > 0)
   return used.length === 1 ? used[0]! : undefined
 }
 
@@ -166,6 +186,7 @@ export function plannerEvidence(
   },
   timingSamples: PlannerTimingSample[] = [],
   businessBrain: { brain?: PlannerBrain; facts?: BrandFact[] } = {},
+  videoChannelCounts: PlannerVideoChannelCounts = {},
 ) {
   const brain = businessBrain.brain || emptyPlannerBrain
   const brainFacts = businessBrain.facts || []
@@ -258,6 +279,7 @@ export function plannerEvidence(
       selectedAssetIds: photoSelection.mode === 'selected' ? selectedAssetIds : [],
       selectedVideoAssetIds: photoSelection.mode === 'selected' ? selectedVideoAssetIds : [],
     },
+    videoChannelCounts,
     recentPosts: workspace.posts
       .slice(0, 30)
       .map(({ title, caption, channel }) => ({ title, caption: caption.slice(0, 600), channel })),
@@ -540,12 +562,15 @@ export function normalizeEditorialPlanResponse(
           }),
         ),
       ]
-      const timingBasis = supportedTimingBasis(slot)
+      const channel = slot.deliverable === 'video'
+        ? soleVideoChannel(evidence.videoChannelCounts) || slot.channel
+        : soleChannel(channelCounts) || slot.channel
+      const timingBasis = supportedTimingBasis({ ...slot, channel })
       return {
         ...slot,
         // With one platform requested there is nothing to decide, so the
         // request wins outright.
-        channel: soleChannel(channelCounts) || slot.channel,
+        channel,
         // Never replace an editorial claim with an unrelated fact or source.
         // Keeping the original when nothing matches makes validation request a
         // precise model correction instead of silently weakening grounding.
@@ -748,6 +773,14 @@ export function validateEditorialPlan(
           .map((channel) => `${channel} ${channelCounts[channel] || 0}`)
           .join(', ')}.`,
       ])
+  }
+  if (Object.keys(evidence.videoChannelCounts || {}).length) {
+    const planned = plan.slots.reduce<Record<string, number>>((totals, slot) => {
+      if (slot.deliverable === 'video') totals[slot.channel] = (totals[slot.channel] || 0) + 1
+      return totals
+    }, {})
+    if (plannerVideoChannels.some((channel) => (planned[channel] || 0) !== (evidence.videoChannelCounts[channel] || 0)))
+      throw new PlannerFailure('UNGROUNDED_PLAN', ['Shpërndaji videot në platformat e zgjedhura.'])
   }
   // The video count is a money boundary, not a style note: each video is a
   // deliverable the business bought, so the figure is enforced here rather than

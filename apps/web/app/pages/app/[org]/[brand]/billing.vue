@@ -66,9 +66,9 @@ async function sendVideoRequest() {
   try {
     await $fetch('/api/billing/package-request', { method: 'POST', body: { postsRequested: 0, creditsRequested: 0, videosRequested: videosRequested.value } })
     videoRequestOpen.value = false
-    showSuccess(t('billing.videoRequestSent't())
+    showSuccess(t('billing.videoRequestSent'))
   } catch (error) {
-    showError((error as { data?: { message?: string } }).data?.message || 'billing.videoRequestFailed'))
+    showError((error as { data?: { message?: string } }).data?.message || t('billing.videoRequestFailed'))
   } finally { sendingVideoRequest.value = false }
 }
 async function sendCreditRequest() {
@@ -85,10 +85,10 @@ async function sendCreditRequest() {
     })
     creditRequestOpen.value = false
     creditMessage.value = ''
-    showSuccess(t('billing.creditRequestSent't())
+    showSuccess(t('billing.creditRequestSent'))
   } catch (error) {
     showError(
-      (error as { data?: { message?: string } }).data?.message || 'billing.creditRequestFailed'),
+      (error as { data?: { message?: string } }).data?.message || t('billing.creditRequestFailed'),
     )
   } finally {
     sendingCreditRequest.value = false
@@ -158,9 +158,9 @@ async function acceptProposal() {
     // The accepted package grants its post-based credits atomically. Refresh
     // every visible balance immediately instead of waiting for polling.
     await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('header-credit-balance')])
-    showSuccess(t('billing.packageProposalAccepted't())
+    showSuccess(t('billing.packageProposalAccepted'))
   } catch (error) {
-    showError((error as { data?: { message?: string } }).data?.message || 'billing.packageProposalFailed'))
+    showError((error as { data?: { message?: string } }).data?.message || t('billing.packageProposalFailed'))
   } finally {
     acceptingProposal.value = false
   }
@@ -170,9 +170,9 @@ async function declineProposal() {
   try {
     await $fetch('/api/billing/custom-package-decline', { method: 'POST', body: {} })
     await refreshBilling()
-    showSuccess(t('billing.packageProposalDeclined't())
+    showSuccess(t('billing.packageProposalDeclined'))
   } catch (error) {
-    showError((error as { data?: { message?: string } }).data?.message || 'billing.packageProposalFailed'))
+    showError((error as { data?: { message?: string } }).data?.message || t('billing.packageProposalFailed'))
   } finally { decliningProposal.value = false }
 }
 </script>

@@ -26,6 +26,11 @@ export default defineEventHandler(async (event) => {
           Facebook: z.number().int().min(0).max(100).optional(),
         })
         .optional(),
+      videoChannelCounts: z.object({
+        Instagram: z.number().int().min(0).max(100).optional(),
+        Facebook: z.number().int().min(0).max(100).optional(),
+        TikTok: z.number().int().min(0).max(100).optional(),
+      }).optional(),
     })
     .safeParse(await boundedBody(event, 2048))
   if (!input.success)
@@ -50,6 +55,7 @@ export default defineEventHandler(async (event) => {
           input.data.quantity,
           input.data.channelCounts,
           input.data.videoQuantity,
+          input.data.videoChannelCounts,
         )
       }
       if (input.data.action === 'reset') {
@@ -94,6 +100,7 @@ export default defineEventHandler(async (event) => {
         quantity: input.data.quantity,
         videoQuantity: input.data.videoQuantity,
         channelCounts: input.data.channelCounts,
+        videoChannelCounts: input.data.videoChannelCounts,
       })
     })
     setResponseStatus(event, 202)

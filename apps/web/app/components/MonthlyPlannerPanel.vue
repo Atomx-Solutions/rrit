@@ -95,12 +95,20 @@ const channelOptions: { value: PlannerChannel; label: string; icon: string }[] =
   { value: 'Facebook', label: 'Facebook', icon: 'i-lucide-facebook' },
 ]
 const channelSplit = reactive<Record<PlannerChannel, number>>({ Instagram: 0, Facebook: 0 })
+type VideoChannel = PlannerChannel | 'TikTok'
+const videoChannelOptions: { value: VideoChannel; label: string; icon: string }[] = [
+  ...channelOptions,
+  { value: 'TikTok', label: 'TikTok', icon: 'i-lucide-clapperboard' },
+]
+const videoChannelSplit = reactive<Record<VideoChannel, number>>({ Instagram: 0, Facebook: 0, TikTok: 0 })
 const requestOpen = ref(false)
 const requestAction = ref<'prepare' | 'generate'>('prepare')
 const splitAssigned = computed(() => channelSplit.Instagram + channelSplit.Facebook)
 // A single post is a choice between platforms, not an allocation across them.
 const singlePost = computed(() => selectedQuantity.value === 1)
 const splitComplete = computed(() => splitAssigned.value === selectedQuantity.value)
+const videoSplitAssigned = computed(() => Object.values(videoChannelSplit).reduce((sum, count) => sum + count, 0))
+const videoSplitComplete = computed(() => videoSplitAssigned.value === selectedVideoQuantity.value)
 function openRequest(action: 'prepare' | 'generate') {
   if (action === 'prepare' && photoMode.value === 'selected' && !selectedPhotoIds.value.length) {
     error.value = t('monthly.selectPhotoRequired')
@@ -112,6 +120,9 @@ function openRequest(action: 'prepare' | 'generate') {
   const half = Math.floor(selectedQuantity.value / 2)
   channelSplit.Instagram = selectedQuantity.value - half
   channelSplit.Facebook = half
+  videoChannelSplit.Instagram = selectedVideoQuantity.value
+  videoChannelSplit.Facebook = 0
+  videoChannelSplit.TikTok = 0
   requestOpen.value = true
 }
 function chooseSingleChannel(channel: PlannerChannel) {
@@ -126,6 +137,26 @@ function setChannelCount(channel: PlannerChannel, value: number) {
   // customer adjusts one side rather than solving for both.
   channelSplit[other] = selectedQuantity.value - next
 }
+function chooseSingleVideoChannel(channel: VideoChannel) {
+  for (const option of videoChannelOptions) videoChannelSplit[option.value] = option.value === channel ? 1 : 0
+}
+function setVideoChannelCount(channel: VideoChannel, value: number) {
+  const next = Math.max(0, Math.min(value, selectedVideoQuantity.value))
+  videoChannelSplit[channel] = next
+  let excess = videoSplitAssigned.value - selectedVideoQuantity.value
+  for (const option of videoChannelOptions) {
+    if (option.value === channel || excess <= 0) continue
+    const removed = Math.min(excess, videoChannelSplit[option.value])
+    videoChannelSplit[option.value] -= removed
+    excess -= removed
+  }
+  let missing = selectedVideoQuantity.value - videoSplitAssigned.value
+  for (const option of videoChannelOptions) {
+    if (option.value === channel || missing <= 0) continue
+    videoChannelSplit[option.value] += missing
+    missing = 0
+  }
+}
 // Platforms with no posts are left out entirely: zero is the absence of a
 // request for that platform, not a request for none.
 function requestedChannelCounts() {
@@ -135,8 +166,13 @@ function requestedChannelCounts() {
     ),
   )
 }
+function requestedVideoChannelCounts() {
+  return Object.fromEntries(videoChannelOptions.flatMap((option) =>
+    videoChannelSplit[option.value] > 0 ? [[option.value, videoChannelSplit[option.value]]] : [],
+  ))
+}
 async function confirmRequest() {
-  if (!splitComplete.value) return
+  if (!splitComplete.value || !videoSplitComplete.value) return
   requestOpen.value = false
   await act(requestAction.value)
 }
@@ -297,7 +333,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
         action,
         month: props.month,
         ...(action === 'generate'
-          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), videoQuantity: selectedVideoQuantity.value }
+          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), videoQuantity: selectedVideoQuantity.value, videoChannelCounts: requestedVideoChannelCounts() }
           : {}),
         ...(action === 'prepare'
           ? {
@@ -307,6 +343,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
                 photoMode.value === 'selected' ? selectedVideoPhotoIds.value : [],
               quantity: selectedQuantity.value,
               channelCounts: requestedChannelCounts(),
+              videoChannelCounts: requestedVideoChannelCounts(),
               videoQuantity: selectedVideoQuantity.value,
             }
           : {}),
@@ -1087,14 +1124,17 @@ onBeforeUnmount(() => clearInterval(timer))
 
     <UModal
       v-model:open="requestOpen"
-      :title="singlePost ? t('monthly.requestSingleTitle') : t('monthly.requestSplitTitle')"
+      :title="selectedVideoQuantity ? t('monthly.requestMixedTitle') : singlePost ? t('monthly.requestSingleTitle') : t('monthly.requestSplitTitle')"
       :description="
-        singlePost
+        selectedVideoQuantity
+          ? t('monthly.requestMixedDescription')
+          : singlePost
           ? t('monthly.requestSingleDescription')
           : t('monthly.requestSplitDescription', { count: selectedQuantity })
       "
     >
       <template #body>
+        <h3 v-if="selectedVideoQuantity" class="mb-3 text-sm font-semibold text-highlighted">{{ t('monthly.postPlatforms') }}</h3>
         <div v-if="singlePost" class="grid grid-cols-2 gap-3">
           <UButton
             v-for="option in channelOptions"
@@ -1139,13 +1179,50 @@ onBeforeUnmount(() => clearInterval(timer))
         >
           {{ t('monthly.splitAssigned', { assigned: splitAssigned, total: selectedQuantity }) }}
         </p>
+        <div v-if="selectedVideoQuantity" class="mt-5 border-t border-default pt-4">
+          <h3 class="mb-1 text-sm font-semibold text-highlighted">{{ t('monthly.videoPlatforms') }}</h3>
+          <p class="mb-3 text-xs text-muted">{{ t('monthly.videoPlatformsDescription') }}</p>
+          <div v-if="selectedVideoQuantity === 1" class="grid grid-cols-3 gap-2">
+            <UButton
+              v-for="option in videoChannelOptions"
+              :key="option.value"
+              block
+              size="lg"
+              :color="videoChannelSplit[option.value] === 1 ? 'primary' : 'neutral'"
+              :variant="videoChannelSplit[option.value] === 1 ? 'soft' : 'outline'"
+              :aria-pressed="videoChannelSplit[option.value] === 1"
+              class="h-auto flex-col gap-2 py-4"
+              @click="chooseSingleVideoChannel(option.value)"
+            >
+              <UIcon :name="option.icon" class="size-8" />
+              <span class="text-sm font-semibold">{{ option.label }}</span>
+            </UButton>
+          </div>
+          <div v-else class="grid grid-cols-3 gap-2">
+            <div v-for="option in videoChannelOptions" :key="option.value" class="flex flex-col items-center gap-2 rounded-xl border border-default p-3">
+              <UIcon :name="option.icon" class="size-6" />
+              <span class="text-xs font-semibold">{{ option.label }}</span>
+              <UInputNumber
+                :model-value="videoChannelSplit[option.value]"
+                :min="0"
+                :max="selectedVideoQuantity"
+                class="w-24"
+                :aria-label="t('monthly.videosForChannel', { channel: option.label })"
+                @update:model-value="setVideoChannelCount(option.value, Number($event))"
+              />
+            </div>
+          </div>
+          <p v-if="selectedVideoQuantity > 1" class="mt-3 text-sm" :class="videoSplitComplete ? 'text-muted' : 'text-error'">
+            {{ t('monthly.videoSplitAssigned', { assigned: videoSplitAssigned, total: selectedVideoQuantity }) }}
+          </p>
+        </div>
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton color="neutral" variant="outline" @click="requestOpen = false">
             {{ t('common.cancel') }}
           </UButton>
-          <UButton :loading="busy" :disabled="!splitComplete" @click="confirmRequest">
+          <UButton :loading="busy" :disabled="!splitComplete || !videoSplitComplete" @click="confirmRequest">
             {{
               requestAction === 'prepare'
                 ? t('legacy.prepareMonth')
