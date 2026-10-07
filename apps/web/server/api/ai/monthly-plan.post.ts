@@ -90,7 +90,11 @@ export default defineEventHandler(async (event) => {
       const selectedAssetIds = photoMode === 'selected' ? input.data.selectedAssetIds || [] : []
       const selectedVideoAssetIds =
         photoMode === 'selected' ? input.data.selectedVideoAssetIds || [] : []
-      if (photoMode === 'selected' && !selectedAssetIds.length)
+      // Either kind of selection is enough: a video-only batch only needs a
+      // chosen video source, and a post-only batch only needs a chosen post
+      // source. Only when the user is in `selected` mode and picked neither
+      // is a selection genuinely missing.
+      if (photoMode === 'selected' && !selectedAssetIds.length && !selectedVideoAssetIds.length)
         throw new PlannerFailure('PHOTO_PREFERENCE_REQUIRED')
       await client.query(
         `INSERT INTO monthly_planner_settings(

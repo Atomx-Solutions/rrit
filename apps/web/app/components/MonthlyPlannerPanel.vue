@@ -110,7 +110,15 @@ const splitComplete = computed(() => splitAssigned.value === selectedQuantity.va
 const videoSplitAssigned = computed(() => Object.values(videoChannelSplit).reduce((sum, count) => sum + count, 0))
 const videoSplitComplete = computed(() => videoSplitAssigned.value === selectedVideoQuantity.value)
 function openRequest(action: 'prepare' | 'generate') {
-  if (action === 'prepare' && photoMode.value === 'selected' && !selectedPhotoIds.value.length) {
+  // A video-only batch does not need a post photo; a post-only batch does not
+  // need a video photo. The guard fires only when the user is in `selected`
+  // mode and has picked neither.
+  if (
+    action === 'prepare' &&
+    photoMode.value === 'selected' &&
+    !selectedPhotoIds.value.length &&
+    !selectedVideoPhotoIds.value.length
+  ) {
     error.value = t('monthly.selectPhotoRequired')
     return
   }
@@ -215,6 +223,17 @@ const settled = computed(() => plan.value?.status === 'idle' && (plan.value?.com
 const extendable = computed(
   () => !!plan.value?.extendable && (remainingPosts.value > 0 || remainingVideos.value > 0),
 )
+// The button on "Gjenero edhe postime" names exactly what the user is about to
+// get: a video-only request should read "Gjenero N video", a post-only request
+// should read "Gjenero N postime", and a mixed request names both counts.
+const generateMoreLabel = computed(() => {
+  const posts = selectedQuantity.value
+  const videos = selectedVideoQuantity.value
+  if (posts > 0 && videos > 0)
+    return t('monthly.generateMoreMixed', { posts, videos })
+  if (videos > 0 && posts === 0) return t('monthly.generateMoreVideos', { count: videos })
+  return t('monthly.generateMore', { count: posts })
+})
 // Progress is measured against what the customer asked for, not against the
 // month's whole quota: asking for one post and being shown "0 / 11" reports a
 // job eleven times larger than the one running.
@@ -325,7 +344,12 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
   if (busy.value) return
   busy.value = true
   error.value = ''
-  if (action === 'prepare' && photoMode.value === 'selected' && !selectedPhotoIds.value.length) {
+  if (
+    action === 'prepare' &&
+    photoMode.value === 'selected' &&
+    !selectedPhotoIds.value.length &&
+    !selectedVideoPhotoIds.value.length
+  ) {
     error.value = t('monthly.selectPhotoRequired')
     busy.value = false
     return
@@ -777,9 +801,27 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="ms-auto w-28" />
-        <UButton :loading="busy" icon="i-lucide-plus" @click="openRequest('generate')">
-          {{ t('monthly.generateMore', { count: selectedQuantity }) }}
+        <div class="ms-auto flex flex-wrap items-center gap-2">
+          <UFormField :label="t('monthly.quantityLabel')" size="xs">
+            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24" />
+          </UFormField>
+          <UFormField :label="t('video.include')" size="xs">
+            <UInputNumber
+              v-model="selectedVideoQuantity"
+              :min="0"
+              :max="maxVideosThisBatch"
+              class="w-24"
+              :aria-label="t('video.quantity')"
+            />
+          </UFormField>
+        </div>
+        <UButton
+          :loading="busy"
+          :disabled="selectedQuantity + selectedVideoQuantity < 1"
+          icon="i-lucide-plus"
+          @click="openRequest('generate')"
+        >
+          {{ generateMoreLabel }}
         </UButton>
       </div>
       <p v-else class="mt-3 text-sm text-muted">{{ t('monthly.quotaUsedUp') }}</p>
@@ -839,9 +881,27 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="ms-auto w-28" />
-        <UButton :loading="busy" icon="i-lucide-plus" @click="openRequest('generate')">
-          {{ t('monthly.generateMore', { count: selectedQuantity }) }}
+        <div class="ms-auto flex flex-wrap items-center gap-2">
+          <UFormField :label="t('monthly.quantityLabel')" size="xs">
+            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24" />
+          </UFormField>
+          <UFormField :label="t('video.include')" size="xs">
+            <UInputNumber
+              v-model="selectedVideoQuantity"
+              :min="0"
+              :max="maxVideosThisBatch"
+              class="w-24"
+              :aria-label="t('video.quantity')"
+            />
+          </UFormField>
+        </div>
+        <UButton
+          :loading="busy"
+          :disabled="selectedQuantity + selectedVideoQuantity < 1"
+          icon="i-lucide-plus"
+          @click="openRequest('generate')"
+        >
+          {{ generateMoreLabel }}
         </UButton>
       </div>
     </div>
@@ -1119,7 +1179,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
             </div>
             <UButton :loading="busy" :disabled="selectedQuantity + selectedVideoQuantity < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
-              {{ extendable ? t('monthly.generateMore', { count: selectedQuantity }) : t('legacy.prepareMonth') }}
+              {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
             </UButton>
           </div>
         </div>
@@ -1230,7 +1290,7 @@ onBeforeUnmount(() => clearInterval(timer))
             {{
               requestAction === 'prepare'
                 ? t('legacy.prepareMonth')
-                : t('monthly.generateMore', { count: selectedQuantity })
+                : generateMoreLabel
             }}
           </UButton>
         </div>

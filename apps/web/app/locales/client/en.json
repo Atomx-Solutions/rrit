@@ -203,6 +203,8 @@
   "monthly.generateMoreTitle": "Generate more posts",
   "monthly.generateMoreHint": "Your package has {{count}} posts left. Take them whenever you like — this month's research is not repeated.",
   "monthly.generateMore": "Generate {{count}} posts",
+  "monthly.generateMoreVideos": "Generate {{count}} videos",
+  "monthly.generateMoreMixed": "Generate {{posts}} posts + {{videos}} videos",
   "monthly.quantityLabel": "How many posts?",
   "monthly.quantityRemaining": "{{count}} posts remaining in your package",
   "monthly.checkingService": "Checking your plan and AI service.",

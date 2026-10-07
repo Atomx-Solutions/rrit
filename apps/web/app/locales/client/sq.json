@@ -203,6 +203,8 @@
   "monthly.generateMoreTitle": "Gjenero edhe postime",
   "monthly.generateMoreHint": "Nga paketa jote kanë mbetur edhe {{count}} postime. Merri kur të duash — hulumtimi i këtij muaji nuk përsëritet.",
   "monthly.generateMore": "Gjenero {{count}} postime",
+  "monthly.generateMoreVideos": "Gjenero {{count}} video",
+  "monthly.generateMoreMixed": "Gjenero {{posts}} postime + {{videos}} video",
   "monthly.quantityLabel": "Sa postime?",
   "monthly.quantityRemaining": "{{count}} postime të mbetura në paketë",
   "monthly.checkingService": "Po kontrollojmë paketën dhe shërbimin AI.",

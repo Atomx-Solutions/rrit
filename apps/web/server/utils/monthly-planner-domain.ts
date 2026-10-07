@@ -213,9 +213,13 @@ export function plannerEvidence(
   // but the two lists may overlap: a photograph chosen for both produces one
   // feed post and one video from the same source.
   const selectedVideoAssetIds = [...new Set(photoSelection.selectedVideoAssetIds || [])]
+  // A `selected` batch is valid as long as at least one deliverable kind has
+  // a chosen photograph: a video-only batch has an empty selectedAssetIds and
+  // a populated selectedVideoAssetIds, and vice versa. Only when both are
+  // empty is there really nothing to generate from.
   if (
     photoSelection.mode === 'selected' &&
-    (!selectedAssetIds.length ||
+    ((!selectedAssetIds.length && !selectedVideoAssetIds.length) ||
       [...selectedAssetIds, ...selectedVideoAssetIds].some((id) => !eligibleAssetIds.has(id)))
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
@@ -860,6 +864,8 @@ export const plannerMessages: Record<string, string> = {
     'Strategjia nuk i caktoi të gjitha fotografitë e zgjedhura. Plani duhet korrigjuar.',
   TOO_MANY_SELECTED_PHOTOS:
     'Ke zgjedhur më shumë fotografi sesa postime lejon plani i këtij muaji.',
+  TOO_MANY_SELECTED_VIDEO_PHOTOS:
+    'Ke zgjedhur më shumë fotografi për video sesa video lejon plani i këtij muaji.',
   PLAN_RESET_UNSAFE:
     'Plani ka postime të miratuara ose të publikuara dhe nuk mund të pastrohet automatikisht.',
   BUDGET_ESTIMATE_EXCEEDED:

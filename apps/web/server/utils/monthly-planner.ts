@@ -293,11 +293,13 @@ export async function ensureMonthlyPlan(
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
   }
-  if (
-    photoSelection.selectedAssetIds.length > remaining ||
-    photoSelection.selectedVideoAssetIds.length > generateVideos
-  )
+  // The two selections are checked independently so the message the user sees
+  // names the exact deliverable they oversubscribed, rather than a shared
+  // "too many photos" that is wrong half the time.
+  if (photoSelection.selectedAssetIds.length > remaining)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
+  if (photoSelection.selectedVideoAssetIds.length > generateVideos)
+    throw new PlannerFailure('TOO_MANY_SELECTED_VIDEO_PHOTOS')
   // Nothing requested means nothing queued: the plan waits in 'idle' until a
   // request arrives, so no provider call is ever made on the worker's behalf.
   const queuedStatus = generate > 0 ? 'queued' : 'idle'
@@ -426,11 +428,10 @@ export async function requestMonthlyPosts(
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
   }
-  if (
-    photoSelection.selectedAssetIds.length > addedPosts ||
-    photoSelection.selectedVideoAssetIds.length > addedVideos
-  )
+  if (photoSelection.selectedAssetIds.length > addedPosts)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
+  if (photoSelection.selectedVideoAssetIds.length > addedVideos)
+    throw new PlannerFailure('TOO_MANY_SELECTED_VIDEO_PHOTOS')
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
   const businessBrain = await plannerBrainFor(client, businessId, slug)
   const evidence = plannerEvidence(

@@ -203,6 +203,8 @@
   "monthly.generateMoreTitle": "Weitere Beiträge erstellen",
   "monthly.generateMoreHint": "In deinem Paket sind noch {{count}} Beiträge übrig. Hol sie dir, wann du willst — die Recherche dieses Monats wird nicht wiederholt.",
   "monthly.generateMore": "{{count}} Beiträge erstellen",
+  "monthly.generateMoreVideos": "{{count}} Videos erstellen",
+  "monthly.generateMoreMixed": "{{posts}} Beiträge + {{videos}} Videos erstellen",
   "monthly.quantityLabel": "Wie viele Beiträge?",
   "monthly.quantityRemaining": "{{count}} Beiträge sind in deinem Paket noch verfügbar",
   "monthly.checkingService": "Dein Tarif und der KI-Dienst werden geprüft.",
