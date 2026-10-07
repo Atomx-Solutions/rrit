@@ -115,10 +115,10 @@ async function saveTrial() {
   saving.trial = true
   try {
     await $fetch('/api/admin/plans/trial', { method: 'PATCH', body: trialChanges.value })
-    toast.add({ title: t('admin.plans.saved'), color: 'success't( })
+    toast.add({ title: t('admin.plans.saved'), color: 'success' })
     await refresh()
   } catch (problem) {
-    toast.add({ title: (problem as { data?: { message?: string } }).data?.message || 'admin.plans.saveFailed'), color: 'error' })
+    toast.add({ title: (problem as { data?: { message?: string } }).data?.message || 'admin.plans.saveFailed', color: 'error' })
   } finally {
     saving.trial = false
   }
@@ -139,9 +139,9 @@ async function saveSettings(kind: 'pricing' | 'invoice') {
     if (alsoPlatform)
       await $fetch('/api/admin/settings', { method: 'PATCH', body: platformChanges.value })
     toast.add({ title: t('admin.plans.saved'), color: 'success' })
-    await Promise.all([refresh(), refreshPlatform()]t()
+    await Promise.all([refresh(), refreshPlatform()])
   } catch (problem) {
-    toast.add({ title: (problem as { data?: { message?: string } }).data?.message || 'admin.plans.saveFailed'), color: 'error' })
+    toast.add({ title: (problem as { data?: { message?: string } }).data?.message || 'admin.plans.saveFailed', color: 'error' })
   } finally {
     saving[kind] = false
   }

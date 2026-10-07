@@ -1416,6 +1416,11 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       maxOutput: 6000,
       input: {
         brand: plan.evidence.brand,
+        // Customer-supplied market research leads are part of the plan
+        // snapshot. Keep them in the research payload so the live-search tool
+        // can inspect the exact URLs instead of receiving only the prose
+        // instruction that mentions them.
+        researchSources: plan.evidence.brand.researchSources || [],
         // Research is one call per plan, so it receives the audiences and
         // offers in full: knowing who the business serves and what it is
         // promoting is what makes the market search relevant.

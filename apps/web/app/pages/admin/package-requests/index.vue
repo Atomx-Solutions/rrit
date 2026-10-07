@@ -237,11 +237,11 @@ async function setStatus(request: PackageRequest, next: PackageRequest['status']
     // which looked like a full reload and could interrupt text being entered.
     if (selected.value?.id === request.id)
       Object.assign(selected.value, updated, { status: next })
-    const row = data.value?.requests.find(item => item.id ===t( request.id)
+    const row = data.value?.requests.find(item => item.id === request.id)
     if (row) Object.assign(row, updated, { status: next })
   } catch (problem) {
     showError(
-      (problem as { data?: { message?: string } }).data?.message || 'admin.requests.saveFailed'),
+      (problem as { data?: { message?: string } }).data?.message || 'admin.requests.saveFailed',
     )
   } finally {
     saving.value = ''
@@ -260,7 +260,7 @@ async function removeRequest(request: PackageRequest) {
   }
   catch (problem) {
     showError(
-      (problem as { data?: { message?: string } }).data?.message || 'admin.requests.deleteFailed'),
+      (problem as { data?: { message?: string } }).data?.message || 'admin.requests.deleteFailed',
     )
   }
   finally {

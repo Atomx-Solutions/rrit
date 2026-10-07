@@ -13,6 +13,8 @@ import { buildVideoEndCard, prepareVideoFirstFrame } from './image-processing'
 import { buildVideoCreativePlan } from './video-plan'
 import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, VIDEO_END_CARD_SECONDS } from './video-compose'
+import { brainForSlot, plannerBrainOf } from './monthly-planner-domain'
+import { editorialPlanSchema, researchSchema } from '../../shared/schemas/monthly-plan'
 
 /**
  * Render a post's video and settle what it cost.
@@ -29,10 +31,47 @@ export async function renderVideoForPost(userId: string, postId: string) {
   if (!aiVideoConfigured())
     throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
   const snapshot = await withBusinessTransaction(userId, async (client, business) => {
-    const result = await client.query<{ payload: unknown }>('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [postId, business.id])
-    const post = result.rows[0] && postSchema.parse(result.rows[0].payload)
+    const result = await client.query<{ payload: unknown; monthly_plan_id: string | null; monthly_slot: number | null }>('SELECT payload,monthly_plan_id,monthly_slot FROM posts WHERE id=$1 AND business_id=$2', [postId, business.id])
+    const postRow = result.rows[0]
+    const post = postRow && postSchema.parse(postRow.payload)
     if (!post?.video?.sourceAssetIds.length)
       throw createError({ statusCode: 409, message: 'server.VIDEO_BRIEF_REQUIRED' })
+
+    const provenance = post.aiProvenance
+    let verifiedFacts: string[] = []
+    let researchFindings = ''
+    let researchSources: string[] = provenance?.sourceUrls || []
+    let businessBrain = ''
+    if (postRow?.monthly_plan_id) {
+      const planResult = await client.query<{ evidence: unknown; research: unknown; editorial_plan: unknown; month_key: string }>(
+        'SELECT evidence,research,editorial_plan,month_key FROM monthly_plans WHERE id=$1 AND business_id=$2',
+        [postRow.monthly_plan_id, business.id],
+      )
+      const planRow = planResult.rows[0]
+      if (planRow) {
+        const evidence = planRow.evidence as { brand?: { facts?: Array<{ id: string; text: string; source?: string }> }; brain?: unknown } | null
+        const factIds = new Set(provenance?.factIds || [])
+        verifiedFacts = (evidence?.brand?.facts || [])
+          .filter(fact => factIds.has(fact.id))
+          .map(fact => `${fact.text}${fact.source ? ` (burimi: ${fact.source})` : ''}`)
+        const research = researchSchema.safeParse(planRow.research)
+        if (research.success) {
+          researchFindings = research.data.text
+          const allowed = new Set(researchSources)
+          researchSources = research.data.sources
+            .filter(source => !allowed.size || allowed.has(source.url))
+            .map(source => `${source.title}: ${source.url}`)
+        }
+        if (postRow.monthly_slot !== null && postRow.monthly_slot !== undefined) {
+          const editorial = editorialPlanSchema.safeParse(planRow.editorial_plan)
+          if (editorial.success) {
+            const slot = editorial.data.slots[postRow.monthly_slot]
+            const evidenceBrain = plannerBrainOf(evidence as never || {})
+            if (slot) businessBrain = JSON.stringify(brainForSlot(evidenceBrain, slot, `${planRow.month_key}-${String(slot.day).padStart(2, '0')}`))
+          }
+        }
+      }
+    }
 
     const asset = await client.query<{ bytes: Buffer | null; storage_path: string | null }>(
       "SELECT bytes,storage_path FROM assets WHERE id=$1 AND business_id=$2 AND rights=true AND kind='photo' AND creative_provenance IS NULL",
@@ -86,6 +125,10 @@ export async function renderVideoForPost(userId: string, postId: string) {
       sourceContext: {
         assetDirection: post.video.assetDirection,
         visualLayout: post.video.visualLayout,
+        verifiedFacts,
+        researchFindings,
+        researchSources,
+        businessBrain,
       },
       durationSeconds: post.video.durationSeconds,
       guardrails: workspace.brand.guardrails,

@@ -3,6 +3,10 @@ import type { VideoCreativePlan } from './video-plan'
 type SourceContext = {
   assetDirection?: string
   visualLayout?: string
+  verifiedFacts?: string[]
+  researchFindings?: string
+  researchSources?: string[]
+  businessBrain?: string
 }
 
 const cameraInstructions: Record<VideoCreativePlan['shot']['camera'], string> = {
@@ -67,6 +71,18 @@ export function buildVideoExecutionBrief(input: {
     `Create one continuous ${durationSeconds}-second vertical video from the supplied prepared first frame.`,
     'SUBJECT',
     'Preserve the exact primary subject, people, products, existing signage and environment visible in the first frame. The first frame is the visual truth.',
+    ...(sourceContext.verifiedFacts?.length
+      ? ['VERIFIED BUSINESS FACTS', ...sourceContext.verifiedFacts.map(fact => `- ${fact}`)]
+      : []),
+    ...(sourceContext.researchFindings
+      ? ['MARKET RESEARCH FINDINGS', sourceContext.researchFindings]
+      : []),
+    ...(sourceContext.researchSources?.length
+      ? [`RESEARCH SOURCES USED BY THE STRATEGY: ${sourceContext.researchSources.join(', ')}`]
+      : []),
+    ...(sourceContext.businessBrain
+      ? ['BUSINESS BRAIN FOR THIS SLOT', sourceContext.businessBrain]
+      : []),
     ...subjectDirection,
     'CAMERA',
     cameraInstructions[plan.shot.camera],

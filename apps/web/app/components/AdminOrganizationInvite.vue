@@ -80,9 +80,7 @@ function openPanel() {
 }
 
 function problem(error: unknown) {
-  return (
-    (error as { data?: { message?: string } })?.data?.message || 'admin.invitations.failed')
-  )
+  return (error as { data?: { message?: string } })?.data?.message || 'admin.invitations.failed'
 }
 
 async function create() {
