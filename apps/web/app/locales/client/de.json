@@ -1,0 +1,782 @@
+{
+  "public.whyRrit": "Warum Rrit",
+  "landing.requestOffer": "Angebot anfordern",
+  "public.faq": "Häufige Fragen",
+  "public.login": "Anmelden",
+  "public.language": "Sprache",
+  "public.albanian": "Albanisch",
+  "public.english": "Englisch",
+  "public.german": "Deutsch",
+  "landing.heroKicker": "FÜR UNTERNEHMEN, DIE ETWAS ZU ERZÄHLEN HABEN",
+  "legacy.posts": "Beiträge, die",
+  "legacy.standOut": "auffallen.",
+  "landing.heroDescription": "Du führst dein Unternehmen. Verbringe weniger Zeit mit deinen Beiträgen.",
+  "landing.heroDetail": "Erstelle, prüfe und plane Beiträge für Facebook und Instagram. Alles an einem Ort. Auf Deutsch.",
+  "landing.tryThreePostsFree": "3 Beiträge kostenlos testen",
+  "landing.tryPostsFree": "{{count}} Beiträge kostenlos testen",
+  "landing.tryFreeTrial": "Kostenlos testen",
+  "landing.seeHowItWorks": "So funktioniert's",
+  "landing.offerByPostVolume": "Dein Angebot richtet sich nach der Anzahl der Beiträge, die du jeden Monat brauchst.",
+  "legacy.illustrativeDesigns": "Beispieldesigns · echte Fotos",
+  "landing.allMonth": "Den ganzen Monat.",
+  "landing.underControl": "Alles im Griff.",
+  "landing.photoText": "Foto & Text",
+  "landing.yourApproval": "Deine Freigabe",
+  "landing.inCalendar": "Im Kalender",
+  "landing.processAria": "So funktioniert Rrit",
+  "landing.processStepOneDescription": "Lade ein Foto hoch, füge deine Botschaft hinzu und erstelle den Entwurf in wenigen Schritten.",
+  "landing.processStepTwoDescription": "Prüfe Bild und Text, ändere, was du brauchst, und gib erst frei, wenn alles zu dir passt.",
+  "landing.processStepThreeDescription": "Lege Tag und Uhrzeit im Kalender fest und behalte den Status deines Beitrags jederzeit im Blick.",
+  "legacy.coffeeSocial": "KAFFEE / MITEINANDER",
+  "legacy.satisfy": "VERSÜSSE",
+  "legacy.day": "DIR DEN TAG.",
+  "legacy.goodCoffee": "GUTER KAFFEE. NOCH BESSERE GESELLSCHAFT.",
+  "legacy.burgerHouse": "BURGER / HOUSE",
+  "legacy.prishtina": "PRISTINA",
+  "legacy.fewWords": "WENIGE WORTE.",
+  "legacy.muchTaste": "VIEL GESCHMACK.",
+  "legacy.make": "MACH",
+  "legacy.break": "PAUSE.",
+  "legacy.tastyMoment": "DEIN GENUSSMOMENT. ↗",
+  "legacy.spaceForYou": "RAUM / FÜR DICH",
+  "legacy.stay": "BLEIB",
+  "legacy.aLittle": "noch ein bisschen.",
+  "legacy.somePlaces": "Manche Orte",
+  "legacy.makeYouStop": "lassen dich innehalten.",
+  "legacy.fromWhatYouDo": "01 / AUS DEM, WAS DU TUST",
+  "legacy.yourPhoto": "Dein Foto.",
+  "legacy.fullCharacter": "Mit Charakter.",
+  "landing.storyOneDescription": "Dein Produkt, deine Worte, dein Stil. Bring alles zusammen und erstelle einen Beitrag, der dich und dein Unternehmen widerspiegelt.",
+  "legacy.businessIsYours": "Dein Unternehmen.",
+  "legacy.finalWord": "Du hast das letzte Wort.",
+  "landing.studioSceneLabel": "die Studioansicht",
+  "landing.studioSceneCaption": "Vom Foto zur Gestaltung · illustratives Beispiel",
+  "landing.originalBurgerAlt": "Das ursprüngliche Burgerfoto",
+  "legacy.yourPhotoUpper": "DEIN FOTO",
+  "legacy.withTaste": "MIT GESCHMACK. MIT CHARAKTER.",
+  "legacy.yesAlso": "Ja, sogar",
+  "legacy.bite": "noch ein Bissen.",
+  "landing.composedBurgerAlt": "Dasselbe Foto in einer warmen Beitragsgestaltung",
+  "legacy.roomForTaste": "FÜR GESCHMACK IST IMMER PLATZ. ↗",
+  "landing.paletteAlt": "Beispielpalette: Orange, Creme und Braun",
+  "landing.approvedByYou": "Du gibst frei.",
+  "legacy.forBusinessesLikeYours": "02 / FÜR UNTERNEHMEN WIE DEINS",
+  "legacy.youCreateExperience": "Du schaffst das Erlebnis.",
+  "legacy.giveItRoom": "Gib ihm Raum in einem Beitrag.",
+  "landing.storyTwoDescription": "Ein Match nach der Arbeit. Eine Stunde für dich. Zeig mit Beiträgen in deinem Stil, was dein Unternehmen besonders macht.",
+  "legacy.sportServices": "Sport, Dienstleistungen oder etwas ganz anderes.",
+  "legacy.roomForStory": "Deine Geschichte verdient Raum.",
+  "landing.tennisSceneLabel": "die Tennisansicht",
+  "landing.tennisSceneCaption": "Visuelle Simulation · einen Beitrag erstellen und veröffentlichen",
+  "legacy.tennisAfterWork": "TENNIS / NACH DER ARBEIT",
+  "legacy.onCourtUpper": "AUF DEM PLATZ.",
+  "legacy.afterWorkUpper": "NACH DER ARBEIT.",
+  "legacy.morePlay": "Mehr Spiel.",
+  "legacy.lessRoutine": "Weniger Alltag.",
+  "landing.publish": "Veröffentlichen",
+  "legacy.instagramPost": "Instagram · dein Beitrag",
+  "legacy.onCourt": "Auf dem Platz. Nach der Arbeit.",
+  "landing.publishedSimulation": "Veröffentlicht · Simulation",
+  "landing.tennisPhotoAlt": "Echtes Foto eines Tennisballs mit seinem Schatten über den Platzlinien",
+  "landing.processCtaDescription": "Bereit für deinen ersten Beitrag? Erstelle ein Konto und starte mit 3 kostenlosen Beiträgen.",
+  "landing.clearBudget": "KLARES BUDGET. BEITRAG FÜR BEITRAG.",
+  "landing.howManyPosts": "Wie viele Beiträge brauchst du?",
+  "landing.packageRhythm": "Sag uns, wie viele Beiträge du jeden Monat brauchst, und wir erstellen ein Angebot für dein Unternehmen.",
+  "landing.perPostPrice": "{{price}} pro Beitrag",
+  "landing.monthlyTotal": "{{price}} pro Monat",
+  "landing.leadTitle": "Lass uns über dein Paket sprechen",
+  "landing.leadDescription": "Hinterlasse deine Kontaktdaten, und wir melden uns mit einem Angebot für {{count}} Beiträge.",
+  "landing.leadSubmit": "Anfrage senden",
+  "request.name": "Name",
+  "request.email": "E-Mail",
+  "request.phone": "Telefon",
+  "request.businessName": "Unternehmensname",
+  "request.sentTitle": "Anfrage gesendet",
+  "request.sentDescription": "Wir melden uns in Kürze mit einem passenden Angebot.",
+  "request.failed": "Die Anfrage konnte nicht gesendet werden. Bitte versuche es erneut.",
+  "request.nameRequired": "Bitte gib deinen Namen ein.",
+  "request.emailInvalid": "Bitte gib eine gültige E-Mail-Adresse ein.",
+  "request.postsRequired": "Wähle mindestens einen Beitrag aus.",
+  "request.businessRequired": "Bitte gib den Unternehmensnamen ein.",
+  "request.phoneRequired": "Bitte gib deine Telefonnummer ein.",
+  "landing.goodToKnow": "GUT ZU WISSEN",
+  "landing.beforeStart": "Bevor du loslegst.",
+  "landing.firstStepClarity": "Ein bisschen Klarheit für den ersten Schritt.",
+  "landing.otherQuestion": "Noch eine Frage?",
+  "landing.faqStart": "Wie starte ich?",
+  "landing.faqStartAnswer": "Erstelle dein Konto, erzähl uns von deinem Unternehmen und füge dein erstes Foto hinzu. Bei der Anmeldung führen wir dich Schritt für Schritt durch den Prozess. Facebook und Instagram kannst du später verbinden.",
+  "landing.faqAutoPublish": "Werden Beiträge automatisch veröffentlicht?",
+  "landing.faqAutoPublishEnabled": "Ja. Nachdem du einen Beitrag freigegeben hast, wählst du Datum und Uhrzeit. Anschließend wird er über Meta automatisch auf Facebook oder Instagram veröffentlicht. Dafür muss dein Meta-Konto verbunden sein und über aktive Veröffentlichungsberechtigungen verfügen.",
+  "landing.faqAutoPublishDisabled": "Für die automatische Veröffentlichung muss ein Meta-Konto mit aktiven Veröffentlichungsberechtigungen verbunden sein.",
+  "landing.faqAfterTrial": "Was passiert nach der Testphase?",
+  "landing.faqAfterTrialAvailable": "Du kannst 3 kostenlose Beiträge nutzen, um die aktivierten Funktionen auszuprobieren. Es sind weder Karte noch automatische Zahlung erforderlich. Nachdem du die kostenlosen Beiträge genutzt hast, bleiben deine Daten einsehbar und exportierbar.",
+  "landing.faqAfterTrialUnavailable": "Ob eine Testphase verfügbar ist, wird während der Anmeldung bestätigt. Es sind weder Karte noch automatische Zahlung erforderlich.",
+  "landing.yourNextPost": "DEIN NÄCHSTER BEITRAG",
+  "landing.letThemSee": "Jetzt zeig dich.",
+  "landing.finalDescription": "Dein Unternehmen hat etwas zu erzählen. Gib ihm Raum in deinem nächsten Beitrag.",
+  "public.moreTime": "Mehr Zeit",
+  "public.forYourBusiness": "für dein Unternehmen.",
+  "public.youWithBusiness": "Du mit deinem Unternehmen. Rrit mit deinen Beiträgen.",
+  "public.explore": "ENTDECKE",
+  "public.getStarted": "LOSLEGEN",
+  "public.howItWorks": "So funktioniert's",
+  "public.createAccount": "Konto erstellen",
+  "public.loginAccount": "Anmelden",
+  "public.helpCenter": "Hilfe-Center",
+  "public.fromIdea": "Von deiner Idee,",
+  "public.nextPostFooter": "zu deinem nächsten Beitrag.",
+  "public.privacy": "Datenschutz",
+  "public.terms": "Nutzungsbedingungen",
+  "public.skipBusiness": "FÜR DAS UNTERNEHMEN, DAS DU AUFBAUST",
+  "public.everyDay": "Jeder Tag,",
+  "public.growOpportunity": "eine Chance zu wachsen.",
+  "public.businessPosts": "Deine Unternehmensbeiträge an einem Ort. Mehr Zeit für das, was du am besten kannst.",
+  "public.backToRrit": "Zurück zu Rrit",
+  "common.email": "E-Mail",
+  "legacy.password": "Passwort",
+  "auth.title.login": "Willkommen zurück.",
+  "auth.description.login": "Öffne deinen Workspace und mach dort weiter, wo du aufgehört hast.",
+  "auth.forgotPasswordLink": "Passwort vergessen?",
+  "auth.loginButton": "Anmelden",
+  "auth.or": "oder",
+  "auth.continueWithGoogle": "Mit Google fortfahren",
+  "auth.newHere": "Neu hier? ",
+  "auth.startBusiness": "Starte mit deinem Unternehmen",
+  "auth.emailPlaceholder": "name@unternehmen.de",
+  "auth.hidePassword": "Passwort ausblenden",
+  "auth.showPassword": "Passwort anzeigen",
+  "auth.title.signup": "Registriere dein Unternehmen.",
+  "auth.description.signup": "Erstelle dein Konto. Anschließend führen wir dich durch dein Unternehmen und deinen ersten Beitrag.",
+  "auth.namePlaceholder": "Dein Name",
+  "auth.passwordHint": "Mindestens 12 Zeichen und ein Sonderzeichen, zum Beispiel !, @ oder #.",
+  "auth.beforeSignup": "Bevor du dich registrierst, lies bitte die",
+  "auth.terms": "Nutzungsbedingungen",
+  "auth.and": "und die",
+  "auth.privacy": "Datenschutzerklärung",
+  "auth.signupButton": "Dein Unternehmenskonto erstellen",
+  "auth.trialDescription": "3 kostenlose Beiträge nach dem Anlegen deines Unternehmens. Keine Bankkarte. Eine Testphase pro Nutzer und verknüpfter Identität.",
+  "auth.haveAccount": "Du hast bereits ein Konto? ",
+  "auth.backToLogin": "Anmelden",
+  "auth.continueLogin": "Weiter zur Anmeldung",
+  "auth.validationEmail": "Bitte gib eine gültige E-Mail-Adresse ein.",
+  "auth.validationPassword": "Verwende mindestens 12 Zeichen.",
+  "page.forgotPasswordTitle": "Zugang wiederherstellen · Rrit",
+  "auth.title.forgot": "Zugang wiederherstellen.",
+  "auth.description.forgot": "Wir senden dir einen Link, mit dem du ein neues Passwort festlegen kannst.",
+  "auth.forgotButton": "Wiederherstellungslink anfordern",
+  "common.formError": "Formular prüfen",
+  "auth.invalidCredentialsError": "Die E-Mail-Adresse oder das Passwort ist falsch.",
+  "policy.privacyTitle": "Datenschutz und Daten",
+  "policy.dataTitle": "Von uns verwendete Daten",
+  "policy.dataDescription": "Das Konto enthält deinen Namen, deine E-Mail-Adresse, Sitzungsdaten und dein Unternehmensprofil. Beiträge und Fotos werden auf dem Server gespeichert. Nicht abgeschlossene Formulare können zur Wiederherstellung in der Tab-Sitzung gespeichert werden.",
+  "policy.metaTitle": "Meta-Verbindung",
+  "policy.metaDescription": "Mit deiner Einwilligung liest Rrit die Seiten, auf die du zugreifen kannst, sowie Beiträge des ausgewählten Kontos. Berechtigungen werden verschlüsselt auf dem Server gespeichert. Wenn du die Verbindung unter „Social Posts“ trennst, werden die gespeicherte Berechtigung und die von Rrit importierten Beiträge entfernt. Du kannst den Zugriff auch in den Meta-Integrationseinstellungen entfernen.",
+  "policy.trialTitle": "Kostenlose Testphase",
+  "policy.trialDescription": "Um eine wiederholte Nutzung der Testphase zu begrenzen, werden HMAC-Prüfwerte der verifizierten E-Mail-Adresse und Meta-Identitäten sowie ein signiertes, ein Jahr gültiges Geräte-Cookie gespeichert. Dieses Cookie identifiziert den Browser, nicht ein physisches Gerät. Nutzungsdaten der Testphase bleiben auch nach dem Trennen von Netzwerken erhalten.",
+  "policy.photosTitle": "Fotos",
+  "policy.photosDescription": "Der Server entfernt beim Hochladen die Metadaten von Fotos. Beim Veröffentlichen erhält Meta für das ausgewählte Foto einen signierten Link, der bis zu 15 Minuten gültig ist.",
+  "policy.exportTitle": "Exporte und Anfragen",
+  "policy.exportDescription": "Exportiere deine Daten unter Einstellungen → Organisation. Für andere Anfragen nutze bitte den untenstehenden Datenschutzkontakt.",
+  "policy.operator": "Betreiber",
+  "policy.privacyContact": "Datenschutzkontakt",
+  "policy.operatorPendingTitle": "Informationen zum Betreiber werden vorbereitet",
+  "policy.operatorPendingDescription": "Diese Seite beschreibt die technische Umsetzung. Die Identität und Kontaktangaben des Betreibers, endgültige Aufbewahrungsfristen sowie kommerzielle Bedingungen müssen vor dem öffentlichen Start ergänzt werden.",
+  "policy.usageGuidance": "Nutzungshinweise",
+  "policy.termsTitle": "Nutzungsbedingungen",
+  "policy.accountTitle": "Konto und Inhalte",
+  "policy.accountDescription": "Registriere dich mit deiner E-Mail-Adresse und verbinde nur Unternehmen, zu deren Verwaltung du berechtigt bist. Lade nur Materialien hoch, zu deren Nutzung du berechtigt bist. Prüfe Preise, Termine und Aussagen vor der Freigabe.",
+  "policy.publishingTitle": "Veröffentlichung",
+  "policy.publishingDescription": "Beiträge durchlaufen Entwurf, Prüfung und Freigabe. Für die Freigabe und das Speichern eines Termins im Kalender ist keine Meta-Verbindung erforderlich. Für die Veröffentlichung sind deine Aktion, eine Meta-Verbindung und ein aktiver Leistungszeitraum erforderlich. Die Regeln und Verfügbarkeit von Meta können das Veröffentlichungsergebnis beeinflussen.",
+  "policy.freePeriodTitle": "Kostenlose Testphase",
+  "policy.freePeriodDescription": "Dauer und Enddatum der Testphase werden in deinem Konto angezeigt. Die Testphase wird einmal gewährt und anhand verifizierter Identitäten und einer Browserkennung geprüft. Es entsteht weder eine Zahlung noch eine automatische Verlängerung.",
+  "help.eyebrow": "SCHRITT FÜR SCHRITT",
+  "help.title": "Wie können wir helfen?",
+  "help.searchLabel": "Hilfe durchsuchen",
+  "help.searchPlaceholder": "Thema suchen…",
+  "help.openWorkspace": "Workspace öffnen",
+  "help.verifyEmail": "Bestätige deine E-Mail-Adresse über den Link, den wir dir senden. Anschließend",
+  "help.then": "Danach",
+  "help.topic1Label": "Wie erstelle ich ein Unternehmenskonto?",
+  "help.topic1Content": "Wähle „Kostenlos testen“, gib deinen Namen, deine E-Mail-Adresse und ein Passwort mit mindestens 12 Zeichen und einem Sonderzeichen ein. {{verification}} schließe die Einrichtung deines Unternehmens in drei Schritten ab.",
+  "help.topic2Label": "Wie verbinde ich Facebook und Instagram?",
+  "help.topic2Content": "Gehe zu „Social Posts“ und wähle „Über Meta verbinden“. Erteile den Zugriff und wähle die Unternehmensseite aus. Für Instagram benötigst du ein professionelles Profil, das mit dieser Seite verbunden ist.",
+  "help.topic3Label": "Wie lese ich bestehende Beiträge?",
+  "help.topic3Content": "Nach dem Verbinden wählst du das Netzwerk und aktualisierst die Beiträge. Nutze „Ältere Beiträge laden“ und die Filter, um den gewünschten Text zu finden.",
+  "help.topic4Label": "Wie erstelle ich meinen ersten Beitrag?",
+  "help.topic4Content": "Öffne „Beiträge“, wähle „Beitrag erstellen“, schreibe Titel und Text, wähle ein Netzwerk und lade ein Foto hoch. Während du schreibst, wird ein gültiger Entwurf auf dem Server gespeichert.",
+  "help.topic5Label": "Kann ich einen Beitrag freigeben, ohne Meta zu verbinden?",
+  "help.topic5Content": "Ja. Der Server prüft Text, Foto, die angegebenen Rechte und das Format. Überprüfe Preise, Termine und Zusagen selbst und gib dann die aktuelle Version frei.",
+  "help.topic6Label": "Wie funktionieren Veröffentlichung und Planung?",
+  "help.topic6Content": "Bei einem freigegebenen Beitrag wählst du „Beitrag planen“ und speicherst ihn im Kalender, ohne Meta zu verbinden. Für die Veröffentlichung in einem sozialen Netzwerk sind ein aktiver Dienst und eine Verbindung erforderlich.",
+  "help.topic7Label": "Was geschieht, wenn eine Veröffentlichung auf Bestätigung wartet?",
+  "help.topic7Content": "Prüfe die Seite im sozialen Netzwerk. Rrit sendet bei einer unklaren Antwort nicht automatisch erneut, um Duplikate zu vermeiden. Speichere die Beitragskennung, wenn du Hilfe anforderst.",
+  "help.topic8Label": "Wo werden Fotos und Entwürfe gespeichert?",
+  "help.topic8Content": "Fotos werden privat auf dem Server gespeichert; ihre Metadaten werden beim Hochladen entfernt. Nicht abgeschlossene Formulare können im selben Tab wiederhergestellt werden.",
+  "help.topic9Label": "Was geschieht nach der Testphase?",
+  "help.topic9Content": "Die Testphase verlängert sich nicht automatisch und es wird nichts berechnet. Deine Daten bleiben einsehbar; für neue Aktionen ist ein aktiver Dienst erforderlich.",
+  "common.of": "von",
+  "common.perPage": "pro Seite",
+  "common.rowsPerPage": "Zeilen pro Seite",
+  "nav.overview": "Übersicht",
+  "nav.posts": "Beiträge",
+  "nav.monthlyPlanner": "KI-Planung",
+  "nav.calendar": "Kalender",
+  "nav.gallery": "Galerie",
+  "nav.socialPosts": "Social-Media-Beiträge",
+  "nav.brand": "Mein Unternehmen",
+  "nav.billing": "Paket & Abrechnung",
+  "nav.settings": "Einstellungen",
+  "nav.content": "Inhalte",
+  "nav.channels": "Marke und Kanäle",
+  "nav.administration": "Verwaltung",
+  "nav.help": "Hilfe",
+  "nav.navigation": "Navigation",
+  "nav.navigationDescription": "Deine Unternehmensbeiträge und Einstellungen.",
+  "nav.skipToContent": "Zum Inhalt springen",
+  "nav.search": "Suchen ...",
+  "nav.searchWorkspace": "Workspace durchsuchen",
+  "nav.searchPages": "Seiten oder Inhalte suchen ...",
+  "nav.main": "Hauptnavigation",
+  "nav.settingsHelp": "Einstellungen und Hilfe",
+  "nav.close": "Navigation schließen",
+  "nav.open": "Navigation öffnen",
+  "nav.toggle": "Menü ein- oder ausklappen",
+  "nav.account": "Mein Konto",
+  "nav.myProfile": "Mein Profil",
+  "nav.profile": "Profil",
+  "nav.businessProfile": "Mein Unternehmensprofil",
+  "nav.stepHelp": "Schritt-für-Schritt-Hilfe",
+  "nav.signOut": "Abmelden",
+  "nav.whereToGo": "Wohin möchtest du gehen?",
+  "nav.yourPosts": "Deine Beiträge",
+  "nav.notifications": "Benachrichtigungen",
+  "nav.notificationsDescription": "Was deine Aufmerksamkeit braucht.",
+  "nav.approvalPosts": "Beiträge warten auf deine Freigabe",
+  "nav.viewPosts": "Beiträge ansehen",
+  "nav.meta": "Facebook und Instagram",
+  "nav.metaDescription": "Prüfe Autorisierung, Ablauf und von Meta importierte Beiträge.",
+  "nav.viewConnections": "Verbindungen ansehen",
+  "nav.notificationSettings": "Benachrichtigungseinstellungen",
+  "nav.copilotTitle": "Wie kann ich helfen?",
+  "nav.copilotDescription": "Wähle einen Schritt und erhalte Unterstützung.",
+  "nav.conflictTitle": "Änderungen aus einem anderen Tab",
+  "nav.conflictDescription": "Lade deine Kopie herunter oder lade die neueste Version, damit keine Änderungen verloren gehen.",
+  "nav.exportCopy": "Meine Kopie exportieren",
+  "nav.loadLatest": "Neueste Version laden",
+  "nav.businessAria": "Unternehmen: {{name}}",
+  "nav.approvalPostsDescription": "{{count}} Beiträge warten auf deine Prüfung.",
+  "dashboard.aiBalance": "Guthaben für KI-Dienste",
+  "dashboard.credits": "Credits",
+  "dashboard.changeAppearance": "Darstellung ändern",
+  "dashboard.savedStatus": "Privater Unternehmens-Workspace",
+  "dashboard.savingStatus": "Änderungen werden gespeichert ...",
+  "dashboard.signOutFailed": "Abmelden fehlgeschlagen. Bitte versuche es erneut.",
+  "dashboard.content": "Inhalte",
+  "dashboard.helpStepByStep": "Schritt-für-Schritt-Hilfe",
+  "dashboard.whereToGo": "Wohin möchtest du gehen?",
+  "dashboard.navigation": "Navigation",
+  "dashboard.navigationDescription": "Deine Unternehmensbeiträge und Einstellungen.",
+  "dashboard.searchPages": "Seiten oder Inhalte suchen ...",
+  "dashboard.notificationsDescription": "Was deine Aufmerksamkeit braucht.",
+  "dashboard.copilotTitle": "Wie kann ich helfen?",
+  "dashboard.copilotDescription": "Wähle einen Schritt und erhalte Unterstützung.",
+  "dashboard.conflictTitle": "Änderungen aus einem anderen Tab",
+  "dashboard.conflictDescription": "Lade deine Kopie herunter oder lade die neueste Version, damit keine Änderungen verloren gehen.",
+  "dashboard.searchWorkspace": "Workspace durchsuchen",
+  "dashboard.coffeeAlt": "Warmer Kaffee auf einem Tisch",
+  "workspace.saveFailed": "Die Daten konnten nicht auf dem Server gespeichert werden. Prüfe die Verbindung und versuche es erneut.",
+  "overview.title": "Übersicht",
+  "overview.allPosts": "Alle Beiträge",
+  "overview.awaitingApproval": "Warten auf Freigabe",
+  "overview.drafts": "Entwürfe",
+  "overview.scheduled": "Geplant",
+  "overview.all": "Alle",
+  "overview.viewAllPosts": "Alle Beiträge ansehen",
+  "overview.activityTitle": "Inhaltsaktivität",
+  "overview.activityDescription": "Dein Workspace in den letzten 14 Tagen",
+  "overview.activityPosts": "{{count}} Beiträge",
+  "overview.activityPeak": "Aktivster Tag: {{date}} · {{count}} Beiträge",
+  "overview.activityDay": "{{date}} · {{count}} Beiträge",
+  "overview.activityEmpty": "Erstelle einen Beitrag, um hier deine Aktivität zu sehen.",
+  "overview.nextCalendarPost": "Nächster Beitrag im Kalender",
+  "overview.noUpcomingPost": "Nach der Freigabe eines Beitrags kannst du Tag und Uhrzeit auswählen.",
+  "overview.connected": "Verbunden",
+  "overview.connectionRequired": "Verbindung erforderlich",
+  "overview.connectedPage": "Verbundene Seite: {{page}}. Aktualisiere die Beiträge, um deine Unternehmenshistorie zu sehen.",
+  "overview.connectDescription": "Verbinde deine Unternehmensseite über Meta und lies bereits geteilte Beiträge.",
+  "common.all": "Alle",
+  "common.view": "Ansehen",
+  "common.search": "Suchen",
+  "common.tryAgain": "Erneut versuchen",
+  "content.createPost": "Beitrag erstellen"
+  ,"common.save": "Speichern"
+  ,"common.saved": "Änderungen gespeichert"
+  ,"common.discard": "Ohne Speichern verlassen"
+  ,"public.unsavedTitle": "Du hast ungespeicherte Änderungen"
+  ,"public.unsavedDescription": "Speichere sie, bevor du die Seite verlässt, oder fahre fort, ohne die letzten Änderungen zu speichern."
+  ,"public.stayHere": "Hier bleiben"
+  ,"content.saveContinue": "Speichern und fortfahren"
+  ,"content.leaveWithoutSaving": "Ohne Speichern verlassen"
+  ,"content.stayHere": "Hier bleiben"
+  ,"content.unsavedChanges": "Ungespeicherte Änderungen"
+  ,"content.savedOnServer": "Auf dem Server gespeichert"
+  ,"settings.saveChanges": "Änderungen speichern"
+  ,"settings.unsavedChanges": "Du hast ungespeicherte Änderungen"
+  ,"settings.saveError": "Die Änderungen konnten nicht gespeichert werden. Prüfe den Fehler oder lade die neueste Version."
+  ,"workspace.formInvalidDescription": "Ein Wert liegt außerhalb der zulässigen Grenzen. Die Änderungen wurden nicht gespeichert."
+  ,"workspace.requestRejected": "Die Anfrage wurde abgelehnt."
+  ,"monthly.pageTitle": "KI-Planung"
+  ,"monthly.pageDescription": "Von der Marktrecherche bis zu Entwürfen, die auf deine Freigabe warten."
+  ,"monthly.viewCalendar": "Kalender ansehen"
+  ,"monthly.realResearch": "Echte Recherche"
+  ,"monthly.realResearchDescription": "Markt, Zielgruppe, Plattformen und Quellen werden mit dem Plan gespeichert."
+  ,"monthly.strategyDesign": "Strategie und Gestaltung"
+  ,"monthly.strategyDesignDescription": "Jede Idee, jeder Text, jedes Foto, jeder Hashtag und jeder Zeitpunkt wird begründet."
+  ,"monthly.youDecide": "Du entscheidest am Ende"
+  ,"monthly.youDecideDescription": "Ohne deine Prüfung und Freigabe im Content Studio wird nichts veröffentlicht."
+  ,"monthly.title": "KI-Monatsstudio"
+  ,"monthly.heading": "Dein Kalender, vorausgeplant"
+  ,"monthly.description": "Die KI recherchiert, plant und erstellt bis zu {{limit}} Beiträge. Ohne deine Freigabe wird nichts veröffentlicht."
+  ,"monthly.monthPhotos": "Die Fotos dieses Monats"
+  ,"monthly.selectPhotoRequired": "Wähle mindestens ein Foto aus oder lass die KI entscheiden."
+  ,"monthly.aiGalleryPreviewTitle": "Galerievorschau für die KI-Auswahl"
+  ,"monthly.aiGalleryPreviewDescription": "Diese Fotos dienen nur als Vorschau. Die KI wählt für jeden Beitrag das passendste Foto, solange „KI entscheiden lassen“ aktiv ist."
+  ,"monthly.previewOnly": "Nur Vorschau"
+  ,"monthly.chooseGalleryPhotosTitle": "Fotos aus deiner Galerie auswählen"
+  ,"monthly.chooseGalleryPhotosDescription": "Klicke auf die Fotos, die der Plan verwenden soll. Jedes ausgewählte Foto wird nur einmal dort verwendet, wo es am besten passt."
+  ,"monthly.clickToSelect": "Zum Auswählen klicken"
+  ,"monthly.aiPhotoPreviewOnly": "Nur Vorschau – die KI wählt dieses Foto"
+  ,"monthly.quantityLabel": "Wie viele Beiträge?"
+  ,"monthly.quantityRemaining": "{{count}} Beiträge sind in deinem Paket noch verfügbar"
+  ,"monthly.readyToPrepare": "Bereit, diesen Monat vorzubereiten"
+  ,"monthly.generateMoreTitle": "Weitere Beiträge erstellen"
+  ,"monthly.generateMore": "{{count}} Beiträge erstellen"
+  ,"monthly.prepareMonth": "Diesen Monat vorbereiten"
+  ,"monthly.none": "Keine"
+  ,"monthly.postsAwaitingApproval": "{{count}} Beiträge warten auf deine Freigabe"
+  ,"monthly.batchReady": "Bereit zur Prüfung"
+  ,"monthly.viewGeneratedPosts": "{{count}} Beiträge ansehen"
+  ,"monthly.photosIncluded": "{{count}} Fotos werden in die Strategie aufgenommen."
+  ,"monthly.phaseResearch": "Recherche"
+  ,"monthly.phaseResearchDescription": "Markt, Zielgruppe und Plattformen"
+  ,"monthly.phaseStrategy": "Strategie"
+  ,"monthly.phaseStrategyDescription": "Themen, Kanäle und Zeitplanung"
+  ,"monthly.phaseContent": "Erstellung"
+  ,"monthly.phaseContentDescription": "Text, Gestaltung und Prüfung"
+  ,"legacy.letAiChoose": "KI entscheiden lassen"
+  ,"legacy.choosePhotos": "Fotos auswählen"
+  ,"legacy.prepareMonth": "Diesen Monat vorbereiten"
+  ,"content.yourPosts": "Deine Beiträge"
+  ,"content.yourPostsDescription": "Erstelle einen Beitrag, prüfe ihn und wähle den Veröffentlichungszeitpunkt."
+  ,"content.searchPlaceholder": "Nach einem Beitrag suchen ..."
+  ,"content.searchPosts": "Beiträge durchsuchen"
+  ,"content.allChannels": "Alle"
+  ,"content.filterChannel": "Nach Kanal filtern"
+  ,"content.postCount": "{{visible}} von {{total}} Beiträgen"
+  ,"content.clearFilters": "Filter löschen"
+  ,"content.noPosts": "Keine Beiträge gefunden"
+  ,"content.noPostsDescription": "Versuche eine andere Suche oder erstelle deinen ersten Beitrag."
+  ,"content.noPostsSelection": "Keine Beiträge entsprechen dieser Auswahl."
+  ,"content.post": "Beitrag"
+  ,"content.network": "Netzwerk"
+  ,"content.status": "Status"
+  ,"content.schedule": "Planung"
+  ,"content.noSchedule": "Nicht geplant"
+  ,"content.openPost": "Beitrag öffnen: {{title}}"
+  ,"status.draft": "Entwurf"
+  ,"status.review": "Warten auf Freigabe"
+  ,"status.approved": "Freigegeben"
+  ,"status.scheduled": "Geplant"
+  ,"status.published": "Veröffentlicht"
+  ,"status.failed": "Fehlgeschlagen"
+  ,"content.automaticPublication": "Automatische Veröffentlichung"
+  ,"content.calendarOnly": "Nur im Kalender"
+  ,"calendar.description": "Zeige geplante Beiträge und ihre Zeitplanung an."
+  ,"calendar.previousWeek": "Vorherige Woche"
+  ,"calendar.previousMonth": "Vorheriger Monat"
+  ,"calendar.nextWeek": "Nächste Woche"
+  ,"calendar.nextMonth": "Nächster Monat"
+  ,"calendar.today": "Heute"
+  ,"calendar.month": "Monat"
+  ,"calendar.week": "Woche"
+  ,"calendar.list": "Liste"
+  ,"calendar.view": "Kalenderansicht"
+  ,"calendar.metaDescription": "Plane ohne Meta-Verbindung. Nur Beiträge mit aktivierter automatischer Veröffentlichung werden an soziale Netzwerke gesendet."
+  ,"calendar.postsIn": "Beiträge in diesem"
+  ,"calendar.weekLower": "Woche"
+  ,"calendar.monthLower": "Monat"
+  ,"calendar.localTime": "Lokale Geschäftszeit"
+  ,"calendar.monday": "Montag"
+  ,"calendar.tuesday": "Dienstag"
+  ,"calendar.wednesday": "Mittwoch"
+  ,"calendar.thursday": "Donnerstag"
+  ,"calendar.friday": "Freitag"
+  ,"calendar.saturday": "Samstag"
+  ,"calendar.sunday": "Sonntag"
+  ,"calendar.openPost": "Beitrag öffnen"
+  ,"calendar.proposalAwaitingApproval": "Entwurf · wartet auf Freigabe"
+  ,"calendar.automaticPublication": "Automatische Veröffentlichung"
+  ,"calendar.calendarOnly": "Nur im Kalender"
+  ,"calendar.emptyDay": "Keine Beiträge an diesem Tag"
+  ,"calendar.emptyTitle": "Keine Beiträge in diesem Zeitraum"
+  ,"calendar.emptyDescription": "Nach der Freigabe eines Beitrags kannst du hier Tag und Uhrzeit festlegen."
+  ,"calendar.months.january": "Januar"
+  ,"calendar.months.february": "Februar"
+  ,"calendar.months.march": "März"
+  ,"calendar.months.april": "April"
+  ,"calendar.months.may": "Mai"
+  ,"calendar.months.june": "Juni"
+  ,"calendar.months.july": "Juli"
+  ,"calendar.months.august": "August"
+  ,"calendar.months.september": "September"
+  ,"calendar.months.october": "Oktober"
+  ,"calendar.months.november": "November"
+  ,"calendar.months.december": "Dezember"
+  ,"gallery.description": "Fotos deiner Produkte, Räumlichkeiten und Geschäftsmomente."
+  ,"gallery.uploadPhotos": "Fotos hochladen"
+  ,"gallery.logo": "Logo"
+  ,"gallery.searchPlaceholder": "Nach Name oder Tag suchen ..."
+  ,"gallery.searchLabel": "Galerie durchsuchen"
+  ,"gallery.photos": "Fotos"
+  ,"gallery.assetFilter": "Galerie-Elemente filtern"
+  ,"gallery.allAssets": "Alle"
+  ,"gallery.originalAssets": "Hochgeladene Originale"
+  ,"gallery.generatedAssets": "KI-generiert"
+  ,"gallery.generatedBadge": "KI-generiert"
+  ,"gallery.details": "Details"
+  ,"gallery.uploadTag": "Hochladen"
+  ,"gallery.clearSelection": "Auswahl löschen"
+  ,"gallery.removeSelected": "Entfernen"
+  ,"gallery.rightsConfirmed": "Nutzungsrechte bestätigt"
+  ,"gallery.confirmationRequired": "Bestätigung erforderlich"
+  ,"gallery.noResults": "Keine Fotos gefunden"
+  ,"gallery.noResultsDescription": "Versuche einen anderen Namen oder zeige die gesamte Galerie an."
+  ,"gallery.emptyTitle": "Raum für deine Geschichte"
+  ,"gallery.emptyDescription": "Füge Fotos hinzu, um sie in Beiträgen zu verwenden."
+  ,"gallery.noGeneratedTitle": "Noch keine KI-generierten Fotos"
+  ,"gallery.noGeneratedDescription": "Mit KI erstellte Fotos erscheinen hier."
+  ,"gallery.clearSearch": "Suche löschen"
+  ,"gallery.selectPhoto": "{{name}} auswählen"
+  ,"gallery.photoDetails": "Details zu {{name}}"
+  ,"gallery.openPhoto": "Foto öffnen: {{name}}"
+  ,"gallery.photoViewer": "Fotobetrachter"
+  ,"gallery.photoViewerDescription": "Durchsuche alle Fotos und lade das gewünschte herunter."
+  ,"gallery.previousPhoto": "Vorheriges Foto"
+  ,"gallery.nextPhoto": "Nächstes Foto"
+  ,"gallery.addToGalleryTitle": "Fotos zur Galerie hinzufügen"
+  ,"gallery.privateDescription": "Fotos werden privat im Unternehmenskonto gespeichert."
+  ,"gallery.rightsLabel": "Ich habe das Recht, diese Fotos zu verwenden, und die Zustimmung abgebildeter Personen."
+  ,"gallery.choosePhotos": "Fotos auswählen oder hierher ziehen"
+  ,"gallery.formats": "JPG, PNG oder WebP bis 5 MB pro Datei. Bis zu 8 Fotos."
+  ,"gallery.uploadProgress": "Upload-Fortschritt"
+  ,"gallery.retryUpload": "Upload wiederholen"
+  ,"gallery.photosSaved": "{{count}} Fotos gespeichert"
+  ,"gallery.photosRemoved": "Fotos entfernt"
+  ,"gallery.saveError": "Fotos konnten nicht gespeichert werden. Prüfe die Speichernachricht und versuche es erneut."
+  ,"gallery.detailsDescription": "Tags und Nutzungsrechte"
+  ,"gallery.tags": "Tags"
+  ,"gallery.tagsHint": "Mit Kommas trennen."
+  ,"gallery.saveTags": "Tags speichern"
+  ,"gallery.resizeNote": "Für Beiträge speichern wir eine optimierte Kopie mit bis zu 1.200 Pixeln. Bewahre auch deine Originale auf."
+  ,"logo.upload": "Logo hochladen"
+  ,"photo.uploadError": "Upload fehlgeschlagen."
+  ,"brand.title": "Mein Unternehmen"
+  ,"brand.description": "Je besser wir dein Unternehmen kennen, desto natürlicher können deine Beiträge dafür sprechen."
+  ,"brand.profile": "Unternehmensprofil"
+  ,"brand.name": "Unternehmensname"
+  ,"brand.city": "Stadt"
+  ,"brand.industry": "Unternehmensart"
+  ,"brand.offer": "Was bietest du deinen Kunden?"
+  ,"brand.offerDescription": "Produkte, Dienstleistungen und Details, die dich auszeichnen."
+  ,"brand.audience": "Für wen sind deine Produkte oder Dienstleistungen?"
+  ,"brand.color": "Markenfarbe"
+  ,"brand.status": "Status"
+  ,"brand.active": "Aktiv"
+  ,"brand.archived": "Archiviert"
+  ,"brand.socialLinks": "Social-Media-Links"
+  ,"brand.socialLinksDescription": "Optional; du kannst sie später hinzufügen."
+  ,"brand.goals": "Unternehmensziele"
+  ,"brand.goalsDescription": "Nutze diese Ziele als Grundlage für Inhalte und Vorschläge."
+  ,"brand.addGoal": "Ziel hinzufügen"
+  ,"brand.facts": "Details, die stimmen müssen"
+  ,"brand.researchSources": "Recherchequellen"
+  ,"brand.eventResearch": "Ereignisse und Trends"
+  ,"brand.guardrails": "KI-Leitlinien und Regeln"
+  ,"brand.saveIdentity": "Identität speichern"
+  ,"brand.profileInfo": "Dies sind die von dir bereitgestellten Informationen. Daten aus Social-Media-Profilen werden nach der Verbindung zur Prüfung angezeigt."
+  ,"brand.socialPosts": "Social-Media-Beiträge"
+  ,"brand.photosTitle": "Auch Fotos erzählen deine Unternehmensgeschichte."
+  ,"brand.photosDescription": "Füge deine Produkte, Räumlichkeiten und Momente hinzu."
+  ,"brand.openGallery": "Galerie öffnen"
+  ,"brand.savedInAccount": "Im Unternehmenskonto gespeichert."
+  ,"brand.identitySaved": "Unternehmensidentität gespeichert."
+  ,"brand.saveError": "Die Änderungen wurden nicht gespeichert. Prüfe den Fehler oder lade die neueste Version."
+  ,"brain.title": "Business Brain"
+  ,"brain.description": "Fakten, Markenstimme, Zielgruppen, Angebote und Regeln, die die KI befolgen muss."
+  ,"brain.facts": "Fakten"
+  ,"brain.factsDescription": "Vorgeschlagene Fakten müssen bestätigt oder abgelehnt werden."
+  ,"brain.voice": "Markenstimme"
+  ,"brain.audiences": "Zielgruppen"
+  ,"brain.offers": "Angebote"
+  ,"brain.guardrails": "Regeln"
+  ,"brain.addFact": "Fakt hinzufügen"
+  ,"brain.save": "Business Brain speichern"
+  ,"brain.voiceDescription": "Jedes Speichern erstellt eine neue Version."
+  ,"brain.audiencesDescription": "Definiere, für wen das Unternehmen da ist."
+  ,"brain.offersDescription": "Nur aktive und gültige Angebote können als aktuelle Angebote verwendet werden."
+  ,"brain.guardrailsDescription": "Regeln, die Inhalte nicht verletzen dürfen."
+  ,"brain.noFacts": "Noch keine Fakten."
+  ,"brain.noAudiences": "Noch keine strukturierten Zielgruppen."
+  ,"brain.noOffers": "Noch keine Angebote."
+  ,"brain.noGuardrails": "Noch keine Regeln."
+  ,"common.edit": "Bearbeiten"
+  ,"common.delete": "Löschen"
+  ,"common.cancel": "Abbrechen"
+  ,"brand.voice": "Wie soll deine Marke in Beiträgen sprechen?"
+  ,"brand.factsDescription": "Öffnungszeiten, Adresse, Preise und Dienstleistungen. Füge die Quelle hinzu und bestätige jede Änderung erneut."
+  ,"brand.detail": "Detail"
+  ,"brand.source": "Quelle"
+  ,"brand.type": "Typ"
+  ,"brand.fact": "Fakt"
+  ,"brand.offerType": "Angebot"
+  ,"brand.validFrom": "Gültig ab"
+  ,"brand.validUntil": "Gültig bis"
+  ,"brand.validFromLabel": "Gültig ab"
+  ,"brand.validUntilLabel": "Gültig bis"
+  ,"brand.confirmedByBusiness": "Vom Unternehmen bestätigt"
+  ,"brand.awaitingConfirmation": "Warten auf Bestätigung"
+  ,"brand.checkedInformation": "Ich habe diese Informationen geprüft"
+  ,"brand.addDetail": "Detail hinzufügen"
+  ,"brand.researchDescription": "Füge die offizielle Website, Speisekarte, Kataloge oder andere Quellen hinzu, die die monatliche Recherche zuerst prüfen soll. Diese Quellen sind Hinweise; jede Aussage muss weiterhin geprüft werden."
+  ,"brand.addSource": "Quelle hinzufügen"
+  ,"brand.guardrailsDescription": "Zum Beispiel: keine Vergleiche mit Wettbewerbern oder Versprechen über Ergebnisse verwenden."
+  ,"brand.guidance": "Leitlinie"
+  ,"brand.addGuidance": "Leitlinie hinzufügen"
+  ,"brand.detailNumber": "Detail {{index}}"
+  ,"brand.removeGoal": "Ziel {{index}} entfernen"
+  ,"brand.removeDetail": "Detail {{index}} entfernen"
+  ,"brand.removeSource": "Quelle {{index}} entfernen"
+  ,"brand.removeGuidance": "Leitlinie {{index}} entfernen"
+  ,"brand.defaultSource": "Vom Unternehmen bereitgestellt"
+  ,"brand.cityPlaceholder": "z. B. Pristina"
+  ,"brand.industryPlaceholder": "z. B. Blumenladen"
+  ,"brand.voicePlaceholder": "z. B. Informativ und freundlich"
+  ,"brand.audiencePlaceholder": "z. B. Menschen aus der Nachbarschaft und der Umgebung"
+  ,"brand.goalPlaceholder": "z. B. Neue Kunden gewinnen"
+  ,"brain.loading": "Business Brain wird geladen ..."
+  ,"brain.source": "Quelle"
+  ,"brain.rule": "Regel {{index}}"
+  ,"brain.sourcePlaceholder": "z. B. Unternehmensrichtlinie"
+  ,"brain.defaultSource": "Vom Unternehmen bereitgestellt"
+  ,"brain.businessOwnerSource": "Informationen des Unternehmers"
+  ,"brain.candidate": "Vorschlag"
+  ,"brain.explicit": "Ausdrücklich"
+  ,"brain.confidence": "Sicherheit: {{percent}} %"
+  ,"brain.saveFact": "Fakt speichern"
+  ,"brain.factType": "Fakttyp"
+  ,"brain.factSource": "Faktquelle"
+  ,"brain.factSourcePlaceholder": "z. B. Unternehmensdokument"
+  ,"brain.factText": "Fakttext"
+  ,"brain.factTextPlaceholder": "Schreibe einen Fakt, den die KI verwenden kann."
+  ,"brain.statusVerified": "Bestätigt"
+  ,"brain.statusRejected": "Abgelehnt"
+  ,"brain.statusProposed": "Vorgeschlagen"
+  ,"brain.factVerified": "Fakt bestätigt."
+  ,"brain.factRejected": "Fakt abgelehnt."
+  ,"brain.factAdded": "Fakt hinzugefügt."
+  ,"brain.factDeleted": "Fakt gelöscht."
+  ,"brain.factSaved": "Fakt gespeichert."
+  ,"brain.verify": "Bestätigen"
+  ,"brain.reject": "Ablehnen"
+  ,"brain.voiceSource": "Quelle der Markenstimme"
+  ,"brain.voiceSourcePlaceholder": "z. B. Vom Unternehmen ausgefüllt"
+  ,"brain.voicePlaceholder": "z. B. Informativ und freundlich"
+  ,"brain.addAudience": "Zielgruppe hinzufügen"
+  ,"brain.audienceName": "Name der Zielgruppe {{index}}"
+  ,"brain.audienceNamePlaceholder": "z. B. Lokale Autobesitzer"
+  ,"brain.audienceDescription": "Beschreibung der Zielgruppe {{index}}"
+  ,"brain.descriptionLabel": "Beschreibung"
+  ,"brain.addOffer": "Angebot hinzufügen"
+  ,"brain.offerName": "Name des Angebots"
+  ,"brain.offerNamePlaceholder": "z. B. Kostenlose Beratung"
+  ,"brain.offerSource": "Angebotsquelle"
+  ,"brain.offerSourcePlaceholder": "z. B. Preisliste"
+  ,"brain.offerDescription": "Beschreibung des Angebots"
+  ,"brain.offerDescriptionPlaceholder": "Beschreibung des Angebots"
+  ,"brain.currency": "Währung"
+  ,"brain.price": "Preis"
+  ,"brain.optional": "Optional"
+  ,"brain.validFrom": "Gültig ab"
+  ,"brain.offerValidUntilHint": "Ohne Datum läuft das Angebot nie ab"
+  ,"brain.saveDraft": "Als Entwurf speichern"
+  ,"brain.activate": "Aktivieren"
+  ,"brain.deactivate": "Deaktivieren"
+  ,"brain.active": "Aktiv"
+  ,"brain.draft": "Entwurf"
+  ,"brain.offerExpired": "Abgelaufen"
+  ,"brain.offerExpiredHint": "Dieses Angebot ist abgelaufen und wird bei der Beitragserstellung nicht mehr verwendet. Ändere die Daten, um es wieder zu aktivieren."
+  ,"brain.addRule": "Regel hinzufügen"
+  ,"brain.rulePlaceholder": "z. B. Keine garantierten Ergebnisse versprechen"
+  ,"brain.noDescription": "Keine Beschreibung"
+  ,"common.status": "Status"
+  ,"content.version": "Version {{version}}"
+  ,"brand.eventCategoryHint.industryTrends": "Anlässe in deiner Branche und lokale Trends."
+  ,"brand.eventResearchDescription": "Wenn diese Option aktiviert ist, sucht die monatliche Recherche nach echten Daten — Feiertagen, Jahreszeiten oder Trends — und die Strategie kann für den passenden Tag einen Beitrag einplanen. Recherchiert werden nur Daten innerhalb der Paketlaufzeit, die noch veröffentlicht werden können; jeder Anlass benötigt eine datierte Quelle."
+  ,"brand.eventResearchEnabled": "Ereignisse und wichtige Daten recherchieren"
+  ,"brand.eventResearchEnabledHint": "Die Änderung gilt für den nächsten Plan. Ein Plan, dessen Recherche bereits abgeschlossen ist, arbeitet mit den bisherigen Ergebnissen weiter."
+  ,"brand.eventCategory.publicEvents": "Öffentliche Ereignisse"
+  ,"brand.eventCategoryHint.publicEvents": "Nationale, lokale und religiöse Feiertage sowie kulturelle Anlässe."
+  ,"brand.eventCategory.seasonalEvents": "Saisonale Ereignisse"
+  ,"brand.eventCategoryHint.seasonalEvents": "Jahreszeiten und wiederkehrende Zeiträume wie das Jahresende oder Black Friday."
+  ,"brand.eventCategory.industryTrends": "Branche und Trends"
+  ,"legacy.socialPostsDescription": "Deine Unternehmensbeiträge, abgerufen von Facebook und Instagram."
+  ,"social.importFrom": "Importieren von"
+  ,"social.refreshPosts": "Beiträge aktualisieren"
+  ,"social.loadOlder": "Ältere Beiträge laden"
+  ,"social.searchImported": "Importierte Beiträge durchsuchen"
+  ,"social.searchText": "Text suchen ..."
+  ,"social.filterNetwork": "Netzwerk filtern"
+  ,"social.postIn": "Beitrag auf"
+  ,"social.emptyTitle": "Noch keine importierten Beiträge"
+  ,"social.emptyDescription": "Verbinde dein Unternehmen und wähle „Beiträge aktualisieren“. Wenn Filter gesetzt sind, entferne sie."
+  ,"social.postFromNetwork": "Beitrag aus dem Netzwerk"
+  ,"social.postFromNetworkDescription": "Inhalt aus deinem verbundenen Konto."
+  ,"social.openIn": "Öffnen in"
+  ,"social.noCaption": "Beitrag ohne Text"
+  ,"social.mediaDescription": "Bei Videos oder allen Fotos öffnest du den Beitrag im sozialen Netzwerk."
+  ,"social.notConnected": "Noch nicht verbunden"
+  ,"social.preparing": "Die Meta-Verbindung wird noch von der Plattform vorbereitet. Du kannst dein Profil vervollständigen und jetzt Beiträge vorbereiten."
+  ,"social.connectMeta": "Über Meta verbinden"
+  ,"social.importedMessage": "{{count}} Beiträge wurden von {{channel}} geprüft und aktualisiert."
+  ,"social.importError": "Der Import konnte nicht abgeschlossen werden."
+  ,"social.loadError": "Beiträge konnten nicht geladen werden."
+  ,"social.pageAlreadyConnected": "Diese Seite ist bereits mit einem anderen Unternehmen in Rrit verbunden."
+  ,"billing.description": "Zeige dein zugewiesenes Paket, den Abrechnungszeitraum und die aktuelle Nutzung an."
+  ,"billing.activationByTeam": "Dein Paket wird von unserem Team verwaltet"
+  ,"billing.activationByTeamDescription": "Die Zahlung erfolgt bar; die Aktivierung oder Änderung eines Pakets übernehmen wir. Kontaktiere uns, wenn du es ändern oder verlängern möchtest."
+  ,"billing.packageProposalTitle": "Dein individuelles Paketangebot"
+  ,"billing.customPackagePosts": "{{count}} enthaltene Beiträge"
+  ,"billing.proposalCredits": "{{count}} Credits"
+  ,"billing.proposalCreditsOnly": "{{count}} zusätzliche Credits für das aktuelle Paket"
+  ,"billing.packageProposalDecline": "Ablehnen"
+  ,"billing.packageProposalAccept": "Angebot annehmen"
+  ,"billing.customPackageActive": "Individuelles Paket aktiv"
+  ,"billing.customPackagePeriod": "Zeitraum: {{from}} – {{to}}"
+  ,"billing.customPackageUsage": "Verwendet: {{used}} / {{total}} · Verbleibend: {{remaining}}"
+  ,"billing.customPackageDaysRemaining": "Noch {{count}} Tage"
+  ,"billing.customPackageContact": "Individuelle Pakete werden von unserem Team geändert, nicht auf dieser Seite."
+  ,"billing.credits": "Credits"
+  ,"billing.buyCreditsLede": "Brauchst du mehr Credits?"
+  ,"billing.creditsDescription": "Ein Guthaben für KI-Recherche, Planung, Erstellung und Texte."
+  ,"billing.buyCredits": "Credits kaufen"
+  ,"billing.currentUsage": "Aktuelle Nutzung"
+  ,"billing.currentUsageDescription": "Die Limits stammen vom aktiven Dienst auf dem Server."
+  ,"billing.postsRemaining": "{{count}} Beiträge diesen Monat verbleibend"
+  ,"billing.usagePosts": "Beiträge diesen Monat"
+  ,"billing.usageStorage": "Fotospeicher"
+  ,"billing.usageSocial": "Social-Media-Konten"
+  ,"billing.usageMembers": "Mitglieder"
+  ,"billing.detailsTitle": "Rechnungsdetails"
+  ,"billing.detailsDescription": "Diese Angaben erscheinen auf neuen Rechnungen. Bereits ausgestellte Rechnungen ändern sich nicht."
+  ,"billing.detailsLegalName": "Unternehmensname"
+  ,"billing.detailsFiscalNumber": "Steuernummer"
+  ,"billing.detailsOptional": "Falls vorhanden"
+  ,"billing.detailsAddress": "Adresse"
+  ,"billing.detailsCity": "Stadt"
+  ,"billing.detailsCountry": "Land"
+  ,"billing.detailsSave": "Details speichern"
+  ,"billing.detailsSaved": "Rechnungsdetails gespeichert."
+  ,"billing.detailsFailed": "Die Details wurden nicht gespeichert. Prüfe den Unternehmensnamen und versuche es erneut."
+  ,"billing.usageLoadError": "Die Nutzung konnte nicht geladen werden."
+  ,"billing.packageProposalAccepted": "Das Paketangebot wurde angenommen."
+  ,"billing.packageProposalDeclined": "Das Paketangebot wurde abgelehnt."
+  ,"billing.packageProposalFailed": "Das Paketangebot konnte nicht aktualisiert werden."
+  ,"billing.creditRequestSent": "Anfrage gesendet. Unser Team meldet sich mit einem Angebot."
+  ,"billing.creditRequestFailed": "Die Anfrage wurde nicht gesendet. Versuche es erneut."
+  ,"request.appTitle": "Paket anfordern"
+  ,"request.appRenewTitle": "Änderung oder Verlängerung anfordern"
+  ,"request.appLede": "Brauchst du mehr Beiträge?"
+  ,"request.appBody": "Teile uns mit, wie viele du pro Monat brauchst, und wir nennen dir einen Preis."
+  ,"request.appCta": "Anfrage senden"
+  ,"request.appRenewCta": "Paket ändern"
+  ,"request.appNote": "Antwort innerhalb von 24 Stunden."
+  ,"request.estimateLabel": "Ungefährer Monatswert"
+  ,"request.estimatePerPost": "{{price}} pro Beitrag"
+  ,"request.posts": "Wie viele Beiträge brauchst du diesen Monat?"
+  ,"request.message": "Gibt es etwas, das wir wissen sollten?"
+  ,"request.optional": "Optional"
+  ,"request.submit": "Anfrage senden"
+  ,"request.messagePlaceholder": "3 Beiträge pro Woche, hauptsächlich Produkte"
+  ,"billing.buyCreditsTitle": "Mehr Credits anfordern"
+  ,"billing.buyCreditsDescription": "Credits werden deinem aktuellen Paket hinzugefügt und für Erstellung und KI-Verbesserungen verwendet."
+  ,"billing.buyCreditsAmount": "Wie viele Credits?"
+  ,"billing.buyCreditsEstimate": "Ungefährer Wert: {{amount}} €. Unser Team bestätigt den endgültigen Preis im Angebot."
+  ,"billing.buyCreditsMessage": "Hinweis für das Team (optional)"
+  ,"billing.buyCreditsNote": "Nach deiner Anfrage erstellt das Team ein Angebot. Credits werden erst nach deiner Annahme hinzugefügt."
+  ,"billing.buyCreditsSubmit": "Anfrage senden"
+  ,"settings.title": "Einstellungen"
+  ,"settings.description": "Profil, Einstellungen und Sicherheit an einem Ort."
+  ,"settings.profile": "Profil"
+  ,"settings.preferences": "Einstellungen"
+  ,"settings.security": "Sicherheit"
+  ,"settings.organization": "Organisation"
+  ,"settings.recoveredTitle": "Deine letzten Änderungen wurden wiederhergestellt"
+  ,"settings.recoveredDescription": "Prüfe sie und speichere sie, um dein Profil zu aktualisieren."
+  ,"settings.yourProfile": "Dein Profil"
+  ,"settings.businessAccount": "Unternehmenskonto"
+  ,"settings.fullName": "Vollständiger Name"
+  ,"settings.email": "E-Mail"
+  ,"settings.emailDescription": "Dies ist die Kontaktadresse. Deine Login-E-Mail bleibt unverändert."
+  ,"settings.languageRegion": "Sprache und Region"
+  ,"settings.language": "Sprache"
+  ,"settings.albanianKosovo": "Albanisch · Kosovo"
+  ,"settings.englishUnitedStates": "Englisch · Vereinigte Staaten"
+  ,"settings.germanGermany": "Deutsch · Deutschland"
+  ,"settings.timezone": "Zeitzone"
+  ,"settings.currency": "Währung"
+  ,"settings.currencyEuro": "Euro (EUR)"
+  ,"settings.currencyDescription": "Paketpreise werden in Euro angezeigt."
+  ,"settings.workspaceManagement": "Workspace-Verwaltung"
+  ,"settings.businessIdentity": "Unternehmensidentität"
+  ,"settings.planBilling": "Paket & Abrechnung"
+  ,"settings.workCopy": "Eine Kopie deiner Arbeit"
+  ,"settings.workCopyDescription": "Lade eine Datei mit deinen Beiträgen, deinem Profil und deinen Unternehmensdaten herunter."
+  ,"settings.exportData": "Daten exportieren"
+  ,"settings.preferencesSaved": "Einstellungen wurden in deinem Konto gespeichert."
+  ,"settings.nameRequired": "Gib deinen Namen ein."
+  ,"settings.emailInvalid": "Gib eine gültige E-Mail-Adresse ein."
+  ,"settings.timezoneInvalid": "Wähle eine gültige Zeitzone."
+  ,"settings.formError": "Prüfe den Namen und die E-Mail-Adresse unter Profil sowie die Zeitzone unter Einstellungen."
+  ,"security.currentPassword": "Aktuelles Passwort"
+  ,"security.newPassword": "Neues Passwort"
+  ,"security.confirmPassword": "Neues Passwort wiederholen"
+  ,"security.signedInDevices": "Geräte, auf denen du angemeldet bist"
+  ,"security.sessionsLoadError": "Sitzungen konnten nicht geladen werden"
+  ,"security.unknownDevice": "Unbekanntes Gerät"
+  ,"security.signedInAt": "Angemeldet seit"
+  ,"security.currentPasswordRequired": "Gib dein aktuelles Passwort ein."
+  ,"security.passwordTooShort": "Verwende mindestens 12 Zeichen."
+  ,"security.passwordSymbolRequired": "Füge mindestens ein Sonderzeichen hinzu, zum Beispiel !, @ oder #."
+  ,"security.passwordMismatch": "Die Passwörter stimmen nicht überein."
+  ,"security.sessionReadError": "Die Sitzung konnte nicht gelesen werden."
+  ,"security.passwordChangeError": "Das Passwort wurde nicht geändert. Prüfe das aktuelle Passwort und versuche es erneut."
+  ,"security.passwordChanged": "Passwort geändert. Andere Sitzungen wurden abgemeldet."
+  ,"security.sessionsRevokeError": "Sitzungen konnten nicht beendet werden. Versuche es erneut."
+  ,"security.sessionsRevoked": "Sitzungen auf anderen Geräten wurden beendet."
+  ,"settings.contactAddress": "Dies ist die Kontaktadresse. Deine Login-E-Mail bleibt unverändert."
+  ,"onboarding.timezoneKosovo": "Kosovo-Zeit"
+  ,"onboarding.timezoneAlbania": "Albanien-Zeit"
+  ,"onboarding.timezoneNorthMacedonia": "Nordmazedonien-Zeit"
+  ,"onboarding.timezoneUnitedKingdom": "Vereinigtes Königreich-Zeit"
+  ,"workspace.formInvalidTitle": "Formular prüfen"
+  ,"workspace.sessionExpired": "Deine Sitzung ist abgelaufen. Melde dich erneut an, um deine Arbeit zu speichern."
+  ,"workspace.reviewRequired": "Prüfung erforderlich"
+  ,"workspace.futureScheduleRequired": "Wähle ein gültiges zukünftiges Datum und eine Uhrzeit."
+  ,"workspace.serviceInactive": "Dienst nicht aktiv"
+  ,"workspace.serviceInactiveDescription": "Aktiviere einen Dienst, bevor du diese Aktion ausführst."
+  ,"public.skipToContent": "Zum Inhalt springen"
+  ,"public.changeAppearance": "Darstellung ändern"
+  ,"public.exploreRrit": "Rrit entdecken"
+  ,"public.accountAndHelp": "Konto und Hilfe"
+  ,"public.nextPost": "zu deinem nächsten Beitrag."
+}

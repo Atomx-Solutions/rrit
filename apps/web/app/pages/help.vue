@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'public' })
-const { t } = useI18n()
+const { locale, t } = useI18n()
 useSeoMeta({ title: () => `${t('help.title')} · Rrit` })
 const { data: capabilities } = await useFetch('/api/capabilities')
 const search = ref('')
@@ -26,7 +26,7 @@ watch(search, () => {
 })
 </script>
 <template>
-  <section class="public-section max-w-3xl">
+  <section :key="locale" class="public-section max-w-3xl">
     <p class="eyebrow">{{ t('help.eyebrow') }}</p>
     <h1 class="my-5">{{ t('help.title') }}</h1>
     <UInput

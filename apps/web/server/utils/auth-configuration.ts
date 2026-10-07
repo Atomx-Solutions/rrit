@@ -12,11 +12,20 @@ export function authConfiguration() {
   }
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
   const origins = new Set([url.origin])
-  if (local) {
+  // The dev server is commonly opened through localhost even when APP_URL
+  // points at a tunnel/public URL. Keep local aliases available in development
+  // so same-origin mutation requests are not rejected during local testing.
+  if (local || process.env.NODE_ENV !== 'production') {
     for (const hostname of ['localhost', '127.0.0.1', '[::1]']) {
       const alias = new URL(url.origin)
       alias.hostname = hostname
       origins.add(alias.origin)
+      if (!local) {
+        alias.port = '3000'
+        origins.add(alias.origin)
+        alias.protocol = 'http:'
+        origins.add(alias.origin)
+      }
     }
   }
   return {

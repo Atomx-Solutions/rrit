@@ -237,7 +237,7 @@ async function saveMetadata() {
     })
   ) {
     detail.value = null
-    notify()
+    notify(t('common.saved'))
   }
 }
 </script>

@@ -325,7 +325,7 @@ async function save(silent = false) {
     savedAt.value = new Intl.DateTimeFormat('sq-AL', { hour: '2-digit', minute: '2-digit' }).format(
       new Date(),
     )
-    if (!silent) notify()
+    if (!silent) notify(t('common.saved'))
     if (dirty.value) timer = setTimeout(() => save(true), 900)
     else if (!props.id) await navigateTo(`${base.value}/content/${id}`, { replace: true })
   }
