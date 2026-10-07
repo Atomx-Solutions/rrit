@@ -30,7 +30,7 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
   })
   if (error) {
     console.error('Admin billing invoices query failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Faturat nuk u ngarkuan.' })
+    throw createError({ statusCode: 502, message: 'server.INVOICES_LOAD_FAILED' })
   }
   return data as {
     invoices: Array<{

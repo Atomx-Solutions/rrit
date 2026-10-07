@@ -4,7 +4,7 @@ import { createError } from 'h3'
 export function clientSelfServiceDisabled(): never {
   throw createError({
     statusCode: 403,
-    message: 'Paketa dhe kreditet menaxhohen nga ekipi i administrimit.',
+    message: 'server.BILLING_MANAGED_BY_ADMIN',
     data: { code: 'CLIENT_SELF_SERVICE_DISABLED' },
   })
 }

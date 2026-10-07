@@ -65,7 +65,10 @@ export const slotDeliverableSchema = z.enum(['static_post', 'video'])
 export const slotBriefSchema = z.object({
   day: z.number().int().min(1).max(31),
   time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-  channel: z.enum(['Facebook', 'Instagram']),
+  // A video reaches whichever of these three the brief chose. TikTok appears
+  // here only because a video can go there; a static feed post cannot, which
+  // the planner enforces rather than the enum.
+  channel: z.enum(['Facebook', 'Instagram', 'TikTok']),
   topic: z.string().min(5).max(200),
   pillar: z.string().min(2).max(80),
   intent: contentIntentSchema,

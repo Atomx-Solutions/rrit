@@ -7,14 +7,14 @@ export default defineEventHandler(async (event) => {
   if (!query.success)
     throw createError({
       statusCode: 422,
-      message: 'Periudha nuk është e vlefshme (YYYY-MM-DD, deri në 366 ditë).',
+      message: 'server.PERIOD_INVALID_RANGE',
       data: { code: 'INVALID_RANGE' },
     })
   const range = adminAiCostsRange(query.data)
   if (!range)
     throw createError({
       statusCode: 422,
-      message: 'Periudha nuk është e vlefshme (YYYY-MM-DD, deri në 366 ditë).',
+      message: 'server.PERIOD_INVALID_RANGE',
       data: { code: 'INVALID_RANGE' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

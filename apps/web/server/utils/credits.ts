@@ -67,12 +67,12 @@ export async function creditPricing(client: Pick<PoolClient, 'query'>): Promise<
  * Credits one rendered video costs. The column is NOT NULL with its own database
  * default, so an absent row means pricing is not configured rather than free.
  */
-export async function tiktokVideoCredits(client: Pick<PoolClient, 'query'>) {
-  const result = await client.query<{ tiktok_video_credits: number }>(
-    'SELECT tiktok_video_credits FROM credit_pricing WHERE singleton=true',
+export async function videoRenderCredits(client: Pick<PoolClient, 'query'>) {
+  const result = await client.query<{ video_credits: number }>(
+    'SELECT video_credits FROM credit_pricing WHERE singleton=true',
   )
-  const credits = Number(result.rows[0]?.tiktok_video_credits)
-  if (!credits) throw new Error('TikTok video credit pricing is not configured.')
+  const credits = Number(result.rows[0]?.video_credits)
+  if (!credits) throw new Error('Video credit pricing is not configured.')
   return credits
 }
 export async function creditsForCost(client: Pick<PoolClient, 'query'>, costMicroEur: number) {
@@ -141,7 +141,7 @@ async function updateBalance(client: PoolClient, organizationId: string, remaini
   return toBalance(result.rows[0]!)
 }
 function exhausted() {
-  return createError({ statusCode: 402, data: { code: 'CREDITS_EXHAUSTED' }, message: 'Kreditet kane perfunduar.' })
+  return createError({ statusCode: 402, data: { code: 'CREDITS_EXHAUSTED' }, message: 'server.CREDITS_EXHAUSTED' })
 }
 
 export async function grantMonthlyCredits(client: PoolClient, input: { organizationId: string; subscriptionId?: string | null; monthlyCredits: number; periodStart: Date; periodEnd: Date }) {

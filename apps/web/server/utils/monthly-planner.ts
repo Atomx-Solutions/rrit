@@ -11,8 +11,8 @@ import {
 import {
   permittedEventCategories,
   postSchema,
-  tiktokVideoDurationSeconds,
-  tiktokVideoFormat,
+  videoDurationSeconds,
+  videoFormat,
 } from '../../shared/schemas/workspace'
 import {
   emptyPlannerBrain,
@@ -24,7 +24,7 @@ import {
 import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
 import { loadBrandLogo, type BrandLogoAsset } from './brand-assets'
-import { renderTikTokVideoForPost } from './tiktok-video-render'
+import { renderVideoForPost } from './video-render'
 import {
   paidAccessForPlanningMonth,
   postsCountedForLimit,
@@ -75,12 +75,14 @@ import {
   packageMonthWindow,
   channelCountsTotal,
   normalizedChannelCounts,
+  plannerChannels,
   plannerVoice,
   planningMonth,
   promptEvidence,
   remainingMonthlyPosts,
   requestedPlannerPosts,
   validateEditorialPlan,
+  type PlannerChannel,
   type PlannerChannelCounts,
   type PlannerEvidence,
   type PlannerTimingSample,
@@ -839,11 +841,17 @@ async function loadPlannerTimingSamples(
   })
   const platform = workspace.posts.flatMap((post) => {
     if (post.status !== 'published' || !post.publishedAt) return []
-    // Posting-time evidence is about the feed. A TikTok video is published from
-    // TikTok on its own rhythm, so it teaches nothing about when a Meta post
-    // should go out.
-    if (post.channel === 'TikTok') return []
-    return [{ source: 'platform' as const, channel: post.channel, publishedAt: post.publishedAt }]
+    // Posting-time evidence is about the feed. A vertical video is watched on
+    // its own rhythm whichever channel it reaches, so it teaches nothing about
+    // when a feed post should go out. Dropping the videos leaves only feed
+    // channels, which the channel guard below states for the type as well.
+    if (post.video) return []
+    if (!plannerChannels.includes(post.channel as PlannerChannel)) return []
+    return [{
+      source: 'platform' as const,
+      channel: post.channel as PlannerChannel,
+      publishedAt: post.publishedAt,
+    }]
   })
   return [...imported, ...platform].slice(0, 240)
 }
@@ -2047,11 +2055,11 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             id: postId,
             title: content.title,
             caption: `${content.caption}\n\n${content.hashtags.join(' ')}`,
-            // A video slot is a TikTok deliverable of its own. Holding it on
-            // its own channel is what keeps it out of the feed's platform
-            // split, out of the Meta publishing queue and out of the post
-            // allowance, which it was never bought from.
-            channel: slot.deliverable === 'video' ? 'TikTok' : slot.channel,
+            // A video goes to the channel its brief chose, Instagram and
+            // Facebook included. What keeps it out of the feed's platform split
+            // and the post allowance is the motion brief below, not a channel
+            // of its own.
+            channel: slot.channel,
             format: 'static',
             image: `/api/media/${assetId}`,
             pillar: slot.pillar,
@@ -2070,15 +2078,15 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             // first frame.
             ...(slot.deliverable === 'video'
               ? {
-                  tiktokVideo: {
+                  video: {
                     status: 'brief_ready' as const,
                     sourceAssetIds: [content.assetId],
                     ...(videoBriefLogoId ? { logoAssetId: videoBriefLogoId } : {}),
                     hook: slot.hook.slice(0, 140),
                     overlays: [slot.assetDirection.slice(0, 120)],
                     cta: content.creative.cta.slice(0, 120),
-                    durationSeconds: tiktokVideoDurationSeconds,
-                    format: tiktokVideoFormat,
+                    durationSeconds: videoDurationSeconds,
+                    format: videoFormat,
                     createdAt: new Date().toISOString(),
                   },
                 }
@@ -2174,15 +2182,15 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       // its own transactions, so it waits until this one has committed.
       if (committed && slot.deliverable === 'video') {
         try {
-          await plannerStep('content.tiktok_video_render', () =>
-            renderTikTokVideoForPost(plan.owner_id, committed),
+          await plannerStep('content.video_render', () =>
+            renderVideoForPost(plan.owner_id, committed),
           )
         } catch (error) {
           // The post is delivered and its brief is durable, so a render that
           // fails here leaves something the business can start again from the
           // editor. Losing the rest of a batch it has paid for would cost it
           // more than stopping is worth.
-          console.error('The monthly planner could not render a TikTok video', {
+          console.error('The monthly planner could not render a video', {
             planId: plan.id,
             postId: committed,
             error,

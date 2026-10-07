@@ -54,7 +54,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
     const invalid = error.message?.includes('SETTINGS_INVALID')
     throw createError({
       statusCode: invalid ? 400 : 502,
-      message: invalid ? 'Vlerat e cilësimeve nuk janë të vlefshme.' : 'Cilësimet e platformës nuk u ngarkuan.',
+      message: invalid ? 'server.SETTINGS_VALUES_INVALID' : 'Cilësimet e platformës nuk u ngarkuan.',
     })
   }
   return normalize(data)

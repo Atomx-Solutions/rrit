@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   if (!invitationId.success)
     throw createError({
       statusCode: 400,
-      message: 'Ftesa nuk është e vlefshme.',
+      message: 'server.INVITATION_INVALID',
       data: { code: 'INVITATION_INVALID' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

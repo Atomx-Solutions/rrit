@@ -25,7 +25,7 @@ export default defineEventHandler(async () => {
       purchasable: !row.is_trial,
     })
     if (!plan.success)
-      throw createError({ statusCode: 503, message: 'Katalogu i planeve nuk është i vlefshëm.' })
+      throw createError({ statusCode: 503, message: 'server.PLAN_CATALOG_INVALID' })
     return {
       ...plan.data,
       code: row.code,

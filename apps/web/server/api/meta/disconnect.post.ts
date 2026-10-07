@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
     if (running.rows.length)
       throw createError({
         statusCode: 409,
-        message: 'Një postim po publikohet. Prit përfundimin përpara shkëputjes.',
+        message: 'server.PUBLICATION_IN_FLIGHT_BLOCKS_DISCONNECT',
       })
     await client.query(
       "UPDATE publication_jobs SET status='cancelled',updated_at=now() WHERE business_id=$1 AND status='pending'",

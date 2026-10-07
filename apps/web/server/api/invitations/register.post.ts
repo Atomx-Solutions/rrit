@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   if (!body.success)
     throw createError({
       statusCode: 422,
-      message: 'Emri ose fjalëkalimi nuk i plotëson kërkesat.',
+      message: 'server.NAME_OR_PASSWORD_INVALID',
       data: { code: 'PASSWORD_WEAK' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

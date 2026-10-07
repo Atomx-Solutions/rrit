@@ -214,8 +214,8 @@ async function submit() {
     editing.value = null
     await reload()
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('admin.packages.saveFailed')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'admin.packages.saveFailed')
   } finally {
     saving.value = false
   }

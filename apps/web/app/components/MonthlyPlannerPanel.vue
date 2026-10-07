@@ -328,7 +328,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       await navigateTo(`${unref(base)}/billing?reason=trial-limit`)
       return
     }
-    error.value = failure.data?.message || t('monthly.changeNotSaved')
+    error.value = t(failure.data?.message || 'monthly.changeNotSaved')
   } finally {
     busy.value = false
   }
@@ -781,7 +781,7 @@ onBeforeUnmount(() => clearInterval(timer))
             variant="outline"
             icon="i-lucide-clapperboard"
           >
-            {{ t('tiktok.generateVideo') }}
+            {{ t('video.generate') }}
           </UButton>
         </div>
       </div>
@@ -1061,15 +1061,15 @@ onBeforeUnmount(() => clearInterval(timer))
           <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
             <UIcon name="i-lucide-clapperboard" class="size-5 shrink-0 text-primary" />
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-highlighted">{{ t('tiktok.includeVideos') }}</p>
-              <p class="truncate text-xs text-muted">{{ t('tiktok.videosRemaining', { count: remainingVideos }) }}</p>
+              <p class="text-sm font-medium text-highlighted">{{ t('video.include') }}</p>
+              <p class="truncate text-xs text-muted">{{ t('video.remaining', { count: remainingVideos }) }}</p>
             </div>
             <UInputNumber
               v-model="selectedVideoQuantity"
               :min="0"
               :max="maxVideosThisBatch"
               class="w-24 shrink-0"
-              :aria-label="t('tiktok.videoQuantity')"
+              :aria-label="t('video.quantity')"
             />
           </div>
           <div class="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">

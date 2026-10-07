@@ -10,7 +10,7 @@ function storageClient() {
   const url = process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key)
-    throw createError({ statusCode: 503, message: 'Asset storage nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.ASSET_STORAGE_NOT_CONFIGURED' })
   return (client ||= createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   }))
@@ -55,7 +55,7 @@ export async function uploadAsset(path: string, bytes: Buffer) {
     cacheControl: '3600',
     upsert: false,
   })
-  if (error) throw createError({ statusCode: 502, message: 'Fotografia nuk u ruajt në storage.' })
+  if (error) throw createError({ statusCode: 502, message: 'server.PHOTO_STORAGE_FAILED' })
 }
 
 // Video renders are private derived assets, not gallery photos. Keep their MIME
@@ -66,7 +66,7 @@ export async function uploadBinaryAsset(path: string, bytes: Buffer, contentType
     cacheControl: '3600',
     upsert: false,
   })
-  if (error) throw createError({ statusCode: 502, message: 'Videoja nuk u ruajt në storage.' })
+  if (error) throw createError({ statusCode: 502, message: 'server.VIDEO_STORAGE_FAILED' })
 }
 
 export async function downloadAsset(path: string, maxBytes = MAX_ASSET_BYTES) {
@@ -76,18 +76,18 @@ export async function downloadAsset(path: string, maxBytes = MAX_ASSET_BYTES) {
     const { data, error } = await storageClient()
       .storage.from(assetBucket())
       .download(path, {}, { signal: controller.signal, cache: 'no-store' })
-    if (error || !data) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
+    if (error || !data) throw createError({ statusCode: 404, message: 'server.PHOTO_NOT_FOUND' })
     if (data.size > maxBytes)
-      throw createError({ statusCode: 413, message: 'Fotografia tejkalon kufirin e lejuar.' })
+      throw createError({ statusCode: 413, message: 'server.PHOTO_SIZE_EXCEEDED' })
     const bytes = Buffer.from(await data.arrayBuffer())
     if (bytes.length > maxBytes) {
       bytes.fill(0)
-      throw createError({ statusCode: 413, message: 'Fotografia tejkalon kufirin e lejuar.' })
+      throw createError({ statusCode: 413, message: 'server.PHOTO_SIZE_EXCEEDED' })
     }
     return bytes
   } catch (error) {
     if (controller.signal.aborted)
-      throw createError({ statusCode: 504, message: 'Shkarkimi i fotografisë zgjati shumë.' })
+      throw createError({ statusCode: 504, message: 'server.PHOTO_DOWNLOAD_TIMEOUT' })
     throw error
   } finally {
     clearTimeout(timeout)

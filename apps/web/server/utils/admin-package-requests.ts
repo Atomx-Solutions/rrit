@@ -11,8 +11,8 @@ export const packageRequestChangeSchema = z
   .strict()
 
 const failures: Record<string, { statusCode: number; message: string }> = {
-  REQUEST_NOT_FOUND: { statusCode: 404, message: 'Kërkesa nuk u gjet.' },
-  REQUEST_INVALID: { statusCode: 400, message: 'Vlerat e kërkesës nuk janë të vlefshme.' },
+  REQUEST_NOT_FOUND: { statusCode: 404, message: 'server.REQUEST_NOT_FOUND' },
+  REQUEST_INVALID: { statusCode: 400, message: 'server.REQUEST_VALUES_INVALID' },
 }
 
 export function adminPackageRequestFailure(message: string | undefined) {
@@ -35,7 +35,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
       code: error.code,
       message: error.message,
     })
-    throw createError({ statusCode: 502, message: 'Kërkesat nuk u ngarkuan.' })
+    throw createError({ statusCode: 502, message: 'server.REQUESTS_LOAD_FAILED' })
   }
   return data as Record<string, unknown>
 }

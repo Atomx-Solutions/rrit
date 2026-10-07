@@ -57,12 +57,14 @@ export function permittedEventCategories(events: EventResearch | undefined) {
 // The shape of every vertical video this application renders. It is one canvas
 // and one length, defined once: the motion brief carries them to the provider
 // call, so neither the brief endpoint nor the monthly planner restates them.
-export const tiktokVideoFormat = '1080x1920' as const
+// The canvas is shared by every channel a video can reach, because Instagram
+// Reels, Facebook video and TikTok all want the same full-screen 9:16 frame.
+export const videoFormat = '1080x1920' as const
 // Eight seconds, because that is the longest single shot the generation models
-// this is built on will produce, and a TikTok opener earns its watch in the
+// this is built on will produce, and a vertical opener earns its watch in the
 // first second anyway. The schema below still accepts the wider range a future
 // model could offer.
-export const tiktokVideoDurationSeconds = 8
+export const videoDurationSeconds = 8
 export const postSchema = z.object({
   id: z.string(),
   title: z.string().min(3).max(120),
@@ -85,7 +87,9 @@ export const postSchema = z.object({
   campaignId: z.string().optional(),
   providerPostId: z.string().optional(),
   publishedAt: z.string().optional(),
-  tiktokVideo: z.object({
+  // The motion brief for a post whose deliverable is a video. Which channel it
+  // reaches is the post's own `channel`, so nothing here names a platform.
+  video: z.object({
     status: z.enum(['brief_ready', 'rendering', 'ready', 'failed']),
     sourceAssetIds: z.array(z.uuid()).min(1),
     logoAssetId: z.uuid().optional(),
@@ -93,7 +97,7 @@ export const postSchema = z.object({
     overlays: z.array(z.string().max(120)).max(4),
     cta: z.string().max(120),
     durationSeconds: z.number().int().min(6).max(30),
-    format: z.literal(tiktokVideoFormat),
+    format: z.literal(videoFormat),
     strategyVersion: z.number().int().positive().optional(),
     createdAt: z.iso.datetime(),
   }).optional(),

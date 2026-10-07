@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
     .object({ contentVersion: z.number().int().positive() })
     .safeParse(await boundedBody(event, 1024))
   if (!id.success || !input.success)
-    throw createError({ statusCode: 422, message: 'Zgjidh një version të vlefshëm.' })
+    throw createError({ statusCode: 422, message: 'server.VERSION_INVALID' })
   const business = await withUserTransaction(user.id, (client) => businessForUser(user.id, client))
   try {
     return await reviewPostQuality(

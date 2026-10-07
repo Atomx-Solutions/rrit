@@ -206,7 +206,9 @@ export function plannerEvidence(
         )
       : assets
   const localTimingSamples = workspace.posts
-    .filter((post) => post.status === 'published' && post.publishedAt && post.channel !== 'TikTok')
+    // A video is watched on its own rhythm whichever channel it reached, so it
+    // is no evidence of when a feed post should go out.
+    .filter((post) => post.status === 'published' && post.publishedAt && !post.video)
     .map((post) => ({
       source: 'platform' as const,
       channel: post.channel as PlannerChannel,
@@ -622,6 +624,12 @@ export function validateEditorialPlan(
     const hook = normalizedIdea(slot.hook)
     if (slot.day > days)
       throw new PlannerFailure('INVALID_SLOT_DATE', [`Postimi ${index + 1}: dita ${slot.day} nuk ekziston në muaj.`])
+    // A video may go to any of the three channels, but a static feed post has
+    // nowhere to land on TikTok, which publishes video only.
+    if (slot.deliverable !== 'video' && !plannerChannels.includes(slot.channel as PlannerChannel))
+      throw new PlannerFailure('UNGROUNDED_PLAN', [
+        `Postimi ${index + 1}: ${slot.channel} pranon vetëm deliverable video; një postim statik duhet të shkojë te ${plannerChannels.join(' ose ')}.`,
+      ])
     if (used.has(key))
       throw new PlannerFailure('REPETITIVE_PLAN', [`Postimi ${index + 1}: data, ora dhe kanali përsëriten.`])
     if (topics.has(topic) || hooks.has(hook))

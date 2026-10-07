@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const organizationId = z.uuid().safeParse(getRouterParam(event, 'organizationId'))
   const brandId = z.uuid().safeParse(getRouterParam(event, 'brandId'))
   const offerId = z.uuid().safeParse(getRouterParam(event, 'offerId'))
-  if (!organizationId.success || !brandId.success || !offerId.success) throw createError({ statusCode: 404, message: 'Oferta nuk u gjet.' })
+  if (!organizationId.success || !brandId.success || !offerId.success) throw createError({ statusCode: 404, message: 'server.OFFER_NOT_FOUND' })
   return withOrganizationTransaction(user.id, organizationId.data, async (client) => {
     const offer = await activateBusinessBrainOffer(client, organizationId.data, brandId.data, offerId.data)
     await recordAuditEvent(client, {

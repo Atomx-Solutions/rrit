@@ -26,7 +26,7 @@ export function aiVideoConfigured() {
 // provider call never restates them: `format` is the brief's "<width>x<height>".
 function canvas(format: string) {
   const [width, height] = format.split('x').map(Number)
-  if (!width || !height) throw createError({ statusCode: 422, message: 'Formati i videos nuk është i vlefshëm.' })
+  if (!width || !height) throw createError({ statusCode: 422, message: 'server.VIDEO_FORMAT_INVALID' })
   const divisor = (a: number, b: number): number => (b ? divisor(b, a % b) : a)
   const gcd = divisor(width, height)
   return { aspectRatio: `${width / gcd}:${height / gcd}`, resolution: `${Math.min(width, height)}p` }
@@ -74,9 +74,9 @@ export async function generateAiVideo(input: {
       throw createError({ statusCode: 502, message: completed.error || 'OpenRouter video generation failed.' })
   }
   if (!completed || !['completed', 'succeeded'].includes((completed.status || '').toLowerCase()))
-    throw createError({ statusCode: 504, message: 'OpenRouter video generation timed out.' })
+    throw createError({ statusCode: 504, message: 'server.VIDEO_GENERATION_TIMEOUT' })
   const contentUrl = completed.unsigned_urls?.[0] || completed.data?.url || `${provider.baseUrl}/videos/${submitted.id}/content`
   const video = await fetch(contentUrl, { headers: { Authorization: `Bearer ${provider.key}` }, signal: AbortSignal.timeout(120000), redirect: 'error' })
-  if (!video.ok) throw createError({ statusCode: 502, message: 'Videoja nga OpenRouter nuk u shkarkua.' })
+  if (!video.ok) throw createError({ statusCode: 502, message: 'server.VIDEO_DOWNLOAD_FAILED' })
   return { bytes: Buffer.from(await video.arrayBuffer()), costUsd: completed.usage?.cost ?? null }
 }

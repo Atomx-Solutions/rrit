@@ -2,7 +2,7 @@ import { adminLeadConversionSummary, leadConversionRangeSchema } from '../../../
 
 export default defineEventHandler(async (event) => {
   const range = leadConversionRangeSchema.safeParse(getQuery(event))
-  if (!range.success) throw createError({ statusCode: 400, message: 'Periudha nuk është e vlefshme.' })
+  if (!range.success) throw createError({ statusCode: 400, message: 'server.PERIOD_INVALID' })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return adminLeadConversionSummary(range.data)
 })

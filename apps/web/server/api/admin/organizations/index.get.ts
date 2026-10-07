@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   if (!query.success)
     throw createError({
       statusCode: 422,
-      message: 'Parametrat e kërkimit nuk janë të vlefshëm.',
+      message: 'server.SEARCH_PARAMETERS_INVALID',
       data: { code: 'INVALID_QUERY' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

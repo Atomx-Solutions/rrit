@@ -12,10 +12,10 @@ export function tiktokConfiguration() {
   const redirectUri = process.env.TIKTOK_REDIRECT_URI
   const key = process.env.TIKTOK_TOKEN_KEY
   if (!clientKey || !clientSecret || !redirectUri || !key)
-    throw createError({ statusCode: 503, message: 'Lidhja me TikTok ende nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.TIKTOK_NOT_CONFIGURED' })
   const redirect = new URL(redirectUri)
   if (redirect.protocol !== 'https:' || redirect.origin !== new URL(process.env.APP_URL!).origin || Buffer.from(key, 'base64').length !== 32)
-    throw createError({ statusCode: 503, message: 'Konfigurimi i TikTok nuk është i vlefshëm.' })
+    throw createError({ statusCode: 503, message: 'server.TIKTOK_CONFIG_INVALID' })
   return { clientKey, clientSecret, redirectUri, key: Buffer.from(key, 'base64') }
 }
 
@@ -33,7 +33,7 @@ export function encryptTikTokToken(token: string, businessId: string) {
 
 export function decryptTikTokToken(envelope: string, businessId: string) {
   const [iv, tag, ciphertext] = envelope.split('.').map((part) => Buffer.from(part, 'base64url'))
-  if (!iv || !tag || !ciphertext) throw createError({ statusCode: 409, message: 'Lidhja me TikTok duhet rinovuar.' })
+  if (!iv || !tag || !ciphertext) throw createError({ statusCode: 409, message: 'server.TIKTOK_RENEWAL_REQUIRED' })
   const decipher = createDecipheriv('aes-256-gcm', tiktokConfiguration().key, iv)
   decipher.setAAD(Buffer.from(businessId)); decipher.setAuthTag(tag)
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
@@ -52,13 +52,13 @@ export async function exchangeTikTokCode(code: string) {
   const response = await fetch(tokenUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, signal: AbortSignal.timeout(15000), redirect: 'error' })
   const data = await response.json() as { access_token?: string; refresh_token?: string; open_id?: string; expires_in?: number; refresh_expires_in?: number; scope?: string; error?: { message?: string } }
   if (!response.ok || !data.access_token || !data.refresh_token || !data.open_id)
-    throw createError({ statusCode: 502, message: 'TikTok nuk e përfundoi autorizimin. Provo përsëri.' })
+    throw createError({ statusCode: 502, message: 'server.TIKTOK_AUTH_INCOMPLETE' })
   return { accessToken: data.access_token, refreshToken: data.refresh_token, openId: data.open_id, expiresAt: new Date(Date.now() + (data.expires_in || 86400) * 1000), refreshExpiresAt: data.refresh_expires_in ? new Date(Date.now() + data.refresh_expires_in * 1000) : null, scopes: (data.scope || '').split(',').filter(Boolean) }
 }
 
 export async function uploadTikTokDraft(accessToken: string, video: Buffer, contentType = 'video/mp4') {
   if (video.length > 50 * 1024 * 1024)
-    throw createError({ statusCode: 400, message: 'Videoja nuk mund të kalojë 50 MB.' })
+    throw createError({ statusCode: 400, message: 'server.VIDEO_SIZE_EXCEEDED' })
   const init = await fetch(inboxVideoInitUrl, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
@@ -68,7 +68,7 @@ export async function uploadTikTokDraft(accessToken: string, video: Buffer, cont
   })
   const initialized = await init.json() as { data?: { publish_id?: string; upload_url?: string } }
   if (!init.ok || !initialized.data?.publish_id || !initialized.data.upload_url)
-    throw createError({ statusCode: 502, message: 'TikTok nuk e pranoi upload-in. Provo përsëri.' })
+    throw createError({ statusCode: 502, message: 'server.TIKTOK_UPLOAD_REJECTED' })
   const uploaded = await fetch(initialized.data.upload_url, {
     method: 'PUT',
     headers: { 'Content-Type': contentType, 'Content-Length': String(video.length), 'Content-Range': `bytes 0-${video.length - 1}/${video.length}` },
@@ -76,6 +76,6 @@ export async function uploadTikTokDraft(accessToken: string, video: Buffer, cont
     signal: AbortSignal.timeout(60000),
     redirect: 'error',
   })
-  if (!uploaded.ok) throw createError({ statusCode: 502, message: 'Videoja nuk u dërgua te TikTok. Provo përsëri.' })
+  if (!uploaded.ok) throw createError({ statusCode: 502, message: 'server.TIKTOK_SEND_FAILED' })
   return { publishId: initialized.data.publish_id }
 }

@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     })
     .safeParse(await boundedBody(event, 2048))
   if (!input.success)
-    throw createError({ statusCode: 422, message: 'Kërkesa nuk është e vlefshme.' })
+    throw createError({ statusCode: 422, message: 'server.REQUEST_INVALID' })
   try {
     const result = await withBusinessTransaction(user.id, async (client, business) => {
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
@@ -108,7 +108,7 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 500,
       message:
-        'Përgatitja nuk u nis për shkak të një problemi të brendshëm. Asnjë plan nuk u aktivizua; provo sërish.',
+        'server.PLAN_START_FAILED',
       cause: error,
     })
   }

@@ -81,7 +81,7 @@ function openPanel() {
 
 function problem(error: unknown) {
   return (
-    (error as { data?: { message?: string } })?.data?.message || t('admin.invitations.failed')
+    (error as { data?: { message?: string } })?.data?.message || 'admin.invitations.failed')
   )
 }
 

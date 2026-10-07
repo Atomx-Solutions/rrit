@@ -55,7 +55,7 @@ async function createOrganization() {
     newOrganizationName.value = ''
     await refreshOrganizations()
   } catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || t('admin.requests.organizationCreateFailed')
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.requests.organizationCreateFailed')
   } finally {
     creatingOrganization.value = false
   }
@@ -181,8 +181,7 @@ async function submit() {
     emit('done')
   } catch (problem) {
     error.value
-      = (problem as { data?: { message?: string } }).data?.message
-        || t('admin.requests.convertFailed')
+      = t((problem as { data?: { message?: string } }).data?.message || 'admin.requests.convertFailed')
   } finally {
     saving.value = false
   }

@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!allowed)
     throw createError({
       statusCode: 403,
-      message: 'Nuk ke akses.',
+      message: 'server.ACCESS_DENIED',
       data: { code: 'SUPERADMIN_REQUIRED' },
     })
   event.context.superadmin = user

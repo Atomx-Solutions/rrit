@@ -41,7 +41,7 @@ export async function postLimits(db: Pool | PoolClient = database()) {
   const row = await db.query("SELECT value FROM app_settings WHERE key='post_limits'")
   const result = limitsSchema.safeParse(row.rows[0]?.value)
   if (!result.success)
-    throw createError({ statusCode: 503, message: 'Kufijtë e postimeve nuk janë konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.POST_LIMITS_NOT_CONFIGURED' })
   return result.data
 }
 export async function decodePhoto(bytes: Buffer) {
@@ -62,7 +62,7 @@ export async function decodePhoto(bytes: Buffer) {
     throw createError({
       statusCode: 422,
       message:
-        'Fotografia nuk mund të lexohet. Ngarko një JPG të vlefshëm, të paktën 100 × 100 pikselë dhe deri në 2 MB.',
+        'server.PHOTO_UNREADABLE',
     })
   }
 }
@@ -84,7 +84,7 @@ export async function decodeBrandLogo(bytes: Buffer) {
     throw createError({
       statusCode: 422,
       message:
-        'Logoja nuk mund të lexohet. Ngarko PNG, JPG ose WebP të vlefshëm, të paktën 100 × 100 pikselë dhe deri në 2 MB.',
+        'server.LOGO_UNREADABLE',
     })
   }
 }
@@ -119,6 +119,16 @@ export async function localPostChecks(
       ).rows[0]
     : null
   const ratio = asset?.width && asset?.height ? asset.width / asset.height : 0
+  // What reaches the channel for a video post is the rendered file, not the
+  // still, so publishing one before the render finished would send nothing.
+  const render = post.video
+    ? (
+        await db.query(
+          "SELECT status FROM video_renders WHERE post_id=$1 AND business_id=$2 AND storage_path IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+          [post.id, businessId],
+        )
+      ).rows[0]
+    : null
   const aiChecks: PostCheck[] = []
   if (post.aiProvenance) {
     const provenance = post.aiProvenance
@@ -157,7 +167,7 @@ export async function localPostChecks(
             )
           )
         }),
-      message: 'Faktet ose të drejtat e materialit burimor kanë ndryshuar. Rishiko përmbajtjen AI.',
+      message: 'server.SOURCE_MATERIAL_CHANGED',
     })
     let quality = null
     if (row?.state?.brand) {
@@ -203,7 +213,7 @@ export async function localPostChecks(
       advisory: true,
       message:
         quality?.reasons.join(' ') ||
-        'Versioni aktual kërkon rishikim të tekstit dhe dizajnit me AI.',
+        'server.AI_QUALITY_REVIEW_NEEDED',
     })
   }
   return [
@@ -211,7 +221,8 @@ export async function localPostChecks(
     {
       key: 'caption',
       passed: !!post.caption.trim() && [...post.caption].length <= limits.caption_characters,
-      message: `Teksti duhet të ketë 1–${limits.caption_characters} karaktere.`,
+      message: 'server.CAPTION_LENGTH',
+      params: { max: limits.caption_characters },
     },
     {
       key: 'placeholders',
@@ -219,40 +230,54 @@ export async function localPostChecks(
         !/\{\{[^}]+\}\}|\[(?:emri|produkti|çmimi|cmimi|oferta|data|orari|biznesi|përshkrimi|pershkrimi)[^\]]*\]/iu.test(
           post.caption,
         ),
-      message: 'Zëvendëso fushat e modelit me informacionin e biznesit.',
+      message: 'server.REPLACE_TEMPLATE_FIELDS',
     },
     {
       key: 'rights',
       passed: !!asset?.rights,
-      message: 'Përdor një fotografi të biznesit me të drejta të konfirmuara.',
+      message: 'server.BUSINESS_PHOTO_RIGHTS_REQUIRED',
     },
     {
       key: 'image',
       passed: !!asset?.width && asset.size <= limits.image_bytes,
-      message: 'Fotografia duhet të jetë e lexueshme dhe brenda kufirit të madhësisë.',
+      message: 'server.PHOTO_READABLE_SIZE_REQUIRED',
     },
     {
       key: 'format',
       passed: channelFormatCapability(post.channel, post.format).supported,
-      message: 'Publikimi aktual mbështet një fotografi për postim.',
+      message: 'server.SINGLE_PHOTO_PER_POST',
     },
+    ...(post.video
+      ? [
+          {
+            key: 'video_render',
+            passed: render?.status === 'ready',
+            message: 'server.VIDEO_REQUIRED_FOR_PUBLISHING',
+          },
+        ]
+      : []),
     {
       key: 'instagram_size',
       passed:
+        // A video post publishes its 9:16 render, so the 4:5 still it was
+        // composed from is not what Instagram has to accept.
         post.channel !== 'Instagram' ||
+        !!post.video ||
         (!!asset &&
           asset.width >= limits.minimum_width &&
           asset.width <= limits.maximum_width &&
           ratio >= limits.minimum_aspect_ratio &&
           ratio <= limits.maximum_aspect_ratio),
-      message: `Për Instagram: gjerësi ${limits.minimum_width}–${limits.maximum_width}px dhe raport ${limits.minimum_aspect_ratio}–${limits.maximum_aspect_ratio}. Zgjidh një fotografi katrore ose përshtate paraprakisht.`,
+      message: 'server.INSTAGRAM_DIMENSIONS',
+      params: { minW: limits.minimum_width, maxW: limits.maximum_width, minAR: limits.minimum_aspect_ratio, maxAR: limits.maximum_aspect_ratio },
     },
     {
       key: 'hashtags',
       passed:
         post.channel !== 'Instagram' ||
         (post.caption.match(/#[\p{L}\p{N}_]+/gu) || []).length <= limits.max_hashtags,
-      message: `Për Instagram lejohen deri në ${limits.max_hashtags} hashtagë sipas konfigurimit të platformës.`,
+      message: 'server.INSTAGRAM_HASHTAG_LIMIT',
+      params: { max: limits.max_hashtags },
     },
   ]
 }
@@ -270,7 +295,7 @@ export async function providerPostChecks(
         {
           key: 'meta_permission',
           passed: false,
-          message: 'Rilidh llogarinë dhe jep lejen për publikimin e postimeve.',
+          message: 'server.RECONNECT_WITH_PUBLISH_PERMISSION',
         },
       ]
     const token = decryptMetaToken(connection.page_token_ciphertext, businessId)
@@ -289,7 +314,7 @@ export async function providerPostChecks(
         {
           key: 'meta_identity',
           passed: false,
-          message: 'Profili i lidhur ndryshoi. Zgjidhe përsëri nga lidhjet sociale.',
+          message: 'server.LINKED_PROFILE_CHANGED',
         },
       ]
     if (post.channel === 'Instagram') {
@@ -308,12 +333,12 @@ export async function providerPostChecks(
           {
             key: 'meta_quota',
             passed: false,
-            message: 'Kufiri i publikimeve në Instagram nuk lejon një publikim të ri tani.',
+            message: 'server.INSTAGRAM_RATE_LIMIT',
           },
         ]
     }
     return [
-      { key: 'meta', passed: true, message: 'Meta konfirmoi llogarinë, lejen dhe qasjen aktuale.' },
+      { key: 'meta', passed: true, message: 'server.META_CONFIRMED_ACCESS' },
     ]
   } catch (error) {
     if (error instanceof MetaFailure && error.code === 190)
@@ -365,6 +390,6 @@ export async function requireCurrentApproval(
   if (approval.rows[0]?.decision !== 'approved')
     throw createError({
       statusCode: 422,
-      message: 'Mirato versionin aktual të përmbajtjes përpara planifikimit.',
+      message: 'server.APPROVE_CONTENT_BEFORE_SCHEDULING',
     })
 }

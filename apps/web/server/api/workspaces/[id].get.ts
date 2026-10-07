@@ -2,10 +2,10 @@ import { z } from 'zod'
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
-  if (!id.success) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+  if (!id.success) throw createError({ statusCode: 404, message: 'server.BUSINESS_NOT_FOUND' })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return withBusinessTransaction(user.id, (client, business) => {
-    if (business.id !== id.data) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+    if (business.id !== id.data) throw createError({ statusCode: 404, message: 'server.BUSINESS_NOT_FOUND' })
     return loadWorkspace(client, id.data, user.id)
   })
 })

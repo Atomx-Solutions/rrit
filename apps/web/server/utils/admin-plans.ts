@@ -30,7 +30,7 @@ export const trialPlanChangesSchema = nonEmpty({
 
 // Business-rule failures raised by the admin_update_* functions.
 const failures: Record<string, { statusCode: number; message: string }> = {
-  SETTINGS_INVALID: { statusCode: 400, message: 'Vlerat e cilësimeve nuk janë të vlefshme.' },
+  SETTINGS_INVALID: { statusCode: 400, message: 'server.SETTINGS_VALUES_INVALID' },
 }
 export function adminPlansFailure(message: string | undefined) {
   const failure = message ? failures[message] : undefined
@@ -44,7 +44,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
     if (failure)
       throw createError({ statusCode: failure.statusCode, message: failure.message, data: { code: failure.code } })
     console.error('Admin plans settings call failed.', { name, code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Cilësimet nuk u ruajtën.' })
+    throw createError({ statusCode: 502, message: 'server.SETTINGS_NOT_SAVED' })
   }
   return data as Record<string, unknown>
 }
@@ -58,7 +58,7 @@ export async function adminChangeBody<T extends z.ZodType>(event: H3Event, schem
   requireSameOrigin(event)
   const body = schema.safeParse(await boundedBody(event, 4096))
   if (!body.success)
-    throw createError({ statusCode: 400, message: 'Vlerat nuk janë të vlefshme.', data: { code: 'INVALID_BODY' } })
+    throw createError({ statusCode: 400, message: 'server.VALUES_INVALID', data: { code: 'INVALID_BODY' } })
   return body.data
 }
 

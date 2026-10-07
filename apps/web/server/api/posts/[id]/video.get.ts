@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
       status: 'rendering' | 'ready' | 'failed'
       failure_reason: string | null
     }>(
-      'SELECT id,status,failure_reason FROM tiktok_video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
+      'SELECT id,status,failure_reason FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
       [id, business.id],
     )
     const render = result.rows[0]
@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
         id: render.id,
         status: render.status,
         failureReason: render.failure_reason,
-        previewUrl: render.status === 'ready' ? `/api/tiktok/videos/${render.id}` : null,
+        previewUrl: render.status === 'ready' ? `/api/videos/${render.id}` : null,
       },
     }
   })

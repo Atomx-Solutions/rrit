@@ -11,9 +11,9 @@ export default defineEventHandler(async (event) => {
   const brandId = z.uuid().safeParse(getRouterParam(event, 'brandId'))
   const offerId = z.uuid().safeParse(getRouterParam(event, 'offerId'))
   if (!organizationId.success || !brandId.success || !offerId.success)
-    throw createError({ statusCode: 404, message: 'Oferta nuk u gjet.' })
+    throw createError({ statusCode: 404, message: 'server.OFFER_NOT_FOUND' })
   const parsed = updateOfferSchema.safeParse(await boundedBody(event, 8192))
-  if (!parsed.success) throw createError({ statusCode: 422, message: 'Oferta nuk eshte valide.' })
+  if (!parsed.success) throw createError({ statusCode: 422, message: 'server.OFFER_INVALID' })
   return withOrganizationTransaction(user.id, organizationId.data, async (client) => {
     const offer = await updateBusinessBrainOffer(
       client,

@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     .object({ confirmed: z.literal(true), version: z.number().int().positive() })
     .safeParse(await boundedBody(event, 1024))
   if (!id.success || !input.success)
-    throw createError({ statusCode: 422, message: 'Konfirmo publikimin e versionit aktual.' })
+    throw createError({ statusCode: 422, message: 'server.PUBLISH_CONFIRM_REQUIRED' })
   const client = await database().connect()
   try {
     await client.query('BEGIN')
@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
     if (post.status !== 'approved' || post.version !== input.data.version)
       throw createError({
         statusCode: 409,
-        message: 'Postimi duhet të jetë i miratuar dhe i pandryshuar.',
+        message: 'server.POST_MUST_BE_APPROVED',
       })
     await requireCurrentApproval(post, business.id, client)
     await requireFreshValidation(post, business.id, client, 'publication')
@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
     if (unresolved.rows.length)
       throw createError({
         statusCode: 409,
-        message: 'Ky postim është tashmë në proces ose pret konfirmim nga Meta.',
+        message: 'server.POST_ALREADY_IN_PROGRESS',
       })
     post.status = 'scheduled'
     post.publicationMode = 'automatic'

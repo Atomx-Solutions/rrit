@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     const requested = getQuery(event).month
     const month = monthSchema.safeParse(requested || planningMonth(workspace.preferences.timezone))
     if (!month.success)
-      throw createError({ statusCode: 422, message: 'Zgjidh një muaj të vlefshëm.' })
+      throw createError({ statusCode: 422, message: 'server.MONTH_INVALID' })
     const access = await plannerAccess(
       business.id,
       month.data,

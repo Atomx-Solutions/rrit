@@ -7,7 +7,7 @@ export async function requireUser(event: H3Event) {
   if (error || !data.user || (authConfiguration().requireEmailVerification && !data.user.email_confirmed_at))
     throw createError({
       statusCode: 401,
-      message: 'Hyr në llogari për të vazhduar.',
+      message: 'server.LOGIN_REQUIRED',
       data: { code: 'AUTH_REQUIRED' },
     })
 
@@ -26,13 +26,13 @@ export function requireSameOrigin(event: H3Event) {
   if (!origin || !authConfiguration().trustedOrigins.includes(origin))
     throw createError({
       statusCode: 403,
-      message: 'Kërkesa nuk u pranua.',
+      message: 'server.REQUEST_DENIED',
       data: { code: 'ORIGIN_REJECTED' },
     })
   if (!getHeader(event, 'content-type')?.startsWith('application/json'))
     throw createError({
       statusCode: 415,
-      message: 'Kërkohet një kërkesë JSON.',
+      message: 'server.JSON_REQUEST_REQUIRED',
       data: { code: 'JSON_REQUIRED' },
     })
 }

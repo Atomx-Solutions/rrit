@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   const cookie = getCookie(event, 'rrit-tiktok-state') || ''
   deleteCookie(event, 'rrit-tiktok-state', { path: '/api/tiktok' })
   if (!/^[a-f0-9]{64}$/.test(state) || state.length !== cookie.length || !timingSafeEqual(Buffer.from(state), Buffer.from(cookie)))
-    throw createError({ statusCode: 400, message: 'Autorizimi i TikTok ka skaduar. Nise lidhjen sërish.' })
+    throw createError({ statusCode: 400, message: 'server.TIKTOK_AUTH_EXPIRED' })
   const user = await requireUser(event)
   const stored = await withUserTransaction(user.id, async (client) => {
     const pending = await client.query<{ business_id: string; return_path: string }>('SELECT business_id,return_path FROM tiktok_oauth_states WHERE state_hash=$1 AND user_id=$2 AND consumed_at IS NULL AND expires_at>now()', [hashTikTokState(state), user.id])
@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
     await client.query('UPDATE tiktok_oauth_states SET consumed_at=now() WHERE state_hash=$1', [hashTikTokState(state)])
     return pending.rows[0]
   })
-  if (!stored) throw createError({ statusCode: 400, message: 'Ky autorizim nuk mund të përdoret përsëri.' })
+  if (!stored) throw createError({ statusCode: 400, message: 'server.AUTHORIZATION_USED' })
   if (query.error || typeof query.code !== 'string') return sendRedirect(event, `${stored.return_path}?tiktok=cancelled`)
   try {
     const token = await exchangeTikTokCode(query.code)

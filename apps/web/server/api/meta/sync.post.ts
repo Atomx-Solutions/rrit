@@ -22,12 +22,12 @@ export default defineEventHandler(async (event) => {
   const input = z
     .object({ channel: z.enum(['Facebook', 'Instagram']), after: z.string().max(2000).optional() })
     .safeParse(await boundedBody(event, 4096))
-  if (!input.success) throw createError({ statusCode: 422, message: 'Zgjidh rrjetin social.' })
+  if (!input.success) throw createError({ statusCode: 422, message: 'server.NETWORK_REQUIRED' })
   const instagram = input.data.channel === 'Instagram'
   if (instagram && !connection.instagram_id)
     throw createError({
       statusCode: 409,
-      message: 'Lidh profilin profesional të Instagram-it me faqen e Facebook-ut.',
+      message: 'server.INSTAGRAM_LINK_REQUIRED',
     })
   const sourceAccountId = instagram ? connection.instagram_id! : connection.page_id
   let response: MetaList<RemotePost>
@@ -53,11 +53,11 @@ export default defineEventHandler(async (event) => {
       )
     throw createError({
       statusCode: 502,
-      message: 'Postimet nuk u lexuan nga Meta. Kontrollo lidhjen dhe lejet, pastaj provo sërish.',
+      message: 'server.META_POSTS_UNREADABLE',
     })
   }
   if (!Array.isArray(response.data))
-    throw createError({ statusCode: 502, message: 'Meta ktheu një përgjigje të paplotë.' })
+    throw createError({ statusCode: 502, message: 'server.META_INCOMPLETE_RESPONSE' })
   const client = await database().connect()
   try {
     await client.query('BEGIN')
@@ -69,7 +69,7 @@ export default defineEventHandler(async (event) => {
     if (!current.rows.length)
       throw createError({
         statusCode: 409,
-        message: 'Llogaria ndryshoi gjatë importimit. Provo sërish.',
+        message: 'server.ACCOUNT_CHANGED_DURING_IMPORT',
       })
     await requireEntitlement(business.id, 'social_import', client)
     for (const post of response.data) {

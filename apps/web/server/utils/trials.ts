@@ -14,7 +14,7 @@ type IdentityKind = 'email' | 'device' | 'facebook_user' | 'facebook_page' | 'in
 function trialKey() {
   const key = process.env.TRIAL_HASH_KEY
   if (!key || key.length < 32)
-    throw createError({ statusCode: 503, message: 'Trial-i ende nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.TRIAL_NOT_CONFIGURED' })
   return key
 }
 export function identityHash(kind: IdentityKind, value: string) {
@@ -43,7 +43,7 @@ export async function trialPolicy(db: Pool | PoolClient = database()) {
   const result = await db.query('SELECT value FROM app_settings WHERE key = $1', ['trial'])
   const policy = trialPolicySchema.safeParse(result.rows[0]?.value)
   if (!policy.success)
-    throw createError({ statusCode: 503, message: 'Konfigurimi i trial-it nuk është i vlefshëm.' })
+    throw createError({ statusCode: 503, message: 'server.TRIAL_CONFIG_INVALID' })
   return policy.data
 }
 // Call in the business-creation transaction. Uniqueness is decided by PostgreSQL.
@@ -193,7 +193,7 @@ function paidEntitlementAccess(row: PaidEntitlementRow | undefined): PlanningAcc
   const features = entitlementFeatureSchema.array().safeParse(row.features)
   const limits = planLimitsSchema.safeParse(row.limits)
   if (!features.success || !limits.success)
-    throw createError({ statusCode: 503, message: 'Plani aktiv nuk është konfiguruar saktë.' })
+    throw createError({ statusCode: 503, message: 'server.ACTIVE_PLAN_MISCONFIGURED' })
   return {
     paid: true,
     features: features.data,
@@ -350,6 +350,11 @@ export async function requireEntitlement(
  * Posts counted against the package allowance. Subscriptions retain their
  * calendar-month allowance, while a custom package supplies its negotiated
  * date window. The trial's allowance never renews, so every post counts.
+ *
+ * A post carrying a motion brief was bought from the video allowance and is
+ * counted there instead, whichever channel it reaches. The brief is what marks
+ * it, because a video now goes to Instagram and Facebook as readily as TikTok
+ * and the channel no longer says which allowance paid for it.
  */
 export async function postsCountedForLimit(
   db: Pool | PoolClient,
@@ -363,12 +368,12 @@ export async function postsCountedForLimit(
         `SELECT count(*)::integer AS count
            FROM posts
           WHERE business_id=$1 AND created_at>=$2 AND created_at<$3
-            AND payload->>'channel' <> 'TikTok'`,
+            AND NOT (payload ? 'video')`,
         [businessId, quotaPeriod.startsAt, quotaPeriod.endsAt],
       )
     : paid
     ? await db.query<{ count: number }>(
-        "SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date AND payload->>'channel' <> 'TikTok'",
+        "SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date AND NOT (payload ? 'video')",
         [businessId, `${month}-01`],
       )
     : await db.query<{ count: number }>(
@@ -390,13 +395,13 @@ export async function videosCountedForLimit(
   const result = quotaPeriod
     ? await db.query<{ count: number }>(
         `SELECT count(*)::integer AS count
-           FROM tiktok_video_renders
+           FROM video_renders
           WHERE business_id=$1 AND created_at>=$2 AND created_at<$3`,
         [businessId, quotaPeriod.startsAt, quotaPeriod.endsAt],
       )
     : await db.query<{ count: number }>(
         `SELECT count(*)::integer AS count
-           FROM tiktok_video_renders
+           FROM video_renders
           WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date`,
         [businessId],
       )
@@ -433,11 +438,11 @@ export async function usageSnapshot(
           -- Rendered videos live in the same storage bucket as the photos, so
           -- they are measured against the same allowance. Only rows that
           -- actually hold a file count; a failed render stored nothing.
-          + (SELECT COALESCE(sum(size_bytes),0)::bigint FROM tiktok_video_renders WHERE business_id=$1 AND storage_path IS NOT NULL)
+          + (SELECT COALESCE(sum(size_bytes),0)::bigint FROM video_renders WHERE business_id=$1 AND storage_path IS NOT NULL)
         ) AS media_storage_bytes,
         (SELECT COALESCE(requests,0)::integer FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date) AS ai_requests_per_day,
         (SELECT CASE WHEN instagram_id IS NOT NULL THEN 2 ELSE 1 END FROM meta_connections WHERE business_id=$1 AND status='connected') AS social_accounts,
-        (SELECT count(*)::integer FROM tiktok_video_renders WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS videos_per_month`,
+        (SELECT count(*)::integer FROM video_renders WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS videos_per_month`,
       [businessId],
     ),
   ])
@@ -496,7 +501,7 @@ export async function requireQuota(
   if (increment < 0 || quota.current + increment > quota.limit)
     throw createError({
       statusCode: 402,
-      message: 'Ke arritur kufirin e planit për këtë veprim.',
+      message: 'server.PLAN_LIMIT_REACHED',
       data: {
         code: 'QUOTA_EXCEEDED',
         quota: key,

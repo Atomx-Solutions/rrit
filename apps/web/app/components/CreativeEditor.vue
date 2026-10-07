@@ -38,8 +38,8 @@ async function generateWithAi() {
     emit('saved', result.image)
     open.value = false
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('creative.error')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'creative.error')
   } finally {
     busy.value = false
   }

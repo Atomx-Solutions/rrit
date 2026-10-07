@@ -12,9 +12,9 @@ export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
   const organizationId = z.uuid().safeParse(getRouterParam(event, 'organizationId'))
-  if (!organizationId.success) throw createError({ statusCode: 404, message: 'Organizata nuk u gjet.' })
+  if (!organizationId.success) throw createError({ statusCode: 404, message: 'server.ORGANIZATION_NOT_FOUND' })
   const parsed = schema.safeParse(await boundedBody(event, 4096))
-  if (!parsed.success) throw createError({ statusCode: 422, message: 'Qasja e brandit nuk është valide.' })
+  if (!parsed.success) throw createError({ statusCode: 422, message: 'server.BRAND_ACCESS_INVALID' })
   try {
     return await withOrganizationTransaction(user.id, organizationId.data, async (client) => {
       await requireOrganizationManager(client, user.id, organizationId.data)
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
     })
   } catch (error) {
     if ((error as { code?: string }).code === '23503')
-      throw createError({ statusCode: 404, message: 'Brandi ose anëtari nuk u gjet.' })
+      throw createError({ statusCode: 404, message: 'server.BRAND_OR_MEMBER_NOT_FOUND' })
     throw error
   }
 })

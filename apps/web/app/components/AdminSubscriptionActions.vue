@@ -65,7 +65,7 @@ async function submit() {
     action.value = null
     emit('changed')
   } catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || t('admin.subscription.failed')
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.subscription.failed')
   } finally {
     saving.value = false
   }

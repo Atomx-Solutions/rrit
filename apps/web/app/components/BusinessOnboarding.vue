@@ -191,9 +191,8 @@ async function next() {
       }
     }
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      t('onboarding.saveError')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'onboarding.saveError')
   } finally {
     busy.value = false
   }
@@ -206,9 +205,8 @@ async function finishLater() {
     if (await commit((draft) => { draft.onboardingSkipped = true }))
       await navigateTo(`${base.value}/overview`)
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      t('onboarding.saveError')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'onboarding.saveError')
   } finally {
     busy.value = false
   }

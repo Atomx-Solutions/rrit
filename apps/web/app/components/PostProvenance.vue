@@ -42,8 +42,8 @@ async function loadLatest() {
       latestAt.value = result.reviewedAt
     }
   } catch (error) {
-    problem.value =
-      (error as { data?: { message?: string } }).data?.message || t('provenance.loadError')
+    problem.value = t(
+      (error as { data?: { message?: string } }).data?.message || 'provenance.loadError')
   } finally {
     loadingLatest.value = false
   }
@@ -75,8 +75,8 @@ async function review() {
     latestAt.value = new Date().toISOString()
     await initLive()
   } catch (error) {
-    problem.value =
-      (error as { data?: { message?: string } }).data?.message || t('provenance.reviewError')
+    problem.value = t(
+      (error as { data?: { message?: string } }).data?.message || 'provenance.reviewError')
   } finally {
     reviewing.value = false
   }

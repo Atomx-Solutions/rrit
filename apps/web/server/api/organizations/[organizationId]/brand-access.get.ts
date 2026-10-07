@@ -4,7 +4,7 @@ import { requireOrganizationManager, withOrganizationTransaction } from '../../.
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const organizationId = z.uuid().safeParse(getRouterParam(event, 'organizationId'))
-  if (!organizationId.success) throw createError({ statusCode: 404, message: 'Organizata nuk u gjet.' })
+  if (!organizationId.success) throw createError({ statusCode: 404, message: 'server.ORGANIZATION_NOT_FOUND' })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return withOrganizationTransaction(user.id, organizationId.data, async (client) => {
     await requireOrganizationManager(client, user.id, organizationId.data)

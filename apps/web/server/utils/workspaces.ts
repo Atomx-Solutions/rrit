@@ -6,7 +6,7 @@ export async function loadWorkspace(db: Pool | PoolClient, id: string, owner: st
     'SELECT id, slug, state, revision FROM businesses WHERE id = $1 AND owner_id = $2',
     [id, owner],
   )
-  if (!business.rows[0]) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+  if (!business.rows[0]) throw createError({ statusCode: 404, message: 'server.BUSINESS_NOT_FOUND' })
   const row = business.rows[0]
   const [posts, assets] = await Promise.all([
     db.query('SELECT payload, created_at FROM posts WHERE business_id = $1 ORDER BY created_at DESC, id', [id]),

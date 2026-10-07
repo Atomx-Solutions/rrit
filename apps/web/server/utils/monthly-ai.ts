@@ -449,7 +449,7 @@ export function researchFromResponse(
   })
 }
 
-export const monthlyPromptVersion = 'monthly-studio/1.11.0'
+export const monthlyPromptVersion = 'monthly-studio/1.12.0'
 export type MonthlyAutomaticStage =
   | 'research'
   | 'planning'
@@ -499,11 +499,11 @@ const staticOnlyDeliverable: Partial<Record<keyof typeof monthlyInstructions, st
 
 const videoDeliverable: Partial<Record<keyof typeof monthlyInstructions, string>> = {
   research:
-    'This business can publish two deliverables and no others: one static 4:5 feed post for Instagram or Facebook, and one vertical TikTok video animated from a single photograph it already owns. They are separate pieces of work with separate photographs, not one piece in two formats. Describe every content opportunity as one of those two, and say which. A video here is one continuous shot grown out of one real photograph, so propose it only where motion itself carries the idea — showing a process, a texture, a space, a moment that a still cannot hold. Never propose a carousel, a story, a multi-shot edit, a talking-head piece, a voiceover, music or anything else requiring footage the business has not got. Platform behaviour about formats outside those two may still be reported as market context, but it must not become a recommendation this business cannot act on.',
+    'This business can publish two deliverables and no others: one static 4:5 feed post for Instagram or Facebook, and one vertical video animated from a single photograph it already owns, published to Instagram, Facebook or TikTok. They are separate pieces of work with separate photographs, not one piece in two formats. Describe every content opportunity as one of those two, and say which. A video here is one continuous shot grown out of one real photograph, so propose it only where motion itself carries the idea — showing a process, a texture, a space, a moment that a still cannot hold. Never propose a carousel, a story, a multi-shot edit, a talking-head piece, a voiceover, music or anything else requiring footage the business has not got. Platform behaviour about formats outside those two may still be reported as market context, but it must not become a recommendation this business cannot act on.',
   planning:
-    '`deliverable` says which of the two pieces of work a slot is. Exactly videoDeliverables.exactSlots slots in this batch must be deliverable video, no more and no fewer, and every remaining slot must be static_post; the business bought that many of each, so the split is not yours to adjust. A video slot is a TikTok piece of its own with its own photograph, not a feed post seen twice: never give a video slot and a static slot the same photograph, and never count a video slot against the platform split, which governs the static posts alone. Its photograph becomes the first frame of one continuous vertical shot, with no cut, no added footage, no voiceover and no music, so choose one with real depth to move through, a subject whose movement is plausible, and nothing in the frame whose motion would invent a fact. State in assetDirection what should move and why. Write its copy for a full-screen TikTok audience rather than for a feed. If no photograph in the contact sheet can honestly carry motion, say so in the slot you are least able to animate rather than silently returning a different count. Never propose a carousel, a story or a multi-shot edit in either deliverable.',
+    '`deliverable` says which of the two pieces of work a slot is. Exactly videoDeliverables.exactSlots slots in this batch must be deliverable video, no more and no fewer, and every remaining slot must be static_post; the business bought that many of each, so the split is not yours to adjust. A video slot is a vertical piece of its own with its own photograph, not a feed post seen twice: never give a video slot and a static slot the same photograph, and never count a video slot against the platform split, which governs the static posts alone. Its photograph becomes the first frame of one continuous vertical shot, with no cut, no added footage, no voiceover and no music, so choose one with real depth to move through, a subject whose movement is plausible, and nothing in the frame whose motion would invent a fact. State in assetDirection what should move and why. Set its channel to the platform where this specific idea earns the most as a vertical video, choosing freely between Instagram, Facebook and TikTok, and justify that choice in platformRationale. A static_post slot may only be Instagram or Facebook, because a static feed post has nowhere to land on TikTok. Write the copy of a video slot for a full-screen vertical audience rather than for a feed. If no photograph in the contact sheet can honestly carry motion, say so in the slot you are least able to animate rather than silently returning a different count. Never propose a carousel, a story or a multi-shot edit in either deliverable.',
   quality:
-    'Each deliverable is either one static 4:5 feed post or one TikTok video whose photograph will be animated into one continuous vertical shot. Review the still design exactly as always; for a video slot that still is its first frame, and the motion is rendered separately and is not yours to judge here. For a video slot, do check that the chosen photograph can honestly carry motion: set sourceFidelity=false with concise reasons when its subject could not move without inventing a product, a person, a venue feature or a claim that the photograph does not already contain. Never require a carousel, a story or multi-shot footage.',
+    'Each deliverable is either one static 4:5 feed post or one vertical video whose photograph will be animated into one continuous vertical shot. Review the still design exactly as always; for a video slot that still is its first frame, and the motion is rendered separately and is not yours to judge here. For a video slot, do check that the chosen photograph can honestly carry motion: set sourceFidelity=false with concise reasons when its subject could not move without inventing a product, a person, a venue feature or a claim that the photograph does not already contain. Never require a carousel, a story or multi-shot footage.',
 }
 
 const monthlyInstructionAddenda: Partial<Record<keyof typeof monthlyInstructions, string>> = {
@@ -1358,7 +1358,10 @@ export function monthlyImagePrompt(input: {
   brand: { name: string; industry: string; audience: string; color?: string }
   creative: Creative
   slot: {
-    channel: 'Instagram' | 'Facebook'
+    channel: 'Instagram' | 'Facebook' | 'TikTok'
+    // A video slot's still is the first frame of the video, so what the frame
+    // has to achieve follows from the deliverable and not from the channel.
+    deliverable?: 'static_post' | 'video'
     topic: string
     intent: string
     hook: string
@@ -1384,9 +1387,11 @@ export function monthlyImagePrompt(input: {
   const { brand, slot, previousPageStyle, revisionFeedback = [], guardrails = [] } = input
   const geometry = feedCreativeGeometry()
   const platformDirection =
-    slot.channel === 'Instagram'
-      ? 'For Instagram, make the focal idea readable in the first glance: use a strong subject, mobile-first hierarchy, controlled depth and an editorial 4:5 feed composition worth saving. The result must still feel like authentic premium photography, not an ad-template collage.'
-      : 'For Facebook, make the story and business context understandable in the first glance: use an accessible type scale, recognizable subject and a natural 4:5 feed composition worth sharing. Avoid engagement bait and an over-designed ad-template appearance.'
+    slot.deliverable === 'video'
+      ? 'This frame opens a vertical video that plays full screen, so make the focal subject unmistakable at a glance, keep the hook legible on a phone at normal viewing distance, and leave real depth for the later motion to move through. It is still delivered as a 4:5 still, so compose it as one, but never as a busy feed collage.'
+      : slot.channel === 'Instagram'
+        ? 'For Instagram, make the focal idea readable in the first glance: use a strong subject, mobile-first hierarchy, controlled depth and an editorial 4:5 feed composition worth saving. The result must still feel like authentic premium photography, not an ad-template collage.'
+        : 'For Facebook, make the story and business context understandable in the first glance: use an accessible type scale, recognizable subject and a natural 4:5 feed composition worth sharing. Avoid engagement bait and an over-designed ad-template appearance.'
   const modernSmmDesignInstruction =
     'Act as a senior commercial photographer, art director and typographic designer. Apply a disciplined modern SMM design system: one dominant focal subject, one clear reading path, a strong 3-level hierarchy, an 8-point spacing rhythm, generous breathing room, consistent alignment and a purposeful crop. Use one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans (or the closest legible equivalent), with no more than two weights; never use decorative, script, condensed, novelty or mixed unrelated fonts. Render only the exact approved copy, with correct Albanian diacritics and no extra words, fake glyphs or pseudo-text. Keep type large enough for a phone, inside safe margins, away from faces and the product, with strong accessible contrast and no text touching the edges. Use brand color as a deliberate accent, not an automatic full-canvas overlay. Prefer restraint, whitespace and hierarchy over stickers, badges, random shapes, heavy shadows, gradients, emojis or decorative clutter. Every visual choice must feel native to this exact business, industry, audience, location and real photograph; never introduce unrelated stock props, generic lifestyle scenes or a design trend that conflicts with the brand.'
   return [
@@ -1458,15 +1463,18 @@ export function postImageEditPrompt(input: {
   }
   instruction: string
   logoAvailable?: boolean
+  // True when this still is the first frame of a video rather than a feed post.
+  // What the still has to do follows from the deliverable, not from the channel:
+  // a video opens full-screen on Instagram and Facebook exactly as on TikTok.
+  video?: boolean
 }) {
   const { brand, post, instruction } = input
   const geometry = feedCreativeGeometry()
-  const platformDirection =
-    post.channel === 'TikTok'
-      ? 'Optimize as the opening frame of a vertical TikTok video: one unmistakable focal subject, a hook legible at a glance on a full-screen phone, and depth the later motion can move through.'
-      : post.channel === 'Instagram'
-        ? 'Optimize for an Instagram feed: an immediate visual hook, premium mobile-first hierarchy, strong focal subject and an authentic editorial 4:5 result worth saving.'
-        : 'Optimize for a Facebook feed: an instantly understandable story, accessible hierarchy, strong contextual subject and a natural 4:5 result worth sharing without engagement bait.'
+  const platformDirection = input.video
+    ? 'Optimize as the opening frame of a vertical video: one unmistakable focal subject, a hook legible at a glance on a full-screen phone, and depth the later motion can move through.'
+    : post.channel === 'Instagram'
+      ? 'Optimize for an Instagram feed: an immediate visual hook, premium mobile-first hierarchy, strong focal subject and an authentic editorial 4:5 result worth saving.'
+      : 'Optimize for a Facebook feed: an instantly understandable story, accessible hierarchy, strong contextual subject and a natural 4:5 result worth sharing without engagement bait.'
   const modernSmmDesignInstruction =
     'Redesign as a senior commercial art director and typographic designer: use one dominant focal subject, one clear reading path, a disciplined 3-level hierarchy, an 8-point spacing rhythm, generous whitespace, consistent alignment and an intentional crop. Use one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans (or the closest legible equivalent), no more than two weights, and never decorative, script, condensed or mixed unrelated fonts. Render only the exact approved copy with correct Albanian diacritics; no extra words, fake glyphs or pseudo-text. Keep type phone-readable, inside safe margins, away from faces and product details, with strong accessible contrast. Use brand color as a deliberate accent, not an automatic full-canvas overlay. Remove arbitrary stickers, badges, emojis, random shapes, heavy shadows, noisy gradients and generic template decoration. Keep every decision inside the actual business, industry, audience, location and source photograph context.'
   return [
@@ -1492,7 +1500,7 @@ export function postImageEditPrompt(input: {
   ].join('\n')
 }
 
-// The TikTok video is animated from one photograph the business already owns and
+// The video is animated from one photograph the business already owns and
 // already approved for this exact post, so it reuses that post's evidence rather
 // than researching again: the monthly research and strategy rationale, the
 // approved creative copy, the brand voice and the business's own guardrails. The

@@ -4,10 +4,10 @@ import { zonedToIso } from '~~/shared/utils/format'
 const props = defineProps<{ id?: string }>()
 const { data, base, commit, transition, notify, conflict, initLive, syncing } = useWorkspace()
 const { t } = useI18n()
-function validationMessage(check: { key: string; message: string }) {
-  return check.key === 'ai_quality' && check.message === 'Versioni aktual kërkon rishikim të tekstit dhe dizajnit me AI.'
+function validationMessage(check: { key: string; message: string; params?: Record<string, string | number> }) {
+  return check.key === 'ai_quality' && check.message === 'server.AI_QUALITY_REVIEW_NEEDED'
     ? t('validation.aiQualityReview')
-    : check.message
+    : t(check.message, check.params || {})
 }
 const { data: capabilities } = await useFetch('/api/capabilities')
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
@@ -47,9 +47,9 @@ const saving = ref(false)
 const savedAt = ref('')
 const error = ref('')
 const imagePreviewOpen = ref(false)
-const tiktokPreviewOpen = ref(false)
-const tiktokBusy = ref(false)
-const tiktokRender = ref<{
+const videoPreviewOpen = ref(false)
+const videoBusy = ref(false)
+const videoRender = ref<{
   id: string
   status: 'rendering' | 'ready' | 'failed'
   failureReason: string | null
@@ -62,7 +62,7 @@ const publishing = ref(false)
 const validation = ref<{
   scope: 'content' | 'publication'
   passed: boolean
-  checks: { key: string; passed: boolean; message: string; advisory?: boolean }[]
+  checks: { key: string; passed: boolean; message: string; params?: Record<string, string | number>; advisory?: boolean }[]
   manualReview: string
 } | null>(null)
 const publication = ref<{
@@ -94,8 +94,8 @@ async function reconcilePublication() {
         t('content.metaUncertain')
     }
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('content.metaCheckError')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'content.metaCheckError')
   } finally {
     reconciling.value = false
   }
@@ -116,8 +116,8 @@ async function checkPost(scope: 'content' | 'publication' = 'content'): Promise<
     await initLive()
     return result.passed
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('content.checkError')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'content.checkError')
     return false
   } finally {
     checking.value = false
@@ -141,8 +141,8 @@ async function publishNow() {
     await initLive()
     notify(t('content.publishQueued'))
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('content.publishError')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'content.publishError')
   } finally {
     publishing.value = false
   }
@@ -171,63 +171,63 @@ async function refreshPublication() {
     /* Keep the last confirmed status; the user can refresh. */
   }
 }
-async function refreshTikTokVideo() {
+async function refreshVideo() {
   if (!post.value) return
   try {
-    const result = await $fetch(`/api/posts/${post.value.id}/tiktok-video`)
-    tiktokRender.value = result.render || null
+    const result = await $fetch(`/api/posts/${post.value.id}/video`)
+    videoRender.value = result.render || null
   } catch {
     // Video state is optional; do not interrupt normal post editing.
   }
 }
-async function prepareTikTokVideo() {
-  if (!post.value || tiktokBusy.value || dirty.value) return
-  tiktokBusy.value = true
+async function prepareVideo() {
+  if (!post.value || videoBusy.value || dirty.value) return
+  videoBusy.value = true
   error.value = ''
   try {
-    await $fetch(`/api/posts/${post.value.id}/tiktok-video`, { method: 'POST', body: {}, retry: 0 })
+    await $fetch(`/api/posts/${post.value.id}/video`, { method: 'POST', body: {}, retry: 0 })
     await initLive()
-    await refreshTikTokVideo()
-    notify(t('tiktok.videoPrepared'))
+    await refreshVideo()
+    notify(t('video.prepared'))
   } catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || t('tiktok.videoFailed')
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
   } finally {
-    tiktokBusy.value = false
+    videoBusy.value = false
   }
 }
-async function renderTikTokVideo() {
-  if (!post.value || tiktokBusy.value || dirty.value) return
-  tiktokBusy.value = true
+async function renderVideo() {
+  if (!post.value || videoBusy.value || dirty.value) return
+  videoBusy.value = true
   error.value = ''
   try {
-    await $fetch(`/api/posts/${post.value.id}/tiktok-video-render`, { method: 'POST', body: {}, retry: 0 })
+    await $fetch(`/api/posts/${post.value.id}/video-render`, { method: 'POST', body: {}, retry: 0 })
     await initLive()
-    await refreshTikTokVideo()
-    notify(t('tiktok.videoReady'))
+    await refreshVideo()
+    notify(t('video.ready'))
   } catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || t('tiktok.videoFailed')
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
   } finally {
-    tiktokBusy.value = false
+    videoBusy.value = false
   }
 }
-async function sendTikTokVideo() {
-  if (!post.value || tiktokBusy.value) return
-  tiktokBusy.value = true
+async function sendVideoToTikTok() {
+  if (!post.value || videoBusy.value) return
+  videoBusy.value = true
   error.value = ''
   try {
-    await $fetch(`/api/posts/${post.value.id}/tiktok-video-upload`, { method: 'POST', body: {}, retry: 0 })
-    tiktokPreviewOpen.value = false
+    await $fetch(`/api/posts/${post.value.id}/tiktok-upload`, { method: 'POST', body: {}, retry: 0 })
+    videoPreviewOpen.value = false
     notify(t('tiktok.uploadSucceeded'))
   } catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || t('tiktok.uploadFailed')
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'tiktok.uploadFailed')
   } finally {
-    tiktokBusy.value = false
+    videoBusy.value = false
   }
 }
 onMounted(() => {
   publicationTimer = setInterval(refreshPublication, 10000)
   void refreshPublication()
-  void refreshTikTokVideo()
+  void refreshVideo()
 })
 onBeforeUnmount(() => clearInterval(publicationTimer))
 const scheduleOpen = ref(false)
@@ -525,35 +525,35 @@ onBeforeUnmount(() => {
               />
               <PhotoUpload v-if="editable" @uploaded="form.image = $event" />
               <UButton
-                v-if="post && !post.tiktokVideo"
+                v-if="post && !post.video"
                 size="sm"
                 variant="outline"
                 color="neutral"
                 icon="i-lucide-clapperboard"
-                :loading="tiktokBusy"
+                :loading="videoBusy"
                 :disabled="dirty || syncing || !editable"
-                @click="prepareTikTokVideo"
-              >{{ t('tiktok.prepareVideo') }}</UButton>
+                @click="prepareVideo"
+              >{{ t('video.prepare') }}</UButton>
               <UButton
-                v-else-if="post?.tiktokVideo && post.tiktokVideo.status !== 'ready'"
+                v-else-if="post?.video && post.video.status !== 'ready'"
                 size="sm"
                 icon="i-lucide-play"
-                :loading="tiktokBusy"
+                :loading="videoBusy"
                 :disabled="dirty || syncing || !editable"
-                @click="renderTikTokVideo"
-              >{{ t('tiktok.generateVideo') }}</UButton>
+                @click="renderVideo"
+              >{{ t('video.generate') }}</UButton>
               <UButton
-                v-if="tiktokRender?.status === 'ready'"
+                v-if="videoRender?.status === 'ready'"
                 size="sm"
                 variant="outline"
                 color="neutral"
                 icon="i-lucide-eye"
-                @click="tiktokPreviewOpen = true"
-              >{{ t('tiktok.previewVideo') }}</UButton>
+                @click="videoPreviewOpen = true"
+              >{{ t('video.preview') }}</UButton>
             </div>
           </div>
-          <p v-if="post?.tiktokVideo" class="text-sm text-muted">
-            {{ tiktokRender?.status === 'ready' ? t('tiktok.videoReadyHint') : t('tiktok.videoSourceHint') }}
+          <p v-if="post?.video" class="text-sm text-muted">
+            {{ videoRender?.status === 'ready' ? t('video.readyHint') : t('video.sourceHint') }}
           </p>
           <div
             v-if="form.image"
@@ -818,21 +818,24 @@ onBeforeUnmount(() => {
       </template>
     </UModal>
     <UModal
-      v-model:open="tiktokPreviewOpen"
-      :title="t('tiktok.previewTitle')"
-      :description="t('tiktok.previewDescription')"
+      v-model:open="videoPreviewOpen"
+      :title="t('video.previewTitle')"
+      :description="t('video.previewDescription')"
       :ui="{ content: 'sm:max-w-md' }"
     >
       <template #body>
         <video
-          v-if="tiktokRender?.previewUrl"
-          :src="tiktokRender.previewUrl"
+          v-if="videoRender?.previewUrl"
+          :src="videoRender.previewUrl"
           controls
           playsinline
           class="mx-auto max-h-[72vh] w-full rounded-lg bg-black"
         />
-        <div class="mt-4 flex justify-end">
-          <UButton icon="i-lucide-send" :loading="tiktokBusy" @click="sendTikTokVideo">
+        <!-- TikTok has no scheduled publish of its own, so a video bound for it
+             is pushed as a draft the account holder finishes in the app. An
+             Instagram or Facebook video goes out through the normal schedule. -->
+        <div v-if="form.channel === 'TikTok'" class="mt-4 flex justify-end">
+          <UButton icon="i-lucide-send" :loading="videoBusy" @click="sendVideoToTikTok">
             {{ t('tiktok.send') }}
           </UButton>
         </div>

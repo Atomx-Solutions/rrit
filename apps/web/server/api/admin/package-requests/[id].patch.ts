@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   if (!id.success || !change.success)
     throw createError({
       statusCode: 400,
-      message: 'Vlerat e kërkesës nuk janë të vlefshme.',
+      message: 'server.REQUEST_VALUES_INVALID',
       data: { code: 'REQUEST_INVALID' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

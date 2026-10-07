@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
     cookie.length !== state.length ||
     !timingSafeEqual(Buffer.from(cookie), Buffer.from(state))
   )
-    throw createError({ statusCode: 400, message: 'Autorizimi ka skaduar. Nise lidhjen sërish.' })
+    throw createError({ statusCode: 400, message: 'server.AUTHORIZATION_EXPIRED' })
   const user = await requireUser(event)
   const stored = await withUserTransaction(user.id, async (client) => {
     const pending = await client.query<{ business_id: string }>(
@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
   if (!stored?.rows[0])
     throw createError({
       statusCode: 400,
-      message: 'Kjo lidhje autorizimi nuk mund të përdoret përsëri.',
+      message: 'server.AUTHORIZATION_LINK_USED',
     })
   const { business_id: businessId, return_path: returnPath } = stored.rows[0]
   async function recordAuthorizationResult(
@@ -74,7 +74,7 @@ export default defineEventHandler(async (event) => {
       if (jobs.rows.length)
         throw createError({
           statusCode: 409,
-          message: 'Përfundo ose anulo publikimet aktive përpara ndryshimit të lidhjes.',
+          message: 'server.ACTIVE_PUBLICATIONS_BLOCK_RECONNECT',
         })
       await client.query(
         "DELETE FROM post_validations WHERE business_id=$1 AND COALESCE(result->>'scope','publication')='publication'",

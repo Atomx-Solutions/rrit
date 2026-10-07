@@ -179,7 +179,7 @@ async function submit() {
     }
   }
   catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || t('request.failed')
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'request.failed')
   }
   finally {
     sending.value = false

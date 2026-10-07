@@ -4,7 +4,7 @@ import { adminServiceClient } from './admin-supabase'
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 export const leadConversionRangeSchema = z.object({ from: day, to: day }).refine(
   value => value.from <= value.to,
-  { message: 'Invalid date range' },
+  { message: 'server.INVALID_DATE_RANGE' },
 )
 
 export async function adminLeadConversionSummary(range: z.infer<typeof leadConversionRangeSchema>) {
@@ -14,7 +14,7 @@ export async function adminLeadConversionSummary(range: z.infer<typeof leadConve
   const { data, error } = await adminServiceClient().rpc('admin_package_request_conversion_summary', {
     p_from: from, p_to: end.toISOString(),
   })
-  if (error) throw createError({ statusCode: 502, message: 'Statistikat e konvertimit nuk u ngarkuan.' })
+  if (error) throw createError({ statusCode: 502, message: 'server.CONVERSION_STATS_LOAD_FAILED' })
   const value = (data || {}) as Record<string, unknown>
   const count = (key: string) => Number(value[key]) || 0
   const total = count('total')

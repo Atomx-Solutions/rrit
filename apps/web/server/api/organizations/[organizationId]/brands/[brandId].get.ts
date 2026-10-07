@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   const organizationId = z.uuid().safeParse(getRouterParam(event, 'organizationId'))
   const brandId = z.uuid().safeParse(getRouterParam(event, 'brandId'))
   if (!organizationId.success || !brandId.success)
-    throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
+    throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return withOrganizationTransaction(user.id, organizationId.data, (client) =>
     getBrand(client, organizationId.data, brandId.data),
