@@ -854,3 +854,49 @@ export function resumableContentFailureCode(code: string | null | undefined) {
     'CREATIVE_TOO_LARGE',
   ].includes(code || '')
 }
+
+/**
+ * The only two canvas facts the creative pipeline depends on: the provider's
+ * native portrait canvas and the final feed canvas the application crops to.
+ * Everything the image prompt says about bleed and safe margins is derived from
+ * these, so no percentage is restated as prose that could silently drift if
+ * either canvas changes.
+ */
+export const feedCreativeCanvas = { width: 1080, height: 1350 } as const
+export const providerCreativeCanvas = { width: 3, height: 4 } as const
+/**
+ * Editorial margin kept clear of critical content on every side of the final
+ * canvas, as a share of that side. It is a design tunable, not a layout: it
+ * constrains where critical content may live, never how a composition is built.
+ */
+export const criticalContentMargin = 0.09
+
+function ratioLabel(canvas: { width: number; height: number }) {
+  const divisor = (a: number, b: number): number => (b ? divisor(b, a % b) : a)
+  const factor = divisor(canvas.width, canvas.height)
+  return `${canvas.width / factor}:${canvas.height / factor}`
+}
+
+/**
+ * Derives the composition contract for the centre crop performed by
+ * normalizeGeneratedCreative. A provider canvas that is taller than the final
+ * canvas loses height; one that is wider loses width. Percentages are expressed
+ * against the provider canvas, because that is the surface the model paints.
+ */
+export function feedCreativeGeometry() {
+  const providerAspect = providerCreativeCanvas.width / providerCreativeCanvas.height
+  const finalAspect = feedCreativeCanvas.width / feedCreativeCanvas.height
+  const retainedWidth = providerAspect > finalAspect ? finalAspect / providerAspect : 1
+  const retainedHeight = providerAspect > finalAspect ? 1 : providerAspect / finalAspect
+  const safeShare = 1 - criticalContentMargin * 2
+  const percent = (value: number) => `${Math.round(value * 1000) / 10}%`
+  return {
+    finalPixels: `${feedCreativeCanvas.width}x${feedCreativeCanvas.height}`,
+    finalRatio: ratioLabel(feedCreativeCanvas),
+    providerRatio: ratioLabel(providerCreativeCanvas),
+    discardedWidthPerSide: percent((1 - retainedWidth) / 2),
+    discardedHeightPerSide: percent((1 - retainedHeight) / 2),
+    safeWidth: percent(retainedWidth * safeShare),
+    safeHeight: percent(retainedHeight * safeShare),
+  }
+}

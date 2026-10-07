@@ -1,5 +1,5 @@
 import sharp, { type OverlayOptions } from 'sharp'
-import { PlannerFailure } from './monthly-planner-domain'
+import { PlannerFailure, feedCreativeCanvas } from './monthly-planner-domain'
 
 function escapeXml(value: string) {
   return value.replace(
@@ -199,8 +199,8 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
   if (!visibleLogoPixels) return { left: 48, top: 48 }
   logoLuminance /= visibleLogoPixels
 
-  const width = 1080
-  const height = 1350
+  const width = feedCreativeCanvas.width
+  const height = feedCreativeCanvas.height
   const logoMetadata = await sharp(logo).metadata()
   const logoWidth = logoMetadata.width || 0
   const logoHeight = logoMetadata.height || 0
@@ -290,7 +290,10 @@ export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer, l
     // The image prompt reserves a centered 4:5 safe region inside providers that
     // only expose a native 3:4 portrait canvas. A deterministic centre crop keeps
     // that contract; attention-based cropping could unexpectedly move typography.
-    .resize(1080, 1350, { fit: 'cover', position: 'centre' })
+    .resize(feedCreativeCanvas.width, feedCreativeCanvas.height, {
+      fit: 'cover',
+      position: 'centre',
+    })
   let result: Buffer
   if (logo) {
     const logoBuffer = await removeLogoBackground(logo)
