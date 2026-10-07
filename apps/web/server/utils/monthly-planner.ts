@@ -35,7 +35,11 @@ import {
 import { setTenantContext } from './database'
 import { postContentSnapshot, postFingerprint } from './post-validation'
 import { normalizeQualityReview } from './post-quality-domain'
-import { assetContactSheet, normalizeGeneratedCreative } from './image-processing'
+import {
+  assetContactSheet,
+  normalizeGeneratedCreative,
+  prepareVideoFirstFrame,
+} from './image-processing'
 import {
   assetStorageFolder,
   assetStoragePath,
@@ -262,7 +266,10 @@ export async function ensureMonthlyPlan(
     postsCountedForLimit(client, businessId, month, access.paid, access.quotaPeriod),
   )
   const remaining = remainingMonthlyPosts(access.limits.posts_per_month, existing)
-  if (remaining < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
+  // The post quota is exhausted only blocks the batch when the batch actually
+  // wants a post. A video-only request still goes through because videos are
+  // their own package allowance, enforced by requestedPlannerVideos below.
+  if (remaining < 1 && !options.videoQuantity) throw new PlannerFailure('QUOTA_EXCEEDED')
   // `target` is the month's whole quota and `generate` is only what the
   // customer has asked for right now. A plan created by the worker's own
   // rotation asks for nothing, so it costs nothing until the customer does.
@@ -402,7 +409,10 @@ export async function requestMonthlyPosts(
     access.quotaPeriod,
   )
   const remaining = remainingMonthlyPosts(access.limits.posts_per_month, existing)
-  if (remaining < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
+  // Same shape as in ensureMonthlyPlan: a request that only asks for videos
+  // is allowed through when the image quota is used up, because videos are
+  // their own allowance.
+  if (remaining < 1 && !videoQuantity) throw new PlannerFailure('QUOTA_EXCEEDED')
   const addedPosts = requestedPlannerPosts(quantity, remaining)
   const addedVideos = await requestedPlannerVideos(
     client,
@@ -1823,6 +1833,32 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         creative: { ...parsedContent.data.creative, layout: slot.visualLayout },
       }
       original = assets.find((asset) => asset.id === selectedAssetId)!
+      // A video slot's gallery poster is the prepared 9:16 opening frame of
+      // the mp4 that is about to be rendered, not a separately AI-generated
+      // 4:5 creative. The expensive planner image call, its creative
+      // normalization and the quality review that read a creative the viewer
+      // never sees are skipped entirely for video deliverables; the mp4
+      // itself remains the only billable AI output of the video pipeline.
+      if (slot.deliverable === 'video') {
+        const [posterWidth, posterHeight] = videoFormat.split('x').map(Number)
+        creative = await plannerStep('content.video_poster', () =>
+          prepareVideoFirstFrame(original!.bytes, {
+            width: posterWidth!,
+            height: posterHeight!,
+          }),
+        )
+        imageGeneration = undefined
+        quality = normalizeQualityReview(
+          qualitySchema.parse({
+            decision: 'PASS',
+            reasons: [],
+            factuality: true,
+            brandFit: true,
+            visualQuality: true,
+          }),
+        )
+        break
+      }
       const imagePrompt = monthlyImagePrompt({
         brand: plan.evidence.brand,
         slot,
@@ -1928,7 +1964,12 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       )
       break
     }
-    if (!content || !original || !creative || !imageGeneration || !quality)
+    if (!content || !original || !creative || !quality)
+      throw new PlannerFailure('GENERATION_FAILED')
+    // A static post must have an imageGeneration record because its creative
+    // IS the ai-generated image. A video slot has no such record because the
+    // poster is a deterministic sharp crop of the owned source.
+    if (slot.deliverable !== 'video' && !imageGeneration)
       throw new PlannerFailure('GENERATION_FAILED')
     const business = await plannerStep('content.persist.business', () =>
       db.query<{ slug: string }>('SELECT slug FROM businesses WHERE id=$1', [plan.business_id]),
@@ -2050,11 +2091,17 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           },
           assetId: content.assetId,
           creative: content.creative,
-          imageGeneration: {
-            model: imageGeneration.model,
-            quality: imageGeneration.quality,
-            promptHash: imageGeneration.promptHash,
-          },
+          // Only populated for static posts. A video slot leaves this absent
+          // because the poster is a deterministic sharp crop, not an AI call.
+          ...(imageGeneration
+            ? {
+                imageGeneration: {
+                  model: imageGeneration.model,
+                  quality: imageGeneration.quality,
+                  promptHash: imageGeneration.promptHash,
+                },
+              }
+            : {}),
           quality,
           promptVersion: monthlyPromptVersion,
         }
@@ -2090,9 +2137,18 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
                     status: 'brief_ready' as const,
                     sourceAssetIds: [content.assetId],
                     ...(videoBriefLogoId ? { logoAssetId: videoBriefLogoId } : {}),
-                    hook: slot.hook.slice(0, 140),
-                    overlays: [slot.assetDirection.slice(0, 120)],
+                    // The strategy's own direction for this video, carried
+                    // forward in full rather than truncated into a single
+                    // overlay beat. The prompt builder reads these fields
+                    // directly so a slot's visual direction is no longer lost
+                    // the moment the brief is persisted.
+                    hook: slot.hook.slice(0, 180),
+                    overlays: [slot.assetDirection.slice(0, 400)],
                     cta: content.creative.cta.slice(0, 120),
+                    intent: slot.intent,
+                    purpose: slot.purpose.slice(0, 600),
+                    assetDirection: slot.assetDirection.slice(0, 400),
+                    visualLayout: slot.visualLayout.slice(0, 600),
                     durationSeconds: videoDurationSeconds,
                     format: videoFormat,
                     createdAt: new Date().toISOString(),
@@ -2107,20 +2163,39 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             aiProvenance: provenance,
           }),
         )
+        // A static-post creative is 1080x1350 (4:5). A video poster is the
+        // 9:16 opening frame, same dimensions as the mp4 that is about to be
+        // rendered, so the gallery thumbnail matches what the viewer sees
+        // when they open the video. The `video-poster` tag keeps the poster
+        // out of flows that look for `monthly-creative` static posts and the
+        // non-null creative_provenance (set below) keeps it out of the
+        // owned-source photo picker that filters creative_provenance IS NULL.
+        const [posterWidth, posterHeight] = slot.deliverable === 'video'
+          ? videoFormat.split('x').map(Number)
+          : [1080, 1350]
         await plannerStep('content.persist.asset_insert', () =>
           client.query(
-            "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,storage_path,size_bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',NULL,$5,$6,1080,1350,$7)",
+            "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,storage_path,size_bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',NULL,$5,$6,$8,$9,$7)",
             [
               assetId,
               plan.business_id,
               content.title,
-              JSON.stringify(['monthly-creative', slot.pillar]),
+              JSON.stringify(
+                slot.deliverable === 'video'
+                  ? ['video-poster', slot.pillar]
+                  : ['monthly-creative', slot.pillar],
+              ),
               storagePath,
               creative.length,
               JSON.stringify({
                 ...provenance,
+                ...(slot.deliverable === 'video'
+                  ? { source: 'video-first-frame', sourceAssetId: content.assetId }
+                  : {}),
                 checksum: evidenceHash(creative.toString('base64')),
               }),
+              posterWidth,
+              posterHeight,
             ],
           ),
         )

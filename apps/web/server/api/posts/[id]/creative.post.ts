@@ -36,6 +36,14 @@ export default defineEventHandler(async (event) => {
       const post = postSchema.parse(row.rows[0].payload)
       if (!post.aiProvenance || !['draft', 'review'].includes(post.status))
         throw createError({ statusCode: 422, message: 'server.REOPEN_AS_DRAFT' })
+      // A video post's `image` is the deterministic 9:16 opening frame of its
+      // mp4, not an AI creative. Re-running the image AI pipeline here would
+      // reintroduce the hidden image-generation call we removed from the
+      // planner and would make the gallery poster drift from the actual video.
+      // The video re-render flow (POST /api/posts/:id/video-render) is the
+      // right path for a video, so this one is rejected outright.
+      if (post.video)
+        throw createError({ statusCode: 409, message: 'server.CREATIVE_EDIT_UNAVAILABLE_FOR_VIDEO' })
       if (postContentVersion(post) !== input.data.contentVersion)
         throw createError({ statusCode: 409, message: 'server.POST_CHANGED' })
       const sourceAssetId = z.uuid().safeParse(post.image.replace('/api/media/', ''))

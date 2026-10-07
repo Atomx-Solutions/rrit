@@ -185,7 +185,9 @@ watch(maxVideosThisBatch, (max) => {
   if (selectedVideoQuantity.value > max) selectedVideoQuantity.value = max
 })
 watch(remainingPosts, (remaining) => {
-  selectedQuantity.value = Math.max(1, Math.min(selectedQuantity.value, remaining || 1))
+  // Zero images is a valid request when at least one video is also asked for,
+  // so the clamp floors at 0 and ceilings at whatever the package still has.
+  selectedQuantity.value = Math.max(0, Math.min(selectedQuantity.value, remaining))
 }, { immediate: true })
 // Lowering a count leaves photos chosen that no longer have a deliverable to go
 // with, so the extras are released rather than left to fail at submission.
@@ -210,7 +212,9 @@ const settled = computed(() => plan.value?.status === 'idle' && (plan.value?.com
 // A plan that produced everything asked of it but still owes posts from the
 // package. Posts are drawn on request, so this is a normal resting state, not
 // an end state.
-const extendable = computed(() => !!plan.value?.extendable && remainingPosts.value > 0)
+const extendable = computed(
+  () => !!plan.value?.extendable && (remainingPosts.value > 0 || remainingVideos.value > 0),
+)
 // Progress is measured against what the customer asked for, not against the
 // month's whole quota: asking for one post and being shown "0 / 11" reports a
 // job eleven times larger than the one running.
@@ -773,7 +777,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
+        <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="ms-auto w-28" />
         <UButton :loading="busy" icon="i-lucide-plus" @click="openRequest('generate')">
           {{ t('monthly.generateMore', { count: selectedQuantity }) }}
         </UButton>
@@ -835,7 +839,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
+        <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="ms-auto w-28" />
         <UButton :loading="busy" icon="i-lucide-plus" @click="openRequest('generate')">
           {{ t('monthly.generateMore', { count: selectedQuantity }) }}
         </UButton>
@@ -1093,7 +1097,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="text-sm font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
               <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
             </div>
-            <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="w-24 shrink-0" />
+            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
           </div>
           <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
             <UIcon name="i-lucide-clapperboard" class="size-5 shrink-0 text-primary" />
@@ -1114,7 +1118,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="text-sm font-medium text-highlighted">{{ t('monthly.readyToPrepare') }}</p>
               <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
             </div>
-            <UButton :loading="busy" :disabled="remainingPosts < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
+            <UButton :loading="busy" :disabled="selectedQuantity + selectedVideoQuantity < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
               {{ extendable ? t('monthly.generateMore', { count: selectedQuantity }) : t('legacy.prepareMonth') }}
             </UButton>
           </div>

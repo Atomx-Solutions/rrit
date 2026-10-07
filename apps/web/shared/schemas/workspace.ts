@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { monthlyPostProvenanceSchema } from './monthly-plan'
+import {
+  contentIntentSchema,
+  monthlyPostProvenanceSchema,
+  plannedCreativeLayoutSchema,
+} from './monthly-plan'
 import { brandFactSchema } from './business-brain'
 
 const researchSourceSchema = z
@@ -93,9 +97,19 @@ export const postSchema = z.object({
     status: z.enum(['brief_ready', 'rendering', 'ready', 'failed']),
     sourceAssetIds: z.array(z.uuid()).min(1),
     logoAssetId: z.uuid().optional(),
-    hook: z.string().max(140),
-    overlays: z.array(z.string().max(120)).max(4),
+    // Hook, intent, purpose, assetDirection and visualLayout are the strategy's
+    // own words for this specific video. They used to be flattened into a short
+    // overlays[0] / rationale blob; the brief now carries them so the prompt
+    // builder can keep the strategy's direction instead of restating a generic
+    // menu of camera moves. All strategy-sourced fields are optional so older
+    // persisted briefs still parse.
+    hook: z.string().max(180),
+    overlays: z.array(z.string().max(400)).max(4),
     cta: z.string().max(120),
+    intent: contentIntentSchema.optional(),
+    purpose: z.string().max(600).optional(),
+    assetDirection: z.string().max(400).optional(),
+    visualLayout: plannedCreativeLayoutSchema.optional(),
     durationSeconds: z.number().int().min(6).max(30),
     format: z.literal(videoFormat),
     strategyVersion: z.number().int().positive().optional(),

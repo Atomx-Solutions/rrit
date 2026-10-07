@@ -874,9 +874,14 @@ export function remainingMonthlyPosts(postsPerMonth: number, createdThisMonth: n
   return Math.max(0, Math.min(postsPerMonth, 100) - createdThisMonth)
 }
 
-/** Validates the client choice again at the server boundary. */
+/**
+ * Validates the client choice again at the server boundary. Zero is a valid
+ * request so a batch may consist of videos alone; the "at least one
+ * deliverable overall" rule is enforced one level up where the caller also
+ * knows how many videos are being requested.
+ */
 export function requestedPlannerPosts(quantity: number, remaining: number) {
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > remaining)
+  if (!Number.isInteger(quantity) || quantity < 0 || quantity > remaining)
     throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
   return quantity
 }

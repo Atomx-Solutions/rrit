@@ -518,7 +518,7 @@ onBeforeUnmount(() => {
             <h3>{{ t('content.postPhoto') }}</h3>
             <div class="flex flex-wrap items-center gap-2">
               <CreativeEditor
-                v-if="post?.aiProvenance"
+                v-if="post?.aiProvenance && !post?.video"
                 :post="post"
                 :disabled="!editable || dirty || syncing"
                 @saved="creativeSaved"

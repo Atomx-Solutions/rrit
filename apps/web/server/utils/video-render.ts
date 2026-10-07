@@ -9,6 +9,7 @@ import {
   videoRenderCredits,
 } from './credits'
 import { aiVideoConfigured, generateAiVideo } from './ai-video-provider'
+import { prepareVideoFirstFrame } from './image-processing'
 import { postVideoPrompt } from './monthly-ai'
 
 /**
@@ -80,6 +81,11 @@ export async function renderVideoForPost(userId: string, postId: string) {
         rationale: post.aiProvenance?.rationale,
       },
       brief: post.video,
+      // The brand's locale already lives on the workspace at render time, so
+      // the prompt reads it from runtime context instead of being persisted
+      // again on the brief: the mapping sq-XK → Albanian, en-US → English,
+      // de-DE → German is done inside postVideoPrompt.
+      locale: workspace.brand.locale,
       logoAvailable: Boolean(logoRow),
       guardrails: workspace.brand.guardrails,
     })
@@ -100,8 +106,15 @@ export async function renderVideoForPost(userId: string, postId: string) {
   // instead of leaving bytes behind that the allowance would keep counting.
   let uploadedPath: string | undefined
   try {
+    // The source photograph may be any aspect ratio; the provider is given a
+    // frame that already matches the requested video canvas, so a landscape
+    // source does not come back letterboxed with black bars.
+    const [targetWidth, targetHeight] = snapshot.format.split('x').map(Number)
+    const firstFrame = targetWidth && targetHeight
+      ? await prepareVideoFirstFrame(snapshot.source, { width: targetWidth, height: targetHeight })
+      : snapshot.source
     const generated = await generateAiVideo({
-      image: snapshot.source,
+      image: firstFrame,
       prompt: snapshot.prompt,
       durationSeconds: snapshot.durationSeconds,
       format: snapshot.format,

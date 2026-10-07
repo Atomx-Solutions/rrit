@@ -18,7 +18,11 @@ export default defineEventHandler(async (event) => {
       photoMode: z.enum(['auto', 'selected']).optional(),
       selectedAssetIds: z.array(z.uuid()).max(100).optional(),
       selectedVideoAssetIds: z.array(z.uuid()).max(100).optional(),
-      quantity: z.number().int().min(1).max(100).optional(),
+      // Zero images is a valid request as long as at least one video is also
+      // asked for; the combined-minimum rule is enforced below after the body
+      // parses, so an explicit 0 keeps round-tripping without being coerced
+      // into a default of 1 somewhere down the line.
+      quantity: z.number().int().min(0).max(100).optional(),
       videoQuantity: z.number().int().min(0).max(100).optional(),
       channelCounts: z
         .object({
@@ -46,13 +50,17 @@ export default defineEventHandler(async (event) => {
       // drafts; only the newly requested slots are planned and produced.
       if (input.data.action === 'generate') {
         if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
-        if (!input.data.quantity) throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
+        // At least one deliverable must be requested overall; images and
+        // videos are independent, so a video-only request (quantity = 0,
+        // videoQuantity ≥ 1) is a valid shape, as is an image-only request.
+        if (!input.data.quantity && !input.data.videoQuantity)
+          throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
         return requestMonthlyPosts(
           client,
           business.id,
           user.id,
           input.data.month,
-          input.data.quantity,
+          input.data.quantity ?? 0,
           input.data.channelCounts,
           input.data.videoQuantity,
           input.data.videoChannelCounts,

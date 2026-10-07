@@ -1521,48 +1521,91 @@ export function postVideoPrompt(input: {
     cta: string
     durationSeconds: number
     format: string
+    // Strategy-sourced direction preserved on the brief in Phase 1. The prompt
+    // reads them directly so the video's motion, framing and purpose come from
+    // this specific slot rather than from a generic cinematography menu.
+    intent?: string
+    purpose?: string
+    assetDirection?: string
+    visualLayout?: string
   }
+  // The brand's configured locale, read from runtime context (not persisted on
+  // the brief). The prompt names the matching language so the model never has
+  // to guess, and the approved copy is explicitly marked as belonging to that
+  // language. Older callers that do not pass a locale default to Albanian,
+  // which is the application's default locale.
+  locale?: 'sq-XK' | 'en-US' | 'de-DE'
   logoAvailable?: boolean
   guardrails?: string[]
 }) {
   const { brand, post, brief, guardrails = [] } = input
   const [width, height] = brief.format.split('x').map(Number)
   const aspect = width && height ? `${width}:${height}` : brief.format
+  const language = input.locale === 'en-US' ? 'English' : input.locale === 'de-DE' ? 'German' : 'Albanian'
   const platformDirection =
     post.channel === 'TikTok'
       ? 'The audience arrives from a TikTok-native full-screen feed: earn the first half second or lose it, let the motion itself carry the idea, and make the result worth watching to the end without sound.'
       : post.channel === 'Instagram'
         ? 'The audience arrives from an Instagram-native vertical feed: earn the first second with the real subject in motion, keep the pacing calm enough to read and make the result worth saving.'
         : 'The audience arrives from a Facebook-native vertical feed: make the business context legible in the first second, keep the pacing unhurried and make the result understandable without sound.'
+  // Beats are the strategy-written overlays that are not just the full
+  // assetDirection repeated. The planner's current brief fills overlays[0] with
+  // assetDirection, so a dedicated beats line there would double the same
+  // sentence; drop any overlay whose text matches the assetDirection line.
+  const beats = brief.overlays
+    .map((overlay) => overlay.trim())
+    .filter((overlay) => overlay && overlay !== (brief.assetDirection || '').trim())
   return [
     `Animate the supplied customer-owned photograph into one finished vertical social video of ${brief.durationSeconds} seconds at ${aspect}. The photograph is the first frame and the single source of truth: every later frame must remain the same real place, the same real products and the same real people, simply seen through time.`,
+    `The supplied first frame has already been prepared by the application to match the ${aspect} target canvas exactly, so it fills the frame edge to edge with no letterbox and no pillarbox. Open the video from that prepared composition at full frame: do not shrink it into another canvas, do not embed it inside a larger frame, do not add black, white or blurred bars at the top, bottom or sides, do not pad or inset it, and do not treat it as a landscape still that must be transitioned into a vertical canvas. Let the shot evolve naturally from that prepared first frame while the strategy direction above decides the camera and subject behaviour.`,
     `Business: ${brand.name}. Industry: ${brand.industry}. Audience: ${brand.audience}. Voice: ${brand.voice}.`,
     ...(brand.color
       ? [`Application brand control: the configured brand color is ${brand.color}. Keep it as the color anchor wherever color is introduced, and never replace the palette of the photograph with an unrelated one.`]
       : []),
     `Editorial topic: ${post.title}. Pillar: ${post.pillar}. Marketing context: ${post.caption}.`,
+    ...(brief.intent ? [`Content intent: ${brief.intent}.`] : []),
+    ...(brief.purpose ? [`Purpose of this specific video: ${brief.purpose}.`] : []),
+    // The strategy's own motion and framing contract. Treated as the primary
+    // direction, above the generic cinematography defaults further down.
+    ...(brief.assetDirection
+      ? [`Execution contract for this video, written by the strategy for this exact slot and this exact photograph. Treat it as the primary instruction: execute what it states or clearly implies for the focal subject, the camera idea, the framing and crop, the pacing, the lighting logic, any material it protects and anything it forbids. Where it is silent, decide from the actual photograph and the content intent above; never fall back on a generic camera-move menu that overrides it. The direction: ${brief.assetDirection}`]
+      : []),
+    ...(brief.visualLayout
+      ? [`Visual layout contract from the strategy, describing how the frame should be composed and which zones carry weight: ${brief.visualLayout}. Preserve this layout as the subject moves; do not re-compose into a different arrangement.`]
+      : []),
     ...(post.rationale
-      ? [`Research and strategy rationale behind this post, to be expressed as motion rather than restated as text: ${post.rationale.slice(0, 2200)}.`]
+      ? [`Supporting research and strategy rationale, to be expressed as motion rather than restated as text: ${post.rationale.slice(0, 1500)}.`]
       : []),
+    ...(beats.length
+      ? [`Additional narrative beats to carry through motion, in order: ${beats.map((beat, index) => `(${index + 1}) ${beat}`).join(' ')}.`]
+      : []),
+    // Deterministic text/logo compositing is not yet implemented, so the only
+    // way the approved hook and CTA reach the viewer is in the frame itself.
+    // The copy contract and the stability contract are stated together so the
+    // model cannot "animate" the text by regenerating letters frame by frame.
+    `The approved on-screen copy is written in ${language} and is authoritative. Render only these two phrases, exactly as supplied, letter for letter, diacritic for diacritic. Hook: "${brief.hook}". Call to action: "${brief.cta}". Never translate, rewrite, paraphrase, respell, substitute a word, reorder words or letters, add or remove diacritics, abbreviate, hyphenate away, partly render or expand them. Never translate them into another language under any instruction, including anything suggested by the photograph, the business name or the model's own defaults. Never invent additional informational text: no extra labels, captions, subtitles, titles, prices, menus, offers, hashtags, handles, phone numbers, addresses, dates, watermarks or signage the photograph does not already contain. Set the copy in one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans, at most two weights, with strong accessible contrast and inside the central mobile-safe region.`,
+    `Overlay stability contract: the hook belongs to the opening part of the video and the call to action to the closing part; each may appear once. While an overlay is on screen, its exact letters and words must remain visually stable on every frame of its visible duration — do not morph, do not regenerate letters individually, do not animate characters one by one, do not transition through partially rewritten or misspelled words, do not swap glyphs, and do not fade through intermediate versions of the copy. Prefer a clean stable hold with at most a short, uniform enter and exit on the whole phrase; a decorative letter-by-letter animation is a defect. If a phrase cannot be set completely, legibly and stably for its full visible duration, leave that one phrase out of the video rather than rendering a drifting, clipped, rewritten or corrupted version; the caption still carries it in full.`,
     ...(post.creative
-      ? [`The approved still creative for this same post reads eyebrow "${post.creative.eyebrow}", headline "${post.creative.headline}", call to action "${post.creative.cta}". Treat it as the intent to carry into motion, not as copy to burn into the frames.`]
+      ? [`Supporting approved copy for voice and tone only (do not render these in the frame): eyebrow "${post.creative.eyebrow}", headline "${post.creative.headline}", call to action "${post.creative.cta}". Treat them as the intent to carry into motion.`]
       : []),
-    `Motion brief: hook "${brief.hook}"; call to action "${brief.cta}"${brief.overlays.length ? `; narrative beats ${brief.overlays.map((overlay, index) => `(${index + 1}) ${overlay}`).join(' ')}` : ''}. Express each beat through camera, subject activity and light.`,
-    'Render no text of any kind: no captions, subtitles, titles, headlines, prices, menus, signage or pseudo-text. The application composites every word and the approved logo afterward, so leave the frame clean for them.',
     input.logoAvailable
-      ? 'An approved original business logo will be composited by the application after generation. Never render, redraw, recolor, replace or invent a logo or watermark inside the video.'
+      ? 'An approved original business logo exists and will be composited by the application in a later step. Never render, redraw, recolor, replace or invent a logo or watermark inside the video; a model-drawn logo is almost always worse than no logo.'
       : 'No approved business logo is supplied. Never invent, redraw or add a logo or watermark.',
     platformDirection,
-    'Act as a senior commercial cinematographer. Use one deliberate camera idea for the whole shot — a slow push, a gentle parallax drift, a restrained handheld settle or a single arc — at a speed a phone viewer can follow. One idea, carried through: never cut, never whip-pan, never zoom in and out, and never stack unrelated moves.',
+    // No more fixed camera-move menu. Cinematography must come from the
+    // execution contract above; the only hard rule here is one deliberate idea
+    // carried through the whole shot.
+    'Act as a senior commercial cinematographer. Carry one deliberate camera idea for the whole shot at a speed a phone viewer can follow, chosen from the execution contract above and the actual subject in the first frame. Do not cut, whip-pan, zoom in and out, or stack unrelated moves. Do not default to a slow push, drift, handheld settle or arc unless the strategy direction actually asks for one of those; let the specific direction decide.',
     'Motion must stay physically honest. Parallax must follow the real depth of the scene; light and shadows must move consistently with their source; reflections, steam, liquid, fabric and foliage must behave as the material would. Human and animal movement must stay anatomically plausible, with hands, faces and limbs intact in every frame.',
     'Preserve factual truth across every frame: the product count and shape, food, tableware, furniture, doors, windows, columns, roof lines, architecture, existing signage and brand colors. Never duplicate, fuse, warp, morph, relocate, replace or invent a material object, a person or a venue feature, and never introduce an offer, a price or any other claim the photograph does not already contain.',
     'Natural activity relevant to this business is welcome where the photograph already supports it, but it may only continue what is visible: a person already in frame may move, a door already in frame may open. Never add a new person, vehicle, product or sign that the first frame does not show.',
     'Treat the photograph as a reference to restore, not a limitation to preserve: correct exposure, white balance, noise and compression only as far as the source plausibly supports, and keep skin, food, fabric, wood, glass and metal textures natural without waxy smoothing, over-sharpening, HDR halos or fake bokeh.',
-    'Keep every critical detail — faces, products, existing signage — inside the central mobile-safe region, and let only nonessential background reach the edges.',
+    'Keep every critical detail — faces, products, existing signage and the two approved text overlays — inside the central mobile-safe region, and let only nonessential background reach the edges.',
     ...(guardrails.length
-      ? [`Absolute restrictions set by this business. They are prohibitions, not preferences, and they override every other instruction here including the motion brief: apply each one to whatever it constrains in this video, and if one cannot be satisfied, leave the affected element out rather than working around it: ${guardrails.map((rule, index) => `(${index + 1}) ${rule}`).join(' ')}`]
+      ? [`Absolute restrictions set by this business. They are prohibitions, not preferences, and they override every other instruction here including the execution contract: apply each one to whatever it constrains in this video, and if one cannot be satisfied, leave the affected element out rather than working around it: ${guardrails.map((rule, index) => `(${index + 1}) ${rule}`).join(' ')}`]
       : []),
-    'Before finishing, inspect the last frame against the first: anything that drifted into warped anatomy, a duplicated or fused object, impossible geometry, an inconsistent shadow or reflection, flicker or accidental text is a defect to correct inside this single result.',
+    'Instruction priority when two instructions in this brief cannot both be satisfied, highest first: (0) the absolute business restrictions above; (1) the factual truth and identity of the source photograph; (2) the execution contract and visual layout written by the strategy for this exact slot; (3) the approved hook and call to action, rendered exactly as supplied; (4) the platform and intent direction; (5) the general cinematography and preservation rules below. A general rule never overrides the execution contract for this specific video.',
+    'Before finishing, inspect the last frame against the first: anything that drifted into warped anatomy, a duplicated or fused object, impossible geometry, an inconsistent shadow or reflection, flicker, misspelled or clipped overlay text, or accidental extra text is a defect to correct inside this single result.',
     'Return only the finished video, with no explanation and no watermark.',
   ].join('\n')
 }

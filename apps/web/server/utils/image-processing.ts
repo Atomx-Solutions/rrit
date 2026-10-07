@@ -325,6 +325,33 @@ export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer, l
   return result
 }
 
+/**
+ * Prepare a source photograph to be sent to the video provider as the first
+ * frame of a vertical video. The provider receives a frame that already matches
+ * the requested video canvas, so it never has to invent a landscape→vertical
+ * transition and never letterboxes the clip.
+ *
+ * Attention-based cropping keeps the salient subject in frame when it can; if
+ * sharp cannot evaluate attention for this image (very small, unusual channel
+ * layout, etc.), a centre crop takes over so the render never fails on a
+ * preparation step.
+ */
+export async function prepareVideoFirstFrame(image: Buffer, target: { width: number; height: number }) {
+  const base = sharp(image, { limitInputPixels: 24000000 }).rotate()
+  try {
+    return await base
+      .clone()
+      .resize(target.width, target.height, { fit: 'cover', position: sharp.strategy.attention })
+      .jpeg({ quality: 94, mozjpeg: true })
+      .toBuffer()
+  } catch {
+    return await base
+      .resize(target.width, target.height, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 94, mozjpeg: true })
+      .toBuffer()
+  }
+}
+
 // The sheet is internal model context, never a customer-facing post design.
 export async function assetContactSheet(assets: { id: string; bytes: Buffer }[]) {
   if (!assets.length || assets.length > 40) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
