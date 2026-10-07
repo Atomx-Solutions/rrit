@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { en, sq } from '@nuxt/ui/locale'
-const { locale: appLocale, setLocale, t } = useI18n()
-const { data, ready } = useWorkspace()
+import { de, en, sq } from '@nuxt/ui/locale'
+const { locale: appLocale, t } = useI18n()
 const locale = computed(() => {
-  const base = appLocale.value === 'en-US' ? en : sq
+  const base = appLocale.value === 'de-DE' ? de : appLocale.value === 'en-US' ? en : sq
   return {
     ...base,
     messages: {
@@ -13,13 +12,6 @@ const locale = computed(() => {
     },
   }
 })
-watch(
-  [ready, () => data.value.preferences.locale],
-  ([isReady, workspaceLocale]) => {
-    if (isReady) setLocale(workspaceLocale)
-  },
-  { immediate: true },
-)
 </script>
 <template>
   <UApp

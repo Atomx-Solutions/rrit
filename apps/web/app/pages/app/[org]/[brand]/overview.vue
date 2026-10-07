@@ -34,7 +34,8 @@ function dateKey(value: Date | string, timezone: string) {
 
 function activityDateLabel(key: string, timezone: string) {
   const isEnglish = locale.value === 'en-US'
-  const formatter = new Intl.DateTimeFormat(isEnglish ? 'en-GB' : 'sq-AL', {
+  const isGerman = locale.value === 'de-DE'
+  const formatter = new Intl.DateTimeFormat(isGerman ? 'de-DE' : isEnglish ? 'en-GB' : 'sq-AL', {
     day: 'numeric',
     month: 'short',
     timeZone: timezone,
@@ -42,7 +43,7 @@ function activityDateLabel(key: string, timezone: string) {
   return formatter
     .formatToParts(new Date(`${key}T12:00:00.000Z`))
     .map((part) => {
-      if (isEnglish || part.type !== 'month') return part.value
+      if (isEnglish || isGerman || part.type !== 'month') return part.value
       const firstLetter = part.value.charAt(0)
       return `${firstLetter.toLocaleUpperCase('sq-AL')}${part.value.slice(1)}`
     })
