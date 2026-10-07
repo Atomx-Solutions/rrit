@@ -9,27 +9,61 @@ const viewerOpen = ref(false)
 const viewerIndex = ref(0)
 const downloading = ref(false)
 const viewerPost = computed(() => props.posts[viewerIndex.value] || null)
+// A ready video's playable mp4 is served through /api/videos/:renderId, so the
+// viewer resolves it only after the user opens a post whose brief reports a
+// finished render. The map keeps the resolution per post so flipping back and
+// forth in the viewer does not re-fetch what is already known.
+const videoPreviews = ref<Record<string, string | null>>({})
+const resolvingVideo = ref(false)
+const viewerVideoUrl = computed(() => {
+  const post = viewerPost.value
+  if (!post || post.video?.status !== 'ready') return null
+  return videoPreviews.value[post.id] ?? null
+})
+async function resolveViewerVideo() {
+  const post = viewerPost.value
+  if (!post || post.video?.status !== 'ready') return
+  if (post.id in videoPreviews.value) return
+  resolvingVideo.value = true
+  try {
+    const response = await $fetch<{ render: { previewUrl: string | null } | null }>(
+      `/api/posts/${post.id}/video`,
+    )
+    videoPreviews.value[post.id] = response.render?.previewUrl || null
+  } catch {
+    videoPreviews.value[post.id] = null
+  } finally {
+    resolvingVideo.value = false
+  }
+}
 function openViewer(post: Post) {
   const index = props.posts.findIndex((item) => item.id === post.id)
   if (index < 0) return
   viewerIndex.value = index
   viewerOpen.value = true
+  resolveViewerVideo()
 }
 function moveViewer(offset: number) {
   if (!props.posts.length) return
   viewerIndex.value = (viewerIndex.value + offset + props.posts.length) % props.posts.length
+  resolveViewerVideo()
 }
 async function downloadViewerPost() {
   if (!viewerPost.value || downloading.value) return
   downloading.value = true
   try {
-    const response = await fetch(viewerPost.value.image, { credentials: 'include' })
+    // A ready video downloads the mp4; the fallback is still the first-frame
+    // image, so a static post keeps the exact behaviour it had before.
+    const isVideo = viewerPost.value.video?.status === 'ready' && !!viewerVideoUrl.value
+    const source = isVideo ? viewerVideoUrl.value! : viewerPost.value.image
+    const extension = isVideo ? 'mp4' : 'jpg'
+    const response = await fetch(source, { credentials: 'include' })
     if (!response.ok) throw new Error('download failed')
     const blob = await response.blob()
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${viewerPost.value.title || 'rrit-post'}.jpg`
+    anchor.download = `${viewerPost.value.title || 'rrit-post'}.${extension}`
     anchor.click()
     URL.revokeObjectURL(url)
   } finally {
@@ -52,13 +86,12 @@ const columns = computed<TableColumn<Post>[]>(() => [
       :to="`${base}/content/${post.id}`"
       class="flex items-center gap-3 px-4 py-3 active:bg-elevated/50"
     >
-      <MediaImage
-        :src="post.image"
-        alt=""
+      <MediaThumbnail
+        :post="post"
         width="48"
         height="48"
         loading="lazy"
-        class="size-12 shrink-0 object-cover rounded-md"
+        class="size-12 shrink-0 overflow-hidden rounded-md"
         @click.prevent.stop="openViewer(post)"
       />
       <div class="min-w-0 flex-1">
@@ -107,13 +140,12 @@ const columns = computed<TableColumn<Post>[]>(() => [
         :to="`${base}/content/${row.original.id}`"
         class="flex items-center gap-3 min-w-0 group"
       >
-        <MediaImage
-          :src="row.original.image"
-          alt=""
+        <MediaThumbnail
+          :post="row.original"
           width="44"
           height="44"
           loading="lazy"
-          class="size-11 shrink-0 rounded-md object-cover"
+          class="size-11 shrink-0 overflow-hidden rounded-md"
           @click.prevent.stop="openViewer(row.original)"
         />
         <div class="min-w-0">
@@ -176,7 +208,19 @@ const columns = computed<TableColumn<Post>[]>(() => [
             :aria-label="t('content.previousPostPhoto')"
             @click="moveViewer(-1)"
           />
+          <!-- A ready video plays here with the first-frame still as its
+               poster; while the mp4 url resolves, or if the brief says the
+               render is not ready, the existing image fallback stays. -->
+          <video
+            v-if="viewerVideoUrl"
+            :src="viewerVideoUrl"
+            :poster="viewerPost.image"
+            controls
+            playsinline
+            class="h-full w-auto max-w-full rounded-xl bg-black ring-1 ring-default"
+          />
           <MediaImage
+            v-else
             :src="viewerPost.image"
             :alt="viewerPost.title"
             fit="natural"
@@ -225,10 +269,10 @@ const columns = computed<TableColumn<Post>[]>(() => [
             :aria-label="post.title"
             @click="viewerIndex = index"
           >
-            <MediaImage
-              :src="post.image"
+            <MediaThumbnail
+              :post="post"
               :alt="post.title"
-              class="size-full object-cover"
+              class="size-full"
               width="64"
               height="64"
             />
