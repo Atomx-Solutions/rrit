@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { postSchema } from '../../../../shared/schemas/workspace'
-import { blockingPostChecks, postContentVersion } from '../../../utils/post-validation'
+import { blockingPostChecks, postContentVersion, tiktokPublishChecks } from '../../../utils/post-validation'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
@@ -27,12 +27,13 @@ export default defineEventHandler(async (event) => {
       if (!row.rows[0]) throw createError({ statusCode: 404, message: 'server.POST_NOT_FOUND' })
       const post = postSchema.parse(row.rows[0].payload)
       const contentChecks = await localPostChecks(post, business.id, client)
-      const checks = [
-        ...contentChecks,
-        ...(input.data.scope === 'publication'
-          ? await providerPostChecks(post, business.id, { db: client })
-          : []),
-      ]
+      const providerChecks =
+        input.data.scope === 'publication'
+          ? post.channel === 'TikTok'
+            ? await tiktokPublishChecks(business.id, client)
+            : await providerPostChecks(post, business.id, { db: client })
+          : []
+      const checks = [...contentChecks, ...providerChecks]
       return { post, contentChecks, checks }
     },
   )

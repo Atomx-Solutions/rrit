@@ -9,8 +9,23 @@ function validationMessage(check: { key: string; message: string; params?: Recor
     ? t('validation.aiQualityReview')
     : t(check.message, check.params || {})
 }
+function policyDescription(reason?: string) {
+  if (!reason) return t('content.verifyDescription')
+  const knownKeys = [
+    'server.SOURCE_MATERIAL_CHANGED',
+    'server.AI_QUALITY_REVIEW_NEEDED',
+    'server.VIDEO_QA_PENDING',
+    'server.VIDEO_QA_UNAVAILABLE',
+    'validation.aiQualityPassed',
+  ]
+  const parts = reason.split(/\s+/).filter(Boolean)
+  if (parts.length && parts.every((part) => knownKeys.includes(part)))
+    return parts.map((part) => t(part)).join(' ')
+  return reason
+}
 const { data: capabilities } = await useFetch('/api/capabilities')
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
+const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
 const existing = computed(() => data.value.posts.find((p) => p.id === props.id))
 if (props.id && !existing.value)
   throw createError({ statusCode: 404, statusMessage: t('content.postNotFound') })
@@ -55,6 +70,11 @@ const videoRender = ref<{
   failureReason: string | null
   previewUrl: string | null
 } | null>(null)
+const previewVideoUrl = computed(() =>
+  post.value?.video?.status === 'ready' && form.image === post.value.image
+    ? videoRender.value?.previewUrl || null
+    : null,
+)
 const checking = ref(false)
 const confirmed = ref(false)
 const publishOpen = ref(false)
@@ -107,6 +127,18 @@ async function checkPost(scope: 'content' | 'publication' = 'content'): Promise<
   error.value = ''
   confirmed.value = false
   try {
+    if (post.value?.video?.status === 'ready' && post.value.video.qualityContentVersion !== (post.value.contentVersion || 1)) {
+      try {
+        await $fetch(`/api/posts/${savedId.value}/video-quality`, { method: 'POST', body: {}, retry: 0, timeout: 195000 })
+        await initLive()
+      } catch (videoQualityError) {
+        // QA is advisory when the AI reviewer is unavailable (for example a
+        // provider 401/403). Continue with the technical checks so a ready
+        // video can still be sent to TikTok; the QA warning remains visible.
+        const status = (videoQualityError as { statusCode?: number }).statusCode
+        if (status !== 401 && status !== 403 && status !== 502 && status !== 503) throw videoQualityError
+      }
+    }
     const result = await $fetch(`/api/posts/${savedId.value}/validate`, {
       method: 'POST',
       body: { scope },
@@ -129,17 +161,24 @@ async function publishNow() {
   error.value = ''
   try {
     if (!(await checkPost('publication'))) {
-      error.value ||= t('content.metaNotConfirmed')
+      error.value ||= t(form.channel === 'TikTok' ? 'content.tiktokNotConfirmed' : 'content.metaNotConfirmed')
       return
     }
-    await $fetch(`/api/posts/${post.value.id}/publish`, {
-      method: 'POST',
-      body: { confirmed: true, version: post.value.version },
-      retry: 0,
-    })
-    publishOpen.value = false
-    await initLive()
-    notify(t('content.publishQueued'))
+    if (form.channel === 'TikTok') {
+      await $fetch(`/api/posts/${post.value.id}/tiktok-upload`, { method: 'POST', body: {}, retry: 0 })
+      publishOpen.value = false
+      await initLive()
+      notify(t('tiktok.uploadSucceeded'))
+    } else {
+      await $fetch(`/api/posts/${post.value.id}/publish`, {
+        method: 'POST',
+        body: { confirmed: true, version: post.value.version },
+        retry: 0,
+      })
+      publishOpen.value = false
+      await initLive()
+      notify(t('content.publishQueued'))
+    }
   } catch (problem) {
     error.value = t(
       (problem as { data?: { message?: string } }).data?.message || 'content.publishError')
@@ -255,14 +294,17 @@ const { onFormError, watchError } = useFormFeedback()
 watchError(error)
 watchError(localError, 'warning')
 watchError(scheduleError)
-const canPublish = computed(
-  () =>
-    !!capabilities.value?.publishing &&
+const canPublish = computed(() => {
+  if (!capabilities.value?.publishing) return false
+  if (form.channel === 'TikTok')
+    return tiktokStatus.value?.connection?.status === 'connected'
+  return (
     meta.value?.connection?.status === 'connected' &&
     (form.channel === 'Facebook'
       ? meta.value.connection.canPublishFacebook
-      : !!meta.value.connection.instagramId && meta.value.connection.canPublishInstagram),
-)
+      : !!meta.value.connection.instagramId && meta.value.connection.canPublishInstagram)
+  )
+})
 watch(scheduleOpen, (open) => {
   if (open) {
     automatic.value = false
@@ -477,7 +519,7 @@ onBeforeUnmount(() => {
               ><USelect
                 v-model="form.channel"
                 :disabled="!editable"
-                :items="['Instagram', 'Facebook']" /></UFormField
+                :items="post?.video ? ['Instagram', 'Facebook', 'TikTok'] : ['Instagram', 'Facebook']" /></UFormField
             ><UFormField :label="t('content.postTopic')" name="pillar" class="field"
               ><USelect
                 v-model="form.pillar"
@@ -565,7 +607,7 @@ onBeforeUnmount(() => {
               color="neutral"
               class="size-[68px] overflow-hidden rounded-lg border-2 border-primary bg-default p-0 transition hover:ring-2 hover:ring-primary/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               :aria-label="t('content.openPhotoPreview')"
-              @click="imagePreviewOpen = true"
+              @click="previewVideoUrl ? videoPreviewOpen = true : imagePreviewOpen = true"
             >
               <MediaImage
                 :src="form.image"
@@ -677,7 +719,7 @@ onBeforeUnmount(() => {
                   ? t('coverage.technicalPassed')
                   : t('coverage.manualReview')
             "
-            :description="post?.policyReason || t('content.verifyDescription')"
+            :description="policyDescription(post?.policyReason)"
           /><ULink :to="`${base}/brand`" class="text-primary small"
             >{{ t('content.businessFacts') }}</ULink
           >
@@ -701,7 +743,7 @@ onBeforeUnmount(() => {
               ></template
             ><template v-if="post?.status === 'approved'"
               ><UButton variant="outline" icon="i-lucide-send" @click="publishOpen = true"
-                >{{ t('content.publishNow') }}</UButton
+                >{{ form.channel === 'TikTok' ? t('content.sendToTikTok') : t('content.publishNow') }}</UButton
               ><UButton variant="outline" icon="i-lucide-calendar-plus" @click="scheduleOpen = true"
                 >{{ t('content.schedulePost') }}</UButton
               ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
@@ -741,7 +783,7 @@ onBeforeUnmount(() => {
                 : t('content.calendarOnlyDescription')
             "
           />
-          <p class="small muted">
+          <p v-if="form.channel !== 'TikTok'" class="small muted">
             {{ t('content.approvalCalendarNote') }}
           </p>
         </UCard>
@@ -756,6 +798,7 @@ onBeforeUnmount(() => {
           :name="data.brand.name"
           :image="form.image"
           :caption="form.caption"
+          :video-url="previewVideoUrl"
         />
         <p class="small muted text-center">
           {{ t('content.previewNote') }}
@@ -773,7 +816,7 @@ onBeforeUnmount(() => {
             v-if="!canPublish"
             color="neutral"
             variant="outline"
-            :title="t('content.metaConnectionRequiredTitle')"
+            :title="form.channel === 'TikTok' ? t('content.tiktokConnectionRequiredTitle') : t('content.metaConnectionRequiredTitle')"
             :actions="[
               {
                 label: t('content.viewConnections'),
@@ -788,6 +831,7 @@ onBeforeUnmount(() => {
             :name="data.brand.name"
             :image="form.image"
             :caption="form.caption"
+            :video-url="previewVideoUrl"
           /><UButton
             block
             variant="outline"

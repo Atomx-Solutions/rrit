@@ -33,6 +33,12 @@ type CurrentReview = {
 }
 async function loadLatest() {
   if (!props.post.aiProvenance || loadingLatest.value) return
+  if (props.post.video) {
+    latest.value = props.post.video.qualityContentVersion === (props.post.contentVersion || 1)
+      ? props.post.video.quality || null
+      : null
+    return
+  }
   loadingLatest.value = true
   problem.value = ''
   try {
@@ -49,7 +55,7 @@ async function loadLatest() {
   }
 }
 watch(
-  () => [props.post.id, props.post.contentVersion],
+  () => [props.post.id, props.post.contentVersion, props.post.video?.status, props.post.video?.qualityContentVersion],
   () => {
     latest.value = null
     latestAt.value = null
@@ -171,7 +177,7 @@ async function review() {
               {{ t('provenance.savedReview') }}
             </p>
             <UButton
-              v-if="['draft', 'review'].includes(post.status)"
+              v-if="!post.video && ['draft', 'review'].includes(post.status)"
               icon="i-lucide-scan-eye"
               color="neutral"
               variant="outline"
@@ -180,16 +186,16 @@ async function review() {
               @click="review"
               >{{ t('provenance.reviewCurrent') }}</UButton
             >
-            <p class="text-xs text-muted">
+            <p v-if="!post.video" class="text-xs text-muted">
               {{ t('provenance.reviewNote') }}
             </p>
             <h3 class="text-sm font-semibold">{{ t('provenance.initialQuality') }}</h3>
             <p
-              v-for="reason in post.aiProvenance.quality.reasons"
+              v-for="reason in (post.video?.quality?.reasons || post.aiProvenance.quality.reasons)"
               :key="reason"
               class="text-sm text-muted"
             >
-              {{ reason }}
+              {{ reason === 'server.VIDEO_QA_PENDING' ? t(reason) : reason }}
             </p>
             <p v-if="(post.contentVersion || 1) > 1" class="text-xs text-muted">
               {{ t('provenance.contentChanged') }}

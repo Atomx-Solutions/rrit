@@ -518,9 +518,14 @@ async function runOnePublishingJob(db: Pool) {
   if (!job) return { processed: 0 }
   let publicWriteStarted = false
   let publicWriteAccepted = false
+  const preflight = await db.connect()
+  let preflightReleased = false
   try {
-    await requireEntitlement(job.business_id, 'publishing', db)
-    const row = await db.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [
+    const owner = await preflight.query<{ owner_id: string }>('SELECT owner_id FROM businesses WHERE id=$1', [job.business_id])
+    if (!owner.rows[0]) throw new Error('post_missing')
+    await setTenantContext(preflight, { userId: owner.rows[0].owner_id, organizationId: job.business_id })
+    await requireEntitlement(job.business_id, 'publishing', preflight)
+    const row = await preflight.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [
       job.post_id,
       job.business_id,
     ])
@@ -534,37 +539,39 @@ async function runOnePublishingJob(db: Pool) {
     )
       throw new Error('version_changed')
     const checks = [
-      ...(await localPostChecks(post, job.business_id, db)),
-      ...(await providerPostChecks(post, job.business_id, { throwProviderFailure: true, db })),
+      ...(await localPostChecks(post, job.business_id, preflight)),
+      ...(await providerPostChecks(post, job.business_id, { throwProviderFailure: true, db: preflight })),
     ]
-    if (blockingPostChecks(checks).some((check) => !check.passed))
+    const failedBlocking = blockingPostChecks(checks).filter((check) => !check.passed)
+    if (failedBlocking.length) {
+      console.error('[publish] preflight blocking checks failed:', failedBlocking.map((c) => ({ key: c.key, message: c.message })))
       throw new Error('preflight_failed')
-    const connection = await connectedMeta(job.business_id, db)
+    }
+    const connection = await connectedMeta(job.business_id, preflight)
     if (
       connection.page_id !== job.target_page_id ||
       (post.channel === 'Instagram' && connection.instagram_id !== job.target_instagram_id)
     )
       throw new Error('identity_changed')
     const token = decryptMetaToken(connection.page_token_ciphertext, job.business_id)
-    // A video post publishes the render, not the still it was composed from.
-    // Preflight already refused a post whose render is not ready, so a missing
-    // row here is a real fault rather than a wait.
     let videoUrl: string | null = null
     if (post.video) {
-      const render = await db.query<{ id: string; status: string; storage_path: string | null; composed: boolean }>(
+      const render = await preflight.query<{ id: string; status: string; storage_path: string | null; composed: boolean }>(
         'SELECT id,status,storage_path,composed FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
         [job.post_id, job.business_id],
       )
+      console.log('[publish] video render:', render.rows[0] ? { id: render.rows[0].id, status: render.rows[0].status, composed: render.rows[0].composed, hasPath: !!render.rows[0].storage_path } : 'none')
       if (!render.rows[0] || render.rows[0].status !== 'ready' || !render.rows[0].storage_path
         || !render.rows[0].composed)
         throw new Error('video_render_missing')
       videoUrl = publicVideoUrl(render.rows[0].id)
+      console.log('[publish] videoUrl:', videoUrl)
     }
+    preflight.release(); preflightReleased = true
     let providerId: string | undefined
     if (post.channel === 'Facebook') {
       publicWriteStarted = true
-      // A page video is its own endpoint and takes the caption as
-      // `description`; the photo endpoint would reject a video outright.
+      console.log('[publish] Facebook publish:', videoUrl ? 'video' : 'photo', 'page:', connection.page_id)
       const response = videoUrl
         ? await graphRequest<{ id?: string; post_id?: string }>(
             `${connection.page_id}/videos`,
@@ -578,6 +585,7 @@ async function runOnePublishingJob(db: Pool) {
             { url: publicMediaUrl(post.image), caption: post.caption, published: 'true' },
             'POST',
           )
+      console.log('[publish] Facebook response:', JSON.stringify(response))
       providerId = response.post_id || response.id
     } else {
       let container = job.provider_container_id
@@ -632,6 +640,8 @@ async function runOnePublishingJob(db: Pool) {
     if (verified.id !== providerId) throw new Error('provider_confirmation_mismatch')
     await finishJob(job, 'published', null, providerId, db)
   } catch (error) {
+    if (!preflightReleased) preflight.release()
+    console.error('[publish] job failed:', job.id, error instanceof Error ? error.message : error, error instanceof MetaFailure ? { code: error.code, category: error.category } : '')
     if (error instanceof MetaFailure && error.safeToRetry) {
       if (await schedulePublicationRetry(job, error, db)) return { processed: 1 }
       await finishJob(job, 'failed', `retry_exhausted_${error.category}`, undefined, db)

@@ -23,7 +23,20 @@ export async function requireUser(event: H3Event) {
 
 export function requireSameOrigin(event: H3Event) {
   const origin = getHeader(event, 'origin')
-  if (!origin || !authConfiguration().trustedOrigins.includes(origin))
+  let localDevOrigin = false
+  if (origin && process.env.NODE_ENV !== 'production') {
+    try {
+      const submitted = new URL(origin)
+      const request = getRequestURL(event)
+      localDevOrigin =
+        submitted.protocol === 'http:' &&
+        ['localhost', '127.0.0.1', '[::1]'].includes(submitted.hostname) &&
+        submitted.origin === request.origin
+    } catch {
+      localDevOrigin = false
+    }
+  }
+  if (!origin || (!authConfiguration().trustedOrigins.includes(origin) && !localDevOrigin))
     throw createError({
       statusCode: 403,
       message: 'server.REQUEST_DENIED',

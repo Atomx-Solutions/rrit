@@ -26,5 +26,19 @@ export default defineEventHandler(async (event) => {
     return { path: render.rows[0].storage_path, token: decryptTikTokToken(row.access_token_ciphertext, business.id) }
   })
   const bytes = await downloadAsset(snapshot.path, 50 * 1024 * 1024)
-  return uploadTikTokDraft(snapshot.token, bytes)
+  const result = await uploadTikTokDraft(snapshot.token, bytes)
+  // Check publish status after upload
+  try {
+    const statusRes = await fetch('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${snapshot.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publish_id: result.publishId }),
+      signal: AbortSignal.timeout(10000),
+    })
+    const statusData = await statusRes.json()
+    console.log('[tiktok-upload] publish status:', statusRes.status, JSON.stringify(statusData))
+  } catch (e) {
+    console.log('[tiktok-upload] status check failed:', e)
+  }
+  return result
 })

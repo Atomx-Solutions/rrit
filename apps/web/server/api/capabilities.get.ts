@@ -30,7 +30,7 @@ export default defineEventHandler(async () => {
     trialHours: durationHours,
     trialPosts,
     socialImport: metaConfigured(),
-    publishing: metaConfigured() && process.env.PUBLISHING_ENABLED === 'true',
+    publishing: (metaConfigured() || tiktokConfigured()) && process.env.PUBLISHING_ENABLED === 'true',
     ai:
       aiProviderConfigured() && aiProviderModelConfigured('OPENAI_MODEL') && aiCostConfigured(),
     billing: false,

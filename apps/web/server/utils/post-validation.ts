@@ -171,21 +171,20 @@ export async function localPostChecks(
       message: 'server.SOURCE_MATERIAL_CHANGED',
     })
     let quality = null
-    if (row?.state?.brand) {
+    if (post.video) {
+      // Review the delivered motion, never the pending poster result.
+      quality = post.video.qualityContentVersion === postContentVersion(post) ? post.video.quality || null : null
+    } else if (row?.state?.brand) {
       const language = (row.state.preferences?.locale === 'en-US' ? 'en' : 'sq') as 'en' | 'sq'
       const review = await db.query(
         "SELECT result FROM monthly_ai_runs WHERE business_id=$1 AND plan_id=$2 AND stage_key=$3 AND status='completed' AND actual_cost_micro_eur<=reserved_cost_micro_eur",
-        [
-          businessId,
-          provenance.planId,
-          qualityReviewKey(post, postFingerprint(post), row.state.brand, useDay, language),
-        ],
+        [businessId, provenance.planId, qualityReviewKey(post, postFingerprint(post), row.state.brand, useDay, language)],
       )
       if (review.rows[0]) {
         try {
           quality = reviewedQuality(review.rows[0].result)
         } catch {
-          /* Malformed reviews fail closed. */
+          /* Malformed reviews are never treated as passing. */
         }
       } else if (
         postContentVersion(post) === 1 &&
@@ -193,9 +192,7 @@ export async function localPostChecks(
         postFingerprint({ ...post, ...row.initial_content }) === postFingerprint(post) &&
         qualityBrandHash({
           ...row.state.brand,
-          facts: currentFacts.filter((fact) =>
-            originalFacts.some((original) => original.id === fact.id),
-          ),
+          facts: currentFacts.filter((fact) => originalFacts.some((original) => original.id === fact.id)),
         }) === qualityBrandHash(row.evidence.brand)
       ) {
         quality = provenance.quality
@@ -203,18 +200,18 @@ export async function localPostChecks(
     }
     aiChecks.push({
       key: 'ai_quality',
-      passed:
-        !!quality &&
-        quality.factuality &&
-        quality.brandFit &&
-        quality.visualQuality,
-      // AI quality is guidance for the human approver. Keep the finding
-      // visible, but do not block approval or scheduling when it is missing
-      // or negative.
-      advisory: true,
-      message:
-        quality?.reasons.join(' ') ||
-        'server.AI_QUALITY_REVIEW_NEEDED',
+      passed: !!quality && quality.factuality && quality.brandFit && quality.visualQuality,
+      advisory: post.video ? quality?.factuality !== false : true,
+      message: quality?.reasons.join(' ') || (quality ? 'validation.aiQualityPassed' : 'server.AI_QUALITY_REVIEW_NEEDED'),
+    })
+  }
+  if (post.video && !post.aiProvenance) {
+    const quality = post.video.qualityContentVersion === postContentVersion(post) ? post.video.quality : null
+    aiChecks.push({
+      key: 'ai_quality',
+      passed: !!quality && quality.factuality && quality.brandFit && quality.visualQuality,
+      advisory: quality?.factuality !== false,
+      message: quality?.reasons.join(' ') || (quality ? 'validation.aiQualityPassed' : 'server.AI_QUALITY_REVIEW_NEEDED'),
     })
   }
   return [
@@ -359,6 +356,24 @@ export async function providerPostChecks(
     ]
   }
 }
+export async function tiktokPublishChecks(
+  businessId: string,
+  db: Pool | PoolClient,
+): Promise<PostCheck[]> {
+  const row = await db.query(
+    "SELECT id,scopes,expires_at,status FROM tiktok_connections WHERE business_id=$1 AND status='connected'",
+    [businessId],
+  )
+  const connection = row.rows[0] as { id: string; scopes: string[]; expires_at: Date; status: string } | undefined
+  if (!connection)
+    return [{ key: 'tiktok', passed: false, message: 'server.TIKTOK_NOT_CONNECTED' }]
+  if (connection.expires_at < new Date())
+    return [{ key: 'tiktok', passed: false, message: 'server.TIKTOK_TOKEN_EXPIRED' }]
+  if (!connection.scopes.includes('video.upload'))
+    return [{ key: 'tiktok_scope', passed: false, message: 'server.TIKTOK_SCOPE_MISSING' }]
+  return [{ key: 'tiktok', passed: true, message: 'server.TIKTOK_CONFIRMED_ACCESS' }]
+}
+
 export async function requireFreshValidation(
   post: Post,
   businessId: string,

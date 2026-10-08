@@ -5,7 +5,7 @@ const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.socialPosts')} · Rrit` })
 const page = ref(1)
 const pageSize = ref(10)
-const channel = ref<'all' | 'Facebook' | 'Instagram'>('Facebook')
+const channel = ref<'all' | 'Facebook' | 'Instagram' | 'TikTok'>('Facebook')
 const search = ref('')
 const query = computed(() => ({
   page: page.value,
@@ -22,7 +22,8 @@ const {
 const { data: connection } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const selected = ref<NonNullable<typeof result.value>['posts'][number] | null>(null)
 const importing = ref(false)
-const importChannel = ref<'Facebook' | 'Instagram'>('Facebook')
+const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
+const importChannel = ref<'Facebook' | 'Instagram' | 'TikTok'>('Facebook')
 const cursor = ref<string | undefined>()
 const hasMore = ref(false)
 const message = ref('')
@@ -45,12 +46,12 @@ async function sync(more = false) {
   error.value = ''
   message.value = ''
   try {
-    const response = await $fetch('/api/meta/sync', {
+    const isTikTok = importChannel.value === 'TikTok'
+    const response = await $fetch(isTikTok ? '/api/tiktok/sync' : '/api/meta/sync', {
       method: 'POST',
-      body: {
-        channel: importChannel.value,
-        ...(more && cursor.value ? { after: cursor.value } : {}),
-      },
+      body: isTikTok
+        ? { ...(more && cursor.value ? { cursor: cursor.value } : {}) }
+        : { channel: importChannel.value, ...(more && cursor.value ? { after: cursor.value } : {}) },
       retry: 0,
     })
     cursor.value = response.nextCursor || undefined
@@ -58,13 +59,16 @@ async function sync(more = false) {
     message.value = t('social.importedMessage', { count: response.imported, channel: importChannel.value })
     showSuccess(message.value)
     await refresh()
-    await refreshNuxtData('meta-status')
+    await refreshNuxtData(isTikTok ? 'tiktok-status' : 'meta-status')
   } catch (problem) {
     const details = problem as { data?: { code?: string; message?: string; data?: { code?: string } } }
     const code = details.data?.code || details.data?.data?.code
+    const msg = details.data?.message || ''
     error.value = code === 'PAGE_ALREADY_CONNECTED'
       ? t('social.pageAlreadyConnected')
-      : t('social.importError')
+      : msg.includes('SCOPE_MISSING') || msg.includes('TOKEN_EXPIRED')
+        ? t('social.tiktokReconnectRequired')
+        : t('social.importError')
   } finally {
     importing.value = false
   }
@@ -76,14 +80,14 @@ async function sync(more = false) {
     <div class="mt-6"><TikTokConnection /></div>
     <div class="flex flex-wrap items-end gap-3 mt-6">
       <UFormField :label="t('social.importFrom')"
-        ><USelect v-model="importChannel" :items="['Facebook', 'Instagram']" :disabled="importing"
+        ><USelect v-model="importChannel" :items="['Facebook', 'Instagram', 'TikTok']" :disabled="importing"
       /></UFormField>
       <UButton
         variant="outline"
         color="neutral"
         icon="i-lucide-refresh-cw"
         :loading="importing"
-        :disabled="connection?.connection?.status !== 'connected'"
+        :disabled="importChannel === 'TikTok' ? tiktokStatus?.connection?.status !== 'connected' : connection?.connection?.status !== 'connected'"
         @click="sync()"
         >{{ t('social.refreshPosts') }}</UButton
       >
@@ -111,6 +115,7 @@ async function sync(more = false) {
         :items="[
           { label: 'Facebook', value: 'Facebook' },
           { label: 'Instagram', value: 'Instagram' },
+          { label: 'TikTok', value: 'TikTok' },
           { label: t('common.all'), value: 'all' },
         ]"
         :aria-label="t('social.filterNetwork')"
@@ -164,7 +169,18 @@ async function sync(more = false) {
     >
       <template #body
         ><div v-if="selected" class="space-y-5">
+          <div v-if="selected.channel === 'TikTok' && selected.permalink" class="w-full">
+            <iframe
+              :key="selected.id"
+              :src="`https://www.tiktok.com/player/v1/${selected.permalink.split('/video/')[1]?.split('?')[0]}?music_info=1&description=1`"
+              class="w-full rounded-xl"
+              style="height: 740px; border: none;"
+              allow="fullscreen"
+              sandbox="allow-scripts allow-same-origin allow-popups"
+            />
+          </div>
           <ChannelPreview
+            v-else
             :channel="selected.channel"
             :name="data.brand.name"
             :image="selected.image || ''"

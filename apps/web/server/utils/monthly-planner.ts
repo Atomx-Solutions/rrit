@@ -1858,9 +1858,8 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       // A video slot's gallery poster is the prepared 9:16 opening frame of
       // the mp4 that is about to be rendered, not a separately AI-generated
       // 4:5 creative. The expensive planner image call, its creative
-      // normalization and the quality review that read a creative the viewer
-      // never sees are skipped entirely for video deliverables; the mp4
-      // itself remains the only billable AI output of the video pipeline.
+      // normalization and the still-image quality review are skipped for video
+      // deliverables. The finished MP4 receives its own frame-based review.
       if (slot.deliverable === 'video') {
         const [posterWidth, posterHeight] = videoFormat.split('x').map(Number)
         creative = await plannerStep('content.video_poster', () =>
@@ -1872,11 +1871,11 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         imageGeneration = undefined
         quality = normalizeQualityReview(
           qualitySchema.parse({
-            decision: 'PASS',
-            reasons: [],
+            decision: 'WARN',
+            reasons: ['server.VIDEO_QA_PENDING'],
             factuality: true,
             brandFit: true,
-            visualQuality: true,
+            visualQuality: false,
           }),
         )
         break

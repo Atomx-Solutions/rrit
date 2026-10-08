@@ -3,6 +3,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 const authorizeUrl = 'https://www.tiktok.com/v2/auth/authorize/'
 const tokenUrl = 'https://open.tiktokapis.com/v2/oauth/token/'
 const inboxVideoInitUrl = 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/'
+const directVideoInitUrl = 'https://open.tiktokapis.com/v2/post/publish/video/init/'
+const videoListUrl = 'https://open.tiktokapis.com/v2/video/list/'
 
 export const hashTikTokState = (value: string) => createHash('sha256').update(value).digest('hex')
 
@@ -42,7 +44,7 @@ export function decryptTikTokToken(envelope: string, businessId: string) {
 export function tiktokAuthorizeUrl(state: string) {
   const config = tiktokConfiguration()
   const url = new URL(authorizeUrl)
-  url.search = new URLSearchParams({ client_key: config.clientKey, redirect_uri: config.redirectUri, response_type: 'code', scope: 'user.info.basic,video.upload', state }).toString()
+  url.search = new URLSearchParams({ client_key: config.clientKey, redirect_uri: config.redirectUri, response_type: 'code', scope: 'user.info.basic,video.upload,video.list', state }).toString()
   return url.toString()
 }
 
@@ -66,7 +68,8 @@ export async function uploadTikTokDraft(accessToken: string, video: Buffer, cont
     signal: AbortSignal.timeout(20000),
     redirect: 'error',
   })
-  const initialized = await init.json() as { data?: { publish_id?: string; upload_url?: string } }
+  const initialized = await init.json() as { data?: { publish_id?: string; upload_url?: string }; error?: { code: string; message: string } }
+  console.log('[tiktok-upload] init response:', init.status, JSON.stringify(initialized))
   if (!init.ok || !initialized.data?.publish_id || !initialized.data.upload_url)
     throw createError({ statusCode: 502, message: 'server.TIKTOK_UPLOAD_REJECTED' })
   const uploaded = await fetch(initialized.data.upload_url, {
@@ -76,6 +79,42 @@ export async function uploadTikTokDraft(accessToken: string, video: Buffer, cont
     signal: AbortSignal.timeout(60000),
     redirect: 'error',
   })
+  const uploadBody = await uploaded.text()
+  console.log('[tiktok-upload] upload response:', uploaded.status, uploadBody)
   if (!uploaded.ok) throw createError({ statusCode: 502, message: 'server.TIKTOK_SEND_FAILED' })
   return { publishId: initialized.data.publish_id }
+}
+
+export type TikTokVideo = {
+  id: string
+  title: string
+  cover_image_url: string
+  share_url: string
+  create_time: number
+  duration: number
+}
+
+export async function listTikTokVideos(accessToken: string, cursor?: number, maxCount = 20) {
+  const body: Record<string, unknown> = { max_count: maxCount }
+  if (cursor) body.cursor = cursor
+  const response = await fetch(`${videoListUrl}?fields=id,title,cover_image_url,share_url,create_time,duration`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+    redirect: 'error',
+  })
+  const data = await response.json() as {
+    data?: { videos?: TikTokVideo[]; cursor?: number; has_more?: boolean }
+    error?: { code: string; message: string }
+  }
+  if (!response.ok || (data.error?.code && data.error.code !== 'ok')) {
+    console.error('[tiktok] video list response:', response.status, JSON.stringify(data))
+    throw createError({ statusCode: 502, message: 'server.TIKTOK_LIST_FAILED' })
+  }
+  return {
+    videos: data.data?.videos || [],
+    cursor: data.data?.cursor,
+    hasMore: data.data?.has_more || false,
+  }
 }
