@@ -55,7 +55,7 @@ export async function adminUsers(query: AdminUsersQuery) {
   })
   if (error) {
     console.error('Admin user list failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Lista e përdoruesve nuk u ngarkua.' })
+    throw createError({ statusCode: 502, message: 'server.USERS_LIST_LOAD_FAILED' })
   }
   return normalizeAdminUsers(data, query)
 }

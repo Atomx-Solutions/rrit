@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
   const id = uuid.safeParse(getRouterParam(event, 'id'))
-  if (!id.success) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+  if (!id.success) throw createError({ statusCode: 404, message: 'server.BUSINESS_NOT_FOUND' })
   const parsed = schema.safeParse(await boundedBody(event))
   if (!parsed.success) fail('Kontrollo fushat. Një vlerë është jashtë kufijve të lejuar.')
   const input = parsed.data
@@ -81,18 +81,18 @@ export default defineEventHandler(async (event) => {
     await client.query('BEGIN')
     await setUserContext(client, user.id)
     const owner = await businessForUser(user.id, client)
-    if (owner.id !== id.data) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+    if (owner.id !== id.data) throw createError({ statusCode: 404, message: 'server.BUSINESS_NOT_FOUND' })
     await setTenantContext(client, { userId: user.id, organizationId: id.data })
     if (uploads.length) await requireEntitlement(id.data, 'media', client)
     const locked = await client.query(
       'SELECT revision FROM businesses WHERE id = $1 AND owner_id = $2 FOR UPDATE',
       [id.data, user.id],
     )
-    if (!locked.rows.length) throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+    if (!locked.rows.length) throw createError({ statusCode: 404, message: 'server.BUSINESS_NOT_FOUND' })
     if (locked.rows[0].revision !== input.revision - 1)
       throw createError({
         statusCode: 409,
-        message: 'Ka ndryshime nga një pajisje tjetër. Ngarko versionin e fundit.',
+        message: 'server.CHANGES_OTHER_DEVICE',
       })
     const { workspace: current } = await loadWorkspace(client, id.data, user.id)
     const canonicalBrand = await client.query<{ id: string; revision: number }>(
@@ -102,7 +102,7 @@ export default defineEventHandler(async (event) => {
     if (canonicalBrand.rows[0] && input.brandRevision !== canonicalBrand.rows[0].revision)
       throw createError({
         statusCode: 409,
-        message: 'Brandi ndryshoi në një pajisje tjetër. Ngarko versionin e fundit.',
+        message: 'server.BRAND_CHANGED_OTHER_DEVICE',
       })
     input.brand = await syncBusinessBrain(client, id.data, user.id, input.brand, current.brand)
     const organization = await client.query<{ name: string }>(
@@ -515,7 +515,7 @@ export default defineEventHandler(async (event) => {
       if (!savedBrand.rows[0])
         throw createError({
           statusCode: 409,
-          message: 'Brandi ndryshoi në një pajisje tjetër. Ngarko versionin e fundit.',
+          message: 'server.BRAND_CHANGED_OTHER_DEVICE',
         })
       savedBrandRevision = savedBrand.rows[0].revision
     }

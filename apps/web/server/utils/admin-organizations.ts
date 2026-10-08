@@ -85,7 +85,7 @@ export async function adminOrganizations(query: AdminOrganizationsQuery) {
   })
   if (error) {
     console.error('Admin organization list failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Lista e organizatave nuk u ngarkua.' })
+    throw createError({ statusCode: 502, message: 'server.ORGANIZATIONS_LIST_LOAD_FAILED' })
   }
   return normalizeAdminOrganizations(data, query)
 }

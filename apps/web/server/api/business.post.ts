@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success)
     throw createError({
       statusCode: 422,
-      message: 'Plotëso emrin, qytetin dhe përshkrimin e biznesit.',
+      message: 'server.BUSINESS_FIELDS_REQUIRED',
     })
   const state = emptyWorkspace(user.name, user.email)
   Object.assign(state.brand, {

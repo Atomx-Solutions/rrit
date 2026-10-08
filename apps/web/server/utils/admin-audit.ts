@@ -75,7 +75,7 @@ export async function adminAuditEvents(query: AdminAuditQuery) {
   })
   if (error) {
     console.error('Admin audit log failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Regjistri i veprimeve nuk u ngarkua.' })
+    throw createError({ statusCode: 502, message: 'server.AUDIT_LOG_LOAD_FAILED' })
   }
   return normalizeAdminAudit(data, query)
 }

@@ -13,6 +13,7 @@ export const creditPricingChangesSchema = nonEmpty({
   credit_price_cents: z.number().int().min(1).max(100_000).optional(),
   provider_cost_per_credit_micro_eur: z.number().int().min(1).max(100_000_000).optional(),
   low_credit_threshold: count.max(100_000_000).optional(),
+  tiktok_video_credits: z.number().int().min(1).max(100_000).optional(),
 })
 export const invoiceSettingsChangesSchema = nonEmpty({
   number_prefix: z.string().trim().regex(/^[A-Z0-9]{2,12}$/).optional(),
@@ -23,12 +24,13 @@ export const invoiceSettingsChangesSchema = nonEmpty({
 })
 export const trialPlanChangesSchema = nonEmpty({
   posts_per_month: z.number().int().min(0).max(10_000).optional(),
+  videos_per_month: z.number().int().min(0).max(10_000).optional(),
   active: z.boolean().optional(),
 })
 
 // Business-rule failures raised by the admin_update_* functions.
 const failures: Record<string, { statusCode: number; message: string }> = {
-  SETTINGS_INVALID: { statusCode: 400, message: 'Vlerat e cilësimeve nuk janë të vlefshme.' },
+  SETTINGS_INVALID: { statusCode: 400, message: 'server.SETTINGS_VALUES_INVALID' },
 }
 export function adminPlansFailure(message: string | undefined) {
   const failure = message ? failures[message] : undefined
@@ -42,7 +44,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
     if (failure)
       throw createError({ statusCode: failure.statusCode, message: failure.message, data: { code: failure.code } })
     console.error('Admin plans settings call failed.', { name, code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Cilësimet nuk u ruajtën.' })
+    throw createError({ statusCode: 502, message: 'server.SETTINGS_NOT_SAVED' })
   }
   return data as Record<string, unknown>
 }
@@ -56,7 +58,7 @@ export async function adminChangeBody<T extends z.ZodType>(event: H3Event, schem
   requireSameOrigin(event)
   const body = schema.safeParse(await boundedBody(event, 4096))
   if (!body.success)
-    throw createError({ statusCode: 400, message: 'Vlerat nuk janë të vlefshme.', data: { code: 'INVALID_BODY' } })
+    throw createError({ statusCode: 400, message: 'server.VALUES_INVALID', data: { code: 'INVALID_BODY' } })
   return body.data
 }
 

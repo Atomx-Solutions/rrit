@@ -85,7 +85,7 @@ async function purchasablePlan(client: PoolClient, code: string) {
     [code],
   )
   const plan = result.rows[0]
-  if (!plan) throw billingError(422, 'PLAN_UNAVAILABLE', 'Pakoja nuk është e disponueshme.')
+  if (!plan) throw billingError(422, 'PLAN_UNAVAILABLE', 'server.PACKAGE_UNAVAILABLE')
   return plan
 }
 

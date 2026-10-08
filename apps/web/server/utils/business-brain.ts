@@ -149,7 +149,7 @@ export async function getBusinessBrain(
     `SELECT ${guardrailColumns} FROM brand_guardrails WHERE brand_id=$1 AND organization_id=$2 AND status <> 'archived' ORDER BY created_at`,
     [brandId, organizationId],
   )
-  if (!brand.rows[0]) throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
+  if (!brand.rows[0]) throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
   return businessBrainSchema.parse({
     revision: brand.rows[0].revision,
     facts: facts.rows.map(toFact),
@@ -239,9 +239,9 @@ async function lockBrand(client: PoolClient, organizationId: string, brandId: st
     'SELECT revision, status FROM brands WHERE id=$1 AND organization_id=$2 FOR UPDATE',
     [brandId, organizationId],
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
   if (result.rows[0].status === 'archived')
-    throw createError({ statusCode: 409, message: 'Brandi i arkivuar nuk mund te ndryshohet.' })
+    throw createError({ statusCode: 409, message: 'server.ARCHIVED_BRAND_IMMUTABLE_BB' })
   return result.rows[0]
 }
 
@@ -303,7 +303,7 @@ export async function updateExplicitFact(
     [input.text, input.source, input.sourceUrl, input.confidence, factId, brandId, organizationId],
   )
   if (!result.rows[0])
-    throw createError({ statusCode: 404, message: 'Fakti eksplicit nuk u gjet.' })
+    throw createError({ statusCode: 404, message: 'server.EXPLICIT_FACT_NOT_FOUND' })
   await syncLegacyFacts(client, organizationId, brandId)
   await bumpBrand(client, organizationId, brandId)
   return toFact(result.rows[0])
@@ -322,7 +322,7 @@ export async function archiveBusinessBrainFact(
      RETURNING ${factColumns}`,
     [factId, brandId, organizationId],
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Fakti nuk u gjet.' })
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.FACT_NOT_FOUND' })
   await syncLegacyFacts(client, organizationId, brandId)
   await bumpBrand(client, organizationId, brandId)
   return toFact(result.rows[0])
@@ -349,7 +349,7 @@ export async function transitionBusinessBrainFact(
     [status, userId, factId, brandId, organizationId],
   )
   if (!result.rows[0])
-    throw createError({ statusCode: 409, message: 'Fakti nuk mund te kaloje ne kete status.' })
+    throw createError({ statusCode: 409, message: 'server.FACT_TRANSITION_INVALID' })
   await syncLegacyFacts(client, organizationId, brandId)
   await bumpBrand(client, organizationId, brandId)
   return toFact(result.rows[0])
@@ -397,7 +397,7 @@ export async function activateBusinessBrainOffer(
     [offerId, brandId, organizationId],
   )
   if (!result.rows[0])
-    throw createError({ statusCode: 422, message: 'Oferta nuk eshte valide per aktivizim.' })
+    throw createError({ statusCode: 422, message: 'server.OFFER_ACTIVATION_INVALID' })
   await bumpBrand(client, organizationId, brandId)
   return toOffer(result.rows[0])
 }
@@ -416,7 +416,7 @@ export async function deactivateBusinessBrainOffer(
     [offerId, brandId, organizationId],
   )
   if (!result.rows[0])
-    throw createError({ statusCode: 422, message: 'Oferta nuk mund te çaktivizohet.' })
+    throw createError({ statusCode: 422, message: 'server.OFFER_DEACTIVATION_INVALID' })
   await bumpBrand(client, organizationId, brandId)
   return toOffer(result.rows[0])
 }
@@ -449,7 +449,7 @@ export async function updateBusinessBrainOffer(
       organizationId,
     ],
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Oferta nuk u gjet.' })
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.OFFER_NOT_FOUND' })
   await bumpBrand(client, organizationId, brandId)
   return toOffer(result.rows[0])
 }
@@ -467,7 +467,7 @@ export async function archiveBusinessBrainOffer(
      RETURNING ${offerColumns}`,
     [offerId, brandId, organizationId],
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Oferta nuk u gjet.' })
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.OFFER_NOT_FOUND' })
   await bumpBrand(client, organizationId, brandId)
   return toOffer(result.rows[0])
 }
@@ -487,7 +487,7 @@ export async function updateBusinessBrainSettings(
   if (current.revision !== input.revision)
     throw createError({
       statusCode: 409,
-      message: 'Business Brain ndryshoi ne nje pajisje tjeter.',
+      message: 'server.BUSINESS_BRAIN_CHANGED_OTHER_DEVICE',
     })
   await client.query(
     'UPDATE brand_voice_versions SET active=false WHERE brand_id=$1 AND organization_id=$2 AND active=true',

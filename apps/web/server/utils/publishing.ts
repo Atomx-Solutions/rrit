@@ -11,7 +11,7 @@ export async function requirePublishingWorker(db: Pool | PoolClient = database()
   if (!metaConfigured() || process.env.PUBLISHING_ENABLED !== 'true')
     throw createError({
       statusCode: 503,
-      message: 'Publikimi në Meta ende nuk është aktivizuar nga platforma.',
+      message: 'server.META_PUBLISHING_NOT_ENABLED',
     })
   const heartbeat = await db.query(
     "SELECT name FROM worker_heartbeats WHERE name='publisher' AND last_seen_at>now()-interval '2 minutes'",
@@ -20,13 +20,13 @@ export async function requirePublishingWorker(db: Pool | PoolClient = database()
     throw createError({
       statusCode: 503,
       message:
-        'Shërbimi i publikimit është përkohësisht i padisponueshëm. Drafti yt mbetet i ruajtur.',
+        'server.PUBLISHING_SERVICE_UNAVAILABLE',
     })
 }
 function mediaKey() {
   const key = process.env.MEDIA_SIGNING_KEY
   if (!key || key.length < 32)
-    throw createError({ statusCode: 503, message: 'Shërbimi i fotografive nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.PHOTO_SERVICE_NOT_CONFIGURED' })
   return key
 }
 export function mediaSignature(id: string, expires: string) {
@@ -42,10 +42,34 @@ export function publicMediaUrl(image: string) {
   const id = /^\/api\/media\/([a-f0-9-]{36})$/i.exec(image)?.[1]
   const origin = new URL(process.env.APP_URL!)
   if (!id || origin.protocol !== 'https:')
-    throw createError({ statusCode: 503, message: 'Fotografia kërkon një adresë publike HTTPS.' })
+    throw createError({ statusCode: 503, message: 'server.PHOTO_HTTPS_REQUIRED' })
   const expires = String(Math.floor(Date.now() / 1000) + 900)
   const url = new URL(`/api/publishing-media/${id}`, origin)
   url.search = new URLSearchParams({ expires, signature: mediaSignature(id, expires) }).toString()
+  return url.href
+}
+// Renders are signed under their own namespace, so a signature minted for a
+// photograph can never be replayed to fetch a video, or the other way round,
+// even if the two tables ever hand out the same id.
+export function videoSignature(id: string, expires: string) {
+  return createHmac('sha256', mediaKey()).update(`video:${id}:${expires}`).digest('hex')
+}
+export function validVideoSignature(id: string, expires: string, signature: string) {
+  if (!/^\d{10}$/.test(expires) || !/^[a-f0-9]{64}$/.test(signature)) return false
+  const now = Math.floor(Date.now() / 1000)
+  if (Number(expires) < now || Number(expires) > now + videoUrlLifetimeSeconds) return false
+  return timingSafeEqual(Buffer.from(signature), Buffer.from(videoSignature(id, expires)))
+}
+// Meta fetches the file itself, after a container has been created and while it
+// transcodes, so a video URL has to outlive a photograph's fifteen minutes.
+export const videoUrlLifetimeSeconds = 2 * 60 * 60
+export function publicVideoUrl(renderId: string) {
+  const origin = new URL(process.env.APP_URL!)
+  if (origin.protocol !== 'https:')
+    throw createError({ statusCode: 503, message: 'server.VIDEO_HTTPS_REQUIRED' })
+  const expires = String(Math.floor(Date.now() / 1000) + videoUrlLifetimeSeconds)
+  const url = new URL(`/api/publishing-video/${renderId}`, origin)
+  url.search = new URLSearchParams({ expires, signature: videoSignature(renderId, expires) }).toString()
   return url.href
 }
 export async function queuePublication(
@@ -55,16 +79,25 @@ export async function queuePublication(
   runAt: string,
   logicalKey = publicationLogicalKey(businessId, post.id, post.version),
 ) {
+  // This queue publishes to Meta only. TikTok has no scheduled publish of its
+  // own: a video bound for TikTok is pushed there as a draft the account holder
+  // finishes in the TikTok app, so it must never enter a Meta job, where the
+  // Facebook branch would otherwise take it by default.
+  if (post.channel === 'TikTok')
+    throw createError({
+      statusCode: 422,
+      message: 'server.TIKTOK_VIDEO_NOT_VIA_META',
+    })
   if (post.publicationMode !== 'automatic')
     throw createError({
       statusCode: 422,
-      message: 'Konfirmo publikimin automatik për ta dërguar postimin në Meta.',
+      message: 'server.AUTO_PUBLISH_CONFIRM_REQUIRED',
     })
   const access = await trialStatus(businessId, client)
   if (!access.paid && (!access.expiresAt || Date.parse(runAt) >= Date.parse(access.expiresAt)))
     throw createError({
       statusCode: 422,
-      message: 'Zgjidh një orar brenda periudhës aktive të trial-it.',
+      message: 'server.TRIAL_SCHEDULE_REQUIRED',
     })
   const connection = await client.query(
     "SELECT page_id,instagram_id FROM meta_connections WHERE business_id=$1 AND status='connected' AND expires_at>$2",
@@ -73,7 +106,7 @@ export async function queuePublication(
   if (!connection.rows[0])
     throw createError({
       statusCode: 422,
-      message: 'Lidhja me Meta duhet të jetë e vlefshme deri në orarin e publikimit.',
+      message: 'server.META_CONNECTION_MUST_BE_VALID',
     })
   const queued = await client.query(
     `INSERT INTO publication_jobs
@@ -409,7 +442,7 @@ export async function reconcileUncertainPublication(
     [postId, businessId],
   )
   const job = result.rows[0] as (Job & { payload: unknown }) | undefined
-  if (!job) throw createError({ statusCode: 409, message: 'Nuk ka publikim që pret verifikim.' })
+  if (!job) throw createError({ statusCode: 409, message: 'server.NO_PENDING_PUBLICATION' })
   const post = postSchema.parse(job.payload)
   const connection = await connectedMeta(businessId, db)
   if (
@@ -418,7 +451,7 @@ export async function reconcileUncertainPublication(
   )
     throw createError({
       statusCode: 409,
-      message: 'Rilidhe të njëjtën faqe ku u nis publikimi përpara kontrollit.',
+      message: 'server.RECONNECT_SAME_PAGE',
     })
   const token = decryptMetaToken(connection.page_token_ciphertext, businessId)
   let providerId = job.provider_post_id
@@ -513,15 +546,38 @@ async function runOnePublishingJob(db: Pool) {
     )
       throw new Error('identity_changed')
     const token = decryptMetaToken(connection.page_token_ciphertext, job.business_id)
+    // A video post publishes the render, not the still it was composed from.
+    // Preflight already refused a post whose render is not ready, so a missing
+    // row here is a real fault rather than a wait.
+    let videoUrl: string | null = null
+    if (post.video) {
+      const render = await db.query<{ id: string; status: string; storage_path: string | null; composed: boolean }>(
+        'SELECT id,status,storage_path,composed FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
+        [job.post_id, job.business_id],
+      )
+      if (!render.rows[0] || render.rows[0].status !== 'ready' || !render.rows[0].storage_path
+        || !render.rows[0].composed)
+        throw new Error('video_render_missing')
+      videoUrl = publicVideoUrl(render.rows[0].id)
+    }
     let providerId: string | undefined
     if (post.channel === 'Facebook') {
       publicWriteStarted = true
-      const response = await graphRequest<{ id?: string; post_id?: string }>(
-        `${connection.page_id}/photos`,
-        token,
-        { url: publicMediaUrl(post.image), caption: post.caption, published: 'true' },
-        'POST',
-      )
+      // A page video is its own endpoint and takes the caption as
+      // `description`; the photo endpoint would reject a video outright.
+      const response = videoUrl
+        ? await graphRequest<{ id?: string; post_id?: string }>(
+            `${connection.page_id}/videos`,
+            token,
+            { file_url: videoUrl, description: post.caption },
+            'POST',
+          )
+        : await graphRequest<{ id?: string; post_id?: string }>(
+            `${connection.page_id}/photos`,
+            token,
+            { url: publicMediaUrl(post.image), caption: post.caption, published: 'true' },
+            'POST',
+          )
       providerId = response.post_id || response.id
     } else {
       let container = job.provider_container_id
@@ -530,7 +586,11 @@ async function runOnePublishingJob(db: Pool) {
         const response = await graphRequest<{ id?: string }>(
           `${connection.instagram_id}/media`,
           token,
-          { image_url: publicMediaUrl(post.image), caption: post.caption },
+          // A vertical video is published as a Reel, which is the only video
+          // container Instagram offers a professional account.
+          videoUrl
+            ? { media_type: 'REELS', video_url: videoUrl, caption: post.caption }
+            : { image_url: publicMediaUrl(post.image), caption: post.caption },
           'POST',
         )
         if (!response.id) throw new Error('missing_container')

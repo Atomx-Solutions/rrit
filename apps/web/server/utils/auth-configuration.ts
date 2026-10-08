@@ -3,12 +3,12 @@ import { createError } from 'h3'
 export function authConfiguration() {
   const value = process.env.APP_URL
   if (!value)
-    throw createError({ statusCode: 503, message: 'Adresa e aplikacionit nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.APP_URL_NOT_CONFIGURED' })
   let url: URL
   try {
     url = new URL(value)
   } catch {
-    throw createError({ statusCode: 503, message: 'Adresa e aplikacionit nuk është e vlefshme.' })
+    throw createError({ statusCode: 503, message: 'server.APP_URL_INVALID' })
   }
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
   const origins = new Set([url.origin])

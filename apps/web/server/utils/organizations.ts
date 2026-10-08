@@ -38,12 +38,12 @@ async function withOrganizationUserTransaction<T>(
 }
 
 function unavailableOrganization(): never {
-  throw createError({ statusCode: 404, message: 'Organizata nuk u gjet.' })
+  throw createError({ statusCode: 404, message: 'server.ORGANIZATION_NOT_FOUND' })
 }
 
 function duplicateSlug(error: unknown): never {
   if (typeof error === 'object' && error && 'code' in error && error.code === '23505')
-    throw createError({ statusCode: 409, message: 'Ky slug i organizatës përdoret tashmë.' })
+    throw createError({ statusCode: 409, message: 'server.ORGANIZATION_SLUG_EXISTS' })
   throw error
 }
 
@@ -144,7 +144,7 @@ export async function updateOrganizationForUser(
     )
     if (!current.rows[0]) unavailableOrganization()
     if (current.rows[0].revision !== input.revision)
-      throw createError({ statusCode: 409, message: 'Organizata është ndryshuar. Ngarko versionin e fundit.' })
+      throw createError({ statusCode: 409, message: 'server.ORGANIZATION_CHANGED' })
     try {
       await client.query(
         'UPDATE organizations SET name=$1,slug=$2,revision=revision+1,updated_at=now() WHERE id=$3',

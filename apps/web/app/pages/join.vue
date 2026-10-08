@@ -35,7 +35,7 @@ async function claim() {
   } catch (error) {
     const problem = error as { statusCode?: number; data?: { message?: string } }
     if (problem.statusCode !== 401) {
-      failure.value = problem.data?.message || t('join.acceptFailed')
+      failure.value = t(problem.data?.message || 'join.acceptFailed')
       showError(failure.value)
     }
     return false

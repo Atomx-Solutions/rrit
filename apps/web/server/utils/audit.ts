@@ -23,15 +23,15 @@ const forbiddenMetadataKey = /(token|secret|password|api.?key|credential|authori
 const tokenLikeValue = /(^bearer\s|^eyJ[A-Za-z0-9_-]{10,})/i
 
 function sanitizeValue(value: unknown, depth = 0): AuditValue {
-  if (depth > 8) throw createError({ statusCode: 500, message: 'Audit metadata is nested too deeply.' })
+  if (depth > 8) throw createError({ statusCode: 500, message: 'server.AUDIT_METADATA_TOO_DEEP' })
   if (value === null || typeof value === 'boolean') return value
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw createError({ statusCode: 500, message: 'Audit metadata is invalid.' })
+    if (!Number.isFinite(value)) throw createError({ statusCode: 500, message: 'server.AUDIT_METADATA_INVALID' })
     return value
   }
   if (typeof value === 'string') {
     if (value.length > 500 || tokenLikeValue.test(value))
-      throw createError({ statusCode: 500, message: 'Sensitive data cannot be stored in audit metadata.' })
+      throw createError({ statusCode: 500, message: 'server.AUDIT_SENSITIVE_DATA' })
     return value
   }
   if (Array.isArray(value)) return value.map((item) => sanitizeValue(item, depth + 1))
@@ -39,21 +39,21 @@ function sanitizeValue(value: unknown, depth = 0): AuditValue {
     const next: AuditMetadata = {}
     for (const [key, nested] of Object.entries(value)) {
       if (!/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(key) || forbiddenMetadataKey.test(key))
-        throw createError({ statusCode: 500, message: 'Sensitive data cannot be stored in audit metadata.' })
+        throw createError({ statusCode: 500, message: 'server.AUDIT_SENSITIVE_DATA' })
       next[key] = sanitizeValue(nested, depth + 1)
     }
     return next
   }
-  throw createError({ statusCode: 500, message: 'Audit metadata is invalid.' })
+  throw createError({ statusCode: 500, message: 'server.AUDIT_METADATA_INVALID' })
 }
 
 export function sanitizeAuditMetadata(metadata: AuditMetadata = {}): AuditMetadata {
   const result = sanitizeValue(metadata)
   if (Array.isArray(result) || !result || typeof result !== 'object')
-    throw createError({ statusCode: 500, message: 'Audit metadata must be an object.' })
+    throw createError({ statusCode: 500, message: 'server.AUDIT_METADATA_NOT_OBJECT' })
   const serialized = JSON.stringify(result)
   if (Buffer.byteLength(serialized, 'utf8') > 4096)
-    throw createError({ statusCode: 500, message: 'Audit metadata is too large.' })
+    throw createError({ statusCode: 500, message: 'server.AUDIT_METADATA_TOO_LARGE' })
   return result
 }
 

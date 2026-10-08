@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     .object({ rights: z.literal(false), confirmed: z.literal(true) })
     .safeParse(await boundedBody(event, 1024))
   if (!id.success || !input.success)
-    throw createError({ statusCode: 422, message: 'Konfirmo tërheqjen e të drejtave.' })
+    throw createError({ statusCode: 422, message: 'server.RIGHTS_WITHDRAWAL_UNCONFIRMED' })
   const client = await database().connect()
   try {
     await client.query('BEGIN')
@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
       'SELECT id,rights FROM assets WHERE id=$1 AND business_id=$2 FOR UPDATE',
       [id.data, business.id],
     )
-    if (!asset.rows[0]) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
+    if (!asset.rows[0]) throw createError({ statusCode: 404, message: 'server.PHOTO_NOT_FOUND' })
     const image = `/api/media/${id.data}`
     const rows = await client.query(
       "SELECT id,payload FROM posts WHERE business_id=$1 AND payload->>'image'=$2 AND payload->>'status'<>'published' FOR UPDATE",

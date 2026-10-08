@@ -35,25 +35,41 @@ const photoPageCount = computed(() => Math.max(1, Math.ceil(photoTotal.value / p
 const selectedPhotoIds = ref<string[]>([
   ...(planner.value?.photoPreference?.selectedAssetIds || []),
 ].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
+// A TikTok video is a deliverable of its own, so the photograph it animates is
+// chosen apart from the ones the feed posts use. The two lists never overlap.
+const selectedVideoPhotoIds = ref<string[]>([
+  ...(planner.value?.photoPreference?.selectedVideoAssetIds || []),
+].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
 watch(
   originalPhotos,
   (photos) => {
     const allowed = new Set(photos.map((photo) => photo.id))
     selectedPhotoIds.value = selectedPhotoIds.value.filter((id) => allowed.has(id))
+    selectedVideoPhotoIds.value = selectedVideoPhotoIds.value.filter((id) => allowed.has(id))
   },
   { immediate: true },
 )
-
-function togglePhoto(id: string) {
-  if (selectedPhotoIds.value.includes(id)) {
-    selectedPhotoIds.value = selectedPhotoIds.value.filter(item => item !== id)
+function photoChosen(id: string, kind: 'post' | 'video') {
+  return (kind === 'video' ? selectedVideoPhotoIds : selectedPhotoIds).value.includes(id)
+}
+function photoRoleFull(kind: 'post' | 'video') {
+  return kind === 'video'
+    ? selectedVideoPhotoIds.value.length >= selectedVideoQuantity.value
+    : selectedPhotoIds.value.length >= selectedQuantity.value
+}
+// The two choices are independent, so each has its own control on the tile. A
+// photograph carrying both produces a feed post and a TikTok video from the
+// same source. Choosing more than the month will produce is a selection the
+// planner has to reject later, so a full role refuses the click while the
+// person can still act on it.
+function togglePhoto(id: string, kind: 'post' | 'video') {
+  const list = kind === 'video' ? selectedVideoPhotoIds : selectedPhotoIds
+  if (list.value.includes(id)) {
+    list.value = list.value.filter((item) => item !== id)
     return
   }
-  // One photo is used per post, so choosing more than the month will produce is
-  // a selection the planner has to reject later. Stopping it at the click says
-  // so while the person can still act on it.
-  if (selectedPhotoIds.value.length >= selectedQuantity.value) return
-  selectedPhotoIds.value = [...selectedPhotoIds.value, id]
+  if (photoRoleFull(kind)) return
+  list.value = [...list.value, id]
 }
 
 function openReport(type: 'research' | 'strategy') {
@@ -70,6 +86,7 @@ const phases = [
 
 const plan = computed(() => planner.value?.plan)
 const selectedQuantity = ref(1)
+const selectedVideoQuantity = ref(0)
 // Which platforms this request is for. Both selected is the absence of a
 // restriction, which is how the planner behaved before the choice existed.
 type PlannerChannel = 'Instagram' | 'Facebook'
@@ -78,14 +95,30 @@ const channelOptions: { value: PlannerChannel; label: string; icon: string }[] =
   { value: 'Facebook', label: 'Facebook', icon: 'i-lucide-facebook' },
 ]
 const channelSplit = reactive<Record<PlannerChannel, number>>({ Instagram: 0, Facebook: 0 })
+type VideoChannel = PlannerChannel | 'TikTok'
+const videoChannelOptions: { value: VideoChannel; label: string; icon: string }[] = [
+  ...channelOptions,
+  { value: 'TikTok', label: 'TikTok', icon: 'i-lucide-clapperboard' },
+]
+const videoChannelSplit = reactive<Record<VideoChannel, number>>({ Instagram: 0, Facebook: 0, TikTok: 0 })
 const requestOpen = ref(false)
 const requestAction = ref<'prepare' | 'generate'>('prepare')
 const splitAssigned = computed(() => channelSplit.Instagram + channelSplit.Facebook)
 // A single post is a choice between platforms, not an allocation across them.
 const singlePost = computed(() => selectedQuantity.value === 1)
 const splitComplete = computed(() => splitAssigned.value === selectedQuantity.value)
+const videoSplitAssigned = computed(() => Object.values(videoChannelSplit).reduce((sum, count) => sum + count, 0))
+const videoSplitComplete = computed(() => videoSplitAssigned.value === selectedVideoQuantity.value)
 function openRequest(action: 'prepare' | 'generate') {
-  if (action === 'prepare' && photoMode.value === 'selected' && !selectedPhotoIds.value.length) {
+  // A video-only batch does not need a post photo; a post-only batch does not
+  // need a video photo. The guard fires only when the user is in `selected`
+  // mode and has picked neither.
+  if (
+    action === 'prepare' &&
+    photoMode.value === 'selected' &&
+    !selectedPhotoIds.value.length &&
+    !selectedVideoPhotoIds.value.length
+  ) {
     error.value = t('monthly.selectPhotoRequired')
     return
   }
@@ -95,6 +128,9 @@ function openRequest(action: 'prepare' | 'generate') {
   const half = Math.floor(selectedQuantity.value / 2)
   channelSplit.Instagram = selectedQuantity.value - half
   channelSplit.Facebook = half
+  videoChannelSplit.Instagram = selectedVideoQuantity.value
+  videoChannelSplit.Facebook = 0
+  videoChannelSplit.TikTok = 0
   requestOpen.value = true
 }
 function chooseSingleChannel(channel: PlannerChannel) {
@@ -109,6 +145,26 @@ function setChannelCount(channel: PlannerChannel, value: number) {
   // customer adjusts one side rather than solving for both.
   channelSplit[other] = selectedQuantity.value - next
 }
+function chooseSingleVideoChannel(channel: VideoChannel) {
+  for (const option of videoChannelOptions) videoChannelSplit[option.value] = option.value === channel ? 1 : 0
+}
+function setVideoChannelCount(channel: VideoChannel, value: number) {
+  const next = Math.max(0, Math.min(value, selectedVideoQuantity.value))
+  videoChannelSplit[channel] = next
+  let excess = videoSplitAssigned.value - selectedVideoQuantity.value
+  for (const option of videoChannelOptions) {
+    if (option.value === channel || excess <= 0) continue
+    const removed = Math.min(excess, videoChannelSplit[option.value])
+    videoChannelSplit[option.value] -= removed
+    excess -= removed
+  }
+  let missing = selectedVideoQuantity.value - videoSplitAssigned.value
+  for (const option of videoChannelOptions) {
+    if (option.value === channel || missing <= 0) continue
+    videoChannelSplit[option.value] += missing
+    missing = 0
+  }
+}
 // Platforms with no posts are left out entirely: zero is the absence of a
 // request for that platform, not a request for none.
 function requestedChannelCounts() {
@@ -118,17 +174,35 @@ function requestedChannelCounts() {
     ),
   )
 }
+function requestedVideoChannelCounts() {
+  return Object.fromEntries(videoChannelOptions.flatMap((option) =>
+    videoChannelSplit[option.value] > 0 ? [[option.value, videoChannelSplit[option.value]]] : [],
+  ))
+}
 async function confirmRequest() {
-  if (!splitComplete.value) return
+  if (!splitComplete.value || !videoSplitComplete.value) return
   requestOpen.value = false
   await act(requestAction.value)
 }
 const remainingPosts = computed(() => planner.value?.usage?.remaining || 0)
+// A video is a deliverable of its own with its own photograph, so the only
+// bound on it is the videos the package has left; it does not borrow a post.
+const remainingVideos = computed(() => planner.value?.videoUsage?.remaining || 0)
+const maxVideosThisBatch = computed(() => remainingVideos.value)
+watch(maxVideosThisBatch, (max) => {
+  if (selectedVideoQuantity.value > max) selectedVideoQuantity.value = max
+})
 watch(remainingPosts, (remaining) => {
-  selectedQuantity.value = Math.max(1, Math.min(selectedQuantity.value, remaining || 1))
+  // Zero images is a valid request when at least one video is also asked for,
+  // so the clamp floors at 0 and ceilings at whatever the package still has.
+  selectedQuantity.value = Math.max(0, Math.min(selectedQuantity.value, remaining))
 }, { immediate: true })
-// Lowering the post count leaves photos chosen that no longer have a post to go
+// Lowering a count leaves photos chosen that no longer have a deliverable to go
 // with, so the extras are released rather than left to fail at submission.
+watch(selectedVideoQuantity, (quantity) => {
+  if (selectedVideoPhotoIds.value.length > quantity)
+    selectedVideoPhotoIds.value = selectedVideoPhotoIds.value.slice(0, quantity)
+})
 watch(selectedQuantity, (quantity) => {
   if (selectedPhotoIds.value.length > quantity)
     selectedPhotoIds.value = selectedPhotoIds.value.slice(0, quantity)
@@ -136,18 +210,47 @@ watch(selectedQuantity, (quantity) => {
 const active = computed(() => ['queued', 'running'].includes(plan.value?.status || ''))
 const blocked = computed(() => plan.value?.status === 'blocked')
 const ready = computed(() => plan.value?.status === 'review')
+const tiktokTargetPost = computed(() =>
+  workspace.value.posts.find((post) => ['draft', 'review'].includes(post.status) && post.image),
+)
 // Everything the customer asked for is produced, and the package still owes
 // posts. This is a resting state with two next steps: look at what arrived, or
 // ask for more.
 const settled = computed(() => plan.value?.status === 'idle' && (plan.value?.completed || 0) > 0)
+// Videos render after their posts are committed, so the batch is only ready
+// for review once none of them is still being made.
+const videosRendering = computed(() => plan.value?.videosRendering || 0)
 // A plan that produced everything asked of it but still owes posts from the
 // package. Posts are drawn on request, so this is a normal resting state, not
 // an end state.
-const extendable = computed(() => !!plan.value?.extendable && remainingPosts.value > 0)
+const extendable = computed(
+  () => !!plan.value?.extendable && (remainingPosts.value > 0 || remainingVideos.value > 0),
+)
+// The button on "Gjenero edhe postime" names exactly what the user is about to
+// get: a video-only request should read "Gjenero N video", a post-only request
+// should read "Gjenero N postime", and a mixed request names both counts.
+const generateMoreLabel = computed(() => {
+  const posts = selectedQuantity.value
+  const videos = selectedVideoQuantity.value
+  if (posts > 0 && videos > 0)
+    return t('monthly.generateMoreMixed', { posts, videos })
+  if (videos > 0 && posts === 0) return t('monthly.generateMoreVideos', { count: videos })
+  return t('monthly.generateMore', { count: posts })
+})
 // Progress is measured against what the customer asked for, not against the
 // month's whole quota: asking for one post and being shown "0 / 11" reports a
 // job eleven times larger than the one running.
 const batchTotal = computed(() => plan.value?.batch?.total || plan.value?.requested || plan.value?.total || 0)
+const batchVideos = computed(() => Math.min(plan.value?.batch?.videos || 0, batchTotal.value))
+const batchPosts = computed(() => batchTotal.value - batchVideos.value)
+// Names what is waiting by kind: a video-only batch is not "posts".
+const awaitingTitle = computed(() => {
+  if (videosRendering.value) return t('monthly.videoRenderingTitle', { count: videosRendering.value })
+  if (batchVideos.value && batchPosts.value)
+    return t('monthly.mixedAwaitingApproval', { posts: batchPosts.value, videos: batchVideos.value })
+  if (batchVideos.value) return t('monthly.videosAwaitingApproval', { count: batchVideos.value })
+  return t('monthly.postsAwaitingApproval', { count: batchTotal.value })
+})
 // Produced within the running request, so a second request for one post starts
 // again at zero instead of continuing the month's running total.
 const batchCompleted = computed(() =>
@@ -254,7 +357,12 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
   if (busy.value) return
   busy.value = true
   error.value = ''
-  if (action === 'prepare' && photoMode.value === 'selected' && !selectedPhotoIds.value.length) {
+  if (
+    action === 'prepare' &&
+    photoMode.value === 'selected' &&
+    !selectedPhotoIds.value.length &&
+    !selectedVideoPhotoIds.value.length
+  ) {
     error.value = t('monthly.selectPhotoRequired')
     busy.value = false
     return
@@ -266,14 +374,18 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
         action,
         month: props.month,
         ...(action === 'generate'
-          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts() }
+          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), videoQuantity: selectedVideoQuantity.value, videoChannelCounts: requestedVideoChannelCounts() }
           : {}),
         ...(action === 'prepare'
           ? {
               photoMode: photoMode.value,
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
+              selectedVideoAssetIds:
+                photoMode.value === 'selected' ? selectedVideoPhotoIds.value : [],
               quantity: selectedQuantity.value,
               channelCounts: requestedChannelCounts(),
+              videoChannelCounts: requestedVideoChannelCounts(),
+              videoQuantity: selectedVideoQuantity.value,
             }
           : {}),
       },
@@ -284,6 +396,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       resetOpen.value = false
       photoMode.value = 'auto'
       selectedPhotoIds.value = []
+      selectedVideoPhotoIds.value = []
       await initLive()
     }
   } catch (problem) {
@@ -293,7 +406,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       await navigateTo(`${unref(base)}/billing?reason=trial-limit`)
       return
     }
-    error.value = failure.data?.message || t('monthly.changeNotSaved')
+    error.value = t(failure.data?.message || 'monthly.changeNotSaved')
   } finally {
     busy.value = false
   }
@@ -661,15 +774,20 @@ onBeforeUnmount(() => clearInterval(timer))
           <div
             class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success"
           >
-            <UIcon name="i-lucide-circle-check" class="size-5" />
+            <UIcon
+              :name="videosRendering ? 'i-lucide-loader' : 'i-lucide-circle-check'"
+              :class="['size-5', videosRendering && 'animate-spin']"
+            />
           </div>
           <div>
-            <UBadge color="success" variant="subtle">{{ t('monthly.batchReady') }}</UBadge>
+            <UBadge :color="videosRendering ? 'neutral' : 'success'" variant="subtle">
+              {{ videosRendering ? t('monthly.videoRendering') : t('monthly.batchReady') }}
+            </UBadge>
             <h3 class="mt-2 text-base font-semibold text-highlighted">
-              {{ t('monthly.postsAwaitingApproval', { count: batchTotal }) }}
+              {{ awaitingTitle }}
             </h3>
             <p class="mt-1 text-sm text-muted">
-              {{ t('monthly.batchReadyDescription') }}
+              {{ videosRendering ? t('monthly.videoRenderingDescription') : t('monthly.batchReadyDescription') }}
             </p>
           </div>
         </div>
@@ -683,13 +801,18 @@ onBeforeUnmount(() => clearInterval(timer))
           >
             {{ t('legacy.viewStrategyResearch') }}
           </UButton>
-          <UButton :to="`${base}/content`" icon="i-lucide-eye" trailing-icon="i-lucide-arrow-right">
+          <UButton
+            v-if="!videosRendering"
+            :to="`${base}/content`"
+            icon="i-lucide-eye"
+            trailing-icon="i-lucide-arrow-right"
+          >
             {{ t('monthly.viewGeneratedPosts', { count: plan.completed }) }}
           </UButton>
         </div>
       </div>
       <div
-        v-if="extendable"
+        v-if="extendable && !videosRendering"
         class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
       >
         <div class="flex min-w-0 items-center gap-2.5">
@@ -701,9 +824,27 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
-        <UButton :loading="busy" icon="i-lucide-plus" @click="openRequest('generate')">
-          {{ t('monthly.generateMore', { count: selectedQuantity }) }}
+        <div class="ms-auto flex flex-wrap items-center gap-2">
+          <UFormField :label="t('monthly.quantityLabel')" size="xs">
+            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24" />
+          </UFormField>
+          <UFormField :label="t('video.include')" size="xs">
+            <UInputNumber
+              v-model="selectedVideoQuantity"
+              :min="0"
+              :max="maxVideosThisBatch"
+              class="w-24"
+              :aria-label="t('video.quantity')"
+            />
+          </UFormField>
+        </div>
+        <UButton
+          :loading="busy"
+          :disabled="selectedQuantity + selectedVideoQuantity < 1"
+          icon="i-lucide-plus"
+          @click="openRequest('generate')"
+        >
+          {{ generateMoreLabel }}
         </UButton>
       </div>
       <p v-else class="mt-3 text-sm text-muted">{{ t('monthly.quotaUsedUp') }}</p>
@@ -739,6 +880,15 @@ onBeforeUnmount(() => clearInterval(timer))
           <UButton :to="`${base}/content`" trailing-icon="i-lucide-arrow-right">
             {{ t('legacy.reviewPosts') }}
           </UButton>
+          <UButton
+            v-if="tiktokTargetPost"
+            :to="`${base}/content/${tiktokTargetPost.id}?tiktok=1`"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-clapperboard"
+          >
+            {{ t('video.generate') }}
+          </UButton>
         </div>
       </div>
       <div
@@ -754,9 +904,27 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
-        <UButton :loading="busy" icon="i-lucide-plus" @click="openRequest('generate')">
-          {{ t('monthly.generateMore', { count: selectedQuantity }) }}
+        <div class="ms-auto flex flex-wrap items-center gap-2">
+          <UFormField :label="t('monthly.quantityLabel')" size="xs">
+            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24" />
+          </UFormField>
+          <UFormField :label="t('video.include')" size="xs">
+            <UInputNumber
+              v-model="selectedVideoQuantity"
+              :min="0"
+              :max="maxVideosThisBatch"
+              class="w-24"
+              :aria-label="t('video.quantity')"
+            />
+          </UFormField>
+        </div>
+        <UButton
+          :loading="busy"
+          :disabled="selectedQuantity + selectedVideoQuantity < 1"
+          icon="i-lucide-plus"
+          @click="openRequest('generate')"
+        >
+          {{ generateMoreLabel }}
         </UButton>
       </div>
     </div>
@@ -896,29 +1064,25 @@ onBeforeUnmount(() => clearInterval(timer))
                 {{ t('monthly.clickToSelect') }}
               </UBadge>
             </div>
+            <!--
+              The two choices sit under the photograph rather than on top of it:
+              a phone tile is small enough that overlaid controls cover the very
+              thing being chosen. Two columns on a phone keep each tile and each
+              tap target comfortable; the denser grids return with the width.
+            -->
             <div
               v-if="originalPhotos.length"
-              class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
+              class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
             >
-              <UButton
+              <div
                 v-for="asset in paginatedOriginalPhotos"
                 :key="asset.id"
-                type="button"
-                color="neutral"
-                variant="outline"
-                class="group relative !flex w-full min-w-0 !flex-col !items-stretch !justify-start overflow-hidden rounded-xl border bg-elevated !p-0 text-left transition"
+                class="group flex w-full min-w-0 flex-col overflow-hidden rounded-xl border bg-elevated text-left transition"
                 :class="
-                  selectedPhotoIds.includes(asset.id)
+                  photoChosen(asset.id, 'post') || photoChosen(asset.id, 'video')
                     ? 'border-primary ring-2 ring-primary/20'
                     : 'border-default hover:border-primary/40 hover:shadow-sm'
                 "
-                :aria-pressed="selectedPhotoIds.includes(asset.id)"
-                :aria-label="t('gallery.selectPhoto', { name: asset.name })"
-                :disabled="
-                  !selectedPhotoIds.includes(asset.id)
-                    && selectedPhotoIds.length >= selectedQuantity
-                "
-                @click="togglePhoto(asset.id)"
               >
                 <MediaImage
                   :src="asset.url"
@@ -926,17 +1090,26 @@ onBeforeUnmount(() => clearInterval(timer))
                   fit="cover"
                   class="aspect-square w-full bg-elevated"
                 />
-                <span class="block truncate px-2 py-1.5 text-[11px] font-medium">{{ asset.name }}</span>
-                <span
-                  class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition group-hover:opacity-100"
-                />
-                <span
-                  v-if="selectedPhotoIds.includes(asset.id)"
-                  class="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-primary text-white shadow-lg"
-                >
-                  <UIcon name="i-lucide-check" class="size-3.5" />
-                </span>
-              </UButton>
+                <span class="block truncate px-2 pt-1.5 text-[11px] font-medium">{{ asset.name }}</span>
+                <div class="grid grid-cols-2 gap-1 p-1.5">
+                  <UButton
+                    v-for="kind in (['post', 'video'] as const)"
+                    :key="kind"
+                    type="button"
+                    block
+                    size="xs"
+                    class="justify-center py-2 sm:py-1.5"
+                    :color="photoChosen(asset.id, kind) ? 'primary' : 'neutral'"
+                    :variant="photoChosen(asset.id, kind) ? 'solid' : 'soft'"
+                    :icon="kind === 'video' ? 'i-lucide-clapperboard' : 'i-lucide-image'"
+                    :aria-pressed="photoChosen(asset.id, kind)"
+                    :title="kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')"
+                    :aria-label="`${asset.name} — ${kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')}`"
+                    :disabled="!photoChosen(asset.id, kind) && photoRoleFull(kind)"
+                    @click="togglePhoto(asset.id, kind)"
+                  />
+                </div>
+              </div>
             </div>
             <div
               v-if="photoTotal > photoPageSize"
@@ -969,11 +1142,20 @@ onBeforeUnmount(() => clearInterval(timer))
             :title="t('monthly.noOriginalPhotosTitle')"
             :description="t('monthly.noOriginalPhotosDescription')"
           />
-          <p v-if="photoMode === 'selected' && selectedPhotoIds.length" class="mt-2 text-xs text-muted">
+          <p
+            v-if="photoMode === 'selected' && (selectedPhotoIds.length || selectedVideoPhotoIds.length)"
+            class="mt-2 text-xs text-muted"
+          >
             {{ t('monthly.photosIncluded', { count: selectedPhotoIds.length }) }}
+            <template v-if="selectedVideoPhotoIds.length">
+              · {{ t('monthly.photosForVideo', { count: selectedVideoPhotoIds.length }) }}
+            </template>
             <template v-if="selectedPhotoIds.length >= selectedQuantity">
               · {{ t('monthly.photoLimitReached', { count: selectedQuantity }) }}
             </template>
+          </p>
+          <p v-if="photoMode === 'selected' && selectedVideoQuantity" class="mt-1 text-xs text-muted">
+            {{ t('monthly.photoRoleHint') }}
           </p>
         </div>
       </div>
@@ -989,34 +1171,57 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ t('legacy.monthlyProcess') }}
           </p>
         </div>
-        <div class="flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
-          <div class="flex min-w-0 items-center gap-2.5">
+        <div class="grid w-full gap-3 md:grid-cols-3">
+          <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
             <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <UIcon name="i-lucide-sparkles" class="size-4" />
             </div>
-            <div>
+            <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
               <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
             </div>
+            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
           </div>
-          <UInputNumber v-model="selectedQuantity" :min="1" :max="remainingPosts" class="ms-auto w-28" />
-          <UButton :loading="busy" :disabled="remainingPosts < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
-          {{ extendable ? t('monthly.generateMore', { count: selectedQuantity }) : t('legacy.prepareMonth') }}
-          </UButton>
+          <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
+            <UIcon name="i-lucide-clapperboard" class="size-5 shrink-0 text-primary" />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-highlighted">{{ t('video.include') }}</p>
+              <p class="truncate text-xs text-muted">{{ t('video.remaining', { count: remainingVideos }) }}</p>
+            </div>
+            <UInputNumber
+              v-model="selectedVideoQuantity"
+              :min="0"
+              :max="maxVideosThisBatch"
+              class="w-24 shrink-0"
+              :aria-label="t('video.quantity')"
+            />
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-highlighted">{{ t('monthly.readyToPrepare') }}</p>
+              <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
+            </div>
+            <UButton :loading="busy" :disabled="selectedQuantity + selectedVideoQuantity < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
+              {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
+            </UButton>
+          </div>
         </div>
       </div>
     </div>
 
     <UModal
       v-model:open="requestOpen"
-      :title="singlePost ? t('monthly.requestSingleTitle') : t('monthly.requestSplitTitle')"
+      :title="selectedVideoQuantity ? t('monthly.requestMixedTitle') : singlePost ? t('monthly.requestSingleTitle') : t('monthly.requestSplitTitle')"
       :description="
-        singlePost
+        selectedVideoQuantity
+          ? t('monthly.requestMixedDescription')
+          : singlePost
           ? t('monthly.requestSingleDescription')
           : t('monthly.requestSplitDescription', { count: selectedQuantity })
       "
     >
       <template #body>
+        <h3 v-if="selectedVideoQuantity" class="mb-3 text-sm font-semibold text-highlighted">{{ t('monthly.postPlatforms') }}</h3>
         <div v-if="singlePost" class="grid grid-cols-2 gap-3">
           <UButton
             v-for="option in channelOptions"
@@ -1061,17 +1266,54 @@ onBeforeUnmount(() => clearInterval(timer))
         >
           {{ t('monthly.splitAssigned', { assigned: splitAssigned, total: selectedQuantity }) }}
         </p>
+        <div v-if="selectedVideoQuantity" class="mt-5 border-t border-default pt-4">
+          <h3 class="mb-1 text-sm font-semibold text-highlighted">{{ t('monthly.videoPlatforms') }}</h3>
+          <p class="mb-3 text-xs text-muted">{{ t('monthly.videoPlatformsDescription') }}</p>
+          <div v-if="selectedVideoQuantity === 1" class="grid grid-cols-3 gap-2">
+            <UButton
+              v-for="option in videoChannelOptions"
+              :key="option.value"
+              block
+              size="lg"
+              :color="videoChannelSplit[option.value] === 1 ? 'primary' : 'neutral'"
+              :variant="videoChannelSplit[option.value] === 1 ? 'soft' : 'outline'"
+              :aria-pressed="videoChannelSplit[option.value] === 1"
+              class="h-auto flex-col gap-2 py-4"
+              @click="chooseSingleVideoChannel(option.value)"
+            >
+              <UIcon :name="option.icon" class="size-8" />
+              <span class="text-sm font-semibold">{{ option.label }}</span>
+            </UButton>
+          </div>
+          <div v-else class="grid grid-cols-3 gap-2">
+            <div v-for="option in videoChannelOptions" :key="option.value" class="flex flex-col items-center gap-2 rounded-xl border border-default p-3">
+              <UIcon :name="option.icon" class="size-6" />
+              <span class="text-xs font-semibold">{{ option.label }}</span>
+              <UInputNumber
+                :model-value="videoChannelSplit[option.value]"
+                :min="0"
+                :max="selectedVideoQuantity"
+                class="w-24"
+                :aria-label="t('monthly.videosForChannel', { channel: option.label })"
+                @update:model-value="setVideoChannelCount(option.value, Number($event))"
+              />
+            </div>
+          </div>
+          <p v-if="selectedVideoQuantity > 1" class="mt-3 text-sm" :class="videoSplitComplete ? 'text-muted' : 'text-error'">
+            {{ t('monthly.videoSplitAssigned', { assigned: videoSplitAssigned, total: selectedVideoQuantity }) }}
+          </p>
+        </div>
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton color="neutral" variant="outline" @click="requestOpen = false">
             {{ t('common.cancel') }}
           </UButton>
-          <UButton :loading="busy" :disabled="!splitComplete" @click="confirmRequest">
+          <UButton :loading="busy" :disabled="!splitComplete || !videoSplitComplete" @click="confirmRequest">
             {{
               requestAction === 'prepare'
                 ? t('legacy.prepareMonth')
-                : t('monthly.generateMore', { count: selectedQuantity })
+                : generateMoreLabel
             }}
           </UButton>
         </div>

@@ -39,7 +39,7 @@ async function save() {
     await refresh()
     toast.add({ title: t('admin.settings.saved'), color: 'success' })
   } catch (problem) {
-    saveError.value = (problem as { data?: { message?: string } }).data?.message || t('admin.settings.saveFailed')
+    saveError.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.settings.saveFailed')
   } finally {
     saving.value = false
   }
@@ -89,7 +89,7 @@ async function savePackageRate() {
     await refresh()
     toast.add({ title: t('admin.settings.saved'), color: 'success' })
   } catch (problem) {
-    saveError.value = (problem as { data?: { message?: string } }).data?.message || t('admin.settings.saveFailed')
+    saveError.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.settings.saveFailed')
   } finally {
     savingPackage.value = false
   }

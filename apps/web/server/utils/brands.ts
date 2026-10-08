@@ -53,7 +53,7 @@ export async function requireOrganizationMember(
     "SELECT role, brand_scope FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active'",
     [organizationId, userId],
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Organizata nuk u gjet.' })
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.ORGANIZATION_NOT_FOUND' })
   return result.rows[0] as { role: string; brand_scope: string }
 }
 
@@ -64,7 +64,7 @@ export async function requireOrganizationManager(
 ) {
   const member = await requireOrganizationMember(client, userId, organizationId)
   if (!['owner', 'admin'].includes(member.role))
-    throw createError({ statusCode: 403, message: 'Nuk ke të drejta për këtë veprim.' })
+    throw createError({ statusCode: 403, message: 'server.ACTION_PERMISSION_DENIED' })
   return member
 }
 
@@ -92,7 +92,7 @@ export async function getBrand(client: PoolClient, organizationId: string, brand
     `SELECT ${brandColumns} FROM brands WHERE organization_id=$1 AND id=$2`,
     [organizationId, brandId],
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
   return toBrand(result.rows[0]!)
 }
 
@@ -144,7 +144,7 @@ export async function updateBrand(
   const current = await getBrand(client, organizationId, brandId)
   const expectedRevision = input.revision ?? current.revision
   if (current.status === 'archived' && input.status !== 'active')
-    throw createError({ statusCode: 409, message: 'Brandi i arkivuar nuk mund të ndryshohet.' })
+    throw createError({ statusCode: 409, message: 'server.ARCHIVED_BRAND_IMMUTABLE' })
   const next = {
     slug: input.slug ?? current.slug,
     name: input.name ?? current.name,
@@ -175,7 +175,7 @@ export async function updateBrand(
     ],
   )
   if (!result.rows[0])
-    throw createError({ statusCode: 409, message: 'Brandi ndryshoi ne nje pajisje tjeter. Ngarko versionin e fundit.' })
+    throw createError({ statusCode: 409, message: 'server.BRAND_CHANGED_OTHER_DEVICE_ALT' })
   return toBrand(result.rows[0]!)
 }
 
@@ -186,7 +186,7 @@ export async function archiveBrand(client: PoolClient, organizationId: string, b
      RETURNING ${brandColumns}`,
     [brandId, organizationId],
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Brandi aktiv nuk u gjet.' })
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.ACTIVE_BRAND_NOT_FOUND' })
   return toBrand(result.rows[0]!)
 }
 
@@ -197,7 +197,7 @@ export async function deleteArchivedBrand(
 ) {
   const current = await getBrand(client, organizationId, brandId)
   if (current.status !== 'archived')
-    throw createError({ statusCode: 409, message: 'Arkivoje brandin para fshirjes.' })
+    throw createError({ statusCode: 409, message: 'server.BRAND_ARCHIVE_BEFORE_DELETE' })
   await client.query('DELETE FROM brands WHERE id=$1 AND organization_id=$2 AND status=\'archived\'', [
     brandId,
     organizationId,

@@ -12,7 +12,7 @@ export async function adminOrganizationDetails(organizationId: string) {
   })
   if (error) {
     console.error('Admin organization details query failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Detajet e organizatës nuk u ngarkuan.' })
+    throw createError({ statusCode: 502, message: 'server.ORGANIZATION_DETAILS_LOAD_FAILED' })
   }
   return data
 }

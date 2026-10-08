@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const parsed = organizationCreateSchema.safeParse(await boundedBody(event, 4096))
   if (!parsed.success)
-    throw createError({ statusCode: 422, message: 'Kontrollo emrin dhe slug-un e organizatës.' })
+    throw createError({ statusCode: 422, message: 'server.ORGANIZATION_NAME_SLUG_REQUIRED' })
   const organization = await createOrganizationForUser(user.id, parsed.data)
   setResponseStatus(event, 201)
   return organization

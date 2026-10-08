@@ -2,7 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const localeDir = path.resolve('app/locales/client')
-const localeFiles = ['sq.json', 'en.json']
+// German is checked alongside the other two. It used to be left out, which let
+// it fall more than a thousand keys behind while the build stayed green: the
+// German UI silently rendered English wherever a key was missing.
+const localeFiles = ['sq.json', 'en.json', 'de.json']
 const parsed = new Map()
 
 for (const file of localeFiles) {
@@ -16,16 +19,23 @@ for (const file of localeFiles) {
   parsed.set(file, JSON.parse(source))
 }
 
+// Albanian is the source language, so every other file is compared against it
+// in both directions: a key it is missing would fall back to another language,
+// and a key it alone carries is one nobody has translated.
 const sq = parsed.get('sq.json')
-const en = parsed.get('en.json')
 const sqKeys = Object.keys(sq)
-const enKeys = Object.keys(en)
-const missingInEnglish = sqKeys.filter((key) => !(key in en))
-const missingInAlbanian = enKeys.filter((key) => !(key in sq))
-if (missingInEnglish.length || missingInAlbanian.length) {
-  throw new Error(
-    `Locale keys differ. Missing in en: ${missingInEnglish.join(', ')}. Missing in sq: ${missingInAlbanian.join(', ')}.`,
-  )
+const differences = localeFiles
+  .filter((file) => file !== 'sq.json')
+  .flatMap((file) => {
+    const other = parsed.get(file)
+    const missing = sqKeys.filter((key) => !(key in other))
+    const extra = Object.keys(other).filter((key) => !(key in sq))
+    return missing.length || extra.length
+      ? [`${file}: missing ${missing.length ? missing.join(', ') : 'none'}; not in sq: ${extra.length ? extra.join(', ') : 'none'}`]
+      : []
+  })
+if (differences.length) {
+  throw new Error(`Locale keys differ. ${differences.join(' | ')}`)
 }
 
-console.log(`Locales are valid: ${sqKeys.length} unique keys in sq.json and en.json.`)
+console.log(`Locales are valid: ${sqKeys.length} unique keys in ${localeFiles.join(', ')}.`)

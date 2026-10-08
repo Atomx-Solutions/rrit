@@ -17,17 +17,28 @@ export default defineEventHandler(async (event) => {
       month: monthSchema.optional(),
       photoMode: z.enum(['auto', 'selected']).optional(),
       selectedAssetIds: z.array(z.uuid()).max(100).optional(),
-      quantity: z.number().int().min(1).max(100).optional(),
+      selectedVideoAssetIds: z.array(z.uuid()).max(100).optional(),
+      // Zero images is a valid request as long as at least one video is also
+      // asked for; the combined-minimum rule is enforced below after the body
+      // parses, so an explicit 0 keeps round-tripping without being coerced
+      // into a default of 1 somewhere down the line.
+      quantity: z.number().int().min(0).max(100).optional(),
+      videoQuantity: z.number().int().min(0).max(100).optional(),
       channelCounts: z
         .object({
           Instagram: z.number().int().min(0).max(100).optional(),
           Facebook: z.number().int().min(0).max(100).optional(),
         })
         .optional(),
+      videoChannelCounts: z.object({
+        Instagram: z.number().int().min(0).max(100).optional(),
+        Facebook: z.number().int().min(0).max(100).optional(),
+        TikTok: z.number().int().min(0).max(100).optional(),
+      }).optional(),
     })
     .safeParse(await boundedBody(event, 2048))
   if (!input.success)
-    throw createError({ statusCode: 422, message: 'Kërkesa nuk është e vlefshme.' })
+    throw createError({ statusCode: 422, message: 'server.REQUEST_INVALID' })
   try {
     const result = await withBusinessTransaction(user.id, async (client, business) => {
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
@@ -39,14 +50,20 @@ export default defineEventHandler(async (event) => {
       // drafts; only the newly requested slots are planned and produced.
       if (input.data.action === 'generate') {
         if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
-        if (!input.data.quantity) throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
+        // At least one deliverable must be requested overall; images and
+        // videos are independent, so a video-only request (quantity = 0,
+        // videoQuantity ≥ 1) is a valid shape, as is an image-only request.
+        if (!input.data.quantity && !input.data.videoQuantity)
+          throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
         return requestMonthlyPosts(
           client,
           business.id,
           user.id,
           input.data.month,
-          input.data.quantity,
+          input.data.quantity ?? 0,
           input.data.channelCounts,
+          input.data.videoQuantity,
+          input.data.videoChannelCounts,
         )
       }
       if (input.data.action === 'reset') {
@@ -71,22 +88,31 @@ export default defineEventHandler(async (event) => {
       }
       const photoMode = input.data.photoMode || 'auto'
       const selectedAssetIds = photoMode === 'selected' ? input.data.selectedAssetIds || [] : []
-      if (photoMode === 'selected' && !selectedAssetIds.length)
+      const selectedVideoAssetIds =
+        photoMode === 'selected' ? input.data.selectedVideoAssetIds || [] : []
+      // Either kind of selection is enough: a video-only batch only needs a
+      // chosen video source, and a post-only batch only needs a chosen post
+      // source. Only when the user is in `selected` mode and picked neither
+      // is a selection genuinely missing.
+      if (photoMode === 'selected' && !selectedAssetIds.length && !selectedVideoAssetIds.length)
         throw new PlannerFailure('PHOTO_PREFERENCE_REQUIRED')
       await client.query(
         `INSERT INTO monthly_planner_settings(
-          business_id,enabled,photo_mode,preferred_asset_ids,configured_at
-        ) VALUES($1,true,$2,$3,now())
+          business_id,enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at
+        ) VALUES($1,true,$2,$3,$4,now())
         ON CONFLICT(business_id) DO UPDATE
           SET enabled=true,photo_mode=EXCLUDED.photo_mode,
               preferred_asset_ids=EXCLUDED.preferred_asset_ids,
+              preferred_video_asset_ids=EXCLUDED.preferred_video_asset_ids,
               configured_at=now(),updated_at=now()`,
-        [business.id, photoMode, selectedAssetIds],
+        [business.id, photoMode, selectedAssetIds, selectedVideoAssetIds],
       )
       return ensureMonthlyPlan(client, business.id, user.id, input.data.month, {
         requeueCancelled: true,
         quantity: input.data.quantity,
+        videoQuantity: input.data.videoQuantity,
         channelCounts: input.data.channelCounts,
+        videoChannelCounts: input.data.videoChannelCounts,
       })
     })
     setResponseStatus(event, 202)
@@ -101,7 +127,7 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 500,
       message:
-        'Përgatitja nuk u nis për shkak të një problemi të brendshëm. Asnjë plan nuk u aktivizua; provo sërish.',
+        'server.PLAN_START_FAILED',
       cause: error,
     })
   }

@@ -21,6 +21,7 @@ type PackageRequest = {
   industry: string | null
   platform: 'instagram' | 'facebook' | 'both' | null
   posts_requested: number
+  videos_requested: number
   credits_requested: number
   message: string | null
   source: 'landing' | 'app'
@@ -115,7 +116,7 @@ onBeforeUnmount(() => {
 const sources = ['all', 'landing', 'app'] as const
 // What the request asks for. A request may carry both, so it counts as a post
 // request and as a credit request at the same time.
-const kinds = ['all', 'posts', 'credits'] as const
+const kinds = ['all', 'posts', 'videos', 'credits'] as const
 const search = reactive({
   text: '',
   source: 'all' as (typeof sources)[number],
@@ -167,6 +168,7 @@ const requests = computed(() => {
   return (data.value?.requests || []).filter((request) => {
     if (search.source !== 'all' && request.source !== search.source) return false
     if (search.kind === 'posts' && request.posts_requested < 1) return false
+    if (search.kind === 'videos' && (request.videos_requested ?? 0) < 1) return false
     if (search.kind === 'credits' && request.credits_requested < 1) return false
     const sent = Date.parse(request.created_at)
     if (from !== null && sent < from) return false
@@ -239,7 +241,7 @@ async function setStatus(request: PackageRequest, next: PackageRequest['status']
     if (row) Object.assign(row, updated, { status: next })
   } catch (problem) {
     showError(
-      (problem as { data?: { message?: string } }).data?.message || t('admin.requests.saveFailed'),
+      (problem as { data?: { message?: string } }).data?.message || 'admin.requests.saveFailed',
     )
   } finally {
     saving.value = ''
@@ -258,7 +260,7 @@ async function removeRequest(request: PackageRequest) {
   }
   catch (problem) {
     showError(
-      (problem as { data?: { message?: string } }).data?.message || t('admin.requests.deleteFailed'),
+      (problem as { data?: { message?: string } }).data?.message || 'admin.requests.deleteFailed',
     )
   }
   finally {
@@ -272,11 +274,26 @@ const converting = ref<PackageRequest | null>(null)
 // A request for credits alone is answered with a credit proposal, which has no
 // post count, no per-post rate and no period of its own. Mixed requests keep
 // the package form, because they are still selling a package.
-const convertingCredits = computed(() =>
-  converting.value && converting.value.posts_requested === 0 ? converting.value : null,
-)
+// Each kind of request is answered by its own proposal, so a request opens the
+// one form that matches what it actually asked for and no other. Posts take
+// priority when a landing lead asked for posts and videos in the same request:
+// that proposal carries the posts, and the videos are sold as a second one.
 const convertingPackage = computed(() =>
   converting.value && converting.value.posts_requested > 0 ? converting.value : null,
+)
+const convertingVideos = computed(() =>
+  converting.value
+  && converting.value.posts_requested === 0
+  && (converting.value.videos_requested ?? 0) > 0
+    ? converting.value
+    : null,
+)
+const convertingCredits = computed(() =>
+  converting.value
+  && converting.value.posts_requested === 0
+  && (converting.value.videos_requested ?? 0) === 0
+    ? converting.value
+    : null,
 )
 async function onConverted() {
   converting.value = null
@@ -427,6 +444,7 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
         </template>
         <template #posts-cell="{ row }">
           <p v-if="row.original.posts_requested > 0">{{ t('admin.requests.postsValue', { count: row.original.posts_requested }) }}</p>
+          <p v-if="(row.original.videos_requested ?? 0) > 0">{{ t('admin.requests.videosValue', { count: row.original.videos_requested }) }}</p>
           <p v-if="row.original.credits_requested > 0">{{ t('admin.packages.creditsValue', { count: row.original.credits_requested }) }}</p>
           <p v-if="row.original.platform" class="text-xs text-muted">
             {{ t(`admin.requests.platform.${row.original.platform}`) }}
@@ -479,6 +497,11 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
     />
     <AdminPackageRequestConvert
       :request="convertingPackage"
+      @close="converting = null"
+      @done="onConverted"
+    />
+    <AdminVideoRequestConvert
+      :request="convertingVideos"
       @close="converting = null"
       @done="onConverted"
     />

@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     fiscalNumber: text(40),
   }).safeParse(await boundedBody(event, 2048))
   if (!input.success)
-    throw createError({ statusCode: 422, message: 'Të dhënat e faturimit nuk janë të vlefshme.', data: { code: 'INVALID_BILLING_DETAILS' } })
+    throw createError({ statusCode: 422, message: 'server.BILLING_DETAILS_INVALID', data: { code: 'INVALID_BILLING_DETAILS' } })
   const details = await withBusinessTransaction(user.id, (client, business) =>
     saveBillingDetails(client, business.id, input.data),
   )

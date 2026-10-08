@@ -7,7 +7,7 @@ export function supabaseServer(event: H3Event) {
   const url = process.env.SUPABASE_URL
   const key = process.env.SUPABASE_KEY
   if (!url || !key)
-    throw createError({ statusCode: 503, message: 'Supabase nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.SUPABASE_NOT_CONFIGURED' })
 
   const scope = authScopeForPath(getRequestURL(event).pathname)
 

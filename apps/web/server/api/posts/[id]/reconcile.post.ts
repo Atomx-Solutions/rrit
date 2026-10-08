@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   try {
     return await withBusinessTransaction(user.id, (client, currentBusiness) => {
       if (currentBusiness.id !== business.id)
-        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sërish.' })
+        throw createError({ statusCode: 409, message: 'server.BUSINESS_CHANGED' })
       return reconcileUncertainPublication(id.data, business.id, client)
     })
   } catch (error) {
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 502,
         message:
-          'Meta nuk e konfirmoi rezultatin. Postimi mbetet i bllokuar nga ridërgimi; provo kontrollin përsëri.',
+          'server.META_RESULT_UNCONFIRMED',
       })
     throw error
   }

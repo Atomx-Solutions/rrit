@@ -35,7 +35,7 @@ export async function adminAiCosts(
   })
   if (error) {
     console.error('Admin AI costs query failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Kostot e AI-së nuk u ngarkuan.' })
+    throw createError({ statusCode: 502, message: 'server.AI_COSTS_LOAD_FAILED' })
   }
   return data as Record<string, unknown>
 }

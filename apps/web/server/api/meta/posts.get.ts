@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
       search: z.string().trim().max(200).default(''),
     })
     .safeParse(getQuery(event))
-  if (!input.success) throw createError({ statusCode: 422, message: 'Filtër i pavlefshëm.' })
+  if (!input.success) throw createError({ statusCode: 422, message: 'server.FILTER_INVALID_SHORT' })
   const { page, pageSize, channel, search } = input.data
   const result = await withBusinessTransaction(user.id, async (client, business) => {
     const values = [business.id, channel, search]

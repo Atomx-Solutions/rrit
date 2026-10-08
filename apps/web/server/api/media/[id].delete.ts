@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
     businessForUser(user.id, contextClient),
   )
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
-  if (!id.success) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
+  if (!id.success) throw createError({ statusCode: 404, message: 'server.PHOTO_NOT_FOUND' })
 
   const client = await database().connect()
   let storagePath: string | null | undefined
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
       'SELECT id,storage_path FROM assets WHERE id=$1 AND business_id=$2 FOR UPDATE',
       [id.data, business.id],
     )
-    if (!asset.rows[0]) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
+    if (!asset.rows[0]) throw createError({ statusCode: 404, message: 'server.PHOTO_NOT_FOUND' })
 
     const image = `/api/media/${id.data}`
     const used = await client.query(
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
     if (used.rows.length)
       throw createError({
         statusCode: 409,
-        message: 'Fotografia përdoret në një postim. Hiqe postimin ose ndrysho fotografinë e tij së pari.',
+        message: 'server.PHOTO_USED_BY_POST',
         data: { code: 'ASSET_IN_USE' },
       })
 

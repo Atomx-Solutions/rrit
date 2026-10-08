@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   if (!invitationId.success || !values.success)
     throw createError({
       statusCode: 400,
-      message: 'Të dhënat e ftesës nuk janë të vlefshme.',
+      message: 'server.INVITATION_DATA_INVALID',
       data: { code: 'INVITATION_INVALID' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

@@ -7,7 +7,7 @@ let operationsWorkerLeases = 0
 export function database() {
   const connectionString = process.env.DATABASE_URL
   if (!connectionString)
-    throw createError({ statusCode: 503, message: 'Ruajtja në server ende nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.SERVER_STORAGE_NOT_CONFIGURED' })
   if (!pool) {
     pool = new pg.Pool({
       connectionString,
@@ -32,7 +32,7 @@ export function database() {
 export function acquireOperationsWorkerDatabase() {
   const connectionString = process.env.WORKER_DATABASE_URL
   if (!connectionString)
-    throw createError({ statusCode: 503, message: 'Databaza e worker-it nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.WORKER_DATABASE_NOT_CONFIGURED' })
   const worker = (operationsWorkerPool ||= new pg.Pool({
     connectionString,
     max: 6,

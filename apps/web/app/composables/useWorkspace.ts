@@ -104,9 +104,9 @@ export function useWorkspace() {
       storageError.value =
         problem.statusCode === 401
           ? t('workspace.sessionExpired')
-          : serverMessage === 'Kërkesa nuk u pranua.'
+          : serverMessage === 'server.REQUEST_DENIED'
             ? t('workspace.requestRejected')
-            : serverMessage || t('workspace.saveFailed')
+            : serverMessage ? t(serverMessage) : t('workspace.saveFailed')
       toast?.add({
         title: t('common.formError'),
         description: storageError.value,

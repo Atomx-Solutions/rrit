@@ -13,8 +13,10 @@ import {
   packageMonthWindow,
   plannerChannels,
   normalizedChannelCounts,
+  normalizedVideoChannelCounts,
   soleChannel,
   channelCountsTotal,
+  feedCreativeGeometry,
   PlannerFailure,
 } from '../../server/utils/monthly-planner-domain'
 import {
@@ -25,6 +27,7 @@ import {
   retryableProviderFailureCode,
   providerHttpFailure,
   monthlyImagePrompt,
+  monthlyInstructions,
   monthlyAutomaticStageKey,
   researchOccasionsFromText,
   postImageEditPrompt,
@@ -42,6 +45,12 @@ import { aiProviderJsonSchema } from '../../server/utils/ai-provider'
 import { z } from 'zod'
 
 afterEach(() => vi.unstubAllEnvs())
+describe('video platform requests', () => {
+  it('keeps a single requested TikTok video separate from feed posts', () => {
+    expect(normalizedVideoChannelCounts({ TikTok: 1 }, 1)).toEqual({ TikTok: 1 })
+    expect(() => normalizedVideoChannelCounts({ TikTok: 1 }, 2)).toThrowError(PlannerFailure)
+  })
+})
 const now = new Date('2026-09-09T08:00:00Z')
 function researchFixture(): ProviderResponse {
   return {
@@ -223,6 +232,20 @@ describe('monthly evidence and provider boundaries', () => {
     expect(normalized.slots[0]!.timingBasis).toBe('no_data')
     expect(normalized.slots[0]!.timingRationale).toContain('Nuk ka të dhëna')
     expect(() => validateEditorialPlan(normalized, evidence, research, '2026-09', 1)).not.toThrow()
+  })
+  it('keeps the requested video platform separate from the post platform', () => {
+    const evidence = plannerEvidence(createDemo(), now, '2026-09', undefined, [], {}, { TikTok: 1 })
+    const research = researchFromResponse(researchFixture(), now)
+    const post = editorialFixture().slots[0]!
+    const plan = {
+      ...editorialFixture(),
+      slots: [
+        { ...post, channel: 'Facebook', deliverable: 'static_post' },
+        { ...post, day: 16, channel: 'Facebook', deliverable: 'video', topic: 'Video topic', hook: 'Video hook' },
+      ],
+    }
+    const normalized = normalizeEditorialPlanResponse(plan, evidence, research, 2, '2026-09', { Instagram: 1 })
+    expect(normalized.slots.map((slot) => slot.channel)).toEqual(['Instagram', 'TikTok'])
   })
   it('fails closed when provider configuration is incomplete', () => {
     vi.stubEnv('AI_MONTHLY_PLANNER_ENABLED', 'true')
@@ -462,6 +485,27 @@ describe('monthly evidence and provider boundaries', () => {
     )
   })
 })
+function imagePromptInput() {
+  return {
+    brand: { name: 'Aurum', industry: 'Restaurant', audience: 'Mysafirë në Prishtinë' },
+    creative: {
+      headline: 'Darka fillon këtu',
+      eyebrow: 'Aurum Restaurant',
+      cta: 'Ruaje për sonte',
+      layout: 'A close detail of the plated main course, anchored low on the left.',
+    },
+    slot: {
+      channel: 'Instagram' as const,
+      topic: 'Darka',
+      intent: 'inspiration',
+      hook: 'Atmosferë e ngrohtë',
+      purpose: 'Të tregojë eksperiencën',
+      assetDirection: 'Ambient real në mbrëmje',
+      visualLayout: 'A close detail of the plated main course, anchored low on the left.',
+      algorithmGoal: 'saves',
+    },
+  }
+}
 describe('AI creative generation', () => {
   it('builds full AI art direction and platform-specific edit instructions', () => {
     const creative = {
@@ -488,8 +532,7 @@ describe('AI creative generation', () => {
     expect(monthly).toContain(creative.headline)
     expect(monthly).toContain('no application template or hard-coded layout')
     expect(monthly).toContain('You are solely responsible for the final visual design')
-    expect(monthly).toContain('center-cropped to the final Instagram/Facebook feed canvas')
-    expect(monthly).toContain('central 88%')
+    expect(monthly).toContain('centre-crops it to the final Instagram/Facebook feed image')
     expect(monthly).toContain('malformed hands or faces')
     expect(monthly).toContain('giant expressive typographic gesture')
     expect(monthly).toContain('clean contemporary sans-serif')
@@ -520,6 +563,98 @@ describe('AI creative generation', () => {
     expect(edited).toContain('Never duplicate, fuse, warp, replace or invent material objects')
     expect(edited).toContain('typographic designer')
     expect(edited).toContain('no more than two weights')
+  })
+
+  it('states a crop contract derived from the real output canvas', () => {
+    const geometry = feedCreativeGeometry()
+    const prompt = monthlyImagePrompt(imagePromptInput())
+
+    // The centre crop from a taller provider canvas removes height only, so a
+    // width bleed would wrongly narrow every composition.
+    expect(geometry.discardedWidthPerSide).toBe('0%')
+    expect(prompt).toContain(`portrait ${geometry.providerRatio} canvas`)
+    expect(prompt).toContain(`exactly ${geometry.finalPixels} (${geometry.finalRatio})`)
+    expect(prompt).toContain(
+      `The outer ${geometry.discardedHeightPerSide} of the height at the top and at the bottom is discarded bleed`,
+    )
+    expect(prompt).toContain(
+      `inside the central ${geometry.safeWidth} of the width and the central ${geometry.safeHeight} of the height`,
+    )
+    expect(prompt).toContain('No text may touch or approach an outer edge')
+    expect(prompt).not.toContain('central 88%')
+  })
+
+  it('ranks the slot visual direction above general design guidance', () => {
+    const prompt = monthlyImagePrompt(imagePromptInput())
+
+    expect(prompt).toContain('Instruction priority')
+    // Business guardrails already override everything else in this prompt.
+    expect(prompt).toContain('(0) the absolute restrictions set by this business')
+    expect(prompt).toContain('(1) the factual truth and identity of the source photograph')
+    expect(prompt).toContain('(2) the photo-specific art direction and unique visual direction')
+    expect(prompt).toContain('A general rule never overrides the visual direction')
+    expect(prompt).toContain('execution contract, not as inspiration')
+    expect(prompt).toContain('which zone is reserved for type')
+    expect(prompt).toContain('which zone stays as negative space')
+    expect(prompt).toContain('generic social-media composition is a failure')
+  })
+
+  it('makes a dominant subject conditional on the slot direction', () => {
+    const prompt = monthlyImagePrompt(imagePromptInput())
+
+    expect(prompt).toContain('render the whole subject dominant only when the direction asks for')
+    expect(prompt).toContain('without enlarging the subject back into a full view')
+    expect(prompt).toContain('never add a second vehicle or product')
+    expect(prompt).toContain('a reflected or mirrored duplicate')
+    // The earlier blanket prominence rule contradicted every detail-crop slot.
+    expect(prompt).not.toContain('visually prominent enough to remain the focal subject')
+  })
+
+  it('constrains copy fit, invented facts and repeated composition', () => {
+    const prompt = monthlyImagePrompt(imagePromptInput())
+
+    expect(prompt).toContain('complete and unabbreviated')
+    expect(prompt).toContain(
+      'If the call to action cannot be set completely, legibly and safely inside the safe region, leave it out of the image',
+    )
+    expect(prompt).toContain('the caption still carries it in full')
+    expect(prompt).toContain('at most two weights')
+    expect(prompt).toContain('never imply that a document, permit or condition is required')
+    expect(prompt).toContain('Never generate a new number plate')
+    expect(prompt).toContain('noise reduction and plausible non-material background extension remain allowed')
+    expect(prompt).toContain('Changed copy does not make a post distinct')
+    expect(prompt).toContain(
+      'a large headline across the top with the full subject along the bottom',
+    )
+    expect(prompt).toContain('Then silently verify, before returning')
+    expect(prompt).toContain('do not describe this check')
+  })
+
+  it('keeps added elements out of the reserved text zone', () => {
+    const prompt = monthlyImagePrompt(imagePromptInput())
+
+    expect(prompt).toContain(
+      'never fill a reserved text zone or its negative space with an added element',
+    )
+    expect(prompt).toContain(
+      'A typographic gesture never grows until the real subject becomes secondary',
+    )
+  })
+
+  it('asks the strategy and content stages for renderable direction and copy', () => {
+    expect(monthlyInstructions.planning).toContain('state explicitly whether it appears in full')
+    expect(monthlyInstructions.planning).toContain('which zone of the frame is reserved for type')
+    expect(monthlyInstructions.planning).toContain('at least one explicit "do not"')
+    expect(monthlyInstructions.planning).toContain(
+      'so general that it could be pasted onto another slot',
+    )
+    expect(monthlyInstructions.content).toContain('Treat creative.cta as image copy')
+    expect(monthlyInstructions.content).toContain('carry the full detail in the caption instead')
+    expect(monthlyInstructions.content).toContain('Never introduce a required document')
+    // The quality rubric stays exactly as it is.
+    expect(monthlyInstructions.quality).toContain(
+      'You are an exacting independent creative director and fact reviewer.',
+    )
   })
 
   it('normalizes the AI result technically without applying a design preset', async () => {

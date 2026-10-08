@@ -38,13 +38,13 @@ export default defineEventHandler(async (event) => {
   } catch {
     throw createError({
       statusCode: 503,
-      message: 'Asistenti AI ende nuk është aktivizuar nga platforma.',
+      message: 'server.AI_ASSISTANT_NOT_ENABLED',
     })
   }
   if (!aiCostConfigured())
     throw createError({
       statusCode: 503,
-      message: 'Asistenti AI ende nuk është aktivizuar nga platforma.',
+      message: 'server.AI_ASSISTANT_NOT_ENABLED',
     })
   const input = z
     .object({
@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
     })
     .safeParse(await boundedBody(event, 16384))
   if (!input.success)
-    throw createError({ statusCode: 422, message: 'Përshkruaj shkurt idenë dhe zgjidh rrjetin.' })
+    throw createError({ statusCode: 422, message: 'server.CAPTION_IDEA_REQUIRED' })
   const digest = createHash('sha256')
     .update(JSON.stringify([input.data.idea, input.data.caption, input.data.channel]))
     .digest('hex')
@@ -74,13 +74,13 @@ export default defineEventHandler(async (event) => {
       if (item.business_id !== business.id || item.input_hash !== digest)
         throw createError({
           statusCode: 409,
-          message: 'Kërkesa ndryshoi. Nise një përgatitje të re.',
+          message: 'server.AI_REQUEST_CHANGED',
         })
       if (item.status !== 'completed')
         throw createError({
           statusCode: 409,
           message:
-            'Kjo kërkesë është në proces ose dështoi. Nis një kërkesë të re kur të jesh gati.',
+            'server.AI_REQUEST_IN_PROGRESS',
         })
       await client.query('COMMIT')
       return outputSchema.parse(item.output)
@@ -94,7 +94,7 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 429,
         message:
-          'Ke arritur kufirin ditor të përgatitjeve me AI. Mund të vazhdosh ta shkruash postimin vetë.',
+          'server.AI_DAILY_LIMIT_REACHED',
       })
     await client.query(
       "INSERT INTO ai_generations (id,business_id,input_hash,status) VALUES ($1,$2,$3,'pending')",
@@ -121,7 +121,7 @@ export default defineEventHandler(async (event) => {
     )
       throw createError({
         statusCode: 429,
-        message: 'Përgatitja me AI është ndalur përkohësisht nga kufiri i sigurisë së kostos.',
+        message: 'server.AI_COST_LIMIT_REACHED',
       })
     await client.query(
       "INSERT INTO ai_cost_ledger(generation_id,business_id,model,status,estimated_input_tokens,reserved_output_tokens,reserved_cost_micro_eur) VALUES($1,$2,$3,'reserved',$4,$5,$6)",
@@ -154,9 +154,9 @@ export default defineEventHandler(async (event) => {
       user.id,
       async (client, currentBusiness) => {
         if (currentBusiness.id !== business.id)
-          throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sërish.' })
+          throw createError({ statusCode: 409, message: 'server.BUSINESS_CHANGED' })
         const brand = await getBrandBySlug(client, business.id, business.slug)
-        if (!brand) throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
+        if (!brand) throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
         return {
           workspace: (await loadWorkspace(client, business.id, user.id)).workspace,
           brain: await getBusinessBrain(client, business.id, brand.id),
@@ -358,7 +358,7 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 502,
       message:
-        'AI nuk dha një përgjigje të plotë. Teksti yt mbetet i pandryshuar. Mund të provosh përsëri.',
+        'server.AI_RESPONSE_INCOMPLETE',
     })
   }
 })

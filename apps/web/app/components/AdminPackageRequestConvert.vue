@@ -3,9 +3,14 @@ import { formatMoney } from '~~/shared/utils/format'
 import type { AdminPackageRequest } from './AdminPackageRequestDetails.vue'
 
 /**
- * Turning an answered request into the package that was agreed. The request
- * says what the customer asked for; this is where the team writes what was
- * actually sold, so the amounts here are the agreement rather than the ask.
+ * Answering a request for posts.
+ *
+ * A post package is sold by the post, so the only amounts here are the post
+ * count, the per-post rate and the total they agree on. Videos and credits have
+ * their own proposals and are deliberately absent: this form never sends
+ * either, so a post package cannot quietly carry something the customer did not
+ * ask for. The request says what was asked; this is where the team writes what
+ * was actually sold.
  */
 const props = defineProps<{ request: AdminPackageRequest | null }>()
 const emit = defineEmits<{ close: []; done: [] }>()
@@ -50,7 +55,7 @@ async function createOrganization() {
     newOrganizationName.value = ''
     await refreshOrganizations()
   } catch (problem) {
-    error.value = (problem as { data?: { message?: string } }).data?.message || t('admin.requests.organizationCreateFailed')
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.requests.organizationCreateFailed')
   } finally {
     creatingOrganization.value = false
   }
@@ -60,7 +65,6 @@ const form = reactive({
   organizationId: '',
   name: '',
   postsIncluded: 20,
-  creditsIncluded: 0,
   postPriceEuro: 1.5,
   priceEuro: 30,
   startsAt: '',
@@ -68,12 +72,7 @@ const form = reactive({
   notes: '',
 })
 const postPriceCents = computed(() => Math.round(form.postPriceEuro * 100))
-// Credits are priced from the platform rate the credits screen sets, so a
-// converted lead quotes the same number the billing page showed the customer.
-const creditPriceCents = ref(0)
-const suggestedCents = computed(
-  () => form.postsIncluded * postPriceCents.value + form.creditsIncluded * creditPriceCents.value,
-)
+const suggestedCents = computed(() => form.postsIncluded * postPriceCents.value)
 const priceCents = computed(() => Math.round(form.priceEuro * 100))
 // The rate cannot always divide the total evenly, so an agreed total of 45.61
 // over 30 posts keeps that total and shows the nearest rate beside it.
@@ -94,16 +93,8 @@ function sync(update: () => void) {
   update()
   syncing = false
 }
-// The credit rate is fetched after the form is filled from the request, so it
-// is a source of its own: without it the first suggestion would be computed
-// against a rate of zero and the agreed price would open at 0.00.
 watch(
-  [
-    () => form.postsIncluded,
-    () => form.postPriceEuro,
-    () => form.creditsIncluded,
-    creditPriceCents,
-  ],
+  [() => form.postsIncluded, () => form.postPriceEuro],
   () => sync(() => {
     form.priceEuro = Math.round(suggestedCents.value) / 100
   }),
@@ -130,7 +121,6 @@ watch(
       organizationId: request.organization_id || '',
       name: request.organization_name || request.business_name || request.contact_name,
       postsIncluded: request.posts_requested,
-      creditsIncluded: request.credits_requested ?? 0,
       startsAt: today.toISOString().slice(0, 10),
       endsAt: inAMonth.toISOString().slice(0, 10),
       notes: request.message || '',
@@ -145,11 +135,10 @@ watch(
 async function loadRate() {
   if (!form.organizationId) return
   try {
-    const settings = await $fetch<{ post_price_cents: number; credit_price_cents: number }>(
+    const settings = await $fetch<{ post_price_cents: number }>(
       `/api/admin/organizations/${form.organizationId}/packages`,
     )
     form.postPriceEuro = settings.post_price_cents / 100
-    creditPriceCents.value = settings.credit_price_cents
   } catch {
     // The default in the form stands when the rate cannot be read.
   }
@@ -174,7 +163,6 @@ async function submit() {
       body: {
         name: form.name.trim(),
         posts_included: form.postsIncluded,
-        credits_included: form.creditsIncluded,
         post_price_cents: postPriceCents.value,
         price_cents: priceCents.value,
         starts_at: dayToIso(form.startsAt),
@@ -193,8 +181,7 @@ async function submit() {
     emit('done')
   } catch (problem) {
     error.value
-      = (problem as { data?: { message?: string } }).data?.message
-        || t('admin.requests.convertFailed')
+      = t((problem as { data?: { message?: string } }).data?.message || 'admin.requests.convertFailed')
   } finally {
     saving.value = false
   }
@@ -241,13 +228,6 @@ async function submit() {
             required
           >
             <UInputNumber v-model="form.postsIncluded" :min="0" :max="1000" class="w-full" />
-          </UFormField>
-          <UFormField
-            name="creditsIncluded"
-            :label="t('admin.packages.credits')"
-            :hint="t('admin.requests.askedForCredits', { count: request?.credits_requested ?? 0 })"
-          >
-            <UInputNumber v-model="form.creditsIncluded" :min="0" :max="1000000" :step="100" class="w-full" />
           </UFormField>
           <UFormField name="postPriceEuro" :label="t('admin.packages.postPrice')" required>
             <UInputNumber

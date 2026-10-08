@@ -6,7 +6,7 @@ import { logoPdfOps, pdfText } from './invoice-pdf'
 type StrategySlot = {
   day: number
   time: string
-  channel: 'Facebook' | 'Instagram'
+  channel: 'Facebook' | 'Instagram' | 'TikTok'
   topic: string
   intent: string
   hook: string

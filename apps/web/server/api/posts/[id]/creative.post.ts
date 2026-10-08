@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     instruction: z.string().trim().min(5).max(1200),
   }).safeParse(await boundedBody(event, 4096))
   if (!id.success || !input.success)
-    throw createError({ statusCode: 422, message: 'Kontrollo përshkrimin e dizajnit.' })
+    throw createError({ statusCode: 422, message: 'server.DESIGN_DESCRIPTION_REQUIRED' })
 
   try {
     const snapshot = await withBusinessTransaction(user.id, async (client, business) => {
@@ -32,21 +32,29 @@ export default defineEventHandler(async (event) => {
       await requireEntitlement(business.id, 'media', client)
       await requireEntitlement(business.id, 'ai', client)
       const row = await client.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [id.data, business.id])
-      if (!row.rows[0]) throw createError({ statusCode: 404, message: 'Postimi nuk u gjet.' })
+      if (!row.rows[0]) throw createError({ statusCode: 404, message: 'server.POST_NOT_FOUND' })
       const post = postSchema.parse(row.rows[0].payload)
       if (!post.aiProvenance || !['draft', 'review'].includes(post.status))
-        throw createError({ statusCode: 422, message: 'Rihap postimin si draft për ta rigjeneruar fotografinë.' })
+        throw createError({ statusCode: 422, message: 'server.REOPEN_AS_DRAFT' })
+      // A video post's `image` is the deterministic 9:16 opening frame of its
+      // mp4, not an AI creative. Re-running the image AI pipeline here would
+      // reintroduce the hidden image-generation call we removed from the
+      // planner and would make the gallery poster drift from the actual video.
+      // The video re-render flow (POST /api/posts/:id/video-render) is the
+      // right path for a video, so this one is rejected outright.
+      if (post.video)
+        throw createError({ statusCode: 409, message: 'server.CREATIVE_EDIT_UNAVAILABLE_FOR_VIDEO' })
       if (postContentVersion(post) !== input.data.contentVersion)
-        throw createError({ statusCode: 409, message: 'Postimi ndryshoi. Ngarko versionin e fundit.' })
+        throw createError({ statusCode: 409, message: 'server.POST_CHANGED' })
       const sourceAssetId = z.uuid().safeParse(post.image.replace('/api/media/', ''))
       if (!sourceAssetId.success)
-        throw createError({ statusCode: 422, message: 'Fotografia aktuale duhet të ruhet në galeri përpara rigjenerimit.' })
+        throw createError({ statusCode: 422, message: 'server.PHOTO_MUST_BE_SAVED_FIRST' })
       const source = await client.query(
         'SELECT storage_path,bytes,mime FROM assets WHERE business_id=$1 AND id=$2 AND rights=true',
         [business.id, sourceAssetId.data],
       )
       if (!source.rowCount)
-        throw createError({ statusCode: 422, message: 'Fotografia aktuale nuk ka më të drejta të konfirmuara.' })
+        throw createError({ statusCode: 422, message: 'server.PHOTO_RIGHTS_EXPIRED' })
       const { workspace, slug } = await loadWorkspace(client, business.id, user.id)
       const brandLogo = await loadBrandLogo(client, business.id)
       return {
@@ -74,6 +82,7 @@ export default defineEventHandler(async (event) => {
       },
       instruction: input.data.instruction,
       logoAvailable: Boolean(snapshot.brandLogo),
+      video: Boolean(snapshot.post.video),
     })
     const generatedAndBytes = await (async () => {
       try {
@@ -107,12 +116,12 @@ export default defineEventHandler(async (event) => {
     try {
       return await withBusinessTransaction(user.id, async (client, business) => {
       if (business.id !== snapshot.businessId)
-        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sërish.' })
+        throw createError({ statusCode: 409, message: 'server.BUSINESS_CHANGED' })
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
       const row = await client.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2 FOR UPDATE', [id.data, business.id])
       const previous = row.rows[0] ? postSchema.parse(row.rows[0].payload) : null
       if (!previous?.aiProvenance || postContentVersion(previous) !== input.data.contentVersion || previous.image !== snapshot.post.image)
-        throw createError({ statusCode: 409, message: 'Postimi ndryshoi gjatë gjenerimit. Varianti ekzistues mbeti i paprekur.' })
+        throw createError({ statusCode: 409, message: 'server.POST_CHANGED_DURING_GENERATION' })
       await requireQuota(business.id, 'media_storage_bytes', bytes.length, client)
       const createdAt = new Date().toISOString()
       const post = postSchema.parse({

@@ -57,13 +57,63 @@ export const algorithmGoalSchema = z.enum([
   'clicks',
 ])
 export const timingBasisSchema = z.enum(['social_history', 'platform_history', 'no_data'])
+// What this slot produces. A video slot is still a static 4:5 feed post: the
+// photograph it selects is additionally chosen to be animated into a vertical
+// video afterward, so the slot carries a motion brief alongside the post. Older
+// plans were all static, which is why this defaults rather than being required.
+export const slotDeliverableSchema = z.enum(['static_post', 'video'])
+// Structured shot direction for a video slot. Strategy picks each enum from
+// the actual photograph and the content intent; the planner's deterministic
+// Video Creative Plan reads these to decide subject-safe and text-safe
+// zones, and the prompt builder templates them into natural language so the
+// provider receives a camera idea and a composition anchor rather than
+// prose alone. Every field is optional with a safe default so legacy video
+// briefs keep rendering.
+export const shotCameraSchema = z.enum([
+  'static',
+  'slow_push',
+  'slow_pull',
+  'arc',
+  'parallax_drift',
+  'handheld_settle',
+])
+export const shotPacingSchema = z.enum(['calm', 'measured', 'punchy'])
+export const shotSubjectAnchorSchema = z.enum(['left', 'centre', 'right'])
+export const shotTextZoneSchema = z.enum(['top', 'bottom', 'left', 'right', 'full'])
+// What happens in the frame beyond the camera. Each step trades certainty
+// about the subject for life: the camera alone moves over the real photograph;
+// ambient adds the light, reflections and air the photograph already holds;
+// subject_moves lets the subject itself move, which only the photograph's own
+// subject may do, and which is checked against the photograph afterwards.
+export const shotActionSchema = z.enum(['camera_only', 'ambient', 'subject_moves'])
+export const shotDirectionSchema = z.object({
+  camera: shotCameraSchema,
+  pacing: shotPacingSchema,
+  subjectAnchor: shotSubjectAnchorSchema,
+  textZone: shotTextZoneSchema,
+  action: shotActionSchema,
+  // Whether the video closes on the branded end-card. The designed overlay
+  // already carries the brand and the call to action, so a card is a choice
+  // for videos that benefit from a closing beat, not a fixture of every one.
+  endCard: z.boolean(),
+})
+// A shot as stored. Shots written before the action existed read as the
+// camera-only motion they were rendered with.
+export const storedShotDirectionSchema = shotDirectionSchema.extend({
+  action: shotActionSchema.default('camera_only'),
+  endCard: z.boolean().default(true),
+})
 export const slotBriefSchema = z.object({
   day: z.number().int().min(1).max(31),
   time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-  channel: z.enum(['Facebook', 'Instagram']),
+  // A video reaches whichever of these three the brief chose. TikTok appears
+  // here only because a video can go there; a static feed post cannot, which
+  // the planner enforces rather than the enum.
+  channel: z.enum(['Facebook', 'Instagram', 'TikTok']),
   topic: z.string().min(5).max(200),
   pillar: z.string().min(2).max(80),
   intent: contentIntentSchema,
+  deliverable: slotDeliverableSchema.default('static_post'),
   hook: z.string().min(5).max(180),
   purpose: z.string().min(10).max(600),
   assetDirection: z.string().min(10).max(400),
@@ -80,6 +130,10 @@ export const slotBriefSchema = z.object({
   // reached generation still parse and finish.
   audienceId: z.uuid().nullable().default(null),
   offerId: z.uuid().nullable().default(null),
+  // Structured shot direction for video slots. Optional with safe defaults so
+  // older plans and non-video slots parse without emitting it; null is what a
+  // generated static slot carries, since structured outputs cannot omit it.
+  shot: storedShotDirectionSchema.nullable().optional(),
 })
 export const styleProfileSchema = z.object({
   palette: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
@@ -108,10 +162,13 @@ export const editorialPlanSchema = z.object({
   styleProfile: styleProfileSchema.optional(),
 })
 // Structured outputs require every property to be present, so the requested
-// slot repeats the Business Brain references as required-but-nullable.
+// slot repeats the Business Brain references and the shot direction as
+// required-but-nullable.
 export const slotBriefGenerationSchema = slotBriefSchema.extend({
   audienceId: z.uuid().nullable(),
   offerId: z.uuid().nullable(),
+  deliverable: slotDeliverableSchema,
+  shot: shotDirectionSchema.nullable(),
 })
 export const editorialPlanGenerationSchema = editorialPlanSchema.extend({
   styleProfile: styleProfileGenerationSchema,
@@ -259,6 +316,7 @@ export const monthlyPostProvenanceSchema = z.object({
   promptVersion: z.string(),
 })
 export type SlotBrief = z.infer<typeof slotBriefSchema>
+export type ShotDirection = z.infer<typeof shotDirectionSchema>
 export type Research = z.infer<typeof researchSchema>
 export type ResearchOccasion = z.infer<typeof researchOccasionSchema>
 export type Creative = z.infer<typeof creativeSchema>
