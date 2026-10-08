@@ -67,7 +67,24 @@ jobs:
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now()
           );"
+      - name: Prepare Supabase storage compatibility schema
+        run: >-
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1
+          -c "CREATE SCHEMA IF NOT EXISTS storage;
+          CREATE TABLE storage.buckets (
+          id text PRIMARY KEY,
+          file_size_limit bigint,
+          allowed_mime_types text[]
+          );
+          INSERT INTO storage.buckets (id) VALUES ('assets');"
       - run: npm run db:migrate
+      - name: Verify video bucket migration
+        run: >-
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At
+          -c "SELECT file_size_limit = 52428800
+          AND allowed_mime_types = ARRAY['image/jpeg', 'video/mp4']::text[]
+          FROM storage.buckets WHERE id = 'assets'"
+          | grep -qx t
       - run: npm run test:integration
       - run: npm run test:security
       - run: npm audit --audit-level=moderate
