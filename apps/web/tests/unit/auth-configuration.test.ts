@@ -29,6 +29,7 @@ describe('Supabase authentication configuration', () => {
   })
 
   it('keeps email verification and exact origin checks on a public deployment', () => {
+    vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('APP_URL', 'https://business.example.test')
     vi.stubEnv('AUTH_REQUIRE_EMAIL_VERIFICATION', 'false')
     expect(authConfiguration()).toMatchObject({

@@ -1,28 +1,51 @@
 export default defineEventHandler(async (event) => {
+  const timings: string[] = []
+  const measure = (name: string, startedAt: number) => {
+    timings.push(`${name};dur=${(performance.now() - startedAt).toFixed(1)}`)
+  }
+  let startedAt = performance.now()
   const user = await requireUser(event)
+  measure('auth', startedAt)
+  startedAt = performance.now()
   const { access, usage, credits, lowCredit, pendingProposals } = await withBusinessTransaction(
     user.id,
-    async (client, business) => ({
-      access: await trialStatus(business.id, client),
-      usage: await usageSnapshot(business.id, client),
-      credits: await creditBalanceSnapshot(client, business.id),
-      lowCredit: await lowCreditStatus(client, business.id),
-      // Offers waiting for the customer to accept or decline. Every page
-      // already asks for this snapshot, so the navigation can flag Billing
-      // without a request of its own.
-      pendingProposals: Number(
-        (
-          await client.query<{ count: string }>(
-            "SELECT count(*)::text AS count FROM custom_packages WHERE status='draft'",
-          )
-        ).rows[0]?.count ?? 0,
-      ),
-    }),
+    async (client, business) => {
+      let stepStartedAt = performance.now()
+      const access = await trialStatus(business.id, client)
+      measure('access', stepStartedAt)
+      stepStartedAt = performance.now()
+      const usage = await usageSnapshot(business.id, client, access)
+      measure('usage', stepStartedAt)
+      stepStartedAt = performance.now()
+      const credits = await creditBalanceSnapshot(client, business.id)
+      measure('credits', stepStartedAt)
+      stepStartedAt = performance.now()
+      const lowCredit = await lowCreditStatus(client, business.id)
+      measure('lowCredit', stepStartedAt)
+      stepStartedAt = performance.now()
+      const proposals = await client.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM custom_packages WHERE status='draft'",
+      )
+      measure('proposals', stepStartedAt)
+      return {
+        access,
+        usage,
+        credits,
+        lowCredit,
+        // Offers waiting for the customer to accept or decline. Every page
+        // already asks for this snapshot, so the navigation can flag Billing
+        // without a request of its own.
+        pendingProposals: Number(proposals.rows[0]?.count ?? 0),
+      }
+    },
   )
+  measure('databaseTotal', startedAt)
+  setHeader(event, 'Server-Timing', timings.join(', '))
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
     plan: access.plan,
     state: access.state,
+    trial: access,
     credits,
     lowCredit,
     pendingProposals,

@@ -1,6 +1,17 @@
+import { canReuseWorkspaceRedirect } from '~/utils/workspace-redirect'
+
 export default defineNuxtRouteMiddleware(async (to) => {
   const workspace = useWorkspace()
   const { t } = useI18n()
+  const pendingRedirect = useState<string | null>('workspace-home-redirect', () => null)
+  const reuse = canReuseWorkspaceRedirect(
+    pendingRedirect.value,
+    to.path,
+    workspace.ready.value,
+    workspace.context.value,
+  )
+  pendingRedirect.value = null
+  if (reuse) return
   try {
     const business = await workspace.initLive()
     if (!business && to.path !== '/onboarding') return navigateTo('/onboarding', { replace: true })

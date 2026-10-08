@@ -22,7 +22,7 @@ async function signOut() {
 const route = useRoute()
 // The same snapshot the header already loads for the credit balance, so the
 // badge costs no extra request.
-const { data: billingSnapshot } = await useFetch('/api/usage', { key: 'header-credit-balance' })
+const { data: billingSnapshot } = useHeaderUsage()
 const pendingProposals = computed(() => billingSnapshot.value?.pendingProposals || 0)
 // Use a new preference key so every existing workspace starts with the compact
 // icon rail, then retain the navigation width chosen by that user.

@@ -42,7 +42,18 @@ jobs:
           check-latest: false
       - run: npm run toolchain:check
       - run: npm ci
+      - name: Install video test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version
+          ffprobe -version
+          ffmpeg -hide_banner -encoders | grep libx264
       - run: npm run check
+      - name: Prepare database roles for CI migrations
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE service_role NOLOGIN"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE rrit_worker NOLOGIN"
       - name: Prepare Supabase auth compatibility schema
         run: >-
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1
@@ -51,10 +62,29 @@ jobs:
           id uuid PRIMARY KEY,
           email text,
           raw_user_meta_data jsonb,
+          last_sign_in_at timestamptz,
+          deleted_at timestamptz,
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now()
           );"
+      - name: Prepare Supabase storage compatibility schema
+        run: >-
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1
+          -c "CREATE SCHEMA IF NOT EXISTS storage;
+          CREATE TABLE storage.buckets (
+          id text PRIMARY KEY,
+          file_size_limit bigint,
+          allowed_mime_types text[]
+          );
+          INSERT INTO storage.buckets (id) VALUES ('assets');"
       - run: npm run db:migrate
+      - name: Verify video bucket migration
+        run: >-
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At
+          -c "SELECT file_size_limit = 52428800
+          AND allowed_mime_types = ARRAY['image/jpeg', 'video/mp4']::text[]
+          FROM storage.buckets WHERE id = 'assets'"
+          | grep -qx t
       - run: npm run test:integration
       - run: npm run test:security
       - run: npm audit --audit-level=moderate

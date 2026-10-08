@@ -41,7 +41,10 @@ export function deviceIdentity(event: H3Event) {
 }
 export async function trialPolicy(db: Pool | PoolClient = database()) {
   const result = await db.query('SELECT value FROM app_settings WHERE key = $1', ['trial'])
-  const policy = trialPolicySchema.safeParse(result.rows[0]?.value)
+  return parseTrialPolicy(result.rows[0]?.value)
+}
+function parseTrialPolicy(value: unknown) {
+  const policy = trialPolicySchema.safeParse(value)
   if (!policy.success)
     throw createError({ statusCode: 503, message: 'server.TRIAL_CONFIG_INVALID' })
   return policy.data
@@ -273,54 +276,116 @@ export async function paidAccessForPlanningMonth(
 
 export type QuotaKey = keyof PlanLimits
 export type UsageSnapshot = Record<QuotaKey, { current: number; limit: number }>
+type TrialAccessRow = {
+  trial_starts_at: Date | null
+  trial_expires_at: Date | null
+  trial_status: string | null
+  trial_seconds_remaining: number | null
+  policy: unknown
+  paid_features: unknown
+  paid_limits: unknown
+  paid_plan_name: string | null
+  paid_plan_version: number | null
+  paid_valid_until: Date | null
+  custom_name: string | null
+  custom_posts_included: number | null
+  custom_videos_included: number | null
+  custom_starts_at: Date | null
+  custom_ends_at: Date | null
+  trial_posts_per_month: number | null
+  trial_videos_per_month: number | null
+}
 export async function trialStatus(
   businessId: string,
   db: Pool | PoolClient = database(),
 ): Promise<TrialStatus> {
-  const result = await db.query(
-    'SELECT starts_at, expires_at, status, reason, GREATEST(0, EXTRACT(EPOCH FROM (expires_at - now())))::integer AS seconds_remaining FROM trial_grants WHERE business_id = $1',
+  // Load independent access sources in one round trip to the remote database.
+  const result = await db.query<TrialAccessRow>(
+    `SELECT grant_row.starts_at AS trial_starts_at,
+            grant_row.expires_at AS trial_expires_at,
+            grant_row.status AS trial_status,
+            grant_row.seconds_remaining AS trial_seconds_remaining,
+            settings.value AS policy,
+            paid.features AS paid_features,
+            paid.limits AS paid_limits,
+            paid.plan_name AS paid_plan_name,
+            paid.plan_version AS paid_plan_version,
+            paid.valid_until AS paid_valid_until,
+            custom.name AS custom_name,
+            custom.posts_included AS custom_posts_included,
+            custom.videos_included AS custom_videos_included,
+            custom.starts_at AS custom_starts_at,
+            custom.ends_at AS custom_ends_at,
+            trial_plan.posts_per_month AS trial_posts_per_month,
+            trial_plan.videos_per_month AS trial_videos_per_month
+       FROM (SELECT 1) AS base
+       LEFT JOIN LATERAL (
+         SELECT starts_at, expires_at, status,
+                GREATEST(0, EXTRACT(EPOCH FROM (expires_at - now())))::integer AS seconds_remaining
+           FROM trial_grants WHERE business_id = $1
+       ) AS grant_row ON true
+       LEFT JOIN LATERAL (
+         SELECT features, limits, plan_name, plan_version, valid_until
+           FROM entitlements
+          WHERE business_id = $1 AND valid_from <= now() AND valid_until > now()
+       ) AS paid ON true
+       LEFT JOIN app_settings AS settings ON settings.key = 'trial'
+       LEFT JOIN LATERAL (
+         SELECT name, posts_included, videos_included, starts_at, ends_at
+           FROM custom_packages
+          WHERE organization_id = $1 AND status = 'active'
+            AND starts_at <= now() AND ends_at >= now()
+          ORDER BY ends_at DESC LIMIT 1
+       ) AS custom ON true
+       LEFT JOIN LATERAL (
+         SELECT posts_per_month, videos_per_month FROM plans
+          WHERE is_trial = true AND active = true LIMIT 1
+       ) AS trial_plan ON true`,
     [businessId],
   )
   const row = result.rows[0]
-  const paid = await db.query(
-    'SELECT features,limits,plan_name,plan_version,valid_until FROM entitlements WHERE business_id = $1 AND valid_from <= now() AND valid_until > now()',
-    [businessId],
-  )
-  const policy = await trialPolicy(db)
-  const state = row
-    ? row.status === 'granted'
-      ? row.seconds_remaining > 0
+  if (!row) throw createError({ statusCode: 503, message: 'Gjendja e paketës nuk u lexua.' })
+  const policy = parseTrialPolicy(row?.policy)
+  const state = row?.trial_status
+    ? row.trial_status === 'granted'
+      ? Number(row.trial_seconds_remaining) > 0
         ? 'active'
         : 'expired'
-      : row.status
+      : row.trial_status
     : 'unavailable'
-  const now = new Date()
   const paidAccess =
-    (await customPackageAccess(businessId, now, now, db))
-    || paidEntitlementAccess(paid.rows[0])
-  // The Free Trial package, rather than the legacy trial setting, owns the post
-  // and video allowances. An inactive or missing trial package grants neither.
-  const trialPlan = paidAccess || state !== 'active'
-    ? undefined
-    : (
-        await db.query<{ posts_per_month: number; videos_per_month: number }>(
-          `SELECT plan.posts_per_month, plan.videos_per_month
-             FROM plans plan
-            WHERE plan.is_trial=true
-              AND plan.active=true
-            LIMIT 1`,
-        )
-      ).rows[0]
+    row.custom_name && row.custom_starts_at && row.custom_ends_at
+      ? {
+          paid: true,
+          features: [...entitlementFeatureSchema.options],
+          limits: {
+            ...policy.limits,
+            posts_per_month: Number(row.custom_posts_included),
+            videos_per_month: Number(row.custom_videos_included),
+          },
+          plan: { name: row.custom_name, version: 1 },
+          expiresAt: new Date(row.custom_ends_at).toISOString(),
+          quotaPeriod: { startsAt: new Date(row.custom_starts_at), endsAt: new Date(row.custom_ends_at) },
+        }
+      : paidEntitlementAccess(row.paid_features == null ? undefined : {
+          features: row.paid_features,
+          limits: row.paid_limits,
+          plan_name: row.paid_plan_name,
+          plan_version: row.paid_plan_version,
+          valid_until: row.paid_valid_until,
+        })
+  // The Free Trial package, rather than the legacy trial setting, owns the
+  // post and video allowances. An inactive or missing trial package grants neither.
   const trialLimits = {
     ...policy.limits,
-    posts_per_month: state === 'active' && trialPlan ? Number(trialPlan.posts_per_month) : 0,
-    videos_per_month: state === 'active' && trialPlan ? Number(trialPlan.videos_per_month) : 0,
+    posts_per_month: state === 'active' && !paidAccess ? Number(row.trial_posts_per_month ?? 0) : 0,
+    videos_per_month: state === 'active' && !paidAccess ? Number(row.trial_videos_per_month ?? 0) : 0,
   }
   return {
     state,
-    startsAt: row?.starts_at?.toISOString() || null,
-    expiresAt: row?.expires_at?.toISOString() || null,
-    secondsRemaining: row?.seconds_remaining || 0,
+    startsAt: row?.trial_starts_at ? new Date(row.trial_starts_at).toISOString() : null,
+    expiresAt: row?.trial_expires_at ? new Date(row.trial_expires_at).toISOString() : null,
+    secondsRemaining: Number(row?.trial_seconds_remaining ?? 0),
     durationHours: policy.duration_hours,
     paid: !!paidAccess,
     features: paidAccess?.features || (state === 'active' ? policy.features : []),
@@ -426,9 +491,10 @@ export async function recordTrialPostUsage(
 export async function usageSnapshot(
   businessId: string,
   db: Pool | PoolClient = database(),
+  knownAccess?: TrialStatus,
 ): Promise<UsageSnapshot> {
   const [access, counters] = await Promise.all([
-    trialStatus(businessId, db),
+    knownAccess ?? trialStatus(businessId, db),
     db.query(
       `SELECT
         (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS posts_per_month,

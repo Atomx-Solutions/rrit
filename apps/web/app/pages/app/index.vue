@@ -9,6 +9,8 @@ const destination = workspaceHomeDestination({
   onboarding: data.value.onboarding,
   onboardingSkipped: data.value.onboardingSkipped,
 })
+if (context.value && destination === `${base.value}/overview`)
+  useState<string | null>('workspace-home-redirect', () => null).value = destination
 await navigateTo(destination, { replace: true })
 </script>
 <template>
