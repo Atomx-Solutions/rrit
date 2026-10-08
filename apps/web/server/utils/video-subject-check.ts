@@ -6,6 +6,8 @@ import {
   aiProviderStructuredRouting,
 } from './ai-provider'
 import { parseMonthlyProviderResponse, responseText } from './monthly-ai'
+import { qualitySchema } from '../../shared/schemas/monthly-plan'
+import { normalizeQualityReview } from './post-quality-domain'
 
 const subjectCheckSchema = z.object({
   sameSubject: z.boolean(),
@@ -64,4 +66,53 @@ export async function verifyVideoSubject(input: { photograph: Buffer; frames: Bu
   } catch (error) {
     return { sameSubject: false, reason: `check_unavailable:${error instanceof Error ? error.message : 'unknown'}` }
   }
+}
+
+/** Review frames from the composed MP4, including its overlays and end card. */
+export async function reviewVideoQuality(input: {
+  photograph: Buffer
+  frames: Buffer[]
+  caption: string
+  brandName: string
+  locale: 'sq-XK' | 'en-US' | 'de-DE'
+  verifiedFacts: string[]
+}) {
+  const provider = aiProviderConfiguration()
+  const image = (bytes: Buffer) => ({
+    type: 'input_image',
+    image_url: `data:image/jpeg;base64,${bytes.toString('base64')}`,
+    detail: 'high',
+  })
+  const response = await fetch(provider.responsesUrl, {
+    method: 'POST',
+    redirect: 'error',
+    signal: AbortSignal.timeout(60000),
+    headers: provider.headers,
+    body: JSON.stringify({
+      model: aiProviderModel('AI_PLANNER_MODEL'),
+      store: false,
+      instructions: `Review the finished vertical social video shown as chronological frames against the original business photograph and the supplied verified facts. Evaluate the caption, visible subjects, motion continuity, overlays, legibility, brand fit, source fidelity, and end card. Do not assume motion between sampled frames is proven. Mark factuality=false for invented products, people, venue features, offers or unsupported claims. Give specific, actionable reasons in ${input.locale === 'de-DE' ? 'German' : input.locale === 'en-US' ? 'English' : 'Albanian'}. Use WARN for subjective visual weaknesses and BLOCK for factual inventions. Return the required structured quality result.`,
+      max_output_tokens: 1200,
+      input: [{
+        role: 'user',
+        content: [
+          { type: 'input_text', text: JSON.stringify({ brandName: input.brandName, caption: input.caption, verifiedFacts: input.verifiedFacts, imageOrder: ['Original owned photograph', 'Finished video frames in chronological order'] }) },
+          image(input.photograph),
+          ...input.frames.map(image),
+        ],
+      }],
+      ...aiProviderStructuredRouting(provider.name),
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'video_quality_review',
+          strict: true,
+          schema: aiProviderJsonSchema(z.toJSONSchema(qualitySchema)),
+        },
+      },
+    }),
+  })
+  if (!response.ok)
+    throw createError({ statusCode: 503, message: 'server.VIDEO_QA_UNAVAILABLE', data: { providerStatus: response.status } })
+  return normalizeQualityReview(qualitySchema.parse(JSON.parse(responseText(parseMonthlyProviderResponse(await response.json())))))
 }

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { Asset } from '~~/shared/schemas/workspace'
+import type { Asset, Post } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, commit, notify, initLive } = useWorkspace()
 const { t } = useI18n()
 const route = useRoute()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Rrit` })
 const query = ref('')
-const assetFilter = ref<'all' | 'original' | 'generated'>('all')
+const assetFilter = ref<'all' | 'original' | 'generated' | 'generated-video'>('all')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
 const deleteOpen = ref(false)
@@ -26,6 +26,41 @@ const selectedFiles = ref<File[]>([])
 const viewerOpen = ref(false)
 const viewerIndex = ref(0)
 const downloading = ref(false)
+const videoPreviews = ref<Record<string, string | null>>({})
+const resolvingVideo = ref(false)
+const embeddedEndCards = ref<Record<string, boolean>>({})
+const legacyCardVisible = ref(false)
+function videoPostFor(asset: Asset): Post | undefined {
+  if (!asset.tags.includes('video-poster')) return undefined
+  return data.value.posts.find((post) => post.image === asset.url && !!post.video)
+}
+const viewerVideoPost = computed(() => viewerAsset.value && videoPostFor(viewerAsset.value))
+const viewerVideoUrl = computed(() => {
+  const post = viewerVideoPost.value
+  return post?.video?.status === 'ready' ? videoPreviews.value[post.id] || null : null
+})
+const detailVideoUrl = computed(() => {
+  const post = detail.value && videoPostFor(detail.value)
+  return post?.video?.status === 'ready' ? videoPreviews.value[post.id] || null : null
+})
+async function resolveVideo(asset: Asset) {
+  const post = videoPostFor(asset)
+  if (!post || post.video?.status !== 'ready' || post.id in videoPreviews.value) return
+  resolvingVideo.value = true
+  try {
+    const response = await $fetch<{ render: { previewUrl: string | null; endCardEmbedded: boolean } | null }>(`/api/posts/${post.id}/video`)
+    videoPreviews.value[post.id] = response.render?.previewUrl || null
+    embeddedEndCards.value[post.id] = response.render?.endCardEmbedded || false
+  } catch {
+    videoPreviews.value[post.id] = null
+  } finally {
+    resolvingVideo.value = false
+  }
+}
+function handleVideoEnded() {
+  const post = viewerVideoPost.value
+  if (post?.video?.endCardAssetId && !embeddedEndCards.value[post.id]) legacyCardVisible.value = true
+}
 function displayTag(tag: string) {
   return tag === 'ngarkim' || tag === 'upload' ? t('gallery.uploadTag') : tag
 }
@@ -35,6 +70,7 @@ function visibleTags(asset: Asset) {
 function openDetail(asset: Asset) {
   detail.value = asset
   tags.value = asset.tags.join(', ')
+  void resolveVideo(asset)
 }
 const allAssets = computed(() =>
   data.value.assets.filter((a) =>
@@ -44,11 +80,14 @@ const allAssets = computed(() =>
   ),
 )
 const assets = computed(() =>
-  allAssets.value.filter((asset) =>
-    assetFilter.value === 'generated' ? asset.generated : assetFilter.value === 'original' ? !asset.generated : true,
-  ),
+  allAssets.value.filter((asset) => {
+    if (assetFilter.value === 'generated') return asset.generated && !videoPostFor(asset)
+    if (assetFilter.value === 'original') return !asset.generated
+    if (assetFilter.value === 'generated-video') return !!videoPostFor(asset)
+    return true
+  }),
 )
-const generatedFilterActive = computed(() => assetFilter.value === 'generated')
+const generatedFilterActive = computed(() => assetFilter.value === 'generated' || assetFilter.value === 'generated-video')
 const viewerAssets = computed(() => allAssets.value.filter((asset) => asset.kind === 'photo'))
 const viewerAsset = computed(() => viewerAssets.value[viewerIndex.value] || null)
 function openViewer(asset: Asset) {
@@ -56,23 +95,35 @@ function openViewer(asset: Asset) {
   if (index < 0) return
   viewerIndex.value = index
   viewerOpen.value = true
+  legacyCardVisible.value = false
+  void resolveVideo(asset)
 }
 function moveViewer(offset: number) {
   if (!viewerAssets.value.length) return
   viewerIndex.value =
     (viewerIndex.value + offset + viewerAssets.value.length) % viewerAssets.value.length
+  legacyCardVisible.value = false
+  const asset = viewerAsset.value
+  if (asset) void resolveVideo(asset)
+}
+function selectViewerAsset(index: number) {
+  viewerIndex.value = index
+  legacyCardVisible.value = false
+  const asset = viewerAsset.value
+  if (asset) void resolveVideo(asset)
 }
 async function downloadViewerAsset() {
   if (!viewerAsset.value || downloading.value) return
   downloading.value = true
   try {
-    const response = await fetch(viewerAsset.value.url, { credentials: 'include' })
+    const isVideo = !!viewerVideoUrl.value
+    const response = await fetch(viewerVideoUrl.value || viewerAsset.value.url, { credentials: 'include' })
     if (!response.ok) throw new Error('download failed')
     const blob = await response.blob()
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = viewerAsset.value.name || 'rrit-photo.jpg'
+    anchor.download = isVideo ? `${viewerAsset.value.name || 'rrit-video'}.mp4` : viewerAsset.value.name || 'rrit-photo.jpg'
     anchor.click()
     URL.revokeObjectURL(url)
   } finally {
@@ -90,6 +141,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 const filterTabs = computed(() => [
   { label: t('gallery.allAssets'), value: 'all' },
   { label: t('gallery.generatedAssets'), value: 'generated' },
+  { label: t('gallery.generatedVideos'), value: 'generated-video' },
   { label: t('gallery.originalAssets'), value: 'original' },
 ])
 const { page, pageSize, total, paginated } = usePagination(assets)
@@ -271,7 +323,7 @@ async function saveMetadata() {
             size="sm"
             :aria-label="t('gallery.assetFilter')"
           />
-          <span role="status" class="text-sm text-muted">{{ assets.length }} {{ t('gallery.photos') }}</span
+          <span role="status" class="text-sm text-muted">{{ assets.length }} {{ assetFilter === 'generated-video' ? t('gallery.videos') : assetFilter === 'all' ? t('gallery.items') : t('gallery.photos') }}</span
           ><UButton
             v-if="selected.length"
             color="neutral"
@@ -309,18 +361,28 @@ async function saveMetadata() {
             :aria-label="t('gallery.photoDetails', { name: asset.name })"
             @click="asset.kind === 'photo' ? openViewer(asset) : openDetail(asset)"
           >
-            <MediaImage
-              :src="asset.url"
+            <MediaThumbnail
+              v-if="videoPostFor(asset)"
+              :post="videoPostFor(asset)!"
               :alt="asset.name"
-              :fit="asset.kind === 'brand' ? 'contain' : 'cover'"
               class="size-full"
               width="64"
               height="64"
             />
+            <MediaImage
+              v-else
+                :src="asset.url"
+                :alt="asset.name"
+                :fit="asset.kind === 'brand' ? 'contain' : 'cover'"
+                class="size-full"
+                width="64"
+                height="64"
+              />
           </UButton>
           <div class="min-w-0 flex-1">
             <h3 class="text-sm font-medium break-words">{{ asset.name }}</h3>
             <div class="flex flex-wrap gap-1.5 mt-2">
+              <UBadge v-if="videoPostFor(asset)" color="info" variant="subtle" size="sm">Video</UBadge>
               <UBadge v-if="asset.generated" color="primary" variant="subtle" size="sm">
                 {{ t('gallery.generatedBadge') }}
               </UBadge>
@@ -382,12 +444,24 @@ async function saveMetadata() {
       <template #body>
         <div v-if="viewerAsset" class="flex h-[calc(100dvh-12rem)] min-h-[36rem] flex-col gap-5">
           <div class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8">
+            <video
+              v-if="viewerVideoUrl && !legacyCardVisible"
+              :key="viewerVideoUrl"
+              :src="viewerVideoUrl"
+              :poster="viewerAsset.url"
+              controls
+              playsinline
+              class="h-full w-auto max-w-full rounded-xl bg-black"
+              @ended="handleVideoEnded"
+            />
             <MediaImage
-              :src="viewerAsset.url"
+              v-else
+              :src="legacyCardVisible && viewerVideoPost?.video?.endCardAssetId ? `/api/media/${viewerVideoPost.video.endCardAssetId}` : viewerAsset.url"
               :alt="viewerAsset.name"
               fit="natural"
               class="size-full rounded-xl"
             />
+            <UIcon v-if="viewerVideoPost && resolvingVideo && !viewerVideoUrl" name="i-lucide-loader-circle" class="absolute size-8 animate-spin text-white" />
             <UButton
               color="neutral"
               variant="ghost"
@@ -422,7 +496,7 @@ async function saveMetadata() {
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-sliders-horizontal"
-                @click="detail = viewerAsset; tags = viewerAsset.tags.join(', '); viewerOpen = false"
+                @click="openDetail(viewerAsset); viewerOpen = false"
               >
                 {{ t('gallery.details') }}
               </UButton>
@@ -441,9 +515,10 @@ async function saveMetadata() {
               class="size-16 shrink-0 overflow-hidden rounded-lg p-0"
               :class="index === viewerIndex ? 'ring-2 ring-primary ring-offset-2' : 'opacity-70 hover:opacity-100'"
               :aria-label="asset.name"
-              @click="viewerIndex = index"
+              @click="selectViewerAsset(index)"
             >
-              <MediaImage :src="asset.url" :alt="asset.name" class="size-full object-cover" width="64" height="64" />
+              <MediaThumbnail v-if="videoPostFor(asset)" :post="videoPostFor(asset)!" :alt="asset.name" class="size-full" width="64" height="64" />
+              <MediaImage v-else :src="asset.url" :alt="asset.name" class="size-full object-cover" width="64" height="64" />
             </UButton>
           </div>
         </div>
@@ -494,12 +569,8 @@ async function saveMetadata() {
       @update:open="detail = $event ? detail : null"
       ><template #body
         ><div v-if="detail" class="stack">
-          <MediaImage
-            :src="detail.url"
-            :alt="detail.name"
-            fit="natural"
-            class="w-full rounded-lg bg-elevated"
-          /><UFormField :label="t('gallery.tags')" name="tags" class="field"
+          <video v-if="detailVideoUrl" :src="detailVideoUrl" :poster="detail.url" controls playsinline class="w-full rounded-lg bg-black" />
+          <MediaImage v-else :src="detail.url" :alt="detail.name" fit="natural" class="w-full rounded-lg bg-elevated" /><UFormField :label="t('gallery.tags')" name="tags" class="field"
             ><UInput v-model="tags" class="w-full" /><small>{{ t('gallery.tagsHint') }}</small></UFormField
           >
           <p class="small muted">

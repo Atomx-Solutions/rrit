@@ -22,13 +22,15 @@ const filter = computed({
   },
 })
 const channel = ref('all')
+const format = ref<'all' | 'video' | 'post'>('all')
 const hasFilters = computed(
-  () => !!search.value.trim() || filter.value !== 'all' || channel.value !== 'all',
+  () => !!search.value.trim() || filter.value !== 'all' || channel.value !== 'all' || format.value !== 'all',
 )
 function resetFilters() {
   search.value = ''
   filter.value = 'all'
   channel.value = 'all'
+  format.value = 'all'
 }
 const tabs = computed(() => [
   { value: 'all', label: t('overview.all') },
@@ -39,13 +41,14 @@ const posts = computed(() =>
     (p) =>
       (filter.value === 'all' || p.status === filter.value) &&
       (channel.value === 'all' || p.channel === channel.value) &&
+      (format.value === 'all' || (format.value === 'video' ? !!p.video : !p.video)) &&
       `${p.title} ${p.caption}`
         .toLocaleLowerCase('sq')
         .includes(search.value.trim().toLocaleLowerCase('sq')),
   ),
 )
 const { page, pageSize, total, paginated } = usePagination(posts)
-watch([search, filter, channel], () => {
+watch([search, filter, channel, format], () => {
   page.value = 1
 })
 </script>
@@ -80,6 +83,12 @@ watch([search, filter, channel], () => {
           class="min-w-0 flex-1 sm:w-72 sm:flex-none"
         />
         <div class="actions shrink-0">
+          <USelect
+            v-model="format"
+            :items="[{ label: t('content.allFormats'), value: 'all' }, { label: t('content.postsOnly'), value: 'post' }, { label: t('content.videoOnly'), value: 'video' }]"
+            :aria-label="t('content.filterFormat')"
+            class="w-32 sm:w-auto"
+          />
           <USelect
             v-model="channel"
             :items="[{ label: t('content.allChannels'), value: 'all' }, 'Instagram', 'Facebook']"

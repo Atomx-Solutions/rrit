@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
     .object({
       page: z.coerce.number().int().min(1).max(100000).default(1),
       pageSize: z.coerce.number().int().min(1).max(50).default(10),
-      channel: z.enum(['all', 'Facebook', 'Instagram']).default('all'),
+      channel: z.enum(['all', 'Facebook', 'Instagram', 'TikTok']).default('all'),
       search: z.string().trim().max(200).default(''),
     })
     .safeParse(getQuery(event))
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   const result = await withBusinessTransaction(user.id, async (client, business) => {
     const values = [business.id, channel, search]
     const where =
-      "sp.business_id=$1 AND ($2='all' OR sp.channel=$2) AND ($3='' OR strpos(lower(sp.caption),lower($3))>0) AND EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id)))"
+      "sp.business_id=$1 AND ($2='all' OR sp.channel=$2) AND ($3='' OR strpos(lower(sp.caption),lower($3))>0) AND (EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) OR EXISTS (SELECT 1 FROM tiktok_connections tc WHERE tc.business_id=sp.business_id AND tc.status='connected' AND sp.channel='TikTok' AND sp.source_account_id=tc.open_id))"
     const count = await client.query(
       `SELECT count(*)::integer AS total FROM social_posts sp WHERE ${where}`,
       values,
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   return {
     posts: result.rows.rows as {
       id: string
-      channel: 'Facebook' | 'Instagram'
+      channel: 'Facebook' | 'Instagram' | 'TikTok'
       caption: string
       image: string | null
       permalink: string | null

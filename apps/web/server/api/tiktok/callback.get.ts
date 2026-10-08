@@ -22,9 +22,18 @@ export default defineEventHandler(async (event) => {
   try {
     const token = await exchangeTikTokCode(query.code)
     if (!token.scopes.includes('video.upload')) return sendRedirect(event, `${stored.return_path}?tiktok=permissions`)
+    let displayName: string | null = null
+    try {
+      const info = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=display_name', {
+        headers: { Authorization: `Bearer ${token.accessToken}` },
+        signal: AbortSignal.timeout(10000),
+      })
+      const userData = await info.json() as { data?: { user?: { display_name?: string } } }
+      displayName = userData.data?.user?.display_name || null
+    } catch { /* profile name is optional */ }
     await withUserTransaction(user.id, async (client) => {
       await setTenantContext(client, { userId: user.id, organizationId: stored.business_id })
-      await client.query('INSERT INTO tiktok_connections (business_id,open_id,access_token_ciphertext,refresh_token_ciphertext,expires_at,refresh_expires_at,scopes,status) VALUES ($1,$2,$3,$4,$5,$6,$7,\'connected\') ON CONFLICT (business_id) DO UPDATE SET open_id=EXCLUDED.open_id,access_token_ciphertext=EXCLUDED.access_token_ciphertext,refresh_token_ciphertext=EXCLUDED.refresh_token_ciphertext,expires_at=EXCLUDED.expires_at,refresh_expires_at=EXCLUDED.refresh_expires_at,scopes=EXCLUDED.scopes,status=\'connected\',updated_at=now()', [stored.business_id, token.openId, encryptTikTokToken(token.accessToken, stored.business_id), encryptTikTokToken(token.refreshToken, stored.business_id), token.expiresAt, token.refreshExpiresAt, JSON.stringify(token.scopes)])
+      await client.query('INSERT INTO tiktok_connections (business_id,open_id,display_name,access_token_ciphertext,refresh_token_ciphertext,expires_at,refresh_expires_at,scopes,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'connected\') ON CONFLICT (business_id) DO UPDATE SET open_id=EXCLUDED.open_id,display_name=EXCLUDED.display_name,access_token_ciphertext=EXCLUDED.access_token_ciphertext,refresh_token_ciphertext=EXCLUDED.refresh_token_ciphertext,expires_at=EXCLUDED.expires_at,refresh_expires_at=EXCLUDED.refresh_expires_at,scopes=EXCLUDED.scopes,status=\'connected\',updated_at=now()', [stored.business_id, token.openId, displayName, encryptTikTokToken(token.accessToken, stored.business_id), encryptTikTokToken(token.refreshToken, stored.business_id), token.expiresAt, token.refreshExpiresAt, JSON.stringify(token.scopes)])
     })
     return sendRedirect(event, `${stored.return_path}?tiktok=connected`)
   } catch { return sendRedirect(event, `${stored.return_path}?tiktok=failed`) }

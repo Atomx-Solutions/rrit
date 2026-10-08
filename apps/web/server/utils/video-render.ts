@@ -14,7 +14,7 @@ import { buildVideoEndCard, buildVideoOverlayLayers, videoKeyframes } from './im
 import { buildVideoCreativePlan } from './video-plan'
 import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, renderStillMotion, VIDEO_END_CARD_SECONDS } from './video-compose'
-import { verifyVideoSubject } from './video-subject-check'
+import { reviewVideoQuality, verifyVideoSubject } from './video-subject-check'
 import { brainForSlot, plannerBrainOf } from './monthly-planner-domain'
 import { editorialPlanSchema, researchSchema } from '../../shared/schemas/monthly-plan'
 
@@ -183,6 +183,11 @@ export async function renderVideoForPost(userId: string, postId: string) {
     })
     return {
       business,
+      brandName: workspace.brand.name,
+      locale: workspace.preferences.locale,
+      caption: post.caption,
+      verifiedFacts,
+      contentVersion: post.contentVersion ?? 1,
       renderId: renderRow.id,
       source: asset.rows[0].storage_path
         ? await downloadAsset(asset.rows[0].storage_path, 10 * 1024 * 1024)
@@ -280,6 +285,15 @@ export async function renderVideoForPost(userId: string, postId: string) {
       overlays: snapshot.overlays,
       ...(keyframes.landscape ? { placement: { y: clearOfType(snapshot.overlayExtent, keyframes.canvas, { width: endCardWidth, height: endCardHeight }, snapshot.zone) } } : {}),
     })
+    failureReason = 'quality_review_failed'
+    const quality = await reviewVideoQuality({
+      photograph: snapshot.source,
+      frames: await extractVideoFrames(bytes, [0.1, 0.4, 0.7, 0.95]),
+      caption: snapshot.caption,
+      brandName: snapshot.brandName,
+      locale: snapshot.locale,
+      verifiedFacts: snapshot.verifiedFacts,
+    })
     const folder = assetStorageFolder(snapshot.business.slug, snapshot.business.id)
     const path = `${folder}/video-${postId}-${randomUUID()}.mp4`
     const endCardStoragePath = `${folder}/video-endcard-${postId}-${endCardAssetId}.jpg`
@@ -345,7 +359,13 @@ export async function renderVideoForPost(userId: string, postId: string) {
       const current = await client.query<{ payload: unknown }>('SELECT payload FROM posts WHERE id=$1 AND business_id=$2 FOR UPDATE', [postId, business.id])
       const currentPost = current.rows[0] && postSchema.parse(current.rows[0].payload)
       if (currentPost?.video) {
+        if ((currentPost.contentVersion ?? 1) !== snapshot.contentVersion)
+          throw createError({ statusCode: 409, message: 'server.POST_CHANGED_DURING_VALIDATION' })
         currentPost.video.status = 'ready'
+        currentPost.video.quality = quality
+        currentPost.video.qualityContentVersion = snapshot.contentVersion
+        currentPost.policy = quality.factuality ? 'warn' : 'block'
+        currentPost.policyReason = quality.reasons.join(' ') || 'validation.aiQualityPassed'
         if (endCardImage) currentPost.video.endCardAssetId = endCardAssetId
         else delete currentPost.video.endCardAssetId
         await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(currentPost), postId, business.id])

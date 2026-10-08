@@ -167,7 +167,8 @@ const columns = computed<TableColumn<Post>[]>(() => [
     </template>
     <template #channel-cell="{ row }">
       <span class="inline-flex items-center gap-2 text-sm"
-        ><UIcon
+        ><TikTokLogo v-if="row.original.channel === 'TikTok'" class="size-4 shrink-0 text-white" /><UIcon
+          v-else
           :name="channelIcon(row.original.channel)"
           class="size-4 text-muted"
         />{{ row.original.channel }}</span

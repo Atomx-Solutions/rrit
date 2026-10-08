@@ -85,7 +85,9 @@ const phases = [
 ] as const
 
 const plan = computed(() => planner.value?.plan)
-const selectedQuantity = ref(1)
+// Keep both deliverable counters opt-in. A new request should not silently
+// reserve a static photo post before the customer chooses its quantity.
+const selectedQuantity = ref(0)
 const selectedVideoQuantity = ref(0)
 // Which platforms this request is for. Both selected is the absence of a
 // restriction, which is how the planner behaved before the choice existed.
@@ -747,6 +749,7 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
         </div>
         <UButton
+          class="shrink-0"
           size="sm"
           variant="outline"
           color="neutral"
@@ -813,7 +816,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
       <div
         v-if="extendable && !videosRendering"
-        class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
+        class="mt-3 flex flex-nowrap items-center gap-3 overflow-x-auto rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
       >
         <div class="flex min-w-0 items-center gap-2.5">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -824,11 +827,11 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <div class="ms-auto flex flex-wrap items-center gap-2">
-          <UFormField :label="t('monthly.quantityLabel')" size="xs">
+        <div class="ms-auto flex shrink-0 items-end gap-2">
+          <UFormField :label="t('monthly.quantityLabel')" size="xs" class="w-24 shrink-0">
             <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24" />
           </UFormField>
-          <UFormField :label="t('video.include')" size="xs">
+          <UFormField :label="t('video.include')" size="xs" class="w-24 shrink-0">
             <UInputNumber
               v-model="selectedVideoQuantity"
               :min="0"
@@ -839,6 +842,7 @@ onBeforeUnmount(() => clearInterval(timer))
           </UFormField>
         </div>
         <UButton
+          class="shrink-0"
           :loading="busy"
           :disabled="selectedQuantity + selectedVideoQuantity < 1"
           icon="i-lucide-plus"
@@ -893,7 +897,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
       <div
         v-if="extendable"
-        class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
+        class="mt-3 flex flex-nowrap items-center gap-3 overflow-x-auto rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
       >
         <div class="flex min-w-0 items-center gap-2.5">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -904,11 +908,11 @@ onBeforeUnmount(() => clearInterval(timer))
             <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <div class="ms-auto flex flex-wrap items-center gap-2">
-          <UFormField :label="t('monthly.quantityLabel')" size="xs">
+        <div class="ms-auto flex shrink-0 items-end gap-2">
+          <UFormField :label="t('monthly.quantityLabel')" size="xs" class="w-24 shrink-0">
             <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24" />
           </UFormField>
-          <UFormField :label="t('video.include')" size="xs">
+          <UFormField :label="t('video.include')" size="xs" class="w-24 shrink-0">
             <UInputNumber
               v-model="selectedVideoQuantity"
               :min="0"

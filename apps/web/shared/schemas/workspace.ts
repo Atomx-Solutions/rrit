@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   contentIntentSchema,
   monthlyPostProvenanceSchema,
+  qualitySchema,
   plannedCreativeLayoutSchema,
   storedShotDirectionSchema,
 } from './monthly-plan'
@@ -123,6 +124,8 @@ export const postSchema = z.object({
     // flags it as a video end-card so it is excluded from source-photo pickers.
     endCardAssetId: z.uuid().optional(),
     createdAt: z.iso.datetime(),
+    quality: qualitySchema.optional(),
+    qualityContentVersion: z.number().int().positive().optional(),
   }).optional(),
 })
 export const campaignSchema = z.object({
