@@ -9,9 +9,7 @@ const { base, storageError, syncing } = useWorkspace()
 const { t, locale } = useI18n()
 const { watchError } = useFormFeedback()
 watchError(storageError, 'error')
-const { data: headerUsage, refresh: refreshHeaderUsage } = await useFetch('/api/usage', {
-  key: 'header-credit-balance',
-})
+const { data: headerUsage, refresh: refreshHeaderUsage } = useHeaderUsage()
 // Show settled customer credits in the global header. `spendable` subtracts
 // temporary reservations and can rise again when a cheaper AI run settles,
 // which makes the balance look like credits were returned during generation.

@@ -121,14 +121,25 @@ export async function withTenantTransaction<T>(
 export async function withUserTransaction<T>(
   userId: string,
   work: (client: PoolClient) => Promise<T>,
+  onTiming?: (phase: string, durationMs: number) => void,
 ) {
-  const client = await connectRuntimeDatabase()
+  const timed = async <R>(phase: string, action: () => Promise<R>): Promise<R> => {
+    if (!onTiming) return action()
+    const startedAt = performance.now()
+    try {
+      return await action()
+    } finally {
+      // Diagnostic callbacks must not interrupt a transaction or hide its error.
+      try { onTiming(phase, performance.now() - startedAt) } catch { /* diagnostics only */ }
+    }
+  }
+  const client = await timed('connect', connectRuntimeDatabase)
   try {
-    await client.query('BEGIN')
-    await client.query('SET LOCAL ROLE app_runtime')
-    await setUserContext(client, userId)
+    await timed('begin', () => client.query('BEGIN'))
+    await timed('role', () => client.query('SET LOCAL ROLE app_runtime'))
+    await timed('userContext', () => setUserContext(client, userId))
     const result = await work(client)
-    await client.query('COMMIT')
+    await timed('commit', () => client.query('COMMIT'))
     return result
   } catch (error) {
     try {

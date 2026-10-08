@@ -1,16 +1,12 @@
 <script setup lang="ts">
 const { t, language } = useI18n()
 const { base } = useWorkspace()
-const { data: trial, refresh, error } = await useFetch('/api/trial', { key: 'trial' })
+const { data: usage, error } = useHeaderUsage()
+const trial = computed(() => usage.value?.trial)
 const { showError } = useFormFeedback()
 watch(error, (value) => {
   if (value) showError(t('trial.loadError'), 'warning')
 }, { immediate: true })
-let timer: ReturnType<typeof setInterval> | undefined
-onMounted(() => {
-  timer = setInterval(() => refresh(), 60000)
-})
-onBeforeUnmount(() => clearInterval(timer))
 const remaining = computed(() => {
   const hours = Math.ceil((trial.value?.secondsRemaining || 0) / 3600)
   return hours >= 24

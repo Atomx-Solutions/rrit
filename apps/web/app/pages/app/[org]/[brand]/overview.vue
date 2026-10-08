@@ -2,11 +2,18 @@
 import { formatDate } from '~~/shared/utils/format'
 import { contentActivityDate } from '~/utils/content-activity'
 import { monthlyPlannerPath } from '~/utils/creation-route'
+import { metaConnectionView } from '~/utils/meta-connection-view'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t, locale } = useI18n()
 useSeoMeta({ title: () => `${t('overview.title')} · Rrit` })
-const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
+// The Meta card is below the main overview; do not block navigation for it.
+const { data: meta, status: metaStatus } = useFetch('/api/meta/status', {
+  key: 'meta-status',
+  lazy: true,
+  server: false,
+})
+const connectionView = computed(() => metaConnectionView(metaStatus.value, meta.value?.connection))
 const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
 const upcoming = computed(() =>
   data.value.posts
@@ -327,15 +334,23 @@ const summaries = computed(() => [
         <div class="flex justify-between items-center gap-3 mb-4">
           <h2 class="text-sm font-semibold">{{ t('nav.meta') }}</h2>
           <UBadge color="neutral" variant="outline" size="sm">{{
-            meta?.connection?.status === 'connected'
-              ? t('overview.connected')
-              : t('overview.connectionRequired')
+            connectionView === 'loading'
+              ? t('common.loading')
+              : connectionView === 'unavailable'
+                ? t('overview.connectionUnavailable')
+                : connectionView === 'connected'
+                  ? t('overview.connected')
+                  : t('overview.connectionRequired')
           }}</UBadge>
         </div>
         <p class="text-sm text-muted leading-relaxed max-w-lg">
           {{
-            meta?.connection?.status === 'connected'
-              ? t('overview.connectedPage', { page: meta.connection.pageName || '' })
+            connectionView === 'loading'
+              ? t('overview.connectionChecking')
+              : connectionView === 'unavailable'
+                ? t('overview.connectionCheckFailed')
+                : connectionView === 'connected'
+                  ? t('overview.connectedPage', { page: meta?.connection?.pageName || '' })
               : /* : 'Faqja e lidhur: ' +
                 meta.connection.pageName +
                 '. Përditëso postimet për të parë historikun e biznesit.' */

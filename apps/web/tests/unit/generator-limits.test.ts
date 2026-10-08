@@ -86,40 +86,18 @@ describe('trial post allowance', () => {
 
   it('follows the Free Trial package instead of the legacy trial setting', async () => {
     vi.stubGlobal('createError', createError)
-    const query = vi.fn(async (sql: string) => {
-      if (sql.includes('FROM trial_grants'))
-        return {
-          rows: [
-            {
-              starts_at: new Date('2026-09-17T10:00:00.000Z'),
-              expires_at: new Date('2026-09-20T10:00:00.000Z'),
-              status: 'granted',
-              seconds_remaining: 3600,
-            },
-          ],
-        }
-      if (sql.includes('FROM app_settings'))
-        return {
-          rows: [
-            {
-              value: {
-                duration_hours: 72,
-                features: ['posts', 'ai'],
-                device_retention_days: 365,
-                limits: {
-                  posts_per_month: 12,
-                  ai_requests_per_day: 200,
-                  media_storage_bytes: 5368709120,
-                  social_accounts: 2,
-                  members: 1,
-                },
-              },
-            },
-          ],
-        }
-      if (sql.includes('FROM plans')) return { rows: [{ posts_per_month: 3 }] }
-      return { rows: [] }
-    })
+    const query = vi.fn(async () => ({ rows: [{
+      trial_starts_at: new Date('2026-09-17T10:00:00.000Z'),
+      trial_expires_at: new Date('2026-09-20T10:00:00.000Z'),
+      trial_status: 'granted',
+      trial_seconds_remaining: 3600,
+      trial_posts_per_month: 3,
+      policy: { duration_hours: 72, features: ['posts', 'ai'], device_retention_days: 365, limits: {
+        posts_per_month: 12, ai_requests_per_day: 200, media_storage_bytes: 5368709120, social_accounts: 2, members: 1,
+      } },
+      paid_features: null,
+      custom_name: null,
+    }] }))
 
     const access = await trialStatus('00000000-0000-4000-8000-000000000001', { query } as never)
 
@@ -127,24 +105,46 @@ describe('trial post allowance', () => {
     expect(access.limits.posts_per_month).toBe(3)
   })
 
+  it('loads trial access in one database round trip', async () => {
+    vi.stubGlobal('createError', createError)
+    const query = vi.fn(async () => ({ rows: [{
+      trial_starts_at: new Date('2026-09-17T10:00:00.000Z'),
+      trial_expires_at: new Date('2026-09-20T10:00:00.000Z'),
+      trial_status: 'granted',
+      trial_seconds_remaining: 3600,
+      policy: {
+        duration_hours: 72,
+        features: ['posts', 'ai'],
+        device_retention_days: 365,
+        limits: { posts_per_month: 12, ai_requests_per_day: 200, media_storage_bytes: 5368709120, social_accounts: 2, members: 1 },
+      },
+      trial_posts_per_month: 3,
+      paid_features: null,
+      custom_name: null,
+    }] }))
+
+    const access = await trialStatus('00000000-0000-4000-8000-000000000001', { query } as never)
+
+    expect(access.state).toBe('active')
+    expect(access.limits.posts_per_month).toBe(3)
+    expect(query).toHaveBeenCalledTimes(1)
+  })
+
   it('passes the active custom package period to downstream usage tracking', async () => {
     vi.stubGlobal('createError', createError)
     const startsAt = new Date('2026-09-25T00:00:00.000Z')
     const endsAt = new Date('2026-09-30T00:00:00.000Z')
-    const query = vi.fn(async (sql: string) => {
-      if (sql.includes('FROM trial_grants') || sql.includes('FROM entitlements')) return { rows: [] }
-      if (sql.includes('FROM custom_packages')) {
-        return { rows: [{ name: 'Paketa 25-30', posts_included: 3, starts_at: startsAt, ends_at: endsAt }] }
-      }
-      if (sql.includes('FROM app_settings')) {
-        return {
-          rows: [{ value: { duration_hours: 72, features: ['posts', 'ai'], device_retention_days: 365, limits: {
-            posts_per_month: 12, ai_requests_per_day: 200, media_storage_bytes: 5368709120, social_accounts: 2, members: 1,
-          } } }],
-        }
-      }
-      return { rows: [] }
-    })
+    const query = vi.fn(async () => ({ rows: [{
+      trial_status: null,
+      custom_name: 'Paketa 25-30',
+      custom_posts_included: 3,
+      custom_starts_at: startsAt,
+      custom_ends_at: endsAt,
+      policy: { duration_hours: 72, features: ['posts', 'ai'], device_retention_days: 365, limits: {
+        posts_per_month: 12, ai_requests_per_day: 200, media_storage_bytes: 5368709120, social_accounts: 2, members: 1,
+      } },
+      paid_features: null,
+    }] }))
 
     const access = await trialStatus('00000000-0000-4000-8000-000000000001', { query } as never)
 

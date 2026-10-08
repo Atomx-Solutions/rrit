@@ -11,44 +11,18 @@ describe('entitlement fail-safe behavior', () => {
     vi.stubGlobal('createError', createError)
 
     const db = {
-      query: vi.fn(async (sql: string) => {
-        if (sql.includes('FROM trial_grants')) {
-          return {
-            rows: [
-              {
-                starts_at: new Date('2026-09-10T10:00:00.000Z'),
-                expires_at: new Date('2026-09-13T10:00:00.000Z'),
-                status: 'granted',
-                seconds_remaining: 3600,
-              },
-            ],
-          }
-        }
-        if (sql.includes('FROM entitlements')) return { rows: [] }
-        if (sql.includes('FROM custom_packages')) return { rows: [] }
-        if (sql.includes('FROM plans')) return { rows: [{ posts_per_month: 3 }] }
-        if (sql.includes('FROM app_settings')) {
-          return {
-            rows: [
-              {
-                value: {
-                  duration_hours: 72,
-                  features: ['posts'],
-                  device_retention_days: 365,
-                  limits: {
-                    posts_per_month: 12,
-                    ai_requests_per_day: 0,
-                    media_storage_bytes: 268435456,
-                    social_accounts: 2,
-                    members: 1,
-                  },
-                },
-              },
-            ],
-          }
-        }
-        throw new Error(`Unexpected query: ${sql}`)
-      }),
+      query: vi.fn(async () => ({ rows: [{
+        trial_starts_at: new Date('2026-09-10T10:00:00.000Z'),
+        trial_expires_at: new Date('2026-09-13T10:00:00.000Z'),
+        trial_status: 'granted',
+        trial_seconds_remaining: 3600,
+        trial_posts_per_month: 3,
+        paid_features: null,
+        custom_name: null,
+        policy: { duration_hours: 72, features: ['posts'], device_retention_days: 365, limits: {
+          posts_per_month: 12, ai_requests_per_day: 0, media_storage_bytes: 268435456, social_accounts: 2, members: 1,
+        } },
+      }] })),
     }
 
     await expect(
