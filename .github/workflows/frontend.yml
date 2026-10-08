@@ -50,8 +50,10 @@ jobs:
           ffprobe -version
           ffmpeg -hide_banner -encoders | grep libx264
       - run: npm run check
-      - name: Prepare Supabase service role for CI migrations
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE service_role NOLOGIN"
+      - name: Prepare database roles for CI migrations
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE service_role NOLOGIN"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE rrit_worker NOLOGIN"
       - name: Prepare Supabase auth compatibility schema
         run: >-
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1
