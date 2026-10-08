@@ -143,9 +143,8 @@ async function withdrawRights() {
         : t('gallery.rightsWithdrawn'),
     )
   } catch (problem) {
-    rightsError.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      t('gallery.withdrawRightsError')
+    rightsError.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'gallery.withdrawRightsError')
   } finally {
     rightsBusy.value = false
   }
@@ -220,8 +219,8 @@ async function remove() {
     deleteOpen.value = false
     notify(t('gallery.photosRemoved'))
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message || t('gallery.saveError')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'gallery.saveError')
   }
 }
 async function saveMetadata() {
@@ -237,7 +236,7 @@ async function saveMetadata() {
     })
   ) {
     detail.value = null
-    notify()
+    notify(t('common.saved'))
   }
 }
 </script>

@@ -24,7 +24,7 @@ const schema = z.object({
     .max(100)
     .default([]),
   timezone: ianaTimezoneSchema.default('Europe/Belgrade'),
-  locale: z.enum(['sq-XK', 'en-US']).default('sq-XK'),
+  locale: z.enum(['sq-XK', 'en-US', 'de-DE']).default('sq-XK'),
 })
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success)
     throw createError({
       statusCode: 422,
-      message: 'Plotëso emrin, qytetin dhe përshkrimin e biznesit.',
+      message: 'server.BUSINESS_FIELDS_REQUIRED',
     })
   const state = emptyWorkspace(user.name, user.email)
   Object.assign(state.brand, {

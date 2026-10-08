@@ -7,7 +7,10 @@ export type PlatformSettings = {
   ai_low_balance_usd: number
   // The rate behind every custom package price suggestion.
   custom_package_post_price_cents: number
-  // Credits granted for each post when a custom package is accepted.
+  custom_package_video_price_cents: number
+  // Credits granted for each post when a custom package is accepted. Videos
+  // need no setting of their own: a bought video funds the render it was bought
+  // for, so its grant is the render charge in credit_pricing.
   custom_package_credits_per_post: number
   // Amounts the public request form offers as a starting point.
   package_request_post_options: number[]
@@ -21,6 +24,7 @@ export const platformSettingsChangesSchema = z.object({
   ai_warn_balance_usd: z.coerce.number().min(0).max(100_000).optional(),
   ai_low_balance_usd: z.coerce.number().min(0).max(100_000).optional(),
   custom_package_post_price_cents: z.coerce.number().int().min(1).max(1_000_000).optional(),
+  custom_package_video_price_cents: z.coerce.number().int().min(1).max(1_000_000).optional(),
   custom_package_credits_per_post: z.coerce.number().int().min(1).max(100_000).optional(),
   package_request_post_options: z.array(z.coerce.number().int().min(1).max(1000)).min(1).max(6).optional(),
   package_expiry_reminder_days: z.coerce.number().int().min(1).max(365).optional(),
@@ -33,6 +37,7 @@ function normalize(value: unknown): PlatformSettings {
     ai_warn_balance_usd: Number(row.ai_warn_balance_usd ?? 30) || 0,
     ai_low_balance_usd: Number(row.ai_low_balance_usd ?? 10) || 0,
     custom_package_post_price_cents: Number(row.custom_package_post_price_cents ?? 150) || 150,
+    custom_package_video_price_cents: Number(row.custom_package_video_price_cents ?? 200) || 200,
     custom_package_credits_per_post: Number(row.custom_package_credits_per_post ?? 80) || 80,
     package_request_post_options: Array.isArray(row.package_request_post_options)
       ? row.package_request_post_options.map(Number).filter(Number.isFinite)
@@ -49,7 +54,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
     const invalid = error.message?.includes('SETTINGS_INVALID')
     throw createError({
       statusCode: invalid ? 400 : 502,
-      message: invalid ? 'Vlerat e cilësimeve nuk janë të vlefshme.' : 'Cilësimet e platformës nuk u ngarkuan.',
+      message: invalid ? 'server.SETTINGS_VALUES_INVALID' : 'Cilësimet e platformës nuk u ngarkuan.',
     })
   }
   return normalize(data)

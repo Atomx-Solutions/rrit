@@ -83,6 +83,7 @@ const timezoneOptions = [
 const localeOptions = [
   { label: t('settings.albanianKosovo'), value: 'sq-XK' },
   { label: t('settings.englishUnitedStates'), value: 'en-US' },
+  { label: t('settings.germanGermany'), value: 'de-DE' },
 ]
 function toggleGoal(goal: string, checked: boolean) {
   if (checked && !form.goals.includes(goal)) form.goals.push(goal)
@@ -190,9 +191,8 @@ async function next() {
       }
     }
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      t('onboarding.saveError')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'onboarding.saveError')
   } finally {
     busy.value = false
   }
@@ -205,9 +205,8 @@ async function finishLater() {
     if (await commit((draft) => { draft.onboardingSkipped = true }))
       await navigateTo(`${base.value}/overview`)
   } catch (problem) {
-    error.value =
-      (problem as { data?: { message?: string } }).data?.message ||
-      t('onboarding.saveError')
+    error.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'onboarding.saveError')
   } finally {
     busy.value = false
   }

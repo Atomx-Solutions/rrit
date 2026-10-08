@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const month = monthSchema.safeParse(typeof query.month === 'string' ? query.month : '')
   const type = query.type === 'strategy' ? 'strategy' : 'research'
-  if (!month.success) throw createError({ statusCode: 422, message: 'Zgjidh një muaj të vlefshëm.' })
+  if (!month.success) throw createError({ statusCode: 422, message: 'server.MONTH_INVALID' })
 
   const pdf = await withBusinessTransaction(user.id, async (client, business) => {
     const { workspace } = await loadWorkspace(client, business.id, user.id)
@@ -18,9 +18,9 @@ export default defineEventHandler(async (event) => {
     const research = row?.research ? researchSchema.parse(row.research) : null
     const strategy = row?.editorial_plan ? editorialPlanSchema.parse(row.editorial_plan) : null
     if (type === 'research' && !research)
-      throw createError({ statusCode: 404, message: 'Hulumtimi nuk është ende i gatshëm.' })
+      throw createError({ statusCode: 404, message: 'server.RESEARCH_NOT_READY' })
     if (type === 'strategy' && !strategy)
-      throw createError({ statusCode: 404, message: 'Strategjia nuk është ende e gatshme.' })
+      throw createError({ statusCode: 404, message: 'server.STRATEGY_NOT_READY' })
     return monthlyReportPdf({
       type,
       language: workspace.preferences.locale === 'en-US' ? 'en' : 'sq',

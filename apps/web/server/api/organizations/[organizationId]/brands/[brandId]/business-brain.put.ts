@@ -9,9 +9,9 @@ export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const organizationId = z.uuid().safeParse(getRouterParam(event, 'organizationId'))
   const brandId = z.uuid().safeParse(getRouterParam(event, 'brandId'))
-  if (!organizationId.success || !brandId.success) throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
+  if (!organizationId.success || !brandId.success) throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
   const parsed = updateBrainSchema.safeParse(await boundedBody(event, 32768))
-  if (!parsed.success) throw createError({ statusCode: 422, message: 'Te dhenat e Business Brain nuk jane valide.' })
+  if (!parsed.success) throw createError({ statusCode: 422, message: 'server.BUSINESS_BRAIN_DATA_INVALID' })
   return withOrganizationTransaction(user.id, organizationId.data, async (client) => {
     const brain = await updateBusinessBrainSettings(client, organizationId.data, brandId.data, parsed.data)
     await recordAuditEvent(client, {

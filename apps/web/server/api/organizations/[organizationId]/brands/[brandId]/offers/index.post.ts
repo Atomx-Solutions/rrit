@@ -9,9 +9,9 @@ export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const organizationId = z.uuid().safeParse(getRouterParam(event, 'organizationId'))
   const brandId = z.uuid().safeParse(getRouterParam(event, 'brandId'))
-  if (!organizationId.success || !brandId.success) throw createError({ statusCode: 404, message: 'Brandi nuk u gjet.' })
+  if (!organizationId.success || !brandId.success) throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
   const parsed = createOfferSchema.safeParse(await boundedBody(event, 8192))
-  if (!parsed.success) throw createError({ statusCode: 422, message: 'Oferta nuk eshte valide.' })
+  if (!parsed.success) throw createError({ statusCode: 422, message: 'server.OFFER_INVALID' })
   return withOrganizationTransaction(user.id, organizationId.data, async (client) => {
     const offer = await createBusinessBrainOffer(client, organizationId.data, brandId.data, parsed.data)
     await recordAuditEvent(client, {

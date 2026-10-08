@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   if (!tokenCiphertext)
     throw createError({
       statusCode: 409,
-      message: 'Nise lidhjen me Meta përpara se të zgjedhësh faqen.',
+      message: 'server.META_CONNECTION_REQUIRED',
     })
   const after = getQuery(event).after
   if (after && (typeof after !== 'string' || after.length > 1000))
@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
   } catch {
     throw createError({
       statusCode: 502,
-      message: 'Faqet nuk mund të lexohen nga Meta. Rilidhe llogarinë ose provo sërish.',
+      message: 'server.META_PAGES_UNREADABLE',
     })
   }
 })

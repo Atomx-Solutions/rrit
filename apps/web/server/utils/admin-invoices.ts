@@ -13,7 +13,7 @@ export async function adminOrganizationInvoices(organizationId: string) {
     .limit(200)
   if (error) {
     console.error('Admin invoice list failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Faturat nuk u ngarkuan.' })
+    throw createError({ statusCode: 502, message: 'server.INVOICES_LOAD_FAILED' })
   }
   return ((data || []) as unknown as InvoiceRow[]).map(toInvoice)
 }
@@ -27,7 +27,7 @@ export async function adminOrganizationInvoice(organizationId: string, invoiceId
     .maybeSingle()
   if (error) {
     console.error('Admin invoice read failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Fatura nuk u ngarkua.' })
+    throw createError({ statusCode: 502, message: 'server.INVOICE_LOAD_FAILED' })
   }
   return data ? toInvoice(data as unknown as InvoiceRow) : null
 }

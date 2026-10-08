@@ -46,7 +46,7 @@ const dateFilters = reactive({ from: '', to: '' })
 // Text filters are client-side (fast, no extra round trip for short lists)
 // A package invoice and a credit top-up are both sold through the same
 // proposal flow, so the list separates them by what was actually bought.
-const sourceKinds = ['all', 'custom_package', 'credit_top_up'] as const
+const sourceKinds = ['all', 'custom_package', 'video_purchase', 'credit_top_up'] as const
 const search = reactive({ org: '', number: '', source: 'all' as (typeof sourceKinds)[number] })
 
 watch([() => dateFilters.from, () => dateFilters.to], () => { page.value = 1 })
@@ -143,6 +143,7 @@ const sourceLabel: Record<string, string> = {
   credit_top_up: t('admin.billing.sourceCreditTopUp'),
   credit_note: t('admin.billing.sourceCreditNote'),
   custom_package: t('admin.billing.sourceCustomPackage'),
+  video_purchase: t('admin.billing.sourceVideoPurchase'),
 }
 </script>
 

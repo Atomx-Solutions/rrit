@@ -24,6 +24,22 @@ export type PlannerChannel = (typeof plannerChannels)[number]
 // How many of a batch's posts each platform gets. An empty object is the
 // absence of a request, not a request for nothing.
 export type PlannerChannelCounts = Partial<Record<PlannerChannel, number>>
+export const plannerVideoChannels = ['Instagram', 'Facebook', 'TikTok'] as const
+export type PlannerVideoChannel = (typeof plannerVideoChannels)[number]
+export type PlannerVideoChannelCounts = Partial<Record<PlannerVideoChannel, number>>
+
+export function normalizedVideoChannelCounts(counts: PlannerVideoChannelCounts | undefined, quantity: number) {
+  if (!counts) return {}
+  const entries = plannerVideoChannels.flatMap((channel) => {
+    const value = counts[channel]
+    if (value === undefined) return []
+    if (!Number.isInteger(value) || value < 0) throw new PlannerFailure('INVALID_CHANNEL_SPLIT')
+    return value > 0 ? ([[channel, value]] as const) : []
+  })
+  if (entries.reduce((total, [, value]) => total + value, 0) !== quantity)
+    throw new PlannerFailure('INVALID_CHANNEL_SPLIT')
+  return Object.fromEntries(entries) as PlannerVideoChannelCounts
+}
 
 export function channelCountsTotal(counts: PlannerChannelCounts | undefined) {
   return plannerChannels.reduce((total, channel) => total + (counts?.[channel] || 0), 0)
@@ -54,6 +70,10 @@ export function normalizedChannelCounts(
 /** The single platform a distribution leaves, when it leaves only one. */
 export function soleChannel(counts: PlannerChannelCounts | undefined) {
   const used = plannerChannels.filter((channel) => (counts?.[channel] || 0) > 0)
+  return used.length === 1 ? used[0]! : undefined
+}
+export function soleVideoChannel(counts: PlannerVideoChannelCounts | undefined) {
+  const used = plannerVideoChannels.filter((channel) => (counts?.[channel] || 0) > 0)
   return used.length === 1 ? used[0]! : undefined
 }
 
@@ -156,12 +176,17 @@ export function plannerEvidence(
   workspace: Workspace,
   now = new Date(),
   month = planningMonth(workspace.preferences.timezone, now),
-  photoSelection: { mode: 'auto' | 'selected'; selectedAssetIds: string[] } = {
+  photoSelection: {
+    mode: 'auto' | 'selected'
+    selectedAssetIds: string[]
+    selectedVideoAssetIds?: string[]
+  } = {
     mode: 'auto',
     selectedAssetIds: [],
   },
   timingSamples: PlannerTimingSample[] = [],
   businessBrain: { brain?: PlannerBrain; facts?: BrandFact[] } = {},
+  videoChannelCounts: PlannerVideoChannelCounts = {},
 ) {
   const brain = businessBrain.brain || emptyPlannerBrain
   const brainFacts = businessBrain.facts || []
@@ -184,21 +209,34 @@ export function plannerEvidence(
     )
   const eligibleAssetIds = new Set(assets.map((asset) => asset.id))
   const selectedAssetIds = [...new Set(photoSelection.selectedAssetIds)]
+  // Photographs chosen for motion are tracked apart from the feed selection,
+  // but the two lists may overlap: a photograph chosen for both produces one
+  // feed post and one video from the same source.
+  const selectedVideoAssetIds = [...new Set(photoSelection.selectedVideoAssetIds || [])]
+  // A `selected` batch is valid as long as at least one deliverable kind has
+  // a chosen photograph: a video-only batch has an empty selectedAssetIds and
+  // a populated selectedVideoAssetIds, and vice versa. Only when both are
+  // empty is there really nothing to generate from.
   if (
     photoSelection.mode === 'selected' &&
-    (!selectedAssetIds.length || selectedAssetIds.some((id) => !eligibleAssetIds.has(id)))
+    ((!selectedAssetIds.length && !selectedVideoAssetIds.length) ||
+      [...selectedAssetIds, ...selectedVideoAssetIds].some((id) => !eligibleAssetIds.has(id)))
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]))
   const generationAssets =
     photoSelection.mode === 'selected'
-      ? selectedAssetIds.map((id) => assetsById.get(id)!)
+      ? [...new Set([...selectedAssetIds, ...selectedVideoAssetIds])].map(
+          (id) => assetsById.get(id)!,
+        )
       : assets
   const localTimingSamples = workspace.posts
-    .filter((post) => post.status === 'published' && post.publishedAt)
+    // A video is watched on its own rhythm whichever channel it reached, so it
+    // is no evidence of when a feed post should go out.
+    .filter((post) => post.status === 'published' && post.publishedAt && !post.video)
     .map((post) => ({
       source: 'platform' as const,
-      channel: post.channel,
+      channel: post.channel as PlannerChannel,
       publishedAt: post.publishedAt!,
     }))
   const observedTiming = [...timingSamples, ...localTimingSamples]
@@ -243,7 +281,9 @@ export function plannerEvidence(
     photoSelection: {
       mode: photoSelection.mode,
       selectedAssetIds: photoSelection.mode === 'selected' ? selectedAssetIds : [],
+      selectedVideoAssetIds: photoSelection.mode === 'selected' ? selectedVideoAssetIds : [],
     },
+    videoChannelCounts,
     recentPosts: workspace.posts
       .slice(0, 30)
       .map(({ title, caption, channel }) => ({ title, caption: caption.slice(0, 600), channel })),
@@ -494,7 +534,10 @@ export function normalizeEditorialPlanResponse(
   const sourceByCanonicalUrl = new Map(
     research.sources.map((source) => [canonicalSourceUrl(source.url), source.url]),
   )
-  const selectedAssets = new Set(evidence.photoSelection?.selectedAssetIds || [])
+  const selectedAssets = new Set([
+    ...(evidence.photoSelection?.selectedAssetIds || []),
+    ...(evidence.photoSelection?.selectedVideoAssetIds || []),
+  ])
   const timingEvidence = evidence.timingEvidence || { samples: [] }
 
   function supportedTimingBasis(slot: { timingBasis?: 'social_history' | 'platform_history' | 'no_data'; channel: string; time: string }) {
@@ -523,12 +566,15 @@ export function normalizeEditorialPlanResponse(
           }),
         ),
       ]
-      const timingBasis = supportedTimingBasis(slot)
+      const channel = slot.deliverable === 'video'
+        ? soleVideoChannel(evidence.videoChannelCounts) || slot.channel
+        : soleChannel(channelCounts) || slot.channel
+      const timingBasis = supportedTimingBasis({ ...slot, channel })
       return {
         ...slot,
         // With one platform requested there is nothing to decide, so the
         // request wins outright.
-        channel: soleChannel(channelCounts) || slot.channel,
+        channel,
         // Never replace an editorial claim with an unrelated fact or source.
         // Keeping the original when nothing matches makes validation request a
         // precise model correction instead of silently weakening grounding.
@@ -570,6 +616,7 @@ export function validateEditorialPlan(
   // uniqueness checks without being revalidated themselves.
   existingSlots: SlotBrief[] = [],
   channelCounts: PlannerChannelCounts = {},
+  videoSlots = 0,
 ) {
   const plan = editorialPlanSchema.parse(value)
   const earliestDate = earliestPlanningDate(evidence.timezone, evidence.capturedAt)
@@ -587,9 +634,12 @@ export function validateEditorialPlan(
   const intents = new Map<string, number>()
   const layouts = new Map<string, number>()
   const algorithmGoals = new Map<string, number>()
-  const requiredAssets = new Map<string, number>()
+  const requiredPostAssets = new Map<string, number>()
+  const requiredVideoAssets = new Map<string, number>()
   const photoSelection = evidence.photoSelection || { mode: 'auto' as const, selectedAssetIds: [] }
-  const selectedAssets = new Set(photoSelection.selectedAssetIds)
+  const postAssets = new Set(photoSelection.selectedAssetIds)
+  const videoAssets = new Set(photoSelection.selectedVideoAssetIds || [])
+  const selectedAssets = new Set([...postAssets, ...videoAssets])
   const timingEvidence = evidence.timingEvidence || {
     samples: [],
     socialHistory: 0,
@@ -603,6 +653,12 @@ export function validateEditorialPlan(
     const hook = normalizedIdea(slot.hook)
     if (slot.day > days)
       throw new PlannerFailure('INVALID_SLOT_DATE', [`Postimi ${index + 1}: dita ${slot.day} nuk ekziston në muaj.`])
+    // A video may go to any of the three channels, but a static feed post has
+    // nowhere to land on TikTok, which publishes video only.
+    if (slot.deliverable !== 'video' && !plannerChannels.includes(slot.channel as PlannerChannel))
+      throw new PlannerFailure('UNGROUNDED_PLAN', [
+        `Postimi ${index + 1}: ${slot.channel} pranon vetëm deliverable video; një postim statik duhet të shkojë te ${plannerChannels.join(' ose ')}.`,
+      ])
     if (used.has(key))
       throw new PlannerFailure('REPETITIVE_PLAN', [`Postimi ${index + 1}: data, ora dhe kanali përsëriten.`])
     if (topics.has(topic) || hooks.has(hook))
@@ -666,7 +722,12 @@ export function validateEditorialPlan(
     layouts.set(slot.visualLayout, (layouts.get(slot.visualLayout) || 0) + 1)
     algorithmGoals.set(slot.algorithmGoal, (algorithmGoals.get(slot.algorithmGoal) || 0) + 1)
     if (slot.requiredAssetId)
-      requiredAssets.set(slot.requiredAssetId, (requiredAssets.get(slot.requiredAssetId) || 0) + 1)
+      (slot.deliverable === 'video' ? requiredVideoAssets : requiredPostAssets).set(
+        slot.requiredAssetId,
+        ((slot.deliverable === 'video' ? requiredVideoAssets : requiredPostAssets).get(
+          slot.requiredAssetId,
+        ) || 0) + 1,
+      )
   }
   const minimumIntents = Math.min(count, count >= 10 ? 5 : count >= 6 ? 4 : count >= 3 ? 3 : count)
   const minimumLayouts = Math.min(count, count >= 10 ? 5 : count >= 6 ? 4 : count >= 3 ? 3 : count)
@@ -681,17 +742,29 @@ export function validateEditorialPlan(
     throw new PlannerFailure('REPETITIVE_PLAN', [
       `Shpërndaji ${count} postimet në të paktën ${minimumIntents} intent-e dhe ${minimumLayouts} layout-e, pa dominuar njëri ritmin mujor.`,
     ])
-  if (
-    photoSelection.mode === 'selected' &&
-    [...selectedAssets].some((id) => requiredAssets.get(id) !== 1)
-  )
-    throw new PlannerFailure('PHOTO_SELECTION_MISSING', [
-      `Caktoje secilën fotografi të zgjedhur ekzaktësisht një herë: ${[...selectedAssets].join(', ')}.`,
-    ])
+  if (photoSelection.mode === 'selected') {
+    if (
+      [...postAssets].some((id) => requiredPostAssets.get(id) !== 1) ||
+      [...videoAssets].some((id) => requiredVideoAssets.get(id) !== 1)
+    )
+      throw new PlannerFailure('PHOTO_SELECTION_MISSING', [
+        `Cakto secilën fotografi të zgjedhur për postim ekzaktësisht një herë te një slot static_post (${[...postAssets].join(', ') || '—'}), dhe secilën të zgjedhur për video ekzaktësisht një herë te një slot video (${[...videoAssets].join(', ') || '—'}).`,
+      ])
+    const misplaced = plan.slots.some(
+      (slot) =>
+        !!slot.requiredAssetId &&
+        !(slot.deliverable === 'video' ? videoAssets : postAssets).has(slot.requiredAssetId),
+    )
+    if (misplaced)
+      throw new PlannerFailure('PHOTO_SELECTION_MISSING', [
+        'Çdo slot duhet të përdorë një fotografi të zgjedhur pikërisht për llojin e tij.',
+      ])
+  }
   // The platform split the customer asked for is a promise about this batch,
   // so it is checked over the batch as a whole rather than slot by slot.
   if (channelCountsTotal(channelCounts)) {
     const planned = plan.slots.reduce<Record<string, number>>((totals, slot) => {
+      if (slot.deliverable === 'video') return totals
       totals[slot.channel] = (totals[slot.channel] || 0) + 1
       return totals
     }, {})
@@ -705,6 +778,35 @@ export function validateEditorialPlan(
           .join(', ')}.`,
       ])
   }
+  if (Object.keys(evidence.videoChannelCounts || {}).length) {
+    const planned = plan.slots.reduce<Record<string, number>>((totals, slot) => {
+      if (slot.deliverable === 'video') totals[slot.channel] = (totals[slot.channel] || 0) + 1
+      return totals
+    }, {})
+    if (plannerVideoChannels.some((channel) => (planned[channel] || 0) !== (evidence.videoChannelCounts[channel] || 0)))
+      throw new PlannerFailure('UNGROUNDED_PLAN', ['Shpërndaji videot në platformat e zgjedhura.'])
+  }
+  // The video count is a money boundary, not a style note: each video is a
+  // deliverable the business bought, so the figure is enforced here rather than
+  // trusted to the model. A surplus is demoted, because the slot is a complete
+  // piece of work either way and discarding a batch already paid for would cost
+  // the business more than the flag is worth. A shortfall cannot be repaired
+  // the same way — a static slot has not been planned to carry motion — so it
+  // is sent back for a replanning that honours the split. A surplus video slot is demoted instead of
+  // failing the batch, because the slot is a complete static post either way and
+  // discarding a batch the business already paid for would cost it more than the
+  // flag is worth. A demoted slot simply reaches the business as the static post
+  // it already is, which is why nothing extra has to be reported.
+  let videosKept = 0
+  for (const slot of plan.slots) {
+    if (slot.deliverable !== 'video') continue
+    if (videosKept < videoSlots) videosKept += 1
+    else slot.deliverable = 'static_post'
+  }
+  if (videosKept < videoSlots)
+    throw new PlannerFailure('UNGROUNDED_PLAN', [
+      `Planifiko saktësisht ${videoSlots} slote si deliverable video, me fotografi të vetat; të tjerat si static_post.`,
+    ])
   return plan
 }
 export const plannerMessages: Record<string, string> = {
@@ -715,6 +817,8 @@ export const plannerMessages: Record<string, string> = {
   ENTITLEMENT_REQUIRED: 'Planifikimi me AI kërkon një paketë aktive me AI.',
   QUOTA_EXCEEDED: 'Kufiri i paketës është arritur. Draftet e krijuara mbeten të ruajtura.',
   QUANTITY_EXCEEDS_REMAINING: 'Sasia e zgjedhur tejkalon postimet e mbetura në paketë.',
+  VIDEO_QUANTITY_EXCEEDS_REMAINING: 'Sasia e videove tejkalon videot e mbetura në paketë.',
+  VIDEO_DELIVERABLES_DISABLED: 'Aktivizo videot te profili i biznesit para se të kërkosh video.',
   BUDGET_EXCEEDED: 'Përgatitja u ndal te kufiri i kostos. Draftet mbeten të ruajtura.',
   PROVIDER_UNCERTAIN:
     'Lidhja me shërbimin AI u ndërpre. Platforma po vazhdon automatikisht nga e njëjta fazë.',
@@ -760,10 +864,12 @@ export const plannerMessages: Record<string, string> = {
     'Strategjia nuk i caktoi të gjitha fotografitë e zgjedhura. Plani duhet korrigjuar.',
   TOO_MANY_SELECTED_PHOTOS:
     'Ke zgjedhur më shumë fotografi sesa postime lejon plani i këtij muaji.',
+  TOO_MANY_SELECTED_VIDEO_PHOTOS:
+    'Ke zgjedhur më shumë fotografi për video sesa video lejon plani i këtij muaji.',
   PLAN_RESET_UNSAFE:
     'Plani ka postime të miratuara ose të publikuara dhe nuk mund të pastrohet automatikisht.',
   BUDGET_ESTIMATE_EXCEEDED:
-    'Kostoja e shërbimit tejkaloi rezervimin. Platforma duhet të rishikojë kufijtë përpara vazhdimit.',
+    'Kostoja e shërbima bazohet i rezervimin. Platforma duhet të rishikojë kufijtë përpara vazhdimit.',
 }
 
 /**
@@ -774,9 +880,14 @@ export function remainingMonthlyPosts(postsPerMonth: number, createdThisMonth: n
   return Math.max(0, Math.min(postsPerMonth, 100) - createdThisMonth)
 }
 
-/** Validates the client choice again at the server boundary. */
+/**
+ * Validates the client choice again at the server boundary. Zero is a valid
+ * request so a batch may consist of videos alone; the "at least one
+ * deliverable overall" rule is enforced one level up where the caller also
+ * knows how many videos are being requested.
+ */
 export function requestedPlannerPosts(quantity: number, remaining: number) {
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > remaining)
+  if (!Number.isInteger(quantity) || quantity < 0 || quantity > remaining)
     throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
   return quantity
 }
@@ -794,4 +905,50 @@ export function resumableContentFailureCode(code: string | null | undefined) {
     'CREATIVE_UNSUPPORTED_GLYPH',
     'CREATIVE_TOO_LARGE',
   ].includes(code || '')
+}
+
+/**
+ * The only two canvas facts the creative pipeline depends on: the provider's
+ * native portrait canvas and the final feed canvas the application crops to.
+ * Everything the image prompt says about bleed and safe margins is derived from
+ * these, so no percentage is restated as prose that could silently drift if
+ * either canvas changes.
+ */
+export const feedCreativeCanvas = { width: 1080, height: 1350 } as const
+export const providerCreativeCanvas = { width: 3, height: 4 } as const
+/**
+ * Editorial margin kept clear of critical content on every side of the final
+ * canvas, as a share of that side. It is a design tunable, not a layout: it
+ * constrains where critical content may live, never how a composition is built.
+ */
+export const criticalContentMargin = 0.09
+
+function ratioLabel(canvas: { width: number; height: number }) {
+  const divisor = (a: number, b: number): number => (b ? divisor(b, a % b) : a)
+  const factor = divisor(canvas.width, canvas.height)
+  return `${canvas.width / factor}:${canvas.height / factor}`
+}
+
+/**
+ * Derives the composition contract for the centre crop performed by
+ * normalizeGeneratedCreative. A provider canvas that is taller than the final
+ * canvas loses height; one that is wider loses width. Percentages are expressed
+ * against the provider canvas, because that is the surface the model paints.
+ */
+export function feedCreativeGeometry() {
+  const providerAspect = providerCreativeCanvas.width / providerCreativeCanvas.height
+  const finalAspect = feedCreativeCanvas.width / feedCreativeCanvas.height
+  const retainedWidth = providerAspect > finalAspect ? finalAspect / providerAspect : 1
+  const retainedHeight = providerAspect > finalAspect ? 1 : providerAspect / finalAspect
+  const safeShare = 1 - criticalContentMargin * 2
+  const percent = (value: number) => `${Math.round(value * 1000) / 10}%`
+  return {
+    finalPixels: `${feedCreativeCanvas.width}x${feedCreativeCanvas.height}`,
+    finalRatio: ratioLabel(feedCreativeCanvas),
+    providerRatio: ratioLabel(providerCreativeCanvas),
+    discardedWidthPerSide: percent((1 - retainedWidth) / 2),
+    discardedHeightPerSide: percent((1 - retainedHeight) / 2),
+    safeWidth: percent(retainedWidth * safeShare),
+    safeHeight: percent(retainedHeight * safeShare),
+  }
 }

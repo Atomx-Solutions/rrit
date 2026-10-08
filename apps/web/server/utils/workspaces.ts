@@ -23,7 +23,7 @@ export async function loadWorkspace(
     )
   ).rows[0]
   if (!row || row.id !== id || row.owner_id !== owner)
-    throw createError({ statusCode: 404, message: 'Biznesi nuk u gjet.' })
+    throw createError({ statusCode: 404, message: 'server.BUSINESS_NOT_FOUND' })
   const timedQuery = async <T>(phase: string, action: () => Promise<T>): Promise<T> => {
     const startedAt = performance.now()
     try {

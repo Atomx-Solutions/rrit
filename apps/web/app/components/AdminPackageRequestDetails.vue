@@ -13,6 +13,7 @@ export type AdminPackageRequest = {
   platform: 'instagram' | 'facebook' | 'both' | null
   posts_requested: number
   credits_requested: number
+  videos_requested: number
   message: string | null
   source: 'landing' | 'app'
   status: 'new' | 'contacted' | 'proposal_sent' | 'won' | 'lost'
@@ -118,6 +119,9 @@ const sections = computed(() => {
                 value: t('admin.packages.creditsValue', { count: request.credits_requested }),
               },
             ]
+          : []),
+        ...((request.videos_requested ?? 0) > 0
+          ? [{ label: t('admin.requests.videos'), value: t('admin.requests.videosValue', { count: request.videos_requested ?? 0 }) }]
           : []),
         { label: t('admin.requests.source'), value: t(`admin.requests.sourceValue.${request.source}`) },
         { label: t('admin.requests.created'), value: formatDateTime(request.created_at) },

@@ -24,7 +24,7 @@ describe('audit metadata sanitization', () => {
     { note: 'Bearer abcdefghijklmnopqrstuvwxyz' },
     { note: 'eyJhbGciOiJIUzI1NiJ9.payload.signature' },
   ])('rejects sensitive metadata: %o', (metadata) => {
-    expect(() => sanitizeAuditMetadata(metadata)).toThrow('Sensitive data cannot be stored')
+    expect(() => sanitizeAuditMetadata(metadata)).toThrow('server.AUDIT_SENSITIVE_DATA')
   })
 })
 

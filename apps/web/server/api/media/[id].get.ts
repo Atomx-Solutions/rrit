@@ -3,14 +3,14 @@ import { downloadAsset } from '../../utils/asset-storage'
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
-  if (!id.success) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
+  if (!id.success) throw createError({ statusCode: 404, message: 'server.PHOTO_NOT_FOUND' })
   const result = await withBusinessTransaction(user.id, (client) =>
     client.query(
       'SELECT a.storage_path, a.bytes, a.mime FROM assets a JOIN businesses b ON b.id = a.business_id WHERE a.id = $1 AND b.owner_id = $2',
       [id.data, user.id],
     ),
   )
-  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'Fotografia nuk u gjet.' })
+  if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.PHOTO_NOT_FOUND' })
   setHeader(event, 'Content-Type', result.rows[0].mime)
   setHeader(event, 'Cache-Control', 'private, no-store')
   setHeader(event, 'X-Content-Type-Options', 'nosniff')

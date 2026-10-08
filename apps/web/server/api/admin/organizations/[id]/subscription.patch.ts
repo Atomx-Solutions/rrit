@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   if (!organizationId.success || !change.success)
     throw createError({
       statusCode: 400,
-      message: 'Veprimi nuk është i vlefshëm.',
+      message: 'server.ACTION_INVALID',
       data: { code: 'INVALID_ACTION' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

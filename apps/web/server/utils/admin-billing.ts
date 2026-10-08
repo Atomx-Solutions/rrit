@@ -11,7 +11,7 @@ export const adminBillingInvoicesQuerySchema = z.object({
   per_page: z.coerce.number().int().min(1).max(200).optional(),
   org_id: z.string().uuid().optional(),
   kind: z.enum(['invoice', 'credit_note']).optional(),
-  source_type: z.enum(['subscription_activation', 'subscription_upgrade', 'credit_top_up', 'credit_note']).optional(),
+  source_type: z.enum(['subscription_activation', 'subscription_upgrade', 'credit_top_up', 'credit_note', 'custom_package', 'video_purchase']).optional(),
   from: isoDate.optional(),
   to: isoDate.optional(),
 })
@@ -30,7 +30,7 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
   })
   if (error) {
     console.error('Admin billing invoices query failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Faturat nuk u ngarkuan.' })
+    throw createError({ statusCode: 502, message: 'server.INVOICES_LOAD_FAILED' })
   }
   return data as {
     invoices: Array<{

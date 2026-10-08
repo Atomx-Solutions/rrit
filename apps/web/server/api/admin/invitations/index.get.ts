@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   if (!query.success)
     throw createError({
       statusCode: 400,
-      message: 'Filtri nuk është i vlefshëm.',
+      message: 'server.FILTER_INVALID',
       data: { code: 'INVITATION_QUERY_INVALID' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

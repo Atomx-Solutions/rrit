@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   if (!changes.success)
     throw createError({
       statusCode: 422,
-      message: 'Vlerat e cilësimeve nuk janë të vlefshme.',
+      message: 'server.SETTINGS_VALUES_INVALID',
       data: { code: 'INVALID_SETTINGS' },
     })
   const actor = await requireUser(event)

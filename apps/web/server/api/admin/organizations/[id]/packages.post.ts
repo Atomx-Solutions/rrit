@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!organizationId.success || !values.success)
     throw createError({
       statusCode: 400,
-      message: 'Vlerat e paketës nuk janë të vlefshme.',
+      message: 'server.PACKAGE_VALUES_INVALID',
       data: { code: 'PACKAGE_INVALID' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

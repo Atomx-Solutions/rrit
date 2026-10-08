@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   if (!values.success)
     throw createError({
       statusCode: 400,
-      message: 'Kërkesa nuk është e vlefshme.',
+      message: 'server.REQUEST_INVALID',
       data: { code: 'REQUEST_INVALID' },
     })
   // Row level security hides the row unless the lookup runs as the signed-in

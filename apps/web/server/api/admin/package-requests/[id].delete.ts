@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   if (!id.success)
     throw createError({
       statusCode: 404,
-      message: 'Kërkesa nuk u gjet.',
+      message: 'server.REQUEST_NOT_FOUND',
       data: { code: 'REQUEST_NOT_FOUND' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

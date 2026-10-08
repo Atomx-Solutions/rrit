@@ -1,6 +1,6 @@
 export default defineEventHandler(() => {
   throw createError({
     statusCode: 404,
-    message: 'Admin endpoint nuk u gjet.',
+    message: 'server.ADMIN_ENDPOINT_NOT_FOUND',
   })
 })

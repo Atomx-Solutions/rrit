@@ -16,13 +16,13 @@ export type AdminSubscriptionAction = z.infer<typeof adminSubscriptionActionSche
 
 // Business-rule failures raised by admin_change_subscription.
 const actionFailures: Record<string, { statusCode: number; message: string }> = {
-  NO_ACTIVE_SUBSCRIPTION: { statusCode: 422, message: 'Organizata nuk ka abonim aktiv.' },
-  SUBSCRIPTION_ALREADY_PAUSED: { statusCode: 422, message: 'Abonimi është tashmë i pauzuar.' },
-  SUBSCRIPTION_NOT_PAUSED: { statusCode: 422, message: 'Abonimi nuk është i pauzuar.' },
-  OTHER_SUBSCRIPTION_ACTIVE: { statusCode: 409, message: 'Organizata ka tashmë një abonim tjetër aktiv.' },
-  PLAN_UNAVAILABLE: { statusCode: 422, message: 'Pakoja nuk është e disponueshme.' },
-  INVALID_EXTENSION: { statusCode: 400, message: 'Zgjatja duhet të jetë nga 1 deri në 365 ditë.' },
-  INVALID_ACTION: { statusCode: 400, message: 'Veprimi nuk është i vlefshëm.' },
+  NO_ACTIVE_SUBSCRIPTION: { statusCode: 422, message: 'server.ORGANIZATION_NO_ACTIVE_SUBSCRIPTION' },
+  SUBSCRIPTION_ALREADY_PAUSED: { statusCode: 422, message: 'server.SUBSCRIPTION_ALREADY_PAUSED' },
+  SUBSCRIPTION_NOT_PAUSED: { statusCode: 422, message: 'server.SUBSCRIPTION_NOT_PAUSED' },
+  OTHER_SUBSCRIPTION_ACTIVE: { statusCode: 409, message: 'server.ORGANIZATION_HAS_OTHER_SUBSCRIPTION' },
+  PLAN_UNAVAILABLE: { statusCode: 422, message: 'server.PACKAGE_UNAVAILABLE' },
+  INVALID_EXTENSION: { statusCode: 400, message: 'server.EXTENSION_DURATION_INVALID' },
+  INVALID_ACTION: { statusCode: 400, message: 'server.ACTION_INVALID' },
 }
 
 export function adminSubscriptionFailure(message: string | undefined) {
@@ -48,7 +48,7 @@ export async function changeAdminSubscription(input: {
     if (failure)
       throw createError({ statusCode: failure.statusCode, message: failure.message, data: { code: failure.code } })
     console.error('Admin subscription change failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Abonimi nuk u ndryshua.' })
+    throw createError({ statusCode: 502, message: 'server.SUBSCRIPTION_NOT_CHANGED' })
   }
   return data as Record<string, unknown>
 }
@@ -105,7 +105,7 @@ export async function adminListSubscriptions(query: AdminSubscriptionsQuery) {
 
   if (error) {
     console.error('Admin subscriptions query failed.', { code: error.code, message: error.message })
-    throw createError({ statusCode: 502, message: 'Abonimet nuk u ngarkuan.' })
+    throw createError({ statusCode: 502, message: 'server.SUBSCRIPTIONS_LOAD_FAILED' })
   }
 
   const now = Date.now()

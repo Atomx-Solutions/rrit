@@ -13,7 +13,10 @@ const customPackageFields = z.object({
   id: z.string().uuid(),
   organizationId: z.string().uuid(),
   name: z.string().trim().min(2).max(120),
-  postsIncluded: z.number().int().positive().max(1000),
+  // A package may be sold for posts, for videos or for credits alone, so each
+  // included amount is allowed to be zero on its own.
+  postsIncluded: z.number().int().nonnegative().max(1000),
+  videosIncluded: z.number().int().nonnegative().max(1000).default(0),
   // The rate this package was agreed at, which may differ from the platform
   // default offered when it was created.
   postPriceCents: z.number().int().positive().max(1_000_000),
@@ -33,6 +36,15 @@ const customPackageFields = z.object({
 const endsAfterStart = (value: { startsAt: string; endsAt: string }) =>
   Date.parse(value.endsAt) > Date.parse(value.startsAt)
 const endsAfterStartError = { message: 'endsAt must be after startsAt', path: ['endsAt'] }
+// A draft is what a superadmin is writing now, and writing a package that
+// includes nothing is a mistake. Stored rows are left alone by this rule: a
+// credits-only package was legitimately saved with no posts and no videos.
+const draftIncludesSomething = (value: { postsIncluded: number; videosIncluded?: number }) =>
+  value.postsIncluded > 0 || (value.videosIncluded ?? 0) > 0
+const draftIncludesSomethingError = {
+  message: 'a package draft must include posts or videos',
+  path: ['postsIncluded'],
+}
 
 export const customPackageSchema = customPackageFields.refine(endsAfterStart, endsAfterStartError)
 export type CustomPackage = z.infer<typeof customPackageSchema>
@@ -43,6 +55,7 @@ export const customPackageDraftSchema = customPackageFields
     organizationId: true,
     name: true,
     postsIncluded: true,
+    videosIncluded: true,
     startsAt: true,
     endsAt: true,
     status: true,
@@ -55,4 +68,5 @@ export const customPackageDraftSchema = customPackageFields
     notes: z.string().max(2000).nullable().optional(),
   })
   .refine(endsAfterStart, endsAfterStartError)
+  .refine(draftIncludesSomething, draftIncludesSomethingError)
 export type CustomPackageDraft = z.infer<typeof customPackageDraftSchema>

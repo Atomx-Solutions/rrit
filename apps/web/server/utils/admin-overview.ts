@@ -99,7 +99,7 @@ export async function adminOverview() {
   const failed = kpis.error || sales.error || customPackages.error
   if (failed) {
     console.error('Admin overview query failed.', { code: failed.code, message: failed.message })
-    throw createError({ statusCode: 502, message: 'Statistikat administrative nuk u ngarkuan.' })
+    throw createError({ statusCode: 502, message: 'server.ADMIN_STATS_LOAD_FAILED' })
   }
   const summary = record(record(aiCosts).summary)
   const overview = record(kpis.data)

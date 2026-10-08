@@ -60,7 +60,7 @@ async function submit() {
     emit('created')
   } catch (error) {
     const problem = error as { data?: { message?: string }; message?: string }
-    showError(problem.data?.message || problem.message || t('join.passwordFailed'))
+    showError(t(problem.data?.message || problem.message || 'join.passwordFailed'))
   } finally {
     busy.value = false
   }

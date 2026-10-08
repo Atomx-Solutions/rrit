@@ -16,7 +16,7 @@ export async function retentionPolicy(db: Pool | PoolClient = database()) {
   const result = await db.query("SELECT value FROM app_settings WHERE key='retention'")
   const policy = retentionPolicySchema.safeParse(result.rows[0]?.value)
   if (!policy.success)
-    throw createError({ statusCode: 503, message: 'Politika e ruajtjes nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.RETENTION_POLICY_NOT_CONFIGURED' })
   return policy.data
 }
 

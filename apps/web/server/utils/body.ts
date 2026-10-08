@@ -8,13 +8,13 @@ export async function boundedBody(event: H3Event, maxBytes = 12 * 1024 * 1024): 
     if (size > maxBytes)
       throw createError({
         statusCode: 413,
-        message: 'Kërkesa është shumë e madhe. Ngarko më pak fotografi njëherësh.',
+        message: 'server.REQUEST_TOO_LARGE',
       })
     chunks.push(bytes)
   }
   try {
     return JSON.parse(Buffer.concat(chunks).toString('utf8'))
   } catch {
-    throw createError({ statusCode: 400, message: 'Të dhënat nuk mund të lexohen.' })
+    throw createError({ statusCode: 400, message: 'server.BODY_UNREADABLE' })
   }
 }

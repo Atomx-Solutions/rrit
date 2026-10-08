@@ -10,17 +10,17 @@ export default defineEventHandler(async (event) => {
     .object({ pageId: z.string().regex(/^\d+$/) })
     .safeParse(await boundedBody(event, 1024))
   if (!input.success)
-    throw createError({ statusCode: 422, message: 'Zgjidh një faqe të vlefshme.' })
+    throw createError({ statusCode: 422, message: 'server.PAGE_INVALID' })
   const stored = await withBusinessTransaction(user.id, async (client, currentBusiness) => {
     if (currentBusiness.id !== business.id)
-      throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Rifillo zgjedhjen e faqes.' })
+      throw createError({ statusCode: 409, message: 'server.BUSINESS_CHANGED_PAGE_SELECTION' })
     return client.query(
     "SELECT token_ciphertext,status,page_id,instagram_id FROM meta_connections WHERE business_id=$1 AND status IN ('pending','connected') AND expires_at>now()",
     [business.id],
     )
   })
   if (!stored.rows[0])
-    throw createError({ statusCode: 409, message: 'Nise lidhjen me Meta sërish.' })
+    throw createError({ statusCode: 409, message: 'server.META_RECONNECT_REQUIRED' })
   // The page is resolved with this user's verified token, never a token supplied by the browser.
   let page: MetaPage
   try {
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
       { fields: 'id,name,access_token,instagram_business_account{id,username}' },
     )
   } catch {
-    throw createError({ statusCode: 403, message: 'Nuk u konfirmua qasja jote në këtë faqe.' })
+    throw createError({ statusCode: 403, message: 'server.PAGE_ACCESS_UNCONFIRMED' })
   }
   if (
     page.id !== input.data.pageId ||
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   )
     throw createError({
       statusCode: 403,
-      message: 'Kërkohet e drejta për krijimin e postimeve në këtë faqe.',
+      message: 'server.PAGE_CREATE_PERMISSION_REQUIRED',
     })
   const client = await database().connect()
   try {
@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
         statusCode: 409,
         data: { code: 'PAGE_ALREADY_CONNECTED' },
         message:
-          'Ka publikim aktiv ose publikimi që pret verifikim i përket faqes së mëparshme. Rilidhe atë faqe për ta kontrolluar pa rrezik dyfishimi.',
+          'server.PREVIOUS_PAGE_PUBLICATION_PENDING',
       })
     await client.query(
       "DELETE FROM post_validations WHERE business_id=$1 AND COALESCE(result->>'scope','publication')='publication'",
@@ -74,7 +74,7 @@ export default defineEventHandler(async (event) => {
     if (!locked.rows.length)
       throw createError({
         statusCode: 409,
-        message: 'Autorizimi ndryshoi. Rifillo zgjedhjen e faqes.',
+        message: 'server.AUTHORIZATION_CHANGED',
       })
     await claimSocialTrialIdentities(client, business.id, [
       { kind: 'facebook_page', value: page.id },
@@ -121,7 +121,7 @@ export default defineEventHandler(async (event) => {
     if ((error as { code?: string }).code === '23505')
       throw createError({
         statusCode: 409,
-        message: 'Kjo faqe është lidhur me një biznes tjetër në Rrit.',
+        message: 'server.PAGE_LINKED_TO_OTHER_BUSINESS',
       })
     throw error
   } finally {

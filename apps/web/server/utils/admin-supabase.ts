@@ -11,7 +11,7 @@ export function adminServiceClient() {
   const url = process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key)
-    throw createError({ statusCode: 503, message: 'Qasja administrative nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.ADMIN_ACCESS_NOT_CONFIGURED' })
 
   return (client ||= createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },

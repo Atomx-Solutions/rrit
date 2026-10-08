@@ -85,7 +85,7 @@ export function metaConfiguration() {
   if (!appId || !appSecret || !configId || !redirectUri || !version || !key)
     throw createError({
       statusCode: 503,
-      message: 'Lidhja me Meta ende nuk është konfiguruar nga platforma.',
+      message: 'server.META_NOT_CONFIGURED',
     })
   const redirect = new URL(redirectUri)
   if (
@@ -94,7 +94,7 @@ export function metaConfiguration() {
     !/^v\d+\.0$/.test(version) ||
     Buffer.from(key, 'base64').length !== 32
   )
-    throw createError({ statusCode: 503, message: 'Konfigurimi i Meta-s nuk është i vlefshëm.' })
+    throw createError({ statusCode: 503, message: 'server.META_CONFIG_INVALID' })
   return { appId, appSecret, configId, redirectUri, version, key: Buffer.from(key, 'base64') }
 }
 export function metaConfigured() {
@@ -288,7 +288,7 @@ export async function businessForUser(userId: string, db: Pool | PoolClient = da
     userId,
   ])
   if (!result.rows[0])
-    throw createError({ statusCode: 404, message: 'Plotëso fillimisht profilin e biznesit.' })
+    throw createError({ statusCode: 404, message: 'server.BUSINESS_PROFILE_REQUIRED' })
   return result.rows[0] as { id: string; slug: string }
 }
 export async function connectedMeta(businessId: string, db: Pool | PoolClient = database()) {
@@ -297,7 +297,7 @@ export async function connectedMeta(businessId: string, db: Pool | PoolClient = 
     [businessId],
   )
   if (!result.rows[0])
-    throw createError({ statusCode: 409, message: 'Lidh ose rinovo llogarinë e rrjetit social.' })
+    throw createError({ statusCode: 409, message: 'server.SOCIAL_RECONNECT_REQUIRED' })
   return result.rows[0] as {
     id: string
     brand_id: string | null

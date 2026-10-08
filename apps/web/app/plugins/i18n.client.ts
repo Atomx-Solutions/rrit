@@ -68,12 +68,14 @@ function scan(root: ParentNode, language: 'sq' | 'en') {
 
 export default defineNuxtPlugin(() => {
   const { locale, setLocale } = useI18n()
-  const language = computed(() => locale.value === 'en-US' ? 'en' : 'sq')
+  // German client copy currently uses the English fallback dictionary for text
+  // outside Vue translations, while preserving the selected document language.
+  const language = computed(() => locale.value === 'sq-XK' ? 'sq' : 'en')
   let observer: MutationObserver | undefined
   let queued = false
   const refresh = () => {
     if (!document.body) return
-    document.documentElement.lang = language.value === 'en' ? 'en' : 'sq'
+    document.documentElement.lang = locale.value === 'de-DE' ? 'de' : language.value
     scan(document.body, language.value)
     document.title = translate(document.title, language.value)
     for (const meta of document.querySelectorAll('meta[name="description"]')) {

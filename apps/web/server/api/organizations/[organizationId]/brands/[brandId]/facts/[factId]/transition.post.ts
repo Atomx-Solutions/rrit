@@ -11,9 +11,9 @@ export default defineEventHandler(async (event) => {
   const organizationId = z.uuid().safeParse(getRouterParam(event, 'organizationId'))
   const brandId = z.uuid().safeParse(getRouterParam(event, 'brandId'))
   const factId = z.uuid().safeParse(getRouterParam(event, 'factId'))
-  if (!organizationId.success || !brandId.success || !factId.success) throw createError({ statusCode: 404, message: 'Fakti nuk u gjet.' })
+  if (!organizationId.success || !brandId.success || !factId.success) throw createError({ statusCode: 404, message: 'server.FACT_NOT_FOUND' })
   const parsed = transitionSchema.safeParse(await boundedBody(event, 2048))
-  if (!parsed.success) throw createError({ statusCode: 422, message: 'Tranzicioni nuk eshte valid.' })
+  if (!parsed.success) throw createError({ statusCode: 422, message: 'server.TRANSITION_INVALID' })
   return withOrganizationTransaction(user.id, organizationId.data, async (client) => {
     const fact = await transitionBusinessBrainFact(client, organizationId.data, brandId.data, factId.data, parsed.data.status, user.id)
     await recordAuditEvent(client, {

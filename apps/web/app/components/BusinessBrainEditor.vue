@@ -103,7 +103,7 @@ async function load() {
     brain.value = await $fetch<BusinessBrain>(apiRoot.value)
     syncSettings(brain.value)
   } catch (cause) {
-    error.value = (cause as { data?: { message?: string } }).data?.message || t('brain.loadError')
+    error.value = t((cause as { data?: { message?: string } }).data?.message || 'brain.loadError')
   } finally {
     if (showInitialLoading) loading.value = false
   }
@@ -116,7 +116,7 @@ async function run<T>(action: () => Promise<T>, success: string) {
     showSuccess(success)
     await load()
   } catch (cause) {
-    error.value = (cause as { data?: { message?: string } }).data?.message || t('brain.actionError')
+    error.value = t((cause as { data?: { message?: string } }).data?.message || 'brain.actionError')
   }
 }
 

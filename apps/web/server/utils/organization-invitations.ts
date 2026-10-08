@@ -32,7 +32,7 @@ export function invitationTokenHash(token: string) {
 
 export function invitationUrl(token: string) {
   const base = process.env.APP_URL
-  if (!base) throw createError({ statusCode: 503, message: 'APP_URL nuk është konfiguruar.' })
+  if (!base) throw createError({ statusCode: 503, message: 'server.APP_URL_NOT_SET' })
   const url = new URL('/join', base)
   url.searchParams.set('token', token)
   return url.toString()
@@ -91,28 +91,28 @@ export const invitationRegisterSchema = z
   .strict()
 
 const failures: Record<string, { statusCode: number; message: string }> = {
-  INVITATION_INVALID: { statusCode: 400, message: 'Të dhënat e ftesës nuk janë të vlefshme.' },
-  INVITATION_NOT_FOUND: { statusCode: 404, message: 'Ftesa nuk u gjet.' },
-  INVITATION_CLOSED: { statusCode: 409, message: 'Kjo ftesë nuk është më e hapur.' },
-  INVITATION_EXPIRED: { statusCode: 410, message: 'Ftesa ka skaduar. Kërko një ftesë të re.' },
+  INVITATION_INVALID: { statusCode: 400, message: 'server.INVITATION_DATA_INVALID' },
+  INVITATION_NOT_FOUND: { statusCode: 404, message: 'server.INVITATION_NOT_FOUND' },
+  INVITATION_CLOSED: { statusCode: 409, message: 'server.INVITATION_CLOSED' },
+  INVITATION_EXPIRED: { statusCode: 410, message: 'server.INVITATION_EXPIRED' },
   INVITATION_EMAIL_MISMATCH: {
     statusCode: 403,
-    message: 'Ftesa i përket një adrese tjetër email.',
+    message: 'server.INVITATION_EMAIL_MISMATCH',
   },
   ACCOUNT_EXISTS: {
     statusCode: 409,
-    message: 'Kjo adresë ka tashmë një llogari. Hyr me fjalëkalimin tënd.',
+    message: 'server.EMAIL_ALREADY_HAS_ACCOUNT',
   },
   PASSWORD_WEAK: {
     statusCode: 422,
-    message: 'Fjalëkalimi nuk i plotëson kërkesat.',
+    message: 'server.PASSWORD_REQUIREMENTS_NOT_MET',
   },
   BUSINESS_EXISTS: {
     statusCode: 409,
-    message: 'Kjo llogari ka tashmë një biznes dhe nuk mund të pranojë ftesë.',
+    message: 'server.ACCOUNT_HAS_BUSINESS',
   },
-  ORGANIZATION_SLUG_TAKEN: { statusCode: 409, message: 'Ky slug i organizatës përdoret tashmë.' },
-  AUTH_REQUIRED: { statusCode: 401, message: 'Hyr në llogari për të vazhduar.' },
+  ORGANIZATION_SLUG_TAKEN: { statusCode: 409, message: 'server.ORGANIZATION_SLUG_EXISTS' },
+  AUTH_REQUIRED: { statusCode: 401, message: 'server.LOGIN_REQUIRED' },
 }
 
 export function invitationFailure(message: string | undefined) {
@@ -227,7 +227,7 @@ export async function registerInvitedClient(input: {
   password: string
 }) {
   const preview = await previewInvitation(input.token)
-  if (!preview.valid) raise('INVITATION_NOT_FOUND', 'Llogaria nuk u krijua.')
+  if (!preview.valid) raise('INVITATION_NOT_FOUND', 'server.ACCOUNT_NOT_CREATED')
 
   const { data, error } = await adminServiceClient().auth.admin.createUser({
     email: preview.email,
@@ -238,13 +238,13 @@ export async function registerInvitedClient(input: {
   if (error) {
     const message = error.message.toLowerCase()
     if (message.includes('already') || error.status === 422)
-      raise('ACCOUNT_EXISTS', 'Llogaria nuk u krijua.')
-    if (message.includes('password')) raise('PASSWORD_WEAK', 'Llogaria nuk u krijua.')
+      raise('ACCOUNT_EXISTS', 'server.ACCOUNT_NOT_CREATED')
+    if (message.includes('password')) raise('PASSWORD_WEAK', 'server.ACCOUNT_NOT_CREATED')
     console.error('Invited client registration failed.', {
       status: error.status,
       code: error.code,
     })
-    throw createError({ statusCode: 502, message: 'Llogaria nuk u krijua.' })
+    throw createError({ statusCode: 502, message: 'server.ACCOUNT_NOT_CREATED' })
   }
   // The browser signs in with the same password straight after; the server
   // never hands out a session of its own.

@@ -73,6 +73,7 @@ async function sync(more = false) {
 <template>
   <DashboardPage :title="t('nav.socialPosts')" :description="t('legacy.socialPostsDescription')">
     <SocialConnections />
+    <div class="mt-6"><TikTokConnection /></div>
     <div class="flex flex-wrap items-end gap-3 mt-6">
       <UFormField :label="t('social.importFrom')"
         ><USelect v-model="importChannel" :items="['Facebook', 'Instagram']" :disabled="importing"

@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   const invoice = organizationId.success && invoiceId.success
     ? await adminOrganizationInvoice(organizationId.data, invoiceId.data)
     : null
-  if (!invoice) throw createError({ statusCode: 404, message: 'Fatura nuk u gjet.' })
+  if (!invoice) throw createError({ statusCode: 404, message: 'server.INVOICE_NOT_FOUND' })
   setHeader(event, 'Content-Type', 'application/pdf')
   // ?inline=1 shows the PDF in the browser (preview) instead of downloading it.
   const disposition = getQuery(event).inline === '1' ? 'inline' : 'attachment'

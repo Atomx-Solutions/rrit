@@ -11,20 +11,20 @@ export default defineEventHandler(async (event) => {
     .object({ scope: z.enum(['content', 'publication']).default('content') })
     .safeParse(await boundedBody(event, 1024))
   if (!input.success)
-    throw createError({ statusCode: 422, message: 'Zgjidh një kontroll të vlefshëm.' })
+    throw createError({ statusCode: 422, message: 'server.VALIDATION_INVALID' })
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
   if (!id.success) throw createError({ statusCode: 404 })
   const { post, contentChecks, checks } = await withBusinessTransaction(
     user.id,
     async (client, currentBusiness) => {
       if (currentBusiness.id !== business.id)
-        throw createError({ statusCode: 409, message: 'Biznesi ndryshoi. Provo sërish.' })
+        throw createError({ statusCode: 409, message: 'server.BUSINESS_CHANGED' })
       await requireEntitlement(business.id, 'validation', client)
       const row = await client.query('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [
         id.data,
         business.id,
       ])
-      if (!row.rows[0]) throw createError({ statusCode: 404, message: 'Postimi nuk u gjet.' })
+      if (!row.rows[0]) throw createError({ statusCode: 404, message: 'server.POST_NOT_FOUND' })
       const post = postSchema.parse(row.rows[0].payload)
       const contentChecks = await localPostChecks(post, business.id, client)
       const checks = [
@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
     if (!current.rows[0] || postFingerprint(current.rows[0].payload) !== postFingerprint(post))
       throw createError({
         statusCode: 409,
-        message: 'Postimi ndryshoi gjatë kontrollit. Kontrolloje përsëri.',
+        message: 'server.POST_CHANGED_DURING_VALIDATION',
       })
     await client.query(
       'INSERT INTO post_validations (post_id,business_id,post_version,content_version,fingerprint,result) VALUES ($1,$2,$3,$4,$5,$6)',

@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { monthlyPostProvenanceSchema } from './monthly-plan'
+import {
+  contentIntentSchema,
+  monthlyPostProvenanceSchema,
+  plannedCreativeLayoutSchema,
+  storedShotDirectionSchema,
+} from './monthly-plan'
 import { brandFactSchema } from './business-brain'
 
 const researchSourceSchema = z
@@ -32,6 +37,18 @@ export const eventResearchSchema = z.object({
   }),
 })
 export type EventResearch = z.infer<typeof eventResearchSchema>
+
+// Whether this business lets the monthly pipeline plan vertical videos next to
+// its feed posts. Like event research this is the business's own permission, not
+// an application category: rendering a video spends credits, so a business that
+// was planning only static posts must never silently start receiving motion
+// briefs it did not ask for. Off by default for exactly that reason.
+export const videoDeliverablesDefault = {
+  enabled: false,
+} as const
+export const videoDeliverablesSchema = z.object({
+  enabled: z.boolean().default(videoDeliverablesDefault.enabled),
+})
 export const eventResearchCategoryKeys = ['publicEvents', 'seasonalEvents', 'industryTrends'] as const
 export type EventResearchCategory = (typeof eventResearchCategoryKeys)[number]
 // The permission is read once, when the research stage runs. An empty list is
@@ -41,12 +58,23 @@ export function permittedEventCategories(events: EventResearch | undefined) {
   return eventResearchCategoryKeys.filter((key) => events.categories[key])
 }
 
+// The shape of every vertical video this application renders. It is one canvas
+// and one length, defined once: the motion brief carries them to the provider
+// call, so neither the brief endpoint nor the monthly planner restates them.
+// The canvas is shared by every channel a video can reach, because Instagram
+// Reels, Facebook video and TikTok all want the same full-screen 9:16 frame.
+export const videoFormat = '1080x1920' as const
+// Six seconds of generated motion: the provider is paid per second, the
+// designed overlay carries the message, and the branded end-card adds its own
+// seconds after it. The schema below still accepts the wider range a future
+// model could offer.
+export const videoDurationSeconds = 6
 export const postSchema = z.object({
   id: z.string(),
   title: z.string().min(3).max(120),
   caption: z.string().max(2200),
   status: z.enum(['draft', 'review', 'approved', 'scheduled', 'published', 'failed']),
-  channel: z.enum(['Instagram', 'Facebook']),
+  channel: z.enum(['Instagram', 'Facebook', 'TikTok']),
   format: z.enum(['static', 'carousel']),
   image: z.string(),
   pillar: z.string(),
@@ -63,6 +91,39 @@ export const postSchema = z.object({
   campaignId: z.string().optional(),
   providerPostId: z.string().optional(),
   publishedAt: z.string().optional(),
+  // The motion brief for a post whose deliverable is a video. Which channel it
+  // reaches is the post's own `channel`, so nothing here names a platform.
+  video: z.object({
+    status: z.enum(['brief_ready', 'rendering', 'ready', 'failed']),
+    sourceAssetIds: z.array(z.uuid()).min(1),
+    logoAssetId: z.uuid().optional(),
+    // Hook, intent, purpose, assetDirection and visualLayout are the strategy's
+    // own words for this specific video. They used to be flattened into a short
+    // overlays[0] / rationale blob; the brief now carries them so the prompt
+    // builder can keep the strategy's direction instead of restating a generic
+    // menu of camera moves. All strategy-sourced fields are optional so older
+    // persisted briefs still parse.
+    hook: z.string().max(180),
+    overlays: z.array(z.string().max(400)).max(4),
+    cta: z.string().max(120),
+    intent: contentIntentSchema.optional(),
+    purpose: z.string().max(600).optional(),
+    assetDirection: z.string().max(400).optional(),
+    visualLayout: plannedCreativeLayoutSchema.optional(),
+    // Strategy's structured shot direction for this video, carried from the
+    // slot so the planner's VideoCreativePlan can be rebuilt deterministically
+    // at render time without reading the editorial plan again.
+    shot: storedShotDirectionSchema.optional(),
+    durationSeconds: z.number().int().min(6).max(30),
+    format: z.literal(videoFormat),
+    strategyVersion: z.number().int().positive().optional(),
+    // Deterministic branded end-card asset rendered after the mp4. Optional
+    // so legacy videos (and video posts that fail end-card generation) still
+    // parse and play. Points at an `assets` row whose `creative_provenance`
+    // flags it as a video end-card so it is excluded from source-photo pickers.
+    endCardAssetId: z.uuid().optional(),
+    createdAt: z.iso.datetime(),
+  }).optional(),
 })
 export const campaignSchema = z.object({
   id: z.string(),
@@ -103,6 +164,24 @@ export const workspaceSchema = z.object({
     voice: z.string(),
     audience: z.string(),
     color: z.string(),
+    // Optional typography and palette anchors for deterministic brand
+    // composition (end-card, overlays). Everything is optional so a workspace
+    // that never configures these still renders a reasonable end-card from
+    // `brand.color` + the application defaults.
+    typography: z
+      .object({
+        family: z.string().min(1).max(80).default('Inter'),
+        weightHook: z.number().int().min(300).max(900).default(700),
+        weightCta: z.number().int().min(300).max(900).default(600),
+      })
+      .partial()
+      .optional(),
+    palette: z
+      .object({
+        primary: z.string().min(3).max(16).optional(),
+        onPrimary: z.string().min(3).max(16).optional(),
+      })
+      .optional(),
     facebookUrl: z.string().default(''),
     instagramUrl: z.string().default(''),
     goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
@@ -112,6 +191,7 @@ export const workspaceSchema = z.object({
       enabled: false,
       categories: { publicEvents: true, seasonalEvents: true, industryTrends: true },
     }),
+    videoDeliverables: videoDeliverablesSchema.default(videoDeliverablesDefault),
     facts: z.array(brandFactSchema),
     guardrails: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
     brainVersion: z.number().int().nonnegative().optional(),
@@ -124,7 +204,7 @@ export const workspaceSchema = z.object({
     name: z.string(),
     email: z.string(),
     timezone: z.string(),
-    locale: z.enum(['sq-XK', 'en-US']).default('sq-XK'),
+    locale: z.enum(['sq-XK', 'en-US', 'de-DE']).default('sq-XK'),
     currency: z.enum(['ALL', 'EUR']).transform(() => 'EUR' as const),
   }),
   onboarding: z.number().min(0).max(4),

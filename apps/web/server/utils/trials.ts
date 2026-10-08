@@ -14,7 +14,7 @@ type IdentityKind = 'email' | 'device' | 'facebook_user' | 'facebook_page' | 'in
 function trialKey() {
   const key = process.env.TRIAL_HASH_KEY
   if (!key || key.length < 32)
-    throw createError({ statusCode: 503, message: 'Trial-i ende nuk është konfiguruar.' })
+    throw createError({ statusCode: 503, message: 'server.TRIAL_NOT_CONFIGURED' })
   return key
 }
 export function identityHash(kind: IdentityKind, value: string) {
@@ -46,7 +46,7 @@ export async function trialPolicy(db: Pool | PoolClient = database()) {
 function parseTrialPolicy(value: unknown) {
   const policy = trialPolicySchema.safeParse(value)
   if (!policy.success)
-    throw createError({ statusCode: 503, message: 'Konfigurimi i trial-it nuk është i vlefshëm.' })
+    throw createError({ statusCode: 503, message: 'server.TRIAL_CONFIG_INVALID' })
   return policy.data
 }
 // Call in the business-creation transaction. Uniqueness is decided by PostgreSQL.
@@ -196,7 +196,7 @@ function paidEntitlementAccess(row: PaidEntitlementRow | undefined): PlanningAcc
   const features = entitlementFeatureSchema.array().safeParse(row.features)
   const limits = planLimitsSchema.safeParse(row.limits)
   if (!features.success || !limits.success)
-    throw createError({ statusCode: 503, message: 'Plani aktiv nuk është konfiguruar saktë.' })
+    throw createError({ statusCode: 503, message: 'server.ACTIVE_PLAN_MISCONFIGURED' })
   return {
     paid: true,
     features: features.data,
@@ -219,10 +219,11 @@ async function customPackageAccess(
   const result = await db.query<{
     name: string
     posts_included: number
+    videos_included: number
     starts_at: Date
     ends_at: Date
   }>(
-    `SELECT name,posts_included,starts_at,ends_at
+    `SELECT name,posts_included,videos_included,starts_at,ends_at
       FROM custom_packages
       WHERE organization_id=$1
         AND status='active'
@@ -236,7 +237,11 @@ async function customPackageAccess(
   return {
     paid: true,
     features: [...entitlementFeatureSchema.options],
-    limits: { ...policy.limits, posts_per_month: Number(row.posts_included) },
+    limits: {
+      ...policy.limits,
+      posts_per_month: Number(row.posts_included),
+      videos_per_month: Number(row.videos_included),
+    },
     plan: { name: row.name, version: 1 },
     expiresAt: new Date(row.ends_at).toISOString(),
     quotaPeriod: { startsAt: new Date(row.starts_at), endsAt: new Date(row.ends_at) },
@@ -284,9 +289,11 @@ type TrialAccessRow = {
   paid_valid_until: Date | null
   custom_name: string | null
   custom_posts_included: number | null
+  custom_videos_included: number | null
   custom_starts_at: Date | null
   custom_ends_at: Date | null
   trial_posts_per_month: number | null
+  trial_videos_per_month: number | null
 }
 export async function trialStatus(
   businessId: string,
@@ -306,9 +313,11 @@ export async function trialStatus(
             paid.valid_until AS paid_valid_until,
             custom.name AS custom_name,
             custom.posts_included AS custom_posts_included,
+            custom.videos_included AS custom_videos_included,
             custom.starts_at AS custom_starts_at,
             custom.ends_at AS custom_ends_at,
-            trial_plan.posts_per_month AS trial_posts_per_month
+            trial_plan.posts_per_month AS trial_posts_per_month,
+            trial_plan.videos_per_month AS trial_videos_per_month
        FROM (SELECT 1) AS base
        LEFT JOIN LATERAL (
          SELECT starts_at, expires_at, status,
@@ -322,14 +331,14 @@ export async function trialStatus(
        ) AS paid ON true
        LEFT JOIN app_settings AS settings ON settings.key = 'trial'
        LEFT JOIN LATERAL (
-         SELECT name, posts_included, starts_at, ends_at
+         SELECT name, posts_included, videos_included, starts_at, ends_at
            FROM custom_packages
           WHERE organization_id = $1 AND status = 'active'
             AND starts_at <= now() AND ends_at >= now()
           ORDER BY ends_at DESC LIMIT 1
        ) AS custom ON true
        LEFT JOIN LATERAL (
-         SELECT posts_per_month FROM plans
+         SELECT posts_per_month, videos_per_month FROM plans
           WHERE is_trial = true AND active = true LIMIT 1
        ) AS trial_plan ON true`,
     [businessId],
@@ -349,7 +358,11 @@ export async function trialStatus(
       ? {
           paid: true,
           features: [...entitlementFeatureSchema.options],
-          limits: { ...policy.limits, posts_per_month: Number(row.custom_posts_included) },
+          limits: {
+            ...policy.limits,
+            posts_per_month: Number(row.custom_posts_included),
+            videos_per_month: Number(row.custom_videos_included),
+          },
           plan: { name: row.custom_name, version: 1 },
           expiresAt: new Date(row.custom_ends_at).toISOString(),
           quotaPeriod: { startsAt: new Date(row.custom_starts_at), endsAt: new Date(row.custom_ends_at) },
@@ -362,10 +375,11 @@ export async function trialStatus(
           valid_until: row.paid_valid_until,
         })
   // The Free Trial package, rather than the legacy trial setting, owns the
-  // post allowance. An inactive or missing trial package grants no posts.
+  // post and video allowances. An inactive or missing trial package grants neither.
   const trialLimits = {
     ...policy.limits,
     posts_per_month: state === 'active' && !paidAccess ? Number(row.trial_posts_per_month ?? 0) : 0,
+    videos_per_month: state === 'active' && !paidAccess ? Number(row.trial_videos_per_month ?? 0) : 0,
   }
   return {
     state,
@@ -401,6 +415,11 @@ export async function requireEntitlement(
  * Posts counted against the package allowance. Subscriptions retain their
  * calendar-month allowance, while a custom package supplies its negotiated
  * date window. The trial's allowance never renews, so every post counts.
+ *
+ * A post carrying a motion brief was bought from the video allowance and is
+ * counted there instead, whichever channel it reaches. The brief is what marks
+ * it, because a video now goes to Instagram and Facebook as readily as TikTok
+ * and the channel no longer says which allowance paid for it.
  */
 export async function postsCountedForLimit(
   db: Pool | PoolClient,
@@ -413,16 +432,42 @@ export async function postsCountedForLimit(
     ? await db.query<{ count: number }>(
         `SELECT count(*)::integer AS count
            FROM posts
-          WHERE business_id=$1 AND created_at>=$2 AND created_at<$3`,
+          WHERE business_id=$1 AND created_at>=$2 AND created_at<$3
+            AND NOT (payload ? 'video')`,
         [businessId, quotaPeriod.startsAt, quotaPeriod.endsAt],
       )
     : paid
     ? await db.query<{ count: number }>(
-        'SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date',
+        "SELECT count(*)::integer AS count FROM posts WHERE business_id=$1 AND quota_month=$2::date AND NOT (payload ? 'video')",
         [businessId, `${month}-01`],
       )
     : await db.query<{ count: number }>(
         'SELECT COALESCE(posts_used,0)::integer AS count FROM trial_grants WHERE business_id=$1',
+        [businessId],
+      )
+  return Number(result.rows[0]?.count || 0)
+}
+
+/**
+ * Videos rendered against the allowance. There is no trial grant for videos, so
+ * this is only ever the package period or the calendar quota month.
+ */
+export async function videosCountedForLimit(
+  db: Pool | PoolClient,
+  businessId: string,
+  quotaPeriod?: { startsAt: Date; endsAt: Date },
+) {
+  const result = quotaPeriod
+    ? await db.query<{ count: number }>(
+        `SELECT count(*)::integer AS count
+           FROM video_renders
+          WHERE business_id=$1 AND created_at>=$2 AND created_at<$3`,
+        [businessId, quotaPeriod.startsAt, quotaPeriod.endsAt],
+      )
+    : await db.query<{ count: number }>(
+        `SELECT count(*)::integer AS count
+           FROM video_renders
+          WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date`,
         [businessId],
       )
   return Number(result.rows[0]?.count || 0)
@@ -454,9 +499,16 @@ export async function usageSnapshot(
       `SELECT
         (SELECT count(*)::integer FROM posts WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS posts_per_month,
         (SELECT COALESCE(posts_used,0)::integer FROM trial_grants WHERE business_id=$1) AS trial_posts_used,
-        (SELECT COALESCE(sum(COALESCE(size_bytes, octet_length(bytes))),0)::bigint FROM assets WHERE business_id=$1) AS media_storage_bytes,
+        (
+          (SELECT COALESCE(sum(COALESCE(size_bytes, octet_length(bytes))),0)::bigint FROM assets WHERE business_id=$1)
+          -- Rendered videos live in the same storage bucket as the photos, so
+          -- they are measured against the same allowance. Only rows that
+          -- actually hold a file count; a failed render stored nothing.
+          + (SELECT COALESCE(sum(size_bytes),0)::bigint FROM video_renders WHERE business_id=$1 AND storage_path IS NOT NULL)
+        ) AS media_storage_bytes,
         (SELECT COALESCE(requests,0)::integer FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date) AS ai_requests_per_day,
-        (SELECT CASE WHEN instagram_id IS NOT NULL THEN 2 ELSE 1 END FROM meta_connections WHERE business_id=$1 AND status='connected') AS social_accounts`,
+        (SELECT CASE WHEN instagram_id IS NOT NULL THEN 2 ELSE 1 END FROM meta_connections WHERE business_id=$1 AND status='connected') AS social_accounts,
+        (SELECT count(*)::integer FROM video_renders WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS videos_per_month`,
       [businessId],
     ),
   ])
@@ -470,11 +522,17 @@ export async function usageSnapshot(
         access.quotaPeriod,
       )
     : null
+  // Videos follow the post rule: inside a package period they are counted by
+  // the period, otherwise by the calendar month they were charged to.
+  const packageVideos = access.quotaPeriod
+    ? await videosCountedForLimit(db, businessId, access.quotaPeriod)
+    : null
   const current: Record<QuotaKey, number> = {
     // Same rule as postsCountedForLimit: the trial allowance never renews.
     posts_per_month: Number(
       (access.paid ? (packagePosts ?? row.posts_per_month) : row.trial_posts_used) || 0,
     ),
+    videos_per_month: Number((packageVideos ?? row.videos_per_month) || 0),
     ai_requests_per_day: Number(row.ai_requests_per_day || 0),
     media_storage_bytes: Number(row.media_storage_bytes || 0),
     social_accounts: Number(row.social_accounts || 0),
@@ -509,7 +567,7 @@ export async function requireQuota(
   if (increment < 0 || quota.current + increment > quota.limit)
     throw createError({
       statusCode: 402,
-      message: 'Ke arritur kufirin e planit për këtë veprim.',
+      message: 'server.PLAN_LIMIT_REACHED',
       data: {
         code: 'QUOTA_EXCEEDED',
         quota: key,

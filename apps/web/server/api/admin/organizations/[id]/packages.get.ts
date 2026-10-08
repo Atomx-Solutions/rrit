@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
   if (!organizationId.success)
     throw createError({
       statusCode: 404,
-      message: 'Organizata nuk u gjet.',
+      message: 'server.ORGANIZATION_NOT_FOUND',
       data: { code: 'ORGANIZATION_NOT_FOUND' },
     })
   setHeader(event, 'Cache-Control', 'private, no-store')

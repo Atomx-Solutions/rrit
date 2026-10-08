@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const brandId = z.uuid().safeParse(getRouterParam(event, 'brandId'))
   const offerId = z.uuid().safeParse(getRouterParam(event, 'offerId'))
   if (!organizationId.success || !brandId.success || !offerId.success)
-    throw createError({ statusCode: 404, message: 'Oferta nuk u gjet.' })
+    throw createError({ statusCode: 404, message: 'server.OFFER_NOT_FOUND' })
   return withOrganizationTransaction(user.id, organizationId.data, async (client) => {
     const offer = await archiveBusinessBrainOffer(
       client,

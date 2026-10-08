@@ -14,6 +14,8 @@ RRIT v1 ekzekutohet si aplikacion Node/Nitro në platformën e hostimit. Supabas
 
 Host-i mund t'i ekzekutojë rolet si procese Node të ndara ose si shërbime të veçanta. Docker nuk është parakusht.
 
+Video rendering requires `ffmpeg` with `libx264` and `ffprobe` on the web process PATH (or `FFMPEG_PATH` and `FFPROBE_PATH` pointing to those binaries). The web process composes the provider MP4 and deterministic end-card before a render can become ready. Missing binaries make the render fail explicitly; provision them on every host that handles `/api/posts/:id/video-render`.
+
 ## Rendi i deploy-it
 
 1. Përdor Node.js `24.21.0` dhe npm `11.19.0`.

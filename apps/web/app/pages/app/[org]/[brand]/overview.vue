@@ -14,6 +14,7 @@ const { data: meta, status: metaStatus } = useFetch('/api/meta/status', {
   server: false,
 })
 const connectionView = computed(() => metaConnectionView(metaStatus.value, meta.value?.connection))
+const { data: tiktok } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
 const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
 const upcoming = computed(() =>
   data.value.posts
@@ -41,7 +42,8 @@ function dateKey(value: Date | string, timezone: string) {
 
 function activityDateLabel(key: string, timezone: string) {
   const isEnglish = locale.value === 'en-US'
-  const formatter = new Intl.DateTimeFormat(isEnglish ? 'en-GB' : 'sq-AL', {
+  const isGerman = locale.value === 'de-DE'
+  const formatter = new Intl.DateTimeFormat(isGerman ? 'de-DE' : isEnglish ? 'en-GB' : 'sq-AL', {
     day: 'numeric',
     month: 'short',
     timeZone: timezone,
@@ -49,7 +51,7 @@ function activityDateLabel(key: string, timezone: string) {
   return formatter
     .formatToParts(new Date(`${key}T12:00:00.000Z`))
     .map((part) => {
-      if (isEnglish || part.type !== 'month') return part.value
+      if (isEnglish || isGerman || part.type !== 'month') return part.value
       const firstLetter = part.value.charAt(0)
       return `${firstLetter.toLocaleUpperCase('sq-AL')}${part.value.slice(1)}`
     })
@@ -290,7 +292,7 @@ const summaries = computed(() => [
         </p>
       </div>
     </UCard>
-    <UPageGrid class="grid-cols-1 lg:grid-cols-2 gap-5">
+    <UPageGrid class="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
       <UCard :ui="{ body: 'p-5 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-5">
           <h2 class="text-sm font-semibold">{{ t('overview.nextCalendarPost') }}</h2>
@@ -329,6 +331,14 @@ const summaries = computed(() => [
           trailing-icon="i-lucide-arrow-right"
           >{{ t('nav.calendar') }}</UButton
         >
+      </UCard>
+      <UCard :ui="{ body: 'p-5 sm:p-6' }">
+        <div class="flex justify-between items-center gap-3 mb-4">
+          <div class="flex items-center gap-2"><TikTokMark class="size-5" /><h2 class="text-sm font-semibold">TikTok</h2></div>
+          <UBadge color="neutral" variant="outline" size="sm">{{ tiktok?.connection?.status === 'connected' ? t('tiktok.connected') : t('tiktok.notConnected') }}</UBadge>
+        </div>
+        <p class="text-sm text-muted leading-relaxed max-w-lg">{{ tiktok?.connection?.status === 'connected' ? t('overview.tiktokConnected') : t('overview.tiktokDescription') }}</p>
+        <UButton :to="`${base}/social-posts`" variant="outline" color="neutral" size="sm" class="mt-5" trailing-icon="i-lucide-arrow-right">{{ t('nav.viewPosts') }}</UButton>
       </UCard>
       <UCard :ui="{ body: 'p-5 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-4">

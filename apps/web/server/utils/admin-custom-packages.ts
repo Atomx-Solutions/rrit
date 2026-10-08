@@ -11,11 +11,14 @@ const isoDate = z.string().datetime({ offset: true })
 export const customPackageCreateSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
-    // A credit top-up carries no posts, and a package carries no credits of
-    // its own beyond what its posts fund. Either may be zero; both may not.
+    // A credit top-up carries no posts, a video package carries no posts
+    // either, and a post package carries no credits of its own beyond what its
+    // posts fund. Each may be zero; all three may not.
     posts_included: z.number().int().min(0).max(1000),
+    videos_included: z.number().int().min(0).max(1000).optional(),
     credits_included: z.number().int().min(0).max(10_000_000).optional(),
     post_price_cents: z.number().int().min(1).max(1_000_000).optional(),
+    video_price_cents: z.number().int().min(0).max(1_000_000).optional(),
     price_cents: cents.optional(),
     starts_at: isoDate,
     ends_at: isoDate,
@@ -25,20 +28,25 @@ export const customPackageCreateSchema = z
   })
   .strict()
   .refine((value) => Date.parse(value.ends_at) > Date.parse(value.starts_at), {
-    message: 'ends_at must be after starts_at',
+    message: 'server.ENDS_AT_AFTER_STARTS_AT',
     path: ['ends_at'],
   })
-  .refine((value) => value.posts_included > 0 || (value.credits_included || 0) > 0, {
-    message: 'a package must include posts or credits',
-    path: ['posts_included'],
-  })
+  .refine(
+    (value) =>
+      value.posts_included > 0
+      || (value.videos_included || 0) > 0
+      || (value.credits_included || 0) > 0,
+    { message: 'server.PACKAGE_MUST_INCLUDE_ITEMS', path: ['posts_included'] },
+  )
 
 export const customPackageChangesSchema = z
   .object({
     name: z.string().trim().min(2).max(120).optional(),
     posts_included: z.number().int().min(0).max(1000).optional(),
+    videos_included: z.number().int().min(0).max(1000).optional(),
     credits_included: z.number().int().min(0).max(10_000_000).optional(),
     post_price_cents: z.number().int().min(1).max(1_000_000).optional(),
+    video_price_cents: z.number().int().min(0).max(1_000_000).optional(),
     price_cents: cents.optional(),
     starts_at: isoDate.optional(),
     ends_at: isoDate.optional(),
@@ -51,16 +59,16 @@ export const customPackageChangesSchema = z
   .refine(
     (value) =>
       !value.starts_at || !value.ends_at || Date.parse(value.ends_at) > Date.parse(value.starts_at),
-    { message: 'ends_at must be after starts_at', path: ['ends_at'] },
+    { message: 'server.ENDS_AT_AFTER_STARTS_AT', path: ['ends_at'] },
   )
 
 const failures: Record<string, { statusCode: number; message: string }> = {
-  ORGANIZATION_NOT_FOUND: { statusCode: 404, message: 'Organizata nuk u gjet.' },
-  PACKAGE_NOT_FOUND: { statusCode: 404, message: 'Paketa nuk u gjet.' },
-  PACKAGE_INVALID: { statusCode: 400, message: 'Vlerat e paketës nuk janë të vlefshme.' },
+  ORGANIZATION_NOT_FOUND: { statusCode: 404, message: 'server.ORGANIZATION_NOT_FOUND' },
+  PACKAGE_NOT_FOUND: { statusCode: 404, message: 'server.PACKAGE_NOT_FOUND' },
+  PACKAGE_INVALID: { statusCode: 400, message: 'server.PACKAGE_VALUES_INVALID' },
   PACKAGE_ACTIVE_EXISTS: {
     statusCode: 409,
-    message: 'Kjo organizatë ka tashmë një paketë aktive.',
+    message: 'server.ORGANIZATION_HAS_ACTIVE_PACKAGE',
   },
 }
 
@@ -84,7 +92,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
       code: error.code,
       message: error.message,
     })
-    throw createError({ statusCode: 502, message: 'Paketa nuk u ruajt.' })
+    throw createError({ statusCode: 502, message: 'server.PACKAGE_NOT_SAVED' })
   }
   return data as Record<string, unknown>
 }
