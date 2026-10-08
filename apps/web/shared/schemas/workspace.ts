@@ -3,7 +3,7 @@ import {
   contentIntentSchema,
   monthlyPostProvenanceSchema,
   plannedCreativeLayoutSchema,
-  shotDirectionSchema,
+  storedShotDirectionSchema,
 } from './monthly-plan'
 import { brandFactSchema } from './business-brain'
 
@@ -49,7 +49,6 @@ export const videoDeliverablesDefault = {
 export const videoDeliverablesSchema = z.object({
   enabled: z.boolean().default(videoDeliverablesDefault.enabled),
 })
-export type VideoDeliverables = z.infer<typeof videoDeliverablesSchema>
 export const eventResearchCategoryKeys = ['publicEvents', 'seasonalEvents', 'industryTrends'] as const
 export type EventResearchCategory = (typeof eventResearchCategoryKeys)[number]
 // The permission is read once, when the research stage runs. An empty list is
@@ -65,11 +64,11 @@ export function permittedEventCategories(events: EventResearch | undefined) {
 // The canvas is shared by every channel a video can reach, because Instagram
 // Reels, Facebook video and TikTok all want the same full-screen 9:16 frame.
 export const videoFormat = '1080x1920' as const
-// Eight seconds, because that is the longest single shot the generation models
-// this is built on will produce, and a vertical opener earns its watch in the
-// first second anyway. The schema below still accepts the wider range a future
+// Six seconds of generated motion: the provider is paid per second, the
+// designed overlay carries the message, and the branded end-card adds its own
+// seconds after it. The schema below still accepts the wider range a future
 // model could offer.
-export const videoDurationSeconds = 8
+export const videoDurationSeconds = 6
 export const postSchema = z.object({
   id: z.string(),
   title: z.string().min(3).max(120),
@@ -114,7 +113,7 @@ export const postSchema = z.object({
     // Strategy's structured shot direction for this video, carried from the
     // slot so the planner's VideoCreativePlan can be rebuilt deterministically
     // at render time without reading the editorial plan again.
-    shot: shotDirectionSchema.optional(),
+    shot: storedShotDirectionSchema.optional(),
     durationSeconds: z.number().int().min(6).max(30),
     format: z.literal(videoFormat),
     strategyVersion: z.number().int().positive().optional(),

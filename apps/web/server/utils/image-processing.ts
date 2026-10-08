@@ -31,6 +31,20 @@ const BACKGROUND_EDGE_DISTANCE = 115
 // rather than a part of it, so it is cleared too. A larger pale area is left
 // alone, because a logo may legitimately be built on one.
 const ENCLOSED_GAP_SHARE = 0.2
+// The largest colour change between neighbouring pixels that still reads as
+// one continuous backdrop rather than the edge of the artwork.
+const BACKGROUND_GRADIENT_STEP = 6
+// A kept pixel is a speck of backdrop when this share of the pixels within
+// SPECK_RADIUS of it are background.
+const SPECK_RADIUS = 2
+const SPECK_BACKGROUND_SHARE = 0.8
+// A kept piece holding this share of everything kept is part of the artwork;
+// a smaller one joins it when within ARTWORK_REACH_SHARE of the image's longer
+// side from a piece already in it.
+const ARTWORK_PIECE_SHARE = 0.005
+const ARTWORK_REACH_SHARE = 0.03
+// How far, in pixels, the logo's anti-aliased rim reaches into its background.
+const LOGO_EDGE_RADIUS = 2
 
 export async function removeLogoBackground(input: Buffer) {
   const { data, info } = await sharp(input, { limitInputPixels: 16000000 })
@@ -89,9 +103,21 @@ export async function removeLogoBackground(input: Buffer) {
     removed[pixel] = 1
     queue.push(pixel)
   }
-  const grow = (pixel: number) => {
+  // A background is followed past the edge distance too, as long as it
+  // changes smoothly from the neighbour it is reached from: that is how a
+  // gradient or a lit corner of a photographed backdrop behaves, while the
+  // artwork's own edge is a sharp step and stops the fill.
+  const step = (from: number, to: number) => {
+    const a = from * channels
+    const b = to * channels
+    const red = data[a]! - data[b]!
+    const green = data[a + 1]! - data[b + 1]!
+    const blue = data[a + 2]! - data[b + 2]!
+    return Math.sqrt(red * red + green * green + blue * blue)
+  }
+  const grow = (pixel: number, from: number) => {
     if (removed[pixel] || !data[pixel * channels + 3]) return
-    if (backgroundDistance(pixel) > BACKGROUND_EDGE_DISTANCE) return
+    if (backgroundDistance(pixel) > BACKGROUND_EDGE_DISTANCE && step(from, pixel) > BACKGROUND_GRADIENT_STEP) return
     removed[pixel] = 1
     queue.push(pixel)
   }
@@ -100,10 +126,10 @@ export async function removeLogoBackground(input: Buffer) {
     const pixel = queue[cursor]!
     const x = pixel % width
     const y = Math.floor(pixel / width)
-    if (x > 0) grow(pixel - 1)
-    if (x + 1 < width) grow(pixel + 1)
-    if (y > 0) grow(pixel - width)
-    if (y + 1 < height) grow(pixel + width)
+    if (x > 0) grow(pixel - 1, pixel)
+    if (x + 1 < width) grow(pixel + 1, pixel)
+    if (y > 0) grow(pixel - width, pixel)
+    if (y + 1 < height) grow(pixel + width, pixel)
   }
 
   // Second pass: gaps the artwork encloses. A region that never touches the
@@ -137,6 +163,110 @@ export async function removeLogoBackground(input: Buffer) {
     for (const pixel of region) removed[pixel] = 1
   }
 
+  // A textured backdrop (paper, grain, a lit corner) leaves scattered single
+  // pixels the fill could not reach. A kept pixel the background almost
+  // surrounds is one of those specks, not artwork: a stroke of the logo, even
+  // a thin one, keeps far more of its neighbourhood.
+  for (let pass = 0; pass < 2; pass++) {
+    const specks: number[] = []
+    for (let pixel = 0; pixel < pixels; pixel++) {
+      if (removed[pixel] || !data[pixel * channels + 3]) continue
+      const x = pixel % width
+      const y = Math.floor(pixel / width)
+      let around = 0
+      let background = 0
+      for (let dy = -SPECK_RADIUS; dy <= SPECK_RADIUS; dy++)
+        for (let dx = -SPECK_RADIUS; dx <= SPECK_RADIUS; dx++) {
+          const nx = x + dx
+          const ny = y + dy
+          if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+          around++
+          if (removed[ny * width + nx]) background++
+        }
+      if (around && background / around >= SPECK_BACKGROUND_SHARE) specks.push(pixel)
+    }
+    for (const pixel of specks) removed[pixel] = 1
+  }
+
+  // What survives of a textured backdrop is a scatter of small pieces away
+  // from the artwork. The artwork is its substantial pieces; a small piece is
+  // kept only near one of them, which is what fine lettering under a mark is,
+  // and dropped when it stands apart, which is what a speckled patch is.
+  const piece = new Int32Array(pixels).fill(-1)
+  const pieces: { size: number; members: number[] }[] = []
+  let keptTotal = 0
+  for (let start = 0; start < pixels; start++) {
+    if (removed[start] || !data[start * channels + 3] || piece[start]! >= 0) continue
+    const members = [start]
+    piece[start] = pieces.length
+    for (let cursor = 0; cursor < members.length; cursor++) {
+      const pixel = members[cursor]!
+      const x = pixel % width
+      const y = Math.floor(pixel / width)
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx
+          const ny = y + dy
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+          const next = ny * width + nx
+          if (removed[next] || !data[next * channels + 3] || piece[next]! >= 0) continue
+          piece[next] = pieces.length
+          members.push(next)
+        }
+    }
+    keptTotal += members.length
+    pieces.push({ size: members.length, members })
+  }
+  const reach = Math.max(1, Math.round(Math.max(width, height) * ARTWORK_REACH_SHARE))
+  // Each piece's bounding box. A small piece joins the artwork when it lies
+  // within reach of a piece already in it, so a line of fine lettering joins
+  // letter by letter while a patch across the image never connects.
+  const boxes = pieces.map((part) => {
+    let left = width, right = 0, top = height, bottom = 0
+    for (const pixel of part.members) {
+      const x = pixel % width
+      const y = Math.floor(pixel / width)
+      if (x < left) left = x
+      if (x > right) right = x
+      if (y < top) top = y
+      if (y > bottom) bottom = y
+    }
+    return { left, right, top, bottom }
+  })
+  const inArtwork = pieces.map((part) => part.size >= keptTotal * ARTWORK_PIECE_SHARE)
+  const near = (a: number, b: number) =>
+    boxes[a]!.left - reach <= boxes[b]!.right && boxes[b]!.left - reach <= boxes[a]!.right
+    && boxes[a]!.top - reach <= boxes[b]!.bottom && boxes[b]!.top - reach <= boxes[a]!.bottom
+  const frontier = inArtwork.flatMap((member, index) => (member ? [index] : []))
+  while (frontier.length) {
+    const joined = frontier.pop()!
+    for (let index = 0; index < pieces.length; index++) {
+      if (inArtwork[index] || !near(index, joined)) continue
+      inArtwork[index] = true
+      frontier.push(index)
+    }
+  }
+  pieces.forEach((part, index) => {
+    if (!inArtwork[index]) for (const pixel of part.members) removed[pixel] = 1
+  })
+
+  // Only background that touches the artwork keeps any opacity: that soft rim
+  // is the logo's own anti-aliasing. Background further out is gone entirely,
+  // however far a gradient or a highlight in it strays from the average
+  // background color, so a lit corner does not survive as a faint patch.
+  const nearArtwork = new Uint8Array(pixels)
+  for (let pixel = 0; pixel < pixels; pixel++) {
+    if (removed[pixel]) continue
+    const x = pixel % width
+    const y = Math.floor(pixel / width)
+    for (let dy = -LOGO_EDGE_RADIUS; dy <= LOGO_EDGE_RADIUS; dy++)
+      for (let dx = -LOGO_EDGE_RADIUS; dx <= LOGO_EDGE_RADIUS; dx++) {
+        const nx = x + dx
+        const ny = y + dy
+        if (nx >= 0 && ny >= 0 && nx < width && ny < height) nearArtwork[ny * width + nx] = 1
+      }
+  }
+
   // Third pass: fade each removed pixel by how far it stands from the
   // background, and take the background color back out of what is left. Without
   // that subtraction a half transparent edge still carries white and shows as a
@@ -144,6 +274,10 @@ export async function removeLogoBackground(input: Buffer) {
   for (let pixel = 0; pixel < pixels; pixel++) {
     if (!removed[pixel]) continue
     const offset = pixel * channels
+    if (!nearArtwork[pixel]) {
+      data[offset + 3] = 0
+      continue
+    }
     const distance = backgroundDistance(pixel)
     const alpha = Math.max(
       0,
@@ -353,6 +487,97 @@ export async function prepareVideoFirstFrame(image: Buffer, target: { width: num
 }
 
 /**
+ * The opening and closing frames a motion model travels between.
+ *
+ * Both are cut from the same real photograph, so the model only interpolates
+ * between two true views of one subject and has nothing to invent: a push ends
+ * on a closer crop, a pull starts on one, and an orbit-like idea becomes a
+ * glide across the photographed view instead of a turn that would reveal a
+ * side the photograph never showed. Zoom stays modest so the closer view keeps
+ * the whole subject recognisable.
+ *
+ * A photograph much wider than the vertical canvas is not cropped to fill it:
+ * a crop keeps only a fragment of the subject, and a model shown a fragment
+ * invents the rest. Its motion is made on the landscape canvas instead, the
+ * vertical canvas turned on its side, so the model sees the whole photograph
+ * and nothing else; the composer then places that clip whole across the
+ * vertical canvas over a blurred fill of itself, clear of the zone the type
+ * will occupy. The model is never shown an empty area it could
+ * fill with an invented subject.
+ */
+const MIN_COVER_KEPT_WIDTH = 0.75
+
+export async function videoKeyframes(
+  image: Buffer,
+  target: { width: number; height: number },
+  shot: { camera: string; pacing: string; subjectAnchor: string; textZone: string; action: string },
+) {
+  const source = sharp(image, { limitInputPixels: 24000000 }).rotate()
+  const meta = await source.clone().metadata()
+  const sourceWidth = (meta.orientation || 1) >= 5 ? meta.height || 0 : meta.width || 0
+  const sourceHeight = (meta.orientation || 1) >= 5 ? meta.width || 0 : meta.height || 0
+  const keptWidth = sourceWidth && sourceHeight
+    ? Math.min(1, (sourceHeight * target.width / target.height) / sourceWidth)
+    : 1
+  const landscape = keptWidth < MIN_COVER_KEPT_WIDTH
+  const canvas = landscape ? { width: target.height, height: target.width } : target
+  const zoom = shot.pacing === 'punchy' ? 1.18 : shot.pacing === 'calm' ? 1.08 : 1.12
+  const wideWidth = Math.round(canvas.width * zoom)
+  const wideHeight = Math.round(canvas.height * zoom)
+  let wide: Buffer
+  try {
+    wide = await source.clone().resize(wideWidth, wideHeight, { fit: 'cover', position: sharp.strategy.attention }).toBuffer()
+  } catch {
+    wide = await source.resize(wideWidth, wideHeight, { fit: 'cover', position: 'centre' }).toBuffer()
+  }
+  // Each view is a rectangle of the wide image: the whole of it, or a
+  // canvas-sized window toward one side. The frames are those rectangles at
+  // canvas size, and the rectangles themselves let a camera-only move be
+  // rendered from the photograph directly.
+  type View = { x: number; y: number; width: number; height: number }
+  const full: View = { x: 0, y: 0, width: wideWidth, height: wideHeight }
+  const closer = (anchor: string): View => {
+    const spare = wideWidth - canvas.width
+    return {
+      x: anchor === 'left' ? 0 : anchor === 'right' ? spare : Math.round(spare / 2),
+      y: Math.round((wideHeight - canvas.height) / 2),
+      width: canvas.width,
+      height: canvas.height,
+    }
+  }
+  const opposite = shot.subjectAnchor === 'left' ? 'right' : 'left'
+  const [from, to] = ((): [View, View] => {
+    switch (shot.camera) {
+      case 'static':
+        return [full, full]
+      case 'slow_pull':
+        return [closer(shot.subjectAnchor), full]
+      case 'arc':
+      case 'parallax_drift':
+        // A sideways glide that comes to rest on the subject.
+        return [closer(opposite), closer(shot.subjectAnchor)]
+      default:
+        return [full, closer(shot.subjectAnchor)]
+    }
+  })()
+  const frame = (view: View) => sharp(wide)
+    .extract({ left: view.x, top: view.y, width: view.width, height: view.height })
+    .resize(canvas.width, canvas.height)
+    .jpeg({ quality: 94, mozjpeg: true })
+    .toBuffer()
+  const [first, last] = await Promise.all([frame(from), frame(to)])
+  // A subject that moves ends somewhere the photograph never showed, so its
+  // motion is pinned at the start only; the result is checked afterwards.
+  return {
+    first,
+    last: shot.action === 'subject_moves' ? undefined : last,
+    canvas,
+    landscape,
+    still: { image: await sharp(wide).jpeg({ quality: 95 }).toBuffer(), from, to },
+  }
+}
+
+/**
  * Deterministic branded end-card for a video post.
  *
  * Composes a 9:16 image (default 1080x1920) with the brand's primary colour as
@@ -405,20 +630,33 @@ export async function buildVideoEndCard(input: {
     const firstY = centreY - (lines.length - 1) * step / 2
     return { fontSize, tspans: lines.map((part, index) => `<tspan x="${width / 2}" y="${Math.round(firstY + index * step)}">${escapeXml(part)}</tspan>`).join('') }
   }
-  const headline = textBlock(input.businessName, height * 0.61, 72, height * 0.17)
-  const cta = textBlock(input.cta, height * 0.75, 48, height * 0.19)
+  // A logo already says who the business is, so the card shows the logo large
+  // in place of the name rather than both; the call to action moves up to sit
+  // under it.
+  const ctaY = input.logo ? height * 0.64 : height * 0.74
+  const headline = textBlock(input.businessName, height * 0.6, 96, height * 0.17)
+  // A short call to action is set as the same button the video's overlay
+  // uses, inverted onto the brand colour; a long one stays a line of copy.
+  const ctaText = input.cta.trim()
+  const ctaButton = ctaText.length > 0 && ctaText.length <= 40
+  const cta = textBlock(ctaText, ctaY, ctaButton ? 46 : 48, height * 0.19)
+  const buttonWidth = Math.min(width * 0.82, Array.from(ctaText).length * cta.fontSize * 0.58 + cta.fontSize * 2.6)
+  const buttonHeight = cta.fontSize * 2.3
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect width="${width}" height="${height}" fill="${primary}"/>
-  <text font-family="${fontStack}, 'Helvetica Neue', Arial, sans-serif" font-size="${headline.fontSize}" font-weight="${weightHook}" fill="${onPrimary}" text-anchor="middle">${headline.tspans}</text>
-  <text font-family="${fontStack}, 'Helvetica Neue', Arial, sans-serif" font-size="${cta.fontSize}" font-weight="${weightCta}" fill="${onPrimary}" fill-opacity="0.85" text-anchor="middle">${cta.tspans}</text>
+  ${input.logo ? '' : `<text font-family="${fontStack}, 'Helvetica Neue', Arial, sans-serif" font-size="${headline.fontSize}" font-weight="${weightHook}" fill="${onPrimary}" text-anchor="middle">${headline.tspans}</text>`}
+  ${ctaButton ? `<rect x="${Math.round((width - buttonWidth) / 2)}" y="${Math.round(ctaY - buttonHeight / 2 - cta.fontSize * 0.36)}" width="${Math.round(buttonWidth)}" height="${Math.round(buttonHeight)}" rx="${Math.round(buttonHeight / 2)}" fill="${onPrimary}"/>` : ''}
+  <text font-family="${fontStack}, 'Helvetica Neue', Arial, sans-serif" font-size="${cta.fontSize}" font-weight="${weightCta}" fill="${ctaButton ? primary : onPrimary}" fill-opacity="${ctaButton ? 1 : 0.85}" text-anchor="middle">${cta.tspans}</text>
 </svg>`
   const background = await sharp(Buffer.from(svg)).jpeg({ quality: 92, mozjpeg: true }).toBuffer()
   if (!input.logo) return background
-  const resizedLogo = await sharp(await removeLogoBackground(input.logo))
-    .resize(Math.round(width * 0.4), Math.round(height * 0.2), {
+  // Trimmed to the artwork, so the empty canvas a logo file often carries
+  // around it does not shrink the logo inside its box.
+  const trimmedLogo = await sharp(await removeLogoBackground(input.logo)).trim().png().toBuffer()
+  const resizedLogo = await sharp(trimmedLogo)
+    .resize(Math.round(width * 0.6), Math.round(height * 0.26), {
       fit: 'inside',
-      withoutEnlargement: true,
       kernel: sharp.kernel.lanczos3,
     })
     .png()
@@ -428,11 +666,175 @@ export async function buildVideoEndCard(input: {
   const logoHeight = logoMeta.height || 0
   if (!logoWidth || !logoHeight) throw new Error('Approved logo could not be composed')
   const left = Math.round((width - logoWidth) / 2)
-  const top = Math.round(height * 0.3 - logoHeight / 2)
+  const top = Math.round(height * 0.42 - logoHeight / 2)
   return sharp(background)
     .composite([{ input: resizedLogo, left, top }])
     .jpeg({ quality: 92, mozjpeg: true })
     .toBuffer()
+}
+
+/**
+ * The designed layers set over a video's generated motion.
+ *
+ * The motion model is never asked to draw type, because it warps letters; the
+ * post's approved copy is instead rasterised here, exactly, in the brand's
+ * colours, as three transparent full-canvas PNGs the composer reveals one
+ * after another: the brand and the eyebrow label, then the headline, then the
+ * supporting line and the call to action. They sit in the zone the strategy
+ * told the motion model to keep clear, inside the area the TikTok and Reels
+ * interface leaves visible.
+ */
+export async function buildVideoOverlayLayers(input: {
+  businessName: string
+  eyebrow?: string
+  headline: string
+  subline?: string
+  cta?: string
+  zone: 'top' | 'bottom'
+  primaryColor?: string
+  onPrimary?: string
+  fontFamily?: string
+  weightHook?: number
+  weightCta?: number
+  // The approved logo, shown in place of the business name when there is one.
+  logo?: Buffer
+  target: { width: number; height: number }
+}) {
+  const { width, height } = input.target
+  const primary = sanitizeHex(input.primaryColor) || '#0F172A'
+  const onPrimary = sanitizeHex(input.onPrimary) || readableOn(primary)
+  const font = `${(input.fontFamily?.trim() || 'Inter').replace(/["<>]/g, '')}, 'Helvetica Neue', Arial, sans-serif`
+  const weightHook = clampWeight(input.weightHook, 800)
+  const weightCta = clampWeight(input.weightCta, 600)
+  const margin = Math.round(width * 0.075)
+  const textWidth = width - margin * 2
+  // The platforms draw their own header across the top and their caption,
+  // actions and progress bar across the bottom, so the type stays between.
+  const safeTop = Math.round(height * 0.11)
+  const safeBottom = Math.round(height * 0.78)
+
+  const wrap = (value: string, size: number, widthFactor: number) => {
+    const maxChars = Math.max(6, Math.floor(textWidth / (size * widthFactor)))
+    const lines: string[] = []
+    let line = ''
+    for (const word of value.split(/\s+/).filter(Boolean)) {
+      if (line && `${line} ${word}`.length > maxChars) {
+        lines.push(line)
+        line = word
+      } else line = line ? `${line} ${word}` : word
+    }
+    if (line) lines.push(line)
+    return lines
+  }
+  // The largest size at which the whole approved headline fits in three lines;
+  // the copy is never cut to make it fit. A video is read in a glance, so the
+  // block stays short enough to leave most of the frame to the motion.
+  const headlineText = input.headline.trim().toLocaleUpperCase()
+  let headlineSize = Math.round(width * 0.115)
+  let headlineLines = wrap(headlineText, headlineSize, 0.62)
+  while (headlineSize > 40 && (headlineLines.length > 3 || headlineLines.some((part) => part.length * headlineSize * 0.62 > textWidth))) {
+    headlineSize -= 4
+    headlineLines = wrap(headlineText, headlineSize, 0.62)
+  }
+  const brandSize = Math.round(width * 0.04)
+  const eyebrowSize = Math.round(width * 0.03)
+  const eyebrow = input.eyebrow?.trim().toLocaleUpperCase() || ''
+  const sublineSize = Math.round(width * 0.052)
+  // A headline that already fills three lines carries the message alone.
+  const sublineLines = input.subline?.trim() && headlineLines.length < 3
+    ? wrap(input.subline.trim(), sublineSize, 0.52).slice(0, 2)
+    : []
+  // A call to action reads as a button only while it is button-sized.
+  const cta = input.cta?.trim() && input.cta.trim().length <= 40 ? input.cta.trim() : ''
+  const ctaSize = Math.round(width * 0.04)
+  const ctaHeight = Math.round(ctaSize * 2.3)
+  const ctaWidth = Math.min(textWidth, Math.round(Array.from(cta).length * ctaSize * 0.56 + ctaSize * 2.2))
+
+  const gap = Math.round(height * 0.02)
+  const ruleHeight = Math.max(4, Math.round(brandSize * 0.18))
+  const headlineStep = Math.round(headlineSize * 1.02)
+  const sublineStep = Math.round(sublineSize * 1.25)
+  // Every row's height in reading order, so the block can be placed from
+  // either edge of the safe area with the same arithmetic.
+  // The brand line: the logo cut from its background and trimmed to its
+  // artwork, or the business name when there is no logo.
+  const brandMark = input.logo
+    ? await sharp(await sharp(await removeLogoBackground(input.logo)).trim().png().toBuffer())
+      .resize(Math.round(width * 0.4), Math.round(brandSize * 3.4), { fit: 'inside', kernel: sharp.kernel.lanczos3 })
+      .png()
+      .toBuffer()
+    : undefined
+  const brandHeight = brandMark ? (await sharp(brandMark).metadata()).height || brandSize : brandSize
+  const rows = [
+    brandHeight, gap, ruleHeight, gap,
+    ...(eyebrow ? [eyebrowSize, gap] : []),
+    headlineLines.length * headlineStep, gap,
+    ...(sublineLines.length ? [sublineLines.length * sublineStep, gap] : []),
+    cta ? ctaHeight : 0,
+  ]
+  const blockHeight = rows.reduce((total, value) => total + value, 0)
+  let y = input.zone === 'top' ? safeTop : safeBottom - blockHeight
+  const top = y
+  const brandTop = y
+  const brandY = (y += brandHeight)
+  const ruleY = (y += gap)
+  y += ruleHeight + gap
+  const eyebrowY = eyebrow ? (y += eyebrowSize) : y
+  if (eyebrow) y += gap
+  const headlineY = y + headlineSize
+  y += headlineLines.length * headlineStep + gap
+  const sublineY = y + sublineSize
+  if (sublineLines.length) y += sublineLines.length * sublineStep + gap
+  const ctaY = y
+
+  // A soft scrim behind the type keeps it legible on any photograph without
+  // boxing the motion in.
+  const reach = Math.round(height * 0.12)
+  const scrimStart = input.zone === 'top' ? 0 : Math.max(0, top - reach)
+  const scrimEnd = input.zone === 'top' ? Math.min(height, top + blockHeight + reach) : height
+  const scrim = input.zone === 'top'
+    ? '<stop offset="0" stop-color="#000" stop-opacity="0.66"/><stop offset="0.7" stop-color="#000" stop-opacity="0.38"/><stop offset="1" stop-color="#000" stop-opacity="0"/>'
+    : '<stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="0.3" stop-color="#000" stop-opacity="0.38"/><stop offset="1" stop-color="#000" stop-opacity="0.66"/>'
+  const layer = (body: string) => sharp(Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${body}</svg>`)).png().toBuffer()
+  const lines = (parts: string[], first: number, step: number) =>
+    parts.map((part, index) => `<tspan x="${margin}" y="${first + index * step}">${escapeXml(part)}</tspan>`).join('')
+
+  const layers = await Promise.all([
+    layer(`<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1">${scrim}</linearGradient></defs>
+  <rect x="0" y="${scrimStart}" width="${width}" height="${scrimEnd - scrimStart}" fill="url(#s)"/>
+  ${brandMark ? '' : `<text font-family="${font}" font-size="${brandSize}" font-weight="${weightCta}" fill="#ffffff">${lines([input.businessName.trim()], brandY, 0)}</text>`}
+  <rect x="${margin}" y="${ruleY}" width="${Math.round(width * 0.12)}" height="${ruleHeight}" rx="2" fill="${primary}"/>
+  ${eyebrow ? `<text font-family="${font}" font-size="${eyebrowSize}" font-weight="${weightCta}" fill="#ffffff" fill-opacity="0.85" letter-spacing="3">${lines([eyebrow], eyebrowY, 0)}</text>` : ''}`),
+    layer(`<text font-family="${font}" font-size="${headlineSize}" font-weight="${weightHook}" fill="#ffffff" letter-spacing="-1">${lines(headlineLines, headlineY, headlineStep)}</text>`),
+    layer(`${sublineLines.length ? `<text font-family="${font}" font-size="${sublineSize}" font-weight="600" fill="#ffffff" fill-opacity="0.94">${lines(sublineLines, sublineY, sublineStep)}</text>` : ''}
+  ${cta ? `<rect x="${margin}" y="${ctaY}" width="${ctaWidth}" height="${ctaHeight}" rx="${Math.round(ctaHeight / 2)}" fill="${primary}"/>
+  <text x="${margin + Math.round(ctaWidth / 2)}" y="${ctaY + Math.round(ctaHeight / 2 + ctaSize * 0.36)}" font-family="${font}" font-size="${ctaSize}" font-weight="${weightCta}" fill="${onPrimary}" text-anchor="middle">${escapeXml(cta)}</text>` : ''}`),
+  ])
+  if (brandMark) {
+    // A soft dark halo cut from the logo's own shape keeps a dark or fine logo
+    // legible over a bright photograph without boxing it in.
+    const shadowBlur = Math.max(2, Math.round(brandSize * 0.25))
+    const markMeta = await sharp(brandMark).metadata()
+    const halo = await sharp(brandMark)
+      .extend({ top: shadowBlur * 2, bottom: shadowBlur * 2, left: shadowBlur * 2, right: shadowBlur * 2, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .modulate({ brightness: 0 })
+      .blur(shadowBlur)
+      .png()
+      .toBuffer()
+    layers[0] = await sharp(layers[0]!)
+      .composite([
+        { input: halo, left: Math.max(0, margin - shadowBlur * 2), top: Math.max(0, brandTop - shadowBlur * 2) },
+        { input: halo, left: Math.max(0, margin - shadowBlur * 2), top: Math.max(0, brandTop - shadowBlur * 2) },
+        { input: brandMark, left: margin, top: brandTop },
+      ])
+      .png()
+      .toBuffer()
+    if (!markMeta.width) throw new Error('Approved logo could not be composed')
+  }
+  // Where the type sits, so a photograph placed into the canvas can be set
+  // clear of it rather than under it.
+  return { layers, extent: { top, bottom: top + blockHeight } }
 }
 
 function sanitizeHex(value?: string) {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { buildVideoCreativePlan } from '../../server/utils/video-plan'
-import { postVideoPrompt } from '../../server/utils/monthly-ai'
 
 const baseBrief = {
   status: 'brief_ready' as const,
@@ -17,7 +16,6 @@ const baseBrief = {
   createdAt: '2026-11-01T09:00:00.000Z',
 }
 const baseBrand = { name: 'Rrit', industry: 'kafene', audience: 'urbanë', voice: 'ngrohtë', color: '#AA3344' }
-const basePost = { channel: 'Instagram' as const, title: 't', caption: 'c', pillar: 'p' }
 
 describe('buildVideoCreativePlan', () => {
   it('returns a plan with 3 beats whose weights sum to 1 for an 8s clip', () => {
@@ -62,32 +60,5 @@ describe('buildVideoCreativePlan', () => {
     const plan = buildVideoCreativePlan({ brief: baseBrief, brand: baseBrand, durationSeconds: 8 })
     expect(plan.concept).toContain('Fto audiencën')
     expect(plan.concept).toContain('focal-subject-centre')
-  })
-})
-
-describe('postVideoPrompt with a VideoCreativePlan', () => {
-  it('templates the shot direction, timeline beats and labels into the prompt', () => {
-    const plan = buildVideoCreativePlan({ brief: baseBrief, brand: baseBrand, locale: 'sq-XK', durationSeconds: 8 })
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief, locale: 'sq-XK', plan })
-    expect(prompt).toContain('Shot direction')
-    expect(prompt).toContain('a single slow push') // default camera label
-    expect(prompt).toContain('measured')
-    expect(prompt).toContain('text-safe zone is the bottom')
-    // Timeline lines reference actual seconds derived from durationSeconds.
-    expect(prompt).toMatch(/hook \(0\.0s–2\.0s\)/)
-    expect(prompt).toMatch(/body \(2\.0s–6\.0s\)/)
-    expect(prompt).toMatch(/cta \(6\.0s–8\.0s\)/)
-    // Still enforces exact-copy and stability from Phase 2+3.
-    expect(prompt).toContain('Never translate')
-    expect(prompt).toContain('Overlay stability contract')
-    // Falls through the plan-aware cinematography line, not the generic one.
-    expect(prompt).toContain('Carry the single camera idea named in the shot direction above')
-    expect(prompt).not.toContain('a slow push, a gentle parallax drift, a restrained handheld settle or a single arc')
-  })
-  it('still works without a plan (legacy caller path)', () => {
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief, locale: 'sq-XK' })
-    expect(prompt).toContain('Hook: "Nise ditën me kafen tonë"')
-    expect(prompt).not.toContain('Shot direction')
-    expect(prompt).not.toContain('Timeline for this')
   })
 })

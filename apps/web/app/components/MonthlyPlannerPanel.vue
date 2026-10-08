@@ -217,6 +217,9 @@ const tiktokTargetPost = computed(() =>
 // posts. This is a resting state with two next steps: look at what arrived, or
 // ask for more.
 const settled = computed(() => plan.value?.status === 'idle' && (plan.value?.completed || 0) > 0)
+// Videos render after their posts are committed, so the batch is only ready
+// for review once none of them is still being made.
+const videosRendering = computed(() => plan.value?.videosRendering || 0)
 // A plan that produced everything asked of it but still owes posts from the
 // package. Posts are drawn on request, so this is a normal resting state, not
 // an end state.
@@ -238,6 +241,16 @@ const generateMoreLabel = computed(() => {
 // month's whole quota: asking for one post and being shown "0 / 11" reports a
 // job eleven times larger than the one running.
 const batchTotal = computed(() => plan.value?.batch?.total || plan.value?.requested || plan.value?.total || 0)
+const batchVideos = computed(() => Math.min(plan.value?.batch?.videos || 0, batchTotal.value))
+const batchPosts = computed(() => batchTotal.value - batchVideos.value)
+// Names what is waiting by kind: a video-only batch is not "posts".
+const awaitingTitle = computed(() => {
+  if (videosRendering.value) return t('monthly.videoRenderingTitle', { count: videosRendering.value })
+  if (batchVideos.value && batchPosts.value)
+    return t('monthly.mixedAwaitingApproval', { posts: batchPosts.value, videos: batchVideos.value })
+  if (batchVideos.value) return t('monthly.videosAwaitingApproval', { count: batchVideos.value })
+  return t('monthly.postsAwaitingApproval', { count: batchTotal.value })
+})
 // Produced within the running request, so a second request for one post starts
 // again at zero instead of continuing the month's running total.
 const batchCompleted = computed(() =>
@@ -761,15 +774,20 @@ onBeforeUnmount(() => clearInterval(timer))
           <div
             class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success"
           >
-            <UIcon name="i-lucide-circle-check" class="size-5" />
+            <UIcon
+              :name="videosRendering ? 'i-lucide-loader' : 'i-lucide-circle-check'"
+              :class="['size-5', videosRendering && 'animate-spin']"
+            />
           </div>
           <div>
-            <UBadge color="success" variant="subtle">{{ t('monthly.batchReady') }}</UBadge>
+            <UBadge :color="videosRendering ? 'neutral' : 'success'" variant="subtle">
+              {{ videosRendering ? t('monthly.videoRendering') : t('monthly.batchReady') }}
+            </UBadge>
             <h3 class="mt-2 text-base font-semibold text-highlighted">
-              {{ t('monthly.postsAwaitingApproval', { count: batchTotal }) }}
+              {{ awaitingTitle }}
             </h3>
             <p class="mt-1 text-sm text-muted">
-              {{ t('monthly.batchReadyDescription') }}
+              {{ videosRendering ? t('monthly.videoRenderingDescription') : t('monthly.batchReadyDescription') }}
             </p>
           </div>
         </div>
@@ -783,13 +801,18 @@ onBeforeUnmount(() => clearInterval(timer))
           >
             {{ t('legacy.viewStrategyResearch') }}
           </UButton>
-          <UButton :to="`${base}/content`" icon="i-lucide-eye" trailing-icon="i-lucide-arrow-right">
+          <UButton
+            v-if="!videosRendering"
+            :to="`${base}/content`"
+            icon="i-lucide-eye"
+            trailing-icon="i-lucide-arrow-right"
+          >
             {{ t('monthly.viewGeneratedPosts', { count: plan.completed }) }}
           </UButton>
         </div>
       </div>
       <div
-        v-if="extendable"
+        v-if="extendable && !videosRendering"
         class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
       >
         <div class="flex min-w-0 items-center gap-2.5">

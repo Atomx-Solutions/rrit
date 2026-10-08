@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { buildVideoEndCard } from '../../server/utils/image-processing'
-import { composeBrandedVideo, hasComposedEndCard, VIDEO_END_CARD_SECONDS } from '../../server/utils/video-compose'
+import { composeBrandedVideo, VIDEO_END_CARD_SECONDS } from '../../server/utils/video-compose'
 
 const run = promisify(execFile)
 const target = { width: 360, height: 640 }
@@ -25,11 +25,22 @@ async function fixture() {
 }
 
 describe('composeBrandedVideo', () => {
-  it('distinguishes composed renders from historical raw MP4 rows', () => {
-    expect(hasComposedEndCard(10, 8)).toBe(true)
-    expect(hasComposedEndCard(8, 8)).toBe(false)
-    expect(hasComposedEndCard(10, null)).toBe(false)
-  })
+  it('ends on the motion itself when the video has no end-card', async () => {
+    const motion = await fixture()
+    const final = await composeBrandedVideo({ motion, target })
+    const directory = await mkdtemp(join(tmpdir(), 'rrit-uncarded-probe-'))
+    try {
+      const path = join(directory, 'final.mp4')
+      const { writeFile } = await import('node:fs/promises')
+      await writeFile(path, final)
+      const { stdout } = await run(process.env.FFPROBE_PATH || 'ffprobe', [
+        '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', path,
+      ])
+      expect(Number((JSON.parse(stdout) as { format: { duration: string } }).format.duration)).toBeCloseTo(1, 1)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 45_000)
   it('appends the deterministic card to a usable vertical MP4', async () => {
     const motion = await fixture()
     const endCard = await buildVideoEndCard({ businessName: 'RRIT', cta: 'Visit', target })

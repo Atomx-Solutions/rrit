@@ -31,6 +31,8 @@ const DEFAULT_SHOT: ShotDirection = {
   pacing: 'measured',
   subjectAnchor: 'centre',
   textZone: 'bottom',
+  action: 'camera_only',
+  endCard: true,
 }
 
 // Timeline weights are proportions of the clip, not seconds, so the same plan
@@ -118,13 +120,4 @@ export function buildVideoCreativePlan(input: {
       logoAssetId: brief.logoAssetId || null,
     },
   }
-}
-
-// Resolves a beat's share of the total clip to a human-readable seconds range,
-// used by the prompt builder to spell out "the hook belongs to seconds 0-2".
-export function beatSeconds(beat: VideoCreativePlanBeat, durationSeconds: number, offset: number) {
-  const length = beat.weight * durationSeconds
-  const start = offset
-  const end = offset + length
-  return { start, end, length }
 }

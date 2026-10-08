@@ -192,7 +192,7 @@ function move(direction: number) {
               :aria-label="`${t('calendar.openPost')}: ${post.title}`"
               ><span class="flex items-center gap-1.5 text-muted mb-1"
                 ><UIcon
-                  :name="post.channel === 'Instagram' ? 'i-lucide-instagram' : 'i-lucide-facebook'"
+                  :name="channelIcon(post.channel)"
                   class="size-3.5"
                 /><span>{{
                   new Intl.DateTimeFormat('en-GB', {

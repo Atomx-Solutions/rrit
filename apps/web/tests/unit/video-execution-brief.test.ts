@@ -52,7 +52,7 @@ describe('buildVideoExecutionBrief', () => {
   it('changes camera, pacing, anchor and timing with the plan', () => {
     const first = makePrompt({ camera: 'slow_push', pacing: 'measured', subjectAnchor: 'right', textZone: 'left' })
     const second = makePrompt({ camera: 'arc', pacing: 'punchy', subjectAnchor: 'left', textZone: 'right' }, 6)
-    expect(second).toContain('One continuous, restrained arc')
+    expect(second).toContain('sideways glide across the photographed view')
     expect(second).toContain('brisk but controlled')
     expect(second).toContain('anchored left')
     expect(second).toContain('negative space toward the right')

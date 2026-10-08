@@ -8,7 +8,6 @@ import { dayInZone } from '../../shared/utils/calendar'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
 import { qualityBrandHash, qualityReviewKey, reviewedQuality } from './post-quality-domain'
 import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
-import { hasComposedEndCard } from './video-compose'
 
 const limitsSchema = z.object({
   caption_characters: z.number().int().positive().max(2200),
@@ -20,7 +19,8 @@ const limitsSchema = z.object({
   max_hashtags: z.number().int().nonnegative(),
   daily_ai_requests: z.number().int().positive(),
 })
-export type PostCheck = { key: string; passed: boolean; message: string; advisory?: boolean }
+// `params` fills the translated message, such as the limit a check enforces.
+export type PostCheck = { key: string; passed: boolean; message: string; advisory?: boolean; params?: Record<string, string | number> }
 export function blockingPostChecks(checks: PostCheck[]) {
   return checks.filter((check) => !check.advisory)
 }
@@ -125,7 +125,7 @@ export async function localPostChecks(
   const render = post.video
     ? (
         await db.query(
-          'SELECT status,storage_path,duration_seconds FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
+          'SELECT status,storage_path,composed FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
           [post.id, businessId],
         )
       ).rows[0]
@@ -252,8 +252,7 @@ export async function localPostChecks(
       ? [
           {
             key: 'video_render',
-            passed: render?.status === 'ready' && !!render.storage_path
-              && hasComposedEndCard(render.duration_seconds, post.video.durationSeconds),
+            passed: render?.status === 'ready' && !!render.storage_path && render.composed,
             message: 'server.VIDEO_REQUIRED_FOR_PUBLISHING',
           },
         ]

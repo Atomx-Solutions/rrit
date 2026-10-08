@@ -1,21 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
 import { prepareVideoFirstFrame } from '../../server/utils/image-processing'
-import { postVideoPrompt } from '../../server/utils/monthly-ai'
-
-const baseBrief = {
-  hook: 'Nise ditën me kafen tonë',
-  overlays: [],
-  cta: 'Vizito sot',
-  durationSeconds: 8,
-  format: '1080x1920',
-  intent: 'inspire' as const,
-  purpose: 'Fto audiencën lokale të fillojë mëngjesin këtu',
-  assetDirection: 'Këndvështrim i ngushtë mbi tasin e kafes, kamera lëviz ngadalë',
-  visualLayout: 'focal-subject-centre, warm-golden-light',
-}
-const baseBrand = { name: 'Rrit', industry: 'kafene', audience: 'urbanë', voice: 'ngrohtë' }
-const basePost = { channel: 'Instagram' as const, title: 't', caption: 'c', pillar: 'p' }
 
 describe('prepareVideoFirstFrame', () => {
   it('converts a landscape source to the exact target vertical dimensions with no padding', async () => {
@@ -43,56 +28,5 @@ describe('prepareVideoFirstFrame', () => {
     const copy = Buffer.from(landscape)
     await prepareVideoFirstFrame(landscape, { width: 1080, height: 1920 })
     expect(landscape.equals(copy)).toBe(true)
-  })
-})
-
-describe('postVideoPrompt', () => {
-  it('names Albanian for sq-XK and marks the copy as authoritative in that language', () => {
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief, locale: 'sq-XK' })
-    expect(prompt).toContain('written in Albanian')
-    expect(prompt).toContain(`Hook: "${baseBrief.hook}"`)
-    expect(prompt).toContain(`Call to action: "${baseBrief.cta}"`)
-    expect(prompt).toContain('Never translate')
-  })
-  it('names English for en-US', () => {
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief, locale: 'en-US' })
-    expect(prompt).toContain('written in English')
-  })
-  it('names German for de-DE', () => {
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief, locale: 'de-DE' })
-    expect(prompt).toContain('written in German')
-  })
-  it('defaults to Albanian when no locale is passed', () => {
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief })
-    expect(prompt).toContain('written in Albanian')
-  })
-  it('includes the prepared-first-frame contract and forbids letterboxing', () => {
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief })
-    expect(prompt).toContain('already been prepared by the application')
-    expect(prompt).toContain('no letterbox')
-    expect(prompt).toContain('do not add black, white or blurred bars')
-  })
-  it('carries the strategy direction and does not restore the fixed camera-move menu', () => {
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief })
-    expect(prompt).toContain('Content intent: inspire')
-    expect(prompt).toContain('Purpose of this specific video')
-    expect(prompt).toContain(baseBrief.assetDirection)
-    expect(prompt).toContain(baseBrief.visualLayout)
-    expect(prompt).not.toMatch(/a slow push, a gentle parallax drift, a restrained handheld settle or a single arc/)
-  })
-  it('replaces the "dissolve naturally" instruction with stable-text rules', () => {
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: baseBrief })
-    expect(prompt).not.toContain('dissolve naturally')
-    expect(prompt).toContain('Overlay stability contract')
-    expect(prompt).toContain('must remain visually stable')
-    expect(prompt).toContain('do not regenerate letters individually')
-    expect(prompt).toContain('leave that one phrase out')
-  })
-  it('still parses a legacy brief that lacks the Phase 1 fields', () => {
-    const legacy = { hook: 'x', overlays: [], cta: 'y', durationSeconds: 8, format: '1080x1920' }
-    const prompt = postVideoPrompt({ brand: baseBrand, post: basePost, brief: legacy })
-    expect(prompt).toContain('Hook: "x"')
-    expect(prompt).toContain('Call to action: "y"')
-    expect(prompt).not.toContain('Content intent:')
   })
 })

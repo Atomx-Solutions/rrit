@@ -168,7 +168,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
     <template #channel-cell="{ row }">
       <span class="inline-flex items-center gap-2 text-sm"
         ><UIcon
-          :name="row.original.channel === 'Instagram' ? 'i-lucide-instagram' : 'i-lucide-facebook'"
+          :name="channelIcon(row.original.channel)"
           class="size-4 text-muted"
         />{{ row.original.channel }}</span
       >

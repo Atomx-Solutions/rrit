@@ -52,11 +52,23 @@ export default defineEventHandler(async (event) => {
       prerequisite = error instanceof PlannerFailure ? error.code : 'BUSINESS_CONTEXT_REQUIRED'
     }
     const result = await client.query(
-      `SELECT id,status,stage,target_count,generate_count,batch_start,completed_count,evidence_hash,research,editorial_plan,error_code,created_at,updated_at
+      `SELECT id,status,stage,target_count,generate_count,batch_start,batch_video_count,completed_count,evidence_hash,research,editorial_plan,error_code,created_at,updated_at
       FROM monthly_plans WHERE business_id=$1 AND month=$2::date`,
       [business.id, `${month.data}-01`],
     )
     const row = result.rows[0]
+    // A video is rendered after its post is committed, so a plan reads as done
+    // while its videos are still being made. The panel waits for these too.
+    const videosRendering = row
+      ? (
+          await client.query<{ count: number }>(
+            `SELECT count(*)::int AS count FROM posts
+              WHERE business_id=$1 AND monthly_plan_id=$2
+                AND payload->'video'->>'status' IN ('brief_ready','rendering')`,
+            [business.id, row.id],
+          )
+        ).rows[0]?.count || 0
+      : 0
     const usedPosts = access
       ? await postsCountedForLimit(client, business.id, month.data, access.paid, access.quotaPeriod)
       : 0
@@ -105,12 +117,16 @@ export default defineEventHandler(async (event) => {
             total: row.target_count as number,
             requested: row.generate_count as number,
             completed: row.completed_count as number,
+            videosRendering,
             // The run the customer just started, reported on its own:
             // `generate_count` accumulates across requests and would otherwise
             // make a single new post read as part of a larger job.
             batch: {
               total: (row.generate_count as number) - (row.batch_start as number),
               completed: (row.completed_count as number) - (row.batch_start as number),
+              // How many of the batch's deliverables are videos, so the panel
+              // names what is waiting instead of calling every one a post.
+              videos: row.batch_video_count as number,
             },
             // Posts are drawn on request, so the panel needs to know the plan
             // is alive and still owes the customer posts it has not been asked

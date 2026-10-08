@@ -295,10 +295,12 @@ export async function ensureMonthlyPlan(
   }
   // The two selections are checked independently so the message the user sees
   // names the exact deliverable they oversubscribed, rather than a shared
-  // "too many photos" that is wrong half the time.
-  if (photoSelection.selectedAssetIds.length > remaining)
+  // "too many photos" that is wrong half the time. A batch that asks for zero
+  // of a kind does not use that kind's stored preferences at all, so stale
+  // preferences from a prior configuration must not block it.
+  if (generatePosts > 0 && photoSelection.selectedAssetIds.length > remaining)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
-  if (photoSelection.selectedVideoAssetIds.length > generateVideos)
+  if (generateVideos > 0 && photoSelection.selectedVideoAssetIds.length > generateVideos)
     throw new PlannerFailure('TOO_MANY_SELECTED_VIDEO_PHOTOS')
   // Nothing requested means nothing queued: the plan waits in 'idle' until a
   // request arrives, so no provider call is ever made on the worker's behalf.
@@ -341,7 +343,7 @@ export async function ensureMonthlyPlan(
           [...values, prior.rows[0].id],
         )
       : client.query(
-          `INSERT INTO monthly_plans(business_id,month,target_count,evidence,evidence_hash,entitlement_snapshot,generate_count,status,batch_channels,batch_video_count)
+          `INSERT INTO monthly_plans(business_id,month,target_count,evidence,evidence_hash,entitlement_snapshot,generate_count,status,batch_channel_counts,batch_video_count)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,status`,
           values,
         ),
@@ -428,9 +430,12 @@ export async function requestMonthlyPosts(
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
   }
-  if (photoSelection.selectedAssetIds.length > addedPosts)
+  // Stored preferences only constrain the kinds this batch actually asks for;
+  // a video-only batch must not be rejected because the saved post photos
+  // happen to outnumber zero.
+  if (addedPosts > 0 && photoSelection.selectedAssetIds.length > addedPosts)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
-  if (photoSelection.selectedVideoAssetIds.length > addedVideos)
+  if (addedVideos > 0 && photoSelection.selectedVideoAssetIds.length > addedVideos)
     throw new PlannerFailure('TOO_MANY_SELECTED_VIDEO_PHOTOS')
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
   const businessBrain = await plannerBrainFor(client, businessId, slug)
@@ -498,11 +503,12 @@ export async function restartMonthlyPlan(
     status: string
     stage: string
     completed_count: number
+    batch_video_count: number
     error_code: string | null
     has_research: boolean
     has_editorial_plan: boolean
   }>(
-    `SELECT id,status,stage,completed_count,error_code,
+    `SELECT id,status,stage,completed_count,batch_video_count,error_code,
             research IS NOT NULL AS has_research,
             editorial_plan IS NOT NULL AS has_editorial_plan
        FROM monthly_plans WHERE business_id=$1 AND month=$2::date FOR UPDATE`,
@@ -548,7 +554,9 @@ export async function restartMonthlyPlan(
     access.quotaPeriod,
   )
   const target = remainingMonthlyPosts(access.limits.posts_per_month, existing)
-  if (target < 1) throw new PlannerFailure('QUOTA_EXCEEDED')
+  // A video-only batch draws on the video allowance, not the post quota, so an
+  // exhausted post quota must not stop it from resuming.
+  if (target < 1 && !prior.batch_video_count) throw new PlannerFailure('QUOTA_EXCEEDED')
   if (resumePlanning || resumeContent) {
     await client.query(
       "UPDATE monthly_plans SET status='queued',error_code=NULL,next_run_at=now(),updated_at=now(),planning_retry_nonce=planning_retry_nonce+CASE WHEN $3='planning' THEN 1 ELSE 0 END WHERE id=$1 AND business_id=$2",
@@ -583,7 +591,8 @@ export async function restartMonthlyPlan(
           entitlement_snapshot=$4,research=NULL,editorial_plan=NULL,error_code=NULL,next_run_at=now(),updated_at=now()
       WHERE id=$5 AND business_id=$6`,
     [
-      target,
+      // Same shape as ensureMonthlyPlan: the posts left plus this batch's videos.
+      target + prior.batch_video_count,
       JSON.stringify(evidence),
       evidenceHash(evidence),
       JSON.stringify({ plan: access.plan, limits: access.limits, paid: access.paid }),
@@ -1328,9 +1337,16 @@ async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
   // compares against the same list rather than rebuilding a narrower one.
   return { workspace, facts: current }
 }
+// A video-only batch has photographs reserved for video and none for the
+// feed, so the pool the planner and generator draw from is both lists.
 function generationAssetIds(evidence: PlannerEvidence) {
   if (evidence.photoSelection?.mode === 'selected')
-    return evidence.photoSelection.selectedAssetIds
+    return [
+      ...new Set([
+        ...evidence.photoSelection.selectedAssetIds,
+        ...(evidence.photoSelection.selectedVideoAssetIds || []),
+      ]),
+    ]
   return evidence.assets.map((asset) => asset.id)
 }
 async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {

@@ -18,7 +18,7 @@ defineProps<{ channel: 'Instagram' | 'Facebook' | 'TikTok'; name: string; image:
         </p>
       </div>
       <UIcon
-        :name="channel === 'Instagram' ? 'i-lucide-instagram' : channel === 'TikTok' ? 'i-lucide-music' : 'i-lucide-facebook'"
+        :name="channelIcon(channel)"
         class="size-4 text-muted shrink-0"
       />
     </header>
