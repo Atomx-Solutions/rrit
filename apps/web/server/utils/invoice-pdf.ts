@@ -86,11 +86,12 @@ export function pdfText(value: string) {
   return out
 }
 
-// Invoices are in English: EUR 1,234.50 style amounts.
-export function formatInvoiceMoney(value: number) {
+// Invoices use the stored currency; the legacy PDF formatter is EUR based.
+export function formatInvoiceMoney(value: number, currency: string = 'EUR', decimals = 2) {
   const sign = value < 0 ? '-' : ''
-  const [whole, cents] = Math.abs(value).toFixed(2).split('.')
-  return `${sign}€${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${cents}`
+  const [whole, cents] = Math.abs(value).toFixed(decimals).split('.')
+  const symbol = currency === 'CHF' ? 'CHF ' : '€'
+  return `${sign}${symbol}${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${cents}`
 }
 // Kosovo local date and time of the purchase, to the second: an invoice
 // issued just after midnight must not show the previous day.
@@ -177,10 +178,25 @@ export function invoicePdf(invoice: Invoice) {
   y -= 6
   for (const line of invoice.lines) {
     y -= 20
-    text(55, y, truncate(line.description, 52), 9)
-    text(340, y, String(line.quantity), 9)
-    text(395, y, formatInvoiceMoney(line.unitPriceCents / 100), 9)
-    text(490, y, formatInvoiceMoney(line.totalCents / 100), 9)
+    // Legacy package invoices stored quantity=1 while the description held
+    // the actual package count. Keep those immutable invoices readable too.
+    const countMatch = line.description.match(/(\d+)\s+(?:videos?|posts?|credits?)/i)
+    const displayQuantity = countMatch ? Number(countMatch[1]) : line.quantity
+    const displayUnitPrice = countMatch && displayQuantity > 0
+      ? line.totalCents / displayQuantity
+      : line.unitPriceCents
+    const displayDescription = /\bcredits?\b/i.test(line.description)
+      ? 'Credits'
+      : /\bvideos?\b/i.test(line.description)
+        ? 'Video'
+        : /\bposts?\b/i.test(line.description)
+          ? 'Posts'
+          : line.description
+    text(55, y, truncate(displayDescription, 52), 9)
+    text(340, y, String(displayQuantity), 9)
+    const unitDecimals = /\bcredits?\b/i.test(line.description) ? 4 : 2
+    text(395, y, formatInvoiceMoney(displayUnitPrice / 100, invoice.currency, unitDecimals), 9)
+    text(490, y, formatInvoiceMoney(line.totalCents / 100, invoice.currency), 9)
     ops.push('0.85 0.85 0.85 RG')
     hline(50, 545, y - 6, 0.3)
     ops.push('0 0 0 RG')
@@ -196,13 +212,13 @@ export function invoicePdf(invoice: Invoice) {
 
   y -= 4
   text(315, y, 'Subtotal', 9)
-  text(490, y, formatInvoiceMoney(invoice.subtotal), 9)
+  text(490, y, formatInvoiceMoney(invoice.subtotal, invoice.currency), 9)
   y -= 16
   text(315, y, `VAT (${invoice.vatRate.toLocaleString('en-US')}%)`, 9)
-  text(490, y, formatInvoiceMoney(invoice.vat), 9)
+  text(490, y, formatInvoiceMoney(invoice.vat, invoice.currency), 9)
   y -= 20
   text(315, y, 'Total', 11, true)
-  text(490, y, formatInvoiceMoney(invoice.total), 11, true)
+  text(490, y, formatInvoiceMoney(invoice.total, invoice.currency), 11, true)
 
   // --- Footer ---
   ops.push('0.09 0.41 0.30 RG')

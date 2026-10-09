@@ -178,7 +178,7 @@ async function submit() {
         <UFormField
           name="priceEuro"
           :label="t('admin.packages.price')"
-          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100) })"
+          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, 'EUR') })"
           required
         >
           <UInputNumber

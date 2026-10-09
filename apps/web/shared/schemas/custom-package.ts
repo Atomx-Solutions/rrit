@@ -25,7 +25,7 @@ const customPackageFields = z.object({
   priceCents: z.number().int().nonnegative(),
   // What the configured per-post rate suggested when the package was written.
   suggestedPriceCents: z.number().int().nonnegative(),
-  currency: z.literal('EUR'),
+  currency: z.enum(['EUR', 'CHF']),
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
   status: customPackageStatusSchema,

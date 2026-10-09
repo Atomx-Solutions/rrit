@@ -80,8 +80,12 @@ const invoices = computed(() => {
   )
 })
 
-const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })
-const formatCents = (cents: number) => euro.format(cents / 100)
+const formatCents = (cents: number, currency = 'EUR') =>
+  new Intl.NumberFormat('sq-XK', {
+    style: 'currency',
+    currency: currency === 'CHF' ? 'CHF' : 'EUR',
+    minimumFractionDigits: 2,
+  }).format(cents / 100)
 // Invoices show the purchase time, to the second.
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
@@ -244,7 +248,7 @@ const sourceLabel: Record<string, string> = {
         </template>
         <template #total-cell="{ row }">
           <span :class="row.original.kind === 'credit_note' ? 'text-warning' : ''">
-            {{ formatCents(row.original.total_cents) }}
+            {{ formatCents(row.original.total_cents, row.original.currency) }}
           </span>
         </template>
         <template #actions-cell="{ row }">

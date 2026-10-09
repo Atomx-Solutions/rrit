@@ -1,9 +1,16 @@
 import { packageUsageSummary } from '../../utils/custom-packages'
 import { creditPricing } from '../../utils/credits'
+import { convertCurrency, getExchangeRate } from '../../utils/exchange-rates'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
-  const { customPackage, packageProposal, creditPriceCents } = await withBusinessTransaction(user.id, async (client, business) => {
+  const { customPackage, packageProposal, creditPriceCents, currency, exchangeRate } = await withBusinessTransaction(user.id, async (client, business) => {
+    const workspaceResult = await client.query<{ currency: string | null }>(
+      `SELECT state->'preferences'->>'currency' AS currency FROM businesses WHERE id=$1`,
+      [business.id],
+    )
+    const currency = workspaceResult.rows[0]?.currency === 'CHF' ? 'CHF' : 'EUR'
+    const exchangeRate = await getExchangeRate('EUR', currency)
     // A custom package is a negotiated agreement that replaces plan purchase
     // while it runs. Row level security scopes this read to the caller's own
     // organization, so the query does not filter by id itself.
@@ -59,11 +66,16 @@ export default defineEventHandler(async (event) => {
       // What a credit costs the customer, so the page can price a top-up
       // before asking for one instead of leaving the amount a mystery.
       creditPriceCents: (await creditPricing(client)).creditPriceCents,
+      currency,
+      exchangeRate: exchangeRate.rate,
     }
   })
   setHeader(event, 'Cache-Control', 'private, no-store')
   return {
-    creditPrice: creditPriceCents / 100,
+    currency,
+    exchangeRate,
+    // Keep per-credit precision; the UI rounds only the requested total.
+    creditPrice: convertCurrency(creditPriceCents / 100, exchangeRate, 6),
     packageProposal: packageProposal && {
       name: packageProposal.name,
       // The page states what the offer actually carries, so each kind is sent
@@ -71,7 +83,7 @@ export default defineEventHandler(async (event) => {
       postsIncluded: packageProposal.posts_included,
       videosIncluded: packageProposal.videos_included,
       creditsIncluded: packageProposal.credits_included,
-      price: packageProposal.price_cents / 100,
+      price: convertCurrency(packageProposal.price_cents / 100, exchangeRate),
       startsAt: new Date(packageProposal.starts_at).toISOString(),
       endsAt: new Date(packageProposal.ends_at).toISOString(),
     },
@@ -90,7 +102,7 @@ export default defineEventHandler(async (event) => {
         videosIncluded: customPackage.videos_included,
         usedVideos: customPackage.used_videos,
         remainingVideos: Math.max(0, customPackage.videos_included - customPackage.used_videos),
-        price: customPackage.price_cents / 100,
+        price: convertCurrency(customPackage.price_cents / 100, exchangeRate),
         startsAt,
         endsAt,
         ...usage,

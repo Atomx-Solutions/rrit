@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 
-type CreditPricing = { credit_price_cents: number, provider_cost_per_credit_micro_eur: number, low_credit_threshold: number, tiktok_video_credits: number }
+type CreditPricing = { credit_price_cents: number, provider_cost_per_credit_micro_eur: number, low_credit_threshold: number, video_credits: number }
 type InvoiceSettings = { number_prefix: string, seller_name: string, seller_address: string, seller_fiscal_number: string, vat_rate_basis_points: number }
 type TrialPlan = { code: string, name: string, posts_per_month: number, videos_per_month: number, active: boolean, is_trial: boolean }
 
@@ -30,7 +30,7 @@ function changed<T extends Record<string, unknown>>(current: T | undefined, next
   return Object.fromEntries(Object.entries(next).filter(([key, value]) => current?.[key] !== value))
 }
 
-const pricing = reactive({ credit_price: 0, provider_cost: 0, low_credit_threshold: 0, tiktok_video_credits: 5 })
+const pricing = reactive({ credit_price: 0, provider_cost: 0, low_credit_threshold: 0, video_credits: 5 })
 const trial = reactive({ posts_per_month: 0, videos_per_month: 0, active: true })
 const freeTrial = computed(() => data.value?.plans.find(plan => plan.code === 'free-trial'))
 watch(freeTrial, (value) => {
@@ -74,7 +74,7 @@ watch(data, (value) => {
     credit_price: value.credit_pricing.credit_price_cents / 100,
     provider_cost: value.credit_pricing.provider_cost_per_credit_micro_eur / 1_000_000,
     low_credit_threshold: value.credit_pricing.low_credit_threshold,
-    tiktok_video_credits: value.credit_pricing.tiktok_video_credits,
+    video_credits: value.credit_pricing.video_credits,
   })
   Object.assign(invoice, {
     number_prefix: value.invoice_settings.number_prefix,
@@ -88,7 +88,7 @@ const pricingChanges = computed(() => changed(data.value?.credit_pricing, {
   credit_price_cents: Math.round(Number(pricing.credit_price) * 100),
   provider_cost_per_credit_micro_eur: Math.round(Number(pricing.provider_cost) * 1_000_000),
   low_credit_threshold: Number(pricing.low_credit_threshold),
-  tiktok_video_credits: Number(pricing.tiktok_video_credits),
+  video_credits: Number(pricing.video_credits),
 }))
 const invoiceChanges = computed(() => changed(data.value?.invoice_settings, {
   number_prefix: invoice.number_prefix.trim().toUpperCase(),
@@ -103,7 +103,7 @@ const pricingInvalid = computed(() =>
   || pricing.provider_cost <= 0
   || pricing.low_credit_threshold < 0
   || Number(creditsPerPost.value) < 1
-  || Number(pricing.tiktok_video_credits) < 1
+  || Number(pricing.video_credits) < 1
   || postPriceCents.value < 1
   || Number(videoPriceEuro.value) <= 0,
 )
@@ -172,7 +172,7 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
           <UFormField name="post_price_euro" :label="t('admin.settings.postPrice')" :help="t('admin.settings.postPriceHint')"><UInputNumber v-model="postPriceEuro" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }" class="w-full" /></UFormField>
           <UFormField name="credits_per_post" :label="t('admin.settings.creditsPerPost')" :help="t('admin.settings.creditsPerPostHint')"><UInputNumber v-model="creditsPerPost" :min="1" :max="100000" class="w-full" /></UFormField>
           <UFormField name="video_price_euro" :label="t('admin.settings.videoPrice')" :help="t('admin.settings.videoPriceHint')"><UInputNumber v-model="videoPriceEuro" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }" class="w-full" /></UFormField>
-          <UFormField name="tiktok_video_credits" :label="t('admin.plans.tiktokVideoCredits')" :help="t('admin.plans.tiktokVideoCreditsHelp')"><UInputNumber v-model="pricing.tiktok_video_credits" :min="1" :max="100000" class="w-full" /></UFormField>
+          <UFormField name="video_credits" :label="t('admin.plans.tiktokVideoCredits')" :help="t('admin.plans.tiktokVideoCreditsHelp')"><UInputNumber v-model="pricing.video_credits" :min="1" :max="100000" class="w-full" /></UFormField>
           <UAlert class="sm:col-span-2" :color="margin > 0 ? 'neutral' : 'error'" variant="subtle" icon="i-lucide-percent" :title="t('admin.plans.margin', { margin })" />
           <UButton type="submit" class="sm:col-span-2 justify-self-start" :loading="saving.pricing" :disabled="(!Object.keys(pricingChanges).length && !Object.keys(platformChanges).length) || pricingInvalid" :label="t('admin.plans.save')" />
         </UForm>

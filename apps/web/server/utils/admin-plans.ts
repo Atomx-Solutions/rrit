@@ -13,7 +13,7 @@ export const creditPricingChangesSchema = nonEmpty({
   credit_price_cents: z.number().int().min(1).max(100_000).optional(),
   provider_cost_per_credit_micro_eur: z.number().int().min(1).max(100_000_000).optional(),
   low_credit_threshold: count.max(100_000_000).optional(),
-  tiktok_video_credits: z.number().int().min(1).max(100_000).optional(),
+  video_credits: z.number().int().min(1).max(100_000).optional(),
 })
 export const invoiceSettingsChangesSchema = nonEmpty({
   number_prefix: z.string().trim().regex(/^[A-Z0-9]{2,12}$/).optional(),

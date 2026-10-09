@@ -29,7 +29,7 @@ export function emptyWorkspace(name = '', email = ''): Workspace {
       email,
       timezone: 'Europe/Belgrade',
       locale: 'sq-XK',
-      currency: 'EUR',
+      currency: 'CHF',
     },
     posts: [],
     assets: [],

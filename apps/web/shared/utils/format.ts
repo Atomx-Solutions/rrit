@@ -15,6 +15,8 @@ export const months = [
 ]
 export const formatNumber = (value: number) =>
   new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(value)
+// Admin and platform prices use EUR as the canonical currency. Customer-facing
+// views pass the workspace currency explicitly when they need CHF.
 export const formatMoney = (value: number, currency = 'EUR') =>
   new Intl.NumberFormat('de-DE', {
     style: 'currency',

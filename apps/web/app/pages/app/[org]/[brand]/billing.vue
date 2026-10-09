@@ -2,11 +2,12 @@
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 
 const { t } = useI18n()
+const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'EUR' }).format(value)
 const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Rrit` })
 
 const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { key: 'usage' })
-const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { key: 'billing-subscription' })
+const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { key: 'billing-subscription-currency-v2' })
 const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { key: 'billing-details' })
 const { data: platformPricing } = await useFetch<{ videoPriceCents: number }>('/api/package-requests', { key: 'package-pricing' })
 
@@ -58,7 +59,7 @@ const creditPrice = computed(() => billing.value?.creditPrice || 0)
 // sense to someone who has one.
 const canBuyCredits = computed(() => !!customPackage.value)
 const creditEstimate = computed(() => creditsRequested.value * creditPrice.value)
-const videoPrice = computed(() => (platformPricing.value?.videoPriceCents ?? 200) / 100)
+const videoPrice = computed(() => ((platformPricing.value?.videoPriceCents ?? 200) / 100) * (billing.value?.exchangeRate || 1))
 const videoEstimate = computed(() => videosRequested.value * videoPrice.value)
 async function sendVideoRequest() {
   if (sendingVideoRequest.value || videosRequested.value < 1) return
@@ -191,7 +192,7 @@ async function declineProposal() {
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="space-y-1">
           <div class="flex items-center gap-2"><UIcon name="i-lucide-handshake" class="size-5 text-primary" /><h2 class="text-sm font-semibold">{{ t('billing.packageProposalTitle') }}</h2></div>
-          <p class="text-sm font-medium">{{ packageProposal.name }} · €{{ packageProposal.price.toFixed(2) }}</p>
+          <p class="text-sm font-medium">{{ packageProposal.name }} · {{ formatMoney(packageProposal.price) }}</p>
           <p class="text-xs text-muted">{{ proposalSummary }}</p>
         </div>
         <div class="flex gap-2">
@@ -255,7 +256,14 @@ async function declineProposal() {
             class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
           />
           <template #body>
-            <PackageRequestForm endpoint="/api/billing/package-request" compact contact-known @sent="requestOpen = false" />
+            <PackageRequestForm
+              endpoint="/api/billing/package-request"
+              compact
+              contact-known
+              :currency="billing?.currency || 'EUR'"
+              :exchange-rate="billing?.exchangeRate || 1"
+              @sent="requestOpen = false"
+            />
           </template>
         </UModal>
       </div>
@@ -312,10 +320,10 @@ async function declineProposal() {
       <template #body>
         <div class="space-y-4">
           <UFormField :label="t('billing.buyCreditsAmount')">
-            <UInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="100" class="w-44" />
+            <UInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="1" class="w-44" />
           </UFormField>
           <p class="text-sm text-muted">
-            {{ t('billing.buyCreditsEstimate', { amount: creditEstimate.toFixed(2) }) }}
+            {{ t('billing.buyCreditsEstimate', { amount: formatMoney(creditEstimate, billing?.currency || 'EUR') }) }}
           </p>
           <UFormField :label="t('billing.buyCreditsMessage')">
             <UTextarea v-model="creditMessage" :rows="3" maxlength="2000" class="w-full" />
@@ -335,7 +343,7 @@ async function declineProposal() {
       <template #body>
         <div class="space-y-4">
           <UFormField :label="t('billing.videoQuantity')"><UInputNumber v-model="videosRequested" :min="1" :max="1000" class="w-44" /></UFormField>
-          <p class="text-sm text-muted">{{ t('billing.videoPriceEstimate', { amount: videoEstimate.toFixed(2), unit: videoPrice.toFixed(2) }) }}</p>
+          <p class="text-sm text-muted">{{ t('billing.videoPriceEstimate', { amount: formatMoney(videoEstimate), unit: formatMoney(videoPrice) }) }}</p>
         </div>
       </template>
       <template #footer><div class="flex w-full justify-end gap-2"><UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="videoRequestOpen = false" /><UButton :loading="sendingVideoRequest" :disabled="videosRequested < 1" :label="t('billing.requestVideosSubmit')" @click="sendVideoRequest" /></div></template>
