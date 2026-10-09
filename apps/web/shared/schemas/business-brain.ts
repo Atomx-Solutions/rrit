@@ -49,7 +49,7 @@ export const offerSchema = z.object({
   brandId: z.uuid(),
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(1000),
-  currency: z.enum(['EUR', 'ALL']),
+  currency: z.enum(['EUR', 'CHF', 'ALL']),
   amount: z.number().nonnegative().nullable(),
   validFrom: z.string().date(),
   validUntil: z.string().date().nullable(),
@@ -124,7 +124,7 @@ export const updateBrainSchema = z.object({
 export const createOfferSchema = z.object({
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(1000),
-  currency: z.enum(['EUR', 'ALL']),
+  currency: z.enum(['EUR', 'CHF', 'ALL']),
   amount: z.number().nonnegative().nullable().default(null),
   validFrom: z.string().date(),
   validUntil: z.string().date().nullable().default(null),
@@ -152,7 +152,7 @@ export const brandFactSchema = z.object({
   validFrom: z.iso.date().nullable().optional(),
   validUntil: z.iso.date().nullable().optional(),
   amountCents: z.number().int().positive().max(100000000).nullable().optional(),
-  currency: z.literal('EUR').nullable().optional(),
+  currency: z.enum(['EUR', 'CHF', 'ALL']).nullable().optional(),
   state: z.enum(['proposed', 'verified', 'rejected', 'archived']).optional(),
   confidence: z.number().min(0).max(1).nullable().optional(),
   origin: z.enum(['user', 'social', 'research']).optional(),
@@ -187,7 +187,7 @@ export function factIsUsable(fact: BrandFact, day: string) {
     (!fact.validFrom || !fact.validUntil || fact.validUntil < fact.validFrom)
   )
     return false
-  if (fact.amountCents != null && fact.currency !== 'EUR') return false
+  if (fact.amountCents != null && !['EUR', 'CHF'].includes(fact.currency || '')) return false
   return true
 }
 export function factInputProblem(fact: BrandFact) {
@@ -197,8 +197,8 @@ export function factInputProblem(fact: BrandFact) {
     return 'Përfundimi duhet të jetë pas fillimit të vlefshmërisë.'
   if (fact.kind === 'offer' && fact.verified && (!fact.validFrom || !fact.validUntil))
     return 'Oferta kërkon datën e fillimit dhe të përfundimit.'
-  if (fact.amountCents != null && fact.currency !== 'EUR')
-    return 'Çmimi duhet të ketë monedhën EUR.'
+  if (fact.amountCents != null && !['EUR', 'CHF'].includes(fact.currency || ''))
+    return 'Çmimi duhet të ketë monedhën EUR ose CHF.'
   return null
 }
 export function sameFactContent(first: BrandFact, second: BrandFact) {
@@ -219,7 +219,7 @@ export const plannerBrainOfferSchema = z.object({
   id: z.uuid(),
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(1000),
-  currency: z.enum(['EUR', 'ALL']),
+  currency: z.enum(['EUR', 'CHF', 'ALL']),
   amount: z.number().nonnegative().nullable(),
   validFrom: z.string().date(),
   validUntil: z.string().date().nullable(),

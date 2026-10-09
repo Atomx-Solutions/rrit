@@ -28,7 +28,7 @@ export const planCatalogSchema = z.object({
   name: z.string().min(1),
   version: z.number().int().positive(),
   monthlyCents: z.number().int().nonnegative(),
-  currency: z.literal('EUR'),
+  currency: z.enum(['EUR', 'CHF']),
   annualDiscount: z.number().int().min(0).max(100),
   // Presentation copy is localized by the client. The catalog only carries
   // configuration and entitlement data from the database.

@@ -404,7 +404,6 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="status === 'pending' || conversionStatus === 'pending'"
             :aria-label="t('admin.requests.refresh')"
             @click="resetAndRefresh"
           />
@@ -415,7 +414,7 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
       <UTable
         :data="paginatedRequests"
         :columns="columns"
-        :loading="status === 'pending'"
+        :loading="false"
         :empty="t('admin.requests.empty')"
       >
         <template #contact-cell="{ row }">

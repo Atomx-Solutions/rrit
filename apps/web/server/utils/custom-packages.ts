@@ -125,7 +125,7 @@ type CustomPackageRow = {
   post_price_cents: number
   price_cents: number
   suggested_price_cents: number
-  currency: 'EUR'
+  currency: 'EUR' | 'CHF'
   starts_at: Date
   ends_at: Date
   status: CustomPackageStatus

@@ -1,7 +1,6 @@
 import {
   appPackageRequestSchema,
   submitPackageRequest,
-  submitterHash,
 } from '../../utils/package-requests'
 import { businessForUser } from '../../utils/meta'
 import { withUserTransaction } from '../../utils/database'
@@ -28,7 +27,10 @@ export default defineEventHandler(async (event) => {
     values: { ...values.data, contactName: user.name, contactEmail: user.email },
     source: 'app',
     organizationId: business.id,
-    submitterHash: submitterHash(event),
+    // Authenticated workspace requests are already scoped to the account.
+    // Do not apply the public IP limiter here: shared Wi-Fi/VPNs and repeated
+    // client-side retries would otherwise block a legitimate customer.
+    submitterHash: null,
     userId: user.id,
   })
 })

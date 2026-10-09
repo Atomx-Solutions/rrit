@@ -139,7 +139,7 @@ function setPrice(fact: BrandFact, value: string | number) {
   const amount = Number(value)
   fact.amountCents =
     value !== '' && Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) : null
-  fact.currency = fact.amountCents == null ? null : 'EUR'
+  fact.currency = fact.amountCents == null ? null : 'CHF'
   invalidateFact(fact)
 }
 </script>

@@ -38,7 +38,7 @@ const expandedBrainSections = reactive({
 const offer = reactive<CreateOffer>({
   name: '',
   description: '',
-  currency: 'EUR',
+  currency: 'CHF',
   amount: null,
   validFrom: new Date().toISOString().slice(0, 10),
   validUntil: null,
@@ -48,7 +48,7 @@ const offer = reactive<CreateOffer>({
 const editOffer = reactive<CreateOffer>({
   name: '',
   description: '',
-  currency: 'EUR',
+  currency: 'CHF',
   amount: null,
   validFrom: '',
   validUntil: null,

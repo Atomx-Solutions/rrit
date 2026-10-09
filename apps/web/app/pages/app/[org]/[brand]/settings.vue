@@ -48,7 +48,7 @@ const schema = z.object({
     }
   }, t('settings.timezoneInvalid')),
   locale: z.enum(['sq-XK', 'en-US', 'de-DE']),
-  currency: z.literal('EUR'),
+  currency: z.enum(['CHF', 'EUR']),
 })
 async function save() {
   formError.value = ''
@@ -167,8 +167,11 @@ async function saveAndLeave() {
           ><UFormField :label="t('settings.currency')" name="currency" class="field"
             ><USelect
               v-model="form.currency"
-              :items="[{ label: t('settings.currencyEuro'), value: 'EUR' }]"
-            /><small>{{ t('settings.currencyDescription') }}</small></UFormField
+              :items="[
+                { label: t('settings.currencyChf'), value: 'CHF' },
+                { label: t('settings.currencyEuro'), value: 'EUR' },
+              ]"
+            /></UFormField
           ></template
         ><template v-if="tab === 'organization'"
           ><h2>{{ t('settings.workspaceManagement') }}</h2>

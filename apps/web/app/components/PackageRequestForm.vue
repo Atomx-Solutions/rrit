@@ -22,6 +22,8 @@ const props = withDefaults(
     // A public lead form can return to its ready state after acknowledging a
     // request, while in-app forms may keep their confirmation visible.
     resetAfterSentMs?: number
+    currency?: 'EUR' | 'CHF'
+    exchangeRate?: number
   }>(),
   {
     endpoint: '/api/package-requests',
@@ -30,6 +32,8 @@ const props = withDefaults(
     submitLabelKey: '',
     lean: false,
     resetAfterSentMs: 0,
+    currency: 'EUR',
+    exchangeRate: 1,
   },
 )
 const emit = defineEmits<{ sent: [] }>()
@@ -70,9 +74,11 @@ const postOptions = computed(() => options.value?.postOptions || [])
 // asks for a volume without knowing what it implies; the team still confirms
 // the final figure in the offer.
 const postPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
-const estimatedTotal = computed(() => postPrice.value * form.postsRequested)
+const exchangeRate = computed(() => props.contactKnown ? (props.exchangeRate || 1) : 1)
+const displayPostPrice = computed(() => postPrice.value * exchangeRate.value)
+const estimatedTotal = computed(() => displayPostPrice.value * form.postsRequested)
 const money = (value: number) =>
-  new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR' }).format(value)
+  new Intl.NumberFormat('sq-XK', { style: 'currency', currency: props.contactKnown ? props.currency : 'EUR' }).format(value)
 const platformOptions = computed(() => [
   { label: t('request.platformInstagram'), value: 'instagram' as const },
   { label: t('request.platformFacebook'), value: 'facebook' as const },
@@ -297,11 +303,11 @@ async function submit() {
         />
       </UFormField>
     </div>
-    <div v-if="postPrice > 0 && !lean" class="request-estimate">
+    <div v-if="displayPostPrice > 0 && !lean" class="request-estimate">
       <div>
         <p class="request-estimate-label">{{ t('request.estimateLabel') }}</p>
         <p class="request-estimate-note">
-          {{ t('request.estimatePerPost', { price: money(postPrice) }) }}
+          {{ t('request.estimatePerPost', { price: money(displayPostPrice) }) }}
         </p>
       </div>
       <p class="request-estimate-total">{{ money(estimatedTotal) }}</p>
