@@ -1,0 +1,44 @@
+-- Split video_purchase invoices into their own revenue category so the admin
+-- dashboard shows TikTok video revenue alongside packages and credits.
+CREATE OR REPLACE FUNCTION public.admin_revenue_by_source()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  WITH sales AS (
+    SELECT
+      CASE
+        WHEN COALESCE(original.source_type, invoice.source_type) = 'credit_top_up' THEN 'credits'
+        WHEN COALESCE(original.source_type, invoice.source_type) = 'video_purchase' THEN 'videos'
+        ELSE 'plans'
+      END AS source,
+      invoice.subtotal_cents,
+      invoice.vat_cents,
+      invoice.issued_at >= pg_catalog.date_trunc('month', pg_catalog.now()) AS this_month
+    FROM public.invoices AS invoice
+    LEFT JOIN public.invoices AS original ON original.id = invoice.credited_invoice_id
+  )
+  SELECT pg_catalog.jsonb_build_object(
+    'plans_total_cents', COALESCE(pg_catalog.sum(subtotal_cents) FILTER (WHERE source = 'plans'), 0)::bigint,
+    'plans_this_month_cents', COALESCE(pg_catalog.sum(subtotal_cents) FILTER (WHERE source = 'plans' AND this_month), 0)::bigint,
+    'credits_total_cents', COALESCE(pg_catalog.sum(subtotal_cents) FILTER (WHERE source = 'credits'), 0)::bigint,
+    'credits_this_month_cents', COALESCE(pg_catalog.sum(subtotal_cents) FILTER (WHERE source = 'credits' AND this_month), 0)::bigint,
+    'videos_total_cents', COALESCE(pg_catalog.sum(subtotal_cents) FILTER (WHERE source = 'videos'), 0)::bigint,
+    'videos_this_month_cents', COALESCE(pg_catalog.sum(subtotal_cents) FILTER (WHERE source = 'videos' AND this_month), 0)::bigint,
+    'vat_total_cents', COALESCE(pg_catalog.sum(vat_cents), 0)::bigint,
+    'vat_this_month_cents', COALESCE(pg_catalog.sum(vat_cents) FILTER (WHERE this_month), 0)::bigint
+  )
+  FROM sales;
+$function$;
+
+REVOKE ALL ON FUNCTION public.admin_revenue_by_source() FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.admin_revenue_by_source() TO service_role;
+  END IF;
+END
+$$;

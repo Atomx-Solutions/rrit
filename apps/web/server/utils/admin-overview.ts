@@ -6,7 +6,7 @@ export type AdminOverview = {
   organizations: { total: number, active: number, trialing: number, paused: number, cancelled: number }
   subscriptions: { mrr_cents: number, active: number, trialing: number }
   revenue: { total_cents: number, this_month_cents: number }
-  sales: { plans_total_cents: number, plans_this_month_cents: number, credits_total_cents: number, credits_this_month_cents: number, vat_total_cents: number, vat_this_month_cents: number }
+  sales: { plans_total_cents: number, plans_this_month_cents: number, credits_total_cents: number, credits_this_month_cents: number, videos_total_cents: number, videos_this_month_cents: number, vat_total_cents: number, vat_this_month_cents: number }
   ai: { cost_micro_eur_this_month: number, cost_micro_eur_total: number, margin_cents_this_month: number }
   users: { total: number }
   signups: { this_week: number, this_month: number }
@@ -56,6 +56,8 @@ export function normalizeAdminOverview(value: unknown): AdminOverview {
       plans_this_month_cents: number(sales.plans_this_month_cents),
       credits_total_cents: number(sales.credits_total_cents),
       credits_this_month_cents: number(sales.credits_this_month_cents),
+      videos_total_cents: number(sales.videos_total_cents),
+      videos_this_month_cents: number(sales.videos_this_month_cents),
       vat_total_cents: number(sales.vat_total_cents),
       vat_this_month_cents: number(sales.vat_this_month_cents),
     },
@@ -118,6 +120,8 @@ export async function adminOverview() {
   const packageRevenueMonthCents = number(record(sales.data).plans_this_month_cents)
   const creditRevenueTotalCents = number(record(sales.data).credits_total_cents)
   const creditRevenueMonthCents = number(record(sales.data).credits_this_month_cents)
+  const videoRevenueTotalCents = number(record(sales.data).videos_total_cents)
+  const videoRevenueMonthCents = number(record(sales.data).videos_this_month_cents)
   // Every revenue figure here is net of VAT: VAT is collected for the state,
   // not earned. Monthly revenue is what was invoiced this month (an annual plan
   // counts in full in its purchase month), net of credit notes.
@@ -125,7 +129,7 @@ export async function adminOverview() {
     ...overview,
     organizations: { ...record(overview.organizations), active: inForce.length },
     subscriptions: { ...record(overview.subscriptions), active: inForce.length, mrr_cents: packageMrrCents },
-    revenue: { ...record(overview.revenue), total_cents: packageRevenueTotalCents + creditRevenueTotalCents, this_month_cents: packageRevenueMonthCents + creditRevenueMonthCents },
+    revenue: { ...record(overview.revenue), total_cents: packageRevenueTotalCents + creditRevenueTotalCents + videoRevenueTotalCents, this_month_cents: packageRevenueMonthCents + creditRevenueMonthCents + videoRevenueMonthCents },
     sales: { ...record(sales.data), plans_total_cents: packageRevenueTotalCents, plans_this_month_cents: packageRevenueMonthCents },
     ai: {
       ...record(overview.ai),

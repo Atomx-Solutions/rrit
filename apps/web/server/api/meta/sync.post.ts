@@ -11,6 +11,14 @@ type RemotePost = {
   created_time?: string
   timestamp?: string
   media_type?: string
+  attachments?: {
+    data?: Array<{
+      media_type?: string
+      type?: string
+      url?: string
+      media?: { source?: string; image?: { src?: string } }
+    }>
+  }
 }
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -38,7 +46,7 @@ export default defineEventHandler(async (event) => {
       {
         fields: instagram
           ? 'id,caption,media_type,media_url,permalink,timestamp'
-          : 'id,message,full_picture,permalink_url,created_time',
+          : 'id,message,full_picture,permalink_url,created_time,attachments{media_type,type,url,media}',
         limit: '25',
         ...(input.data.after ? { after: input.data.after } : {}),
       },
@@ -92,10 +100,19 @@ export default defineEventHandler(async (event) => {
           sourceAccountId,
           post.id,
           post.caption || post.message || '',
-          safeUrl(post.media_url || post.full_picture),
+          safeUrl(
+            post.media_url ||
+              post.attachments?.data?.[0]?.media?.source ||
+              post.attachments?.data?.[0]?.url ||
+              post.full_picture,
+          ),
           safeUrl(post.permalink || post.permalink_url),
           timestamp,
-          post.media_type || 'POST',
+          post.media_type ||
+            post.attachments?.data?.[0]?.media_type ||
+            post.attachments?.data?.[0]?.type ||
+            (post.attachments?.data?.[0]?.media?.source ? 'VIDEO' : null) ||
+            'POST',
         ],
       )
     }

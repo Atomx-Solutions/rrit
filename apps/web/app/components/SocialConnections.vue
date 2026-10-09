@@ -169,7 +169,14 @@ onMounted(async () => {
         @click="loadPages()"
         >{{ t('social.choosePage') }}</UButton
       >
-      <UButton v-if="connected" type="button" color="neutral" variant="ghost" @click="disconnecting = true"
+      <UButton
+        v-if="connected"
+        type="button"
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-unplug"
+        class="rounded-lg px-3 font-medium"
+        @click="disconnecting = true"
         >{{ t('social.disconnect') }}</UButton
       >
     </div>

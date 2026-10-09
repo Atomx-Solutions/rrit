@@ -25,7 +25,7 @@ async function disconnect() {
   <UCard :ui="{ body: 'p-4 sm:p-5' }">
     <div class="flex items-center gap-3">
       <UAvatar :ui="{ root: 'bg-elevated text-default rounded-xl' }">
-        <template #default><TikTokMark class="size-4" /></template>
+        <template #default><TikTokMark class="size-5 text-highlighted" /></template>
       </UAvatar>
       <div class="min-w-0 flex-1">
         <h3 class="font-semibold text-sm">TikTok</h3>
@@ -43,26 +43,29 @@ async function disconnect() {
         color="success"
       >{{ t('tiktok.connected') }}</UBadge>
     </div>
-    <div class="flex flex-wrap gap-2 mt-4">
+  </UCard>
+  <div class="flex flex-wrap gap-2 mt-3">
       <UButton
-        v-if="status?.connection?.status !== 'connected'"
         type="button"
         :loading="busy"
         :disabled="!status?.configured"
         color="neutral"
         variant="outline"
         icon="i-lucide-link"
+        class="rounded-lg px-3 font-medium"
         @click="connect"
-      >{{ t('tiktok.connect') }}</UButton>
+      >{{ status?.connection?.status === 'connected' ? t('social.changeConnection') : t('tiktok.connect') }}</UButton>
       <UButton
         v-if="status?.connection?.status === 'connected'"
         type="button"
         color="neutral"
-        variant="ghost"
+        variant="outline"
+        icon="i-lucide-unplug"
+        class="rounded-lg px-3 font-medium"
         @click="disconnecting = true"
-      >{{ t('tiktok.disconnect') }}</UButton>
-    </div>
-    <p v-if="error" class="mt-3 text-sm text-error">{{ error }}</p>
+      >{{ t('social.disconnect') }}</UButton>
+  </div>
+  <p v-if="error" class="mt-3 text-sm text-error">{{ error }}</p>
     <UModal
       v-model:open="disconnecting"
       :title="t('tiktok.disconnectTitle')"
@@ -75,5 +78,4 @@ async function disconnect() {
         </div>
       </template>
     </UModal>
-  </UCard>
 </template>

@@ -2,10 +2,14 @@
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t } = useI18n()
+const route = useRoute()
 useSeoMeta({ title: () => `${t('nav.socialPosts')} · Rrit` })
 const page = ref(1)
 const pageSize = ref(10)
-const channel = ref<'all' | 'Facebook' | 'Instagram' | 'TikTok'>('Facebook')
+const requestedChannel = route.query.channel
+const channel = ref<'all' | 'Facebook' | 'Instagram' | 'TikTok'>(
+  requestedChannel === 'TikTok' ? 'TikTok' : 'Facebook',
+)
 const search = ref('')
 const query = computed(() => ({
   page: page.value,
@@ -23,7 +27,9 @@ const { data: connection } = await useFetch('/api/meta/status', { key: 'meta-sta
 const selected = ref<NonNullable<typeof result.value>['posts'][number] | null>(null)
 const importing = ref(false)
 const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
-const importChannel = ref<'Facebook' | 'Instagram' | 'TikTok'>('Facebook')
+const importChannel = ref<'Facebook' | 'Instagram' | 'TikTok'>(
+  requestedChannel === 'TikTok' ? 'TikTok' : 'Facebook',
+)
 const cursor = ref<string | undefined>()
 const hasMore = ref(false)
 const message = ref('')
@@ -40,6 +46,10 @@ watch(importChannel, () => {
   cursor.value = undefined
   hasMore.value = false
   message.value = ''
+  // Switch the visible results immediately; importing the selected channel
+  // should not leave the previous platform highlighted while it loads.
+  channel.value = importChannel.value
+  page.value = 1
 })
 async function sync(more = false) {
   importing.value = true
@@ -56,6 +66,9 @@ async function sync(more = false) {
     })
     cursor.value = response.nextCursor || undefined
     hasMore.value = !!cursor.value
+    // Keep the imported channel and visible results in sync after refresh.
+    channel.value = importChannel.value
+    page.value = 1
     message.value = t('social.importedMessage', { count: response.imported, channel: importChannel.value })
     showSuccess(message.value)
     await refresh()
@@ -78,11 +91,20 @@ async function sync(more = false) {
   <DashboardPage :title="t('nav.socialPosts')" :description="t('legacy.socialPostsDescription')">
     <SocialConnections />
     <div class="mt-6"><TikTokConnection /></div>
-    <div class="flex flex-wrap items-end gap-3 mt-6">
-      <UFormField :label="t('social.importFrom')"
-        ><USelect v-model="importChannel" :items="['Facebook', 'Instagram', 'TikTok']" :disabled="importing"
-      /></UFormField>
+    <div class="mt-6 border-t border-default pt-6">
+      <div class="flex flex-wrap items-end gap-3">
+      <UFormField :label="t('social.importFrom')" size="sm" class="w-32 shrink-0">
+        <USelect
+          v-model="importChannel"
+          size="md"
+          class="h-11 min-h-11 w-full"
+          :items="['Facebook', 'Instagram', 'TikTok']"
+          :disabled="importing"
+        />
+      </UFormField>
       <UButton
+        size="md"
+        class="h-11 min-h-11 shrink-0 px-4"
         variant="outline"
         color="neutral"
         icon="i-lucide-refresh-cw"
@@ -95,10 +117,13 @@ async function sync(more = false) {
         v-if="hasMore"
         variant="outline"
         color="neutral"
+        size="md"
+        class="h-11 min-h-11 shrink-0 px-4"
         :loading="importing"
         @click="sync(true)"
         >{{ t('social.loadOlder') }}</UButton
       >
+      </div>
     </div>
     <div class="flex flex-wrap gap-3 justify-between my-5">
       <UInput
@@ -128,7 +153,23 @@ async function sync(more = false) {
     >
       <div class="divide-y divide-default">
         <article v-for="post in result.posts" :key="post.id" class="flex items-center gap-4 p-4">
-          <MediaImage :src="post.image || ''" alt="" class="size-16 shrink-0 rounded-md" />
+          <UButton
+            variant="ghost"
+            color="neutral"
+            :padded="false"
+            class="relative size-16 shrink-0 overflow-hidden rounded-md text-left transition hover:ring-2 hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            :aria-label="`${t('common.view')} ${t('social.postIn')} ${post.channel}`"
+            @click="selected = post"
+          >
+            <MediaImage :src="post.image || ''" alt="" class="size-16" />
+            <span
+              v-if="post.mediaType.toUpperCase().includes('VIDEO')"
+              class="absolute inset-0 flex items-center justify-center bg-black/35 text-white"
+              :aria-label="t('social.video')"
+            >
+              <UIcon name="i-lucide-play-circle" class="size-7 drop-shadow" />
+            </span>
+          </UButton>
           <div class="min-w-0 flex-1">
             <p class="text-xs text-muted">
               {{ post.channel }} ·
@@ -140,6 +181,16 @@ async function sync(more = false) {
                   timeZone: data.preferences.timezone,
                 }).format(new Date(post.publishedAt))
               }}
+              <UBadge
+                v-if="post.mediaType.toUpperCase().includes('VIDEO')"
+                color="neutral"
+                variant="subtle"
+                size="xs"
+                class="ms-1 align-middle"
+              >
+                <UIcon name="i-lucide-play" class="me-0.5 size-3" />
+                {{ t('social.video') }}
+              </UBadge>
             </p>
             <p class="text-sm line-clamp-2 mt-1">{{ post.caption || t('social.noCaption') }}</p>
           </div>
@@ -180,11 +231,12 @@ async function sync(more = false) {
             />
           </div>
           <ChannelPreview
-            v-else
+            v-if="!(selected.channel === 'TikTok' && selected.permalink)"
             :channel="selected.channel"
             :name="data.brand.name"
             :image="selected.image || ''"
             :caption="selected.caption"
+            :video-url="selected.channel !== 'Facebook' && selected.mediaType.toUpperCase().includes('VIDEO') ? selected.image : null"
           /><UButton
             v-if="selected.permalink"
             :to="selected.permalink"
@@ -195,6 +247,14 @@ async function sync(more = false) {
             icon="i-lucide-external-link"
             >{{ t('social.openIn') }} {{ selected.channel }}</UButton
           >
+          <UAlert
+            v-if="selected.channel === 'Facebook' && selected.mediaType.toUpperCase().includes('VIDEO')"
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-info"
+            :title="t('social.facebookVideoUnavailableTitle')"
+            :description="t('social.facebookVideoUnavailableDescription')"
+          />
           <p
             v-if="selected.mediaType === 'VIDEO' || selected.mediaType === 'CAROUSEL_ALBUM'"
             class="text-sm text-muted"
