@@ -226,9 +226,6 @@ async function submit() {
         />
       </div>
     </UFormField>
-    <UFormField name="videosRequested" :label="t('request.videos')">
-      <UInputNumber v-model="form.videosRequested" :min="0" :max="1000" class="w-full" />
-    </UFormField>
     <UFormField v-if="contactKnown" name="message" :label="t('request.message')">
       <UTextarea
         v-model="form.message"

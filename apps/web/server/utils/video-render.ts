@@ -185,6 +185,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       business,
       brandName: workspace.brand.name,
       locale: workspace.preferences.locale,
+      channel: post.channel,
       caption: post.caption,
       verifiedFacts,
       contentVersion: post.contentVersion ?? 1,
@@ -293,6 +294,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       brandName: snapshot.brandName,
       locale: snapshot.locale,
       verifiedFacts: snapshot.verifiedFacts,
+      targetChannel: snapshot.channel,
     })
     const folder = assetStorageFolder(snapshot.business.slug, snapshot.business.id)
     const path = `${folder}/video-${postId}-${randomUUID()}.mp4`

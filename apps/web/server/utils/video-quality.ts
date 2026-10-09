@@ -39,6 +39,7 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
       brandName: workspace.brand.name,
       locale: workspace.preferences.locale,
       verifiedFacts: workspace.brand.facts.filter((fact) => factIds.has(fact.id)).map((fact) => fact.text),
+      targetChannel: post.channel,
     }
   })
   if ('existing' in snapshot) return snapshot.existing
@@ -50,6 +51,7 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
     brandName: snapshot.brandName,
     locale: snapshot.locale,
     verifiedFacts: snapshot.verifiedFacts,
+    targetChannel: snapshot.targetChannel,
   })
   await withBusinessTransaction(userId, async (client, business) => {
     const result = await client.query<{ payload: unknown }>(

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { TableColumn, TableRow } from '@nuxt/ui'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
@@ -11,16 +10,16 @@ type Overview = {
   organizations: { active: number }
   subscriptions: { mrr_cents: number }
   revenue: { total_cents: number }
-  sales: { plans_total_cents: number; plans_this_month_cents: number; credits_total_cents: number; credits_this_month_cents: number }
+  sales: { plans_total_cents: number; plans_this_month_cents: number; credits_total_cents: number; credits_this_month_cents: number; videos_total_cents: number; videos_this_month_cents: number }
   ai: { cost_micro_eur_this_month: number; margin_cents_this_month: number }
   signups: { this_month: number }
   new_organizations: NewOrganization[]
 }
 
-const { data, status, error } = await useFetch<Overview>('/api/admin/overview', {
-  // Open the page at once and show skeletons inside it, instead of blocking navigation.
+const { data, status, error, refresh } = await useFetch<Overview>('/api/admin/overview', {
   lazy: true,
   key: 'admin-overview',
+  getCachedData: () => undefined,
 })
 watch(error, (value) => {
   if (value) showError(t('admin.overview.loadError'))
@@ -28,13 +27,33 @@ watch(error, (value) => {
 
 // The provider balance, so a low balance is noticed here and not only on the
 // AI costs page. Clicking the notice goes there.
-const { data: balance, error: balanceError } = await useFetch<{ balance_usd: number | null, level: 'ok' | 'warning' | 'critical', low_balance_usd: number, warn_balance_usd: number }>(
+const { data: balance, error: balanceError, refresh: refreshBalance } = await useFetch<{ balance_usd: number | null, level: 'ok' | 'warning' | 'critical', low_balance_usd: number, warn_balance_usd: number }>(
   '/api/admin/ai/balance',
-  { lazy: true },
+  { lazy: true, getCachedData: () => undefined },
 )
 watch(balanceError, (value) => {
   if (value) showError(t('admin.overview.loadError'))
 }, { immediate: true })
+useHead({
+  script: [{
+    innerHTML: '',
+    onload: () => {},
+  }],
+})
+onMounted(() => {
+  const route = useRoute()
+  watch(() => route.fullPath, () => {
+    refresh()
+    refreshBalance()
+  })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refresh()
+      refreshBalance()
+    }
+  })
+})
+
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -57,51 +76,32 @@ const tiles = computed(() => {
   ]
 })
 
-// This month's sales, plans vs credit top-ups, as bars on one scale.
-const moneyBars = computed(() => {
-  const overview = data.value
-  if (!overview) return []
-  const bars = [
-    { label: t('admin.overview.salesPlans'), icon: 'i-lucide-package', cents: overview.sales.plans_this_month_cents, color: 'primary' as const },
-    { label: t('admin.overview.salesCredits'), icon: 'i-lucide-coins', cents: overview.sales.credits_this_month_cents, color: 'info' as const },
-  ]
-  const largest = Math.max(1, ...bars.map(bar => bar.cents))
-  return bars.map(bar => ({ ...bar, value: euro.format(bar.cents / 100), percent: Math.round((Math.max(0, bar.cents) / largest) * 100) }))
-})
 const revenueSplit = computed(() => {
   const overview = data.value
-  if (!overview) return { packageCents: 0, creditCents: 0, total: 0, packagePercent: 0, creditPercent: 0 }
+  if (!overview) return { packageCents: 0, creditCents: 0, videoCents: 0, total: 0, packagePercent: 0, creditPercent: 0, videoPercent: 0 }
   const packageCents = overview.sales.plans_this_month_cents
   const creditCents = overview.sales.credits_this_month_cents
-  const total = Math.max(0, packageCents + creditCents)
+  const videoCents = overview.sales.videos_this_month_cents
+  const total = Math.max(0, packageCents + creditCents + videoCents)
   return {
     packageCents,
     creditCents,
+    videoCents,
     total,
     packagePercent: total ? Math.round((packageCents / total) * 100) : 0,
     creditPercent: total ? Math.round((creditCents / total) * 100) : 0,
+    videoPercent: total ? Math.round((videoCents / total) * 100) : 0,
   }
 })
+const revenueChannels = computed(() => {
+  const s = revenueSplit.value
+  return [
+    { label: t('admin.overview.salesPlans'), cents: s.packageCents, percent: s.packagePercent, hex: '#1e3a5f' },
+    { label: t('admin.overview.salesCredits'), cents: s.creditCents, percent: s.creditPercent, hex: '#4a7c59' },
+    { label: t('admin.overview.salesVideos'), cents: s.videoCents, percent: s.videoPercent, hex: '#b8860b' },
+  ]
+})
 
-const columns = computed<TableColumn<NewOrganization>[]>(() => [
-  { accessorKey: 'name', header: t('admin.overview.name') },
-  { id: 'plan', header: t('admin.overview.plan') },
-  { id: 'created_at', header: t('admin.overview.date'), meta: { class: { td: 'text-end', th: 'text-end' } } },
-])
-const tableUi = {
-  root: 'w-full',
-  base: 'w-full border-separate border-spacing-0',
-  thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
-  th: 'py-2.5 px-4 text-xs font-medium',
-  td: 'px-4 py-2.5 border-b border-default text-sm',
-  tbody: '[&>tr]:last:[&>td]:border-b-0 [&>tr]:cursor-pointer',
-  separator: 'h-0',
-}
-
-// A row opens that organization's details, as on the organizations page.
-function onSelect(_event: Event, row: TableRow<NewOrganization>) {
-  navigateTo(`/admin/organizations/${row.original.id}`)
-}
 </script>
 
 <template>
@@ -148,71 +148,90 @@ function onSelect(_event: Event, row: TableRow<NewOrganization>) {
         </UCard>
       </UPageGrid>
 
-      <!-- Sales and new organizations side by side on wide screens, stacked on smaller ones. -->
-      <UPageGrid class="shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
-      <UCard v-if="moneyBars.length" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5 space-y-4' }">
-        <template #header>
-          <UUser :name="t('admin.overview.salesTitle')" />
-        </template>
-        <div class="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
-          <div class="relative size-36 shrink-0" role="img" :aria-label="`${t('admin.overview.salesPlans')}: ${euro.format(revenueSplit.packageCents / 100)}; ${t('admin.overview.salesCredits')}: ${euro.format(revenueSplit.creditCents / 100)}`">
-            <svg viewBox="0 0 120 120" class="size-full -rotate-90" aria-hidden="true">
-              <circle cx="60" cy="60" r="46" fill="none" class="stroke-default" stroke-width="14" />
-              <circle cx="60" cy="60" r="46" fill="none" class="stroke-primary" stroke-width="14" pathLength="100" :stroke-dasharray="`${revenueSplit.packagePercent} ${100 - revenueSplit.packagePercent}`" />
-              <circle cx="60" cy="60" r="46" fill="none" class="stroke-info" stroke-width="14" pathLength="100" :stroke-dasharray="`${revenueSplit.creditPercent} ${100 - revenueSplit.creditPercent}`" :stroke-dashoffset="-revenueSplit.packagePercent" />
-            </svg>
-            <div class="absolute inset-0 flex flex-col items-center justify-center">
-              <span class="text-lg font-semibold tabular-nums">{{ euro.format(revenueSplit.total / 100) }}</span>
-              <span class="text-xs text-muted">{{ t('admin.overview.thisMonth') }}</span>
-            </div>
+      <!-- Revenue breakdown -->
+      <UCard :ui="{ body: 'p-5 sm:p-6' }">
+        <div class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="text-xs font-medium uppercase tracking-wider text-muted">{{ t('admin.overview.salesTitle') }}</p>
+            <p class="mt-1 text-3xl font-bold tabular-nums tracking-tight">{{ euro.format(revenueSplit.total / 100) }}</p>
           </div>
-          <div class="min-w-0 flex-1 space-y-3">
+          <!-- Stacked bar legend -->
+          <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
+            <span v-for="item in revenueChannels" :key="item.label" class="flex items-center gap-1.5">
+              <span class="size-2 rounded-full" :style="{ background: item.hex }" />
+              {{ item.label }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Stacked horizontal bar -->
+        <div class="mt-5 flex h-3 overflow-hidden rounded-full bg-default/60">
+          <UTooltip
+            v-for="item in revenueChannels"
+            :key="item.label"
+            :style="{ width: `${item.percent}%` }"
+          >
             <div
-              v-for="item in [
-                { label: t('admin.overview.salesPlans'), value: revenueSplit.packageCents, percent: revenueSplit.packagePercent, color: 'primary' },
-                { label: t('admin.overview.salesCredits'), value: revenueSplit.creditCents, percent: revenueSplit.creditPercent, color: 'info' },
-              ]"
-              :key="item.label"
-              class="flex items-center justify-between gap-3"
-            >
-              <div class="flex min-w-0 items-center gap-2">
-                <span class="size-2.5 shrink-0 rounded-full" :class="item.color === 'primary' ? 'bg-primary' : 'bg-info'" />
-                <span class="truncate text-sm">{{ item.label }}</span>
+              class="h-3 w-full transition-all duration-200 hover:brightness-125"
+              :style="{ background: item.hex }"
+            />
+            <template #content>
+              <div class="flex items-center gap-2 px-1 py-0.5 text-xs">
+                <span class="size-2 shrink-0 rounded-full" :style="{ background: item.hex }" />
+                <span>{{ item.label }}</span>
+                <span class="font-semibold tabular-nums">{{ euro.format(item.cents / 100) }}</span>
+                <span class="tabular-nums text-muted">{{ item.percent }}%</span>
               </div>
-              <span class="shrink-0 text-sm tabular-nums">{{ euro.format(item.value / 100) }} · {{ item.percent }}%</span>
-            </div>
+            </template>
+          </UTooltip>
+        </div>
+
+        <!-- Breakdown cards -->
+        <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div
+            v-for="item in revenueChannels"
+            :key="item.label"
+            class="relative overflow-hidden rounded-xl border border-default/60 px-4 py-3"
+          >
+            <div class="absolute inset-y-0 left-0 w-1 rounded-l-xl" :style="{ background: item.hex }" />
+            <p class="text-xs text-muted">{{ item.label }}</p>
+            <p class="mt-0.5 text-lg font-semibold tabular-nums">{{ euro.format(item.cents / 100) }}</p>
+            <p class="text-xs tabular-nums text-muted">{{ item.percent }}%</p>
           </div>
         </div>
       </UCard>
 
-      <UCard :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-0 sm:p-0' }">
-        <template #header>
-          <UUser :name="t('admin.overview.newOrganizations')" />
-        </template>
-        <UTable
-          :data="data?.new_organizations || []"
-          :columns="columns"
-          :loading="status === 'pending' && !data"
-          :empty="t('admin.overview.noNewOrganizations')"
-          :ui="tableUi"
-          @select="onSelect"
-        >
-          <template #name-cell="{ row }">
-            <UUser
-              :name="row.original.name"
-              :avatar="{ alt: row.original.name, size: 'xs' }"
-              :ui="{ name: 'truncate max-w-40 sm:max-w-64' }"
-            />
-          </template>
-          <template #plan-cell="{ row }">
-            <UBadge color="neutral" variant="soft" :label="row.original.plan_name || '—'" />
-          </template>
-          <template #created_at-cell="{ row }">
-            {{ formatDate(row.original.created_at) }}
-          </template>
-        </UTable>
+      <!-- New organizations -->
+      <UCard :ui="{ body: 'p-5 sm:p-6' }">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium uppercase tracking-wider text-muted">{{ t('admin.overview.newOrganizations') }}</p>
+            <p class="mt-1 text-2xl font-bold tabular-nums tracking-tight">{{ data?.new_organizations?.length ?? 0 }}</p>
+          </div>
+          <UAvatar icon="i-lucide-building-2" size="lg" :ui="{ root: 'bg-primary/10 text-primary' }" />
+        </div>
+
+        <div v-if="data?.new_organizations?.length" class="mt-5 divide-y divide-default/60">
+          <div
+            v-for="org in data.new_organizations"
+            :key="org.id"
+            class="flex cursor-pointer items-center gap-3 py-3 transition-colors first:pt-0 last:pb-0 hover:bg-elevated/40"
+            @click="navigateTo(`/admin/organizations/${org.id}`)"
+          >
+            <UAvatar :alt="org.name" size="sm" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium">{{ org.name }}</p>
+              <p class="text-xs text-muted">{{ formatDate(org.created_at) }}</p>
+            </div>
+            <UBadge v-if="org.plan_name" color="neutral" variant="soft" size="xs" :label="org.plan_name" />
+            <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0 text-muted" />
+          </div>
+        </div>
+        <div v-else class="mt-5 flex flex-col items-center gap-2 py-6 text-center">
+          <UIcon name="i-lucide-inbox" class="size-8 text-muted/50" />
+          <p class="text-sm text-muted">{{ t('admin.overview.noNewOrganizations') }}</p>
+        </div>
       </UCard>
-      </UPageGrid>
 
     </div>
   </AdminPage>

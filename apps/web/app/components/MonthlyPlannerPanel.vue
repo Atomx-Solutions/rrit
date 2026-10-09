@@ -816,40 +816,42 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
       <div
         v-if="extendable && !videosRendering"
-        class="mt-3 flex flex-nowrap items-center gap-3 overflow-x-auto rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
+        class="mt-3 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between"
       >
         <div class="flex min-w-0 items-center gap-2.5">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <UIcon name="i-lucide-sparkles" class="size-4" />
           </div>
-          <div>
-            <p class="text-sm font-medium text-highlighted">{{ t('monthly.generateMoreTitle') }}</p>
-            <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-highlighted">{{ t('monthly.generateMoreTitle') }}</p>
+            <p class="text-xs leading-5 text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <div class="ms-auto flex shrink-0 items-end gap-2">
-          <UFormField :label="t('monthly.quantityLabel')" size="xs" class="w-24 shrink-0">
-            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24" />
-          </UFormField>
-          <UFormField :label="t('video.include')" size="xs" class="w-24 shrink-0">
-            <UInputNumber
-              v-model="selectedVideoQuantity"
-              :min="0"
-              :max="maxVideosThisBatch"
-              class="w-24"
-              :aria-label="t('video.quantity')"
-            />
-          </UFormField>
+        <div class="flex w-full flex-col gap-2 lg:flex-row lg:items-end xl:w-auto xl:shrink-0">
+          <div class="grid w-full grid-cols-2 gap-2 rounded-xl border border-primary/10 bg-default/70 p-2 sm:w-[28rem] lg:shrink-0">
+            <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
+              <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
+            </UFormField>
+            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
+              <UInputNumber
+                v-model="selectedVideoQuantity"
+                :min="0"
+                :max="maxVideosThisBatch"
+                class="w-full"
+                :aria-label="t('video.quantity')"
+              />
+            </UFormField>
+          </div>
+          <UButton
+            class="w-full justify-center whitespace-nowrap lg:mb-2 lg:w-80 lg:shrink-0"
+            :loading="busy"
+            :disabled="selectedQuantity + selectedVideoQuantity < 1"
+            icon="i-lucide-plus"
+            @click="openRequest('generate')"
+          >
+            {{ generateMoreLabel }}
+          </UButton>
         </div>
-        <UButton
-          class="shrink-0"
-          :loading="busy"
-          :disabled="selectedQuantity + selectedVideoQuantity < 1"
-          icon="i-lucide-plus"
-          @click="openRequest('generate')"
-        >
-          {{ generateMoreLabel }}
-        </UButton>
       </div>
       <p v-else class="mt-3 text-sm text-muted">{{ t('monthly.quotaUsedUp') }}</p>
     </div>
@@ -897,39 +899,42 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
       <div
         v-if="extendable"
-        class="mt-3 flex flex-nowrap items-center gap-3 overflow-x-auto rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5"
+        class="mt-3 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between"
       >
         <div class="flex min-w-0 items-center gap-2.5">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <UIcon name="i-lucide-sparkles" class="size-4" />
           </div>
-          <div>
-            <p class="text-sm font-medium text-highlighted">{{ t('monthly.generateMoreTitle') }}</p>
-            <p class="text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-highlighted">{{ t('monthly.generateMoreTitle') }}</p>
+            <p class="text-xs leading-5 text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
-        <div class="ms-auto flex shrink-0 items-end gap-2">
-          <UFormField :label="t('monthly.quantityLabel')" size="xs" class="w-24 shrink-0">
-            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24" />
-          </UFormField>
-          <UFormField :label="t('video.include')" size="xs" class="w-24 shrink-0">
-            <UInputNumber
-              v-model="selectedVideoQuantity"
-              :min="0"
-              :max="maxVideosThisBatch"
-              class="w-24"
-              :aria-label="t('video.quantity')"
-            />
-          </UFormField>
+        <div class="flex w-full flex-col gap-2 lg:flex-row lg:items-end xl:w-auto xl:shrink-0">
+          <div class="grid w-full grid-cols-2 gap-2 rounded-xl border border-primary/10 bg-default/70 p-2 sm:w-[28rem] lg:shrink-0">
+            <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
+              <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
+            </UFormField>
+            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
+              <UInputNumber
+                v-model="selectedVideoQuantity"
+                :min="0"
+                :max="maxVideosThisBatch"
+                class="w-full"
+                :aria-label="t('video.quantity')"
+              />
+            </UFormField>
+          </div>
+          <UButton
+            class="w-full justify-center whitespace-nowrap lg:mb-2 lg:w-80 lg:shrink-0"
+            :loading="busy"
+            :disabled="selectedQuantity + selectedVideoQuantity < 1"
+            icon="i-lucide-plus"
+            @click="openRequest('generate')"
+          >
+            {{ generateMoreLabel }}
+          </UButton>
         </div>
-        <UButton
-          :loading="busy"
-          :disabled="selectedQuantity + selectedVideoQuantity < 1"
-          icon="i-lucide-plus"
-          @click="openRequest('generate')"
-        >
-          {{ generateMoreLabel }}
-        </UButton>
       </div>
     </div>
 
@@ -1285,13 +1290,15 @@ onBeforeUnmount(() => clearInterval(timer))
               class="h-auto flex-col gap-2 py-4"
               @click="chooseSingleVideoChannel(option.value)"
             >
-              <UIcon :name="option.icon" class="size-8" />
+              <TikTokMark v-if="option.value === 'TikTok'" class="size-8" />
+              <UIcon v-else :name="option.icon" class="size-8" />
               <span class="text-sm font-semibold">{{ option.label }}</span>
             </UButton>
           </div>
           <div v-else class="grid grid-cols-3 gap-2">
             <div v-for="option in videoChannelOptions" :key="option.value" class="flex flex-col items-center gap-2 rounded-xl border border-default p-3">
-              <UIcon :name="option.icon" class="size-6" />
+              <TikTokMark v-if="option.value === 'TikTok'" class="size-6" />
+              <UIcon v-else :name="option.icon" class="size-6" />
               <span class="text-xs font-semibold">{{ option.label }}</span>
               <UInputNumber
                 :model-value="videoChannelSplit[option.value]"

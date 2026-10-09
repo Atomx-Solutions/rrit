@@ -211,12 +211,6 @@ async function declineProposal() {
         <p class="text-xs text-muted" data-testid="custom-package-end">
           {{ t('billing.customPackagePeriod', { start: formatPeriodDate(customPackage.startsAt), end: formatPeriodDate(customPackage.endsAt) }) }}
         </p>
-        <p v-if="customPackage.postsIncluded > 0" class="text-xs text-muted" data-testid="custom-package-usage">
-          {{ t('billing.customPackageUsage', { used: customPackage.usedPosts, included: customPackage.postsIncluded, remaining: customPackage.remainingPosts }) }}
-        </p>
-        <p v-if="(customPackage.videosIncluded ?? 0) > 0" class="text-xs text-muted" data-testid="custom-package-video-usage">
-          {{ t('billing.customPackageVideoUsage', { used: customPackage.usedVideos, included: customPackage.videosIncluded, remaining: customPackage.remainingVideos }) }}
-        </p>
         <p class="text-xs text-muted" data-testid="custom-package-days-remaining">
           {{ t('billing.customPackageDaysRemaining', { count: customPackage.remainingDays }) }}
         </p>
@@ -234,18 +228,18 @@ async function declineProposal() {
 
     <!-- Packages are activated by the team, so the invitation lives here as
          a real card and the form opens in a modal on demand. -->
-    <UCard as="section" :ui="{ body: 'p-5 sm:p-6' }">
-      <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-        <div class="flex gap-4">
-          <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+    <UCard as="section" :ui="{ body: 'p-4 sm:p-5' }">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex min-w-0 gap-3">
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <UIcon name="i-lucide-package-plus" class="size-5" />
           </div>
-          <div class="space-y-2">
+          <div class="min-w-0 space-y-1.5">
             <h2 class="text-base font-semibold">
               {{ customPackage ? t('request.appRenewTitle') : t('request.appTitle') }}
             </h2>
             <p class="text-sm font-medium">{{ t('request.appLede') }}</p>
-            <p class="text-sm text-muted leading-relaxed">{{ t('request.appBody') }}</p>
+            <p class="text-sm text-muted leading-5">{{ t('request.appBody') }}</p>
             <p class="pt-1 text-xs text-muted flex items-center gap-1.5">
               <UIcon name="i-lucide-clock-3" class="size-3.5" />
               {{ t('request.appNote') }}
@@ -258,7 +252,7 @@ async function declineProposal() {
             variant="solid"
             trailing-icon="i-lucide-arrow-right"
             :label="customPackage ? t('request.appRenewCta') : t('request.appCta')"
-            class="self-start justify-center whitespace-nowrap sm:w-52 sm:self-auto"
+            class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
           />
           <template #body>
             <PackageRequestForm endpoint="/api/billing/package-request" compact contact-known @sent="requestOpen = false" />
@@ -266,12 +260,12 @@ async function declineProposal() {
         </UModal>
       </div>
       <USeparator class="my-5" />
-      <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-        <div class="flex gap-4">
-          <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex min-w-0 gap-3">
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <UIcon name="i-lucide-clapperboard" class="size-5" />
           </div>
-          <div class="space-y-2">
+          <div class="min-w-0 space-y-1.5">
             <h2 class="text-base font-semibold">{{ t('billing.videos') }}</h2>
             <p class="text-sm font-medium">{{ t('billing.needMoreVideos') }}</p>
             <p class="text-sm text-muted leading-relaxed">{{ t('billing.videosDescription') }}</p>
@@ -282,7 +276,7 @@ async function declineProposal() {
           variant="outline"
           icon="i-lucide-clapperboard"
           :label="t('billing.requestVideos')"
-          class="self-start justify-center whitespace-nowrap sm:w-52 sm:self-auto"
+          class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
           @click="videoRequestOpen = true"
         />
       </div>
@@ -291,12 +285,12 @@ async function declineProposal() {
            it on every page. -->
       <template v-if="canBuyCredits">
         <USeparator class="my-5" />
-        <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-          <div class="flex gap-4">
-            <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex min-w-0 gap-3">
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <UIcon name="i-lucide-coins" class="size-5" />
             </div>
-            <div class="space-y-2">
+            <div class="min-w-0 space-y-1.5">
               <h2 class="text-base font-semibold">{{ t('billing.credits') }}</h2>
               <p class="text-sm font-medium">{{ t('billing.buyCreditsLede') }}</p>
               <p class="text-sm text-muted leading-relaxed">{{ t('billing.creditsDescription') }}</p>
@@ -307,7 +301,7 @@ async function declineProposal() {
             variant="outline"
             icon="i-lucide-coins"
             :label="t('billing.buyCredits')"
-            class="self-start justify-center whitespace-nowrap sm:w-52 sm:self-auto"
+            class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
             @click="creditRequestOpen = true"
           />
         </div>

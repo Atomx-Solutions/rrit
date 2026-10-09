@@ -338,7 +338,7 @@ const summaries = computed(() => [
           <UBadge color="neutral" variant="outline" size="sm">{{ tiktok?.connection?.status === 'connected' ? t('tiktok.connected') : t('tiktok.notConnected') }}</UBadge>
         </div>
         <p class="text-sm text-muted leading-relaxed max-w-lg">{{ tiktok?.connection?.status === 'connected' ? t('overview.tiktokConnected') : t('overview.tiktokDescription') }}</p>
-        <UButton :to="`${base}/social-posts`" variant="outline" color="neutral" size="sm" class="mt-5" trailing-icon="i-lucide-arrow-right">{{ t('nav.viewPosts') }}</UButton>
+        <UButton :to="`${base}/social-posts?channel=TikTok`" variant="outline" color="neutral" size="sm" class="mt-5" trailing-icon="i-lucide-arrow-right">{{ t('nav.viewPosts') }}</UButton>
       </UCard>
       <UCard :ui="{ body: 'p-5 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-4">

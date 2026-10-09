@@ -76,6 +76,7 @@ export async function reviewVideoQuality(input: {
   brandName: string
   locale: 'sq-XK' | 'en-US' | 'de-DE'
   verifiedFacts: string[]
+  targetChannel: 'Instagram' | 'Facebook' | 'TikTok'
 }) {
   const provider = aiProviderConfiguration()
   const image = (bytes: Buffer) => ({
@@ -91,12 +92,12 @@ export async function reviewVideoQuality(input: {
     body: JSON.stringify({
       model: aiProviderModel('AI_PLANNER_MODEL'),
       store: false,
-      instructions: `Review the finished vertical social video shown as chronological frames against the original business photograph and the supplied verified facts. Evaluate the caption, visible subjects, motion continuity, overlays, legibility, brand fit, source fidelity, and end card. Do not assume motion between sampled frames is proven. Mark factuality=false for invented products, people, venue features, offers or unsupported claims. Give specific, actionable reasons in ${input.locale === 'de-DE' ? 'German' : input.locale === 'en-US' ? 'English' : 'Albanian'}. Use WARN for subjective visual weaknesses and BLOCK for factual inventions. Return the required structured quality result.`,
+    instructions: `Review the finished vertical social video shown as chronological frames against the original business photograph and the supplied verified facts. The target platform is ${input.targetChannel}; treat Instagram, Facebook and TikTok as equally supported video targets. Evaluate the caption, visible subjects, motion continuity, overlays, legibility, brand fit, source fidelity, end card, and platform fit for ${input.targetChannel}. For TikTok, check vertical full-screen composition, first-frame clarity, safe text placement and native short-form presentation. For Instagram and Facebook, check the vertical Reel/video presentation, first-frame clarity, safe text placement and legibility. Platform fit and subjective visual weaknesses must produce WARN only. Do not assume motion between sampled frames is proven. Set factuality=false only for invented products, people, venue features, offers, unsupported claims or a source photograph mismatch. Give specific, actionable reasons in ${input.locale === 'de-DE' ? 'German' : input.locale === 'en-US' ? 'English' : 'Albanian'}. Use WARN for subjective weaknesses and BLOCK only for factual or source-evidence failures. Return the required structured quality result.`,
       max_output_tokens: 1200,
       input: [{
         role: 'user',
         content: [
-          { type: 'input_text', text: JSON.stringify({ brandName: input.brandName, caption: input.caption, verifiedFacts: input.verifiedFacts, imageOrder: ['Original owned photograph', 'Finished video frames in chronological order'] }) },
+          { type: 'input_text', text: JSON.stringify({ brandName: input.brandName, targetChannel: input.targetChannel, caption: input.caption, verifiedFacts: input.verifiedFacts, imageOrder: ['Original owned photograph', 'Finished video frames in chronological order'] }) },
           image(input.photograph),
           ...input.frames.map(image),
         ],

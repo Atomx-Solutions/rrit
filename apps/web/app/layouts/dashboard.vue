@@ -106,7 +106,11 @@ const businessMenu = computed(() => [
   [{ label: data.value.brand.name, icon: 'i-lucide-check', to: `${base.value}/overview` }],
   [
     { label: t('nav.businessProfile'), icon: 'i-lucide-store', to: `${base.value}/brand` },
-    { label: t('nav.meta'), icon: 'i-lucide-link', to: `${base.value}/social-posts` },
+    {
+      label: t('nav.meta'),
+      icon: 'i-lucide-link',
+      to: `${base.value}/social-posts`,
+    },
   ],
 ])
 const profileMenu = computed(() => [
@@ -183,6 +187,17 @@ watch(
             :content="{ align: 'start', collisionPadding: 12 }"
             :ui="{ content: 'w-(--reka-dropdown-menu-trigger-width) min-w-48' }"
           >
+            <template #item-label="{ item: menuItem }">
+              <UTooltip
+                v-if="menuItem.label === t('nav.meta')"
+                :text="t('nav.meta')"
+                :content="{ side: 'bottom', align: 'start', sideOffset: 6, collisionPadding: 8 }"
+                :ui="{ content: 'h-auto rounded-md border border-default bg-default px-2.5 py-1.5 text-xs font-medium text-highlighted shadow-md' }"
+              >
+                <span class="block max-w-36 truncate">{{ menuItem.label }}</span>
+              </UTooltip>
+              <span v-else class="block truncate">{{ menuItem.label }}</span>
+            </template>
             <UTooltip
               :text="data.brand.name"
               :disabled="state !== 'collapsed' && data.brand.name.length <= 12"
