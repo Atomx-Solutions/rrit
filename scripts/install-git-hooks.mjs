@@ -3,6 +3,14 @@ import { spawnSync } from 'node:child_process'
 
 const hook = new URL('../.githooks/pre-commit', import.meta.url)
 
+// CI providers expose the repository as a checkout, but their .git directory
+// is commonly read-only. Installing a developer-only hook must not make the
+// dependency install fail in those environments.
+if (process.env.CI) {
+  console.log('CI environment detected; skipping local hook installation.')
+  process.exit(0)
+}
+
 // npm ci may run without a Git checkout (for example in a clean CI workspace).
 // That environment must remain a successful no-op.
 if (!existsSync(new URL('../.git', import.meta.url)) || !existsSync(hook)) {
