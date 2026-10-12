@@ -18,6 +18,7 @@ export const packageRequestSchema = z.object({
   // A predefined amount and a typed one are the same answer to the database:
   // what matters is the number the visitor settled on.
   postsRequested: z.number().int().min(1).max(1000),
+  videosRequested: z.number().int().min(0).max(1000).default(0),
   message: z.string().trim().max(2000).optional(),
 })
 export type PackageRequestInput = z.infer<typeof packageRequestSchema>

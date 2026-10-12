@@ -9,39 +9,51 @@
  */
 const { locale, t } = useI18n()
 
-const postsRequested = ref(20)
-const { data: options } = await useFetch<{ postPriceCents: number }>('/api/package-requests', {
+const postsRequested = ref(14)
+const videosRequested = ref(2)
+const { data: options } = await useFetch<{
+  postOptions: number[]
+  postPriceCents: number
+  videoPriceCents: number
+}>('/api/package-requests', {
   key: 'package-request-options',
   server: false,
-  // Keep the payload shape identical to PackageRequestForm because both
-  // components intentionally share this useFetch key.
-  default: () => ({ postOptions: [], postPriceCents: 0 }),
+  default: () => ({ postOptions: [], postPriceCents: 0, videoPriceCents: 0 }),
 })
-const postPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
-const estimatedTotal = computed(() => postPrice.value * postsRequested.value)
+const packagePostPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
+const packageVideoPrice = computed(() => (options.value?.videoPriceCents || 0) / 100)
+const packageTotal = computed(() =>
+  postsRequested.value * packagePostPrice.value + videosRequested.value * packageVideoPrice.value,
+)
 const money = (value: number) =>
   new Intl.NumberFormat(locale.value, { style: 'currency', currency: 'CHF' }).format(value)
 </script>
 
 <template>
   <div class="landing-request">
-    <!-- The price before the form, not after it: nobody should have to hand
-         over a phone number to learn what a post costs. -->
-    <!-- The rate first, because it is the fact; the total is what it adds up
-         to for the volume chosen. Both read at the same weight so neither is
-         sold as the headline. -->
-    <p v-if="postPrice > 0" class="landing-request-price">
-      <span class="landing-request-price-rate">
-        {{ t('landing.perPostPrice', { price: money(postPrice) }) }}
-      </span>
-      <span class="landing-request-price-total">
-        {{ t('landing.monthlyTotal', { price: money(estimatedTotal) }) }}
-      </span>
-    </p>
+    <div class="landing-package-summary">
+      <div class="landing-package-summary-top">
+        <strong>Framic Content Paket</strong>
+        <strong>{{ money(packageTotal) }} / Monat</strong>
+      </div>
+      <div class="landing-package-summary-line">
+        <span>14 Posts</span>
+        <span>{{ money(packagePostPrice) }} pro Post</span>
+      </div>
+      <div class="landing-package-summary-line">
+        <span>2 Videos</span>
+        <span>{{ money(packageVideoPrice) }} pro Video</span>
+      </div>
+      <div class="landing-package-summary-total">
+        <span>Gesamt</span>
+        <strong>{{ money(packageTotal) }}</strong>
+      </div>
+    </div>
 
     <div class="landing-request-form">
       <PackageRequestForm
         v-model:posts="postsRequested"
+        v-model:videos="videosRequested"
         compact
         lean
         submit-label-key="landing.leadSubmit"

@@ -44,15 +44,15 @@ const creditsPerPost = ref(0)
 // What a post sells for. The public page quotes it before anyone fills in a
 // form, so it belongs beside the other prices rather than on a general
 // settings screen.
-const postPriceEuro = ref(0)
-const videoPriceEuro = ref(2)
+const postPriceChf = ref(0)
+const videoPriceChf = ref(2)
 watch(platform, (value) => {
   if (!value) return
   creditsPerPost.value = value.custom_package_credits_per_post
-  postPriceEuro.value = value.custom_package_post_price_cents / 100
-  videoPriceEuro.value = value.custom_package_video_price_cents / 100
+  postPriceChf.value = value.custom_package_post_price_cents / 100
+  videoPriceChf.value = value.custom_package_video_price_cents / 100
 }, { immediate: true })
-const postPriceCents = computed(() => Math.round(Number(postPriceEuro.value) * 100))
+const postPriceCents = computed(() => Math.round(Number(postPriceChf.value) * 100))
 const platformChanges = computed(() => {
   if (!platform.value) return {}
   return {
@@ -62,8 +62,8 @@ const platformChanges = computed(() => {
     ...(postPriceCents.value !== platform.value.custom_package_post_price_cents
       ? { custom_package_post_price_cents: postPriceCents.value }
       : {}),
-    ...(Math.round(Number(videoPriceEuro.value) * 100) !== platform.value.custom_package_video_price_cents
-      ? { custom_package_video_price_cents: Math.round(Number(videoPriceEuro.value) * 100) }
+    ...(Math.round(Number(videoPriceChf.value) * 100) !== platform.value.custom_package_video_price_cents
+      ? { custom_package_video_price_cents: Math.round(Number(videoPriceChf.value) * 100) }
       : {}),
   }
 })
@@ -105,7 +105,7 @@ const pricingInvalid = computed(() =>
   || Number(creditsPerPost.value) < 1
   || Number(pricing.video_credits) < 1
   || postPriceCents.value < 1
-  || Number(videoPriceEuro.value) <= 0,
+  || Number(videoPriceChf.value) <= 0,
 )
 const invoiceInvalid = computed(() => invoice.vat_percent < 0 || invoice.vat_percent > 100 || !invoice.seller_name.trim())
 const saving = reactive({ pricing: false, invoice: false, trial: false })
@@ -169,9 +169,9 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
           <UFormField name="credit_price" :label="t('admin.plans.creditPrice')" :help="t('admin.plans.creditPriceHelp')"><UInputNumber v-model="pricing.credit_price" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 4 }" class="w-full" /></UFormField>
           <UFormField name="provider_cost" :label="t('admin.plans.providerCost')" :help="t('admin.plans.providerCostHelp')"><UInputNumber v-model="pricing.provider_cost" :min="0.000001" :step="0.001" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 6 }" class="w-full" /></UFormField>
           <UFormField name="low_credit_threshold" :label="t('admin.plans.lowCreditThreshold')" :help="t('admin.plans.lowCreditThresholdHelp')" class="sm:col-span-2"><UInputNumber v-model="pricing.low_credit_threshold" :min="0" class="w-full" /></UFormField>
-          <UFormField name="post_price_euro" :label="t('admin.settings.postPrice')" :help="t('admin.settings.postPriceHint')"><UInputNumber v-model="postPriceEuro" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }" class="w-full" /></UFormField>
+          <UFormField name="post_price_chf" :label="'Post-Preis (CHF)'" :help="t('admin.settings.postPriceHint')"><UInputNumber v-model="postPriceChf" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'CHF', maximumFractionDigits: 2 }" class="w-full" /></UFormField>
           <UFormField name="credits_per_post" :label="t('admin.settings.creditsPerPost')" :help="t('admin.settings.creditsPerPostHint')"><UInputNumber v-model="creditsPerPost" :min="1" :max="100000" class="w-full" /></UFormField>
-          <UFormField name="video_price_euro" :label="t('admin.settings.videoPrice')" :help="t('admin.settings.videoPriceHint')"><UInputNumber v-model="videoPriceEuro" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }" class="w-full" /></UFormField>
+          <UFormField name="video_price_chf" :label="'Video-Preis (CHF)'" :help="t('admin.settings.videoPriceHint')"><UInputNumber v-model="videoPriceChf" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'CHF', maximumFractionDigits: 2 }" class="w-full" /></UFormField>
           <UFormField name="video_credits" :label="t('admin.plans.tiktokVideoCredits')" :help="t('admin.plans.tiktokVideoCreditsHelp')"><UInputNumber v-model="pricing.video_credits" :min="1" :max="100000" class="w-full" /></UFormField>
           <UAlert class="sm:col-span-2" :color="margin > 0 ? 'neutral' : 'error'" variant="subtle" icon="i-lucide-percent" :title="t('admin.plans.margin', { margin })" />
           <UButton type="submit" class="sm:col-span-2 justify-self-start" :loading="saving.pricing" :disabled="(!Object.keys(pricingChanges).length && !Object.keys(platformChanges).length) || pricingInvalid" :label="t('admin.plans.save')" />
