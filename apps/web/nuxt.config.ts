@@ -27,6 +27,9 @@ export default defineNuxtConfig({
   },
   typescript: { strict: true },
   nitro: {
+    // Vercel needs Nitro's serverless output format so the deployed app is
+    // routed through the Nuxt handler instead of being served as static files.
+    preset: process.env.VERCEL ? 'vercel' : undefined,
     output: {
       dir: process.env.NITRO_OUTPUT_DIR || '.output',
     },
