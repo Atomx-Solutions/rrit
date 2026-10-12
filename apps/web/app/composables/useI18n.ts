@@ -23,7 +23,7 @@ export function languageForLocale(value: string | undefined): AppLanguage {
 }
 
 export function useI18n() {
-  const cookie = useCookie<AppLocale>('rrit-locale', { default: () => 'sq-XK' })
+  const cookie = useCookie<AppLocale>('rrit-locale', { default: () => 'de-DE' })
   const locale = useState<AppLocale>('rrit-ui-locale', () =>
     localeForLanguage(languageForLocale(cookie.value)),
   )

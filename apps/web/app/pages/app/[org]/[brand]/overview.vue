@@ -6,7 +6,7 @@ import { metaConnectionView } from '~/utils/meta-connection-view'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t, locale } = useI18n()
-useSeoMeta({ title: () => `${t('overview.title')} · Rrit` })
+useSeoMeta({ title: () => `${t('overview.title')} · Framic` })
 // The Meta card is below the main overview; do not block navigation for it.
 const { data: meta, status: metaStatus } = useFetch('/api/meta/status', {
   key: 'meta-status',

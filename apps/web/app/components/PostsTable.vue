@@ -72,7 +72,7 @@ async function downloadViewerPost() {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${viewerPost.value.title || 'rrit-post'}.${extension}`
+    anchor.download = `${viewerPost.value.title || 'framic-post'}.${extension}`
     anchor.click()
     URL.revokeObjectURL(url)
   } finally {

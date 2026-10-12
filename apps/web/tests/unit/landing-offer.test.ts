@@ -4,7 +4,7 @@ import { publicOfferCta, publicTrialCta } from '../../app/utils/landing-offer'
 describe('public landing CTAs', () => {
   it('takes visitors to the monthly-post offer form', () => {
     expect(publicOfferCta).toEqual({
-      to: '/#cmimet',
+      to: '/#pricing',
       labelKey: 'landing.requestOffer',
     })
   })

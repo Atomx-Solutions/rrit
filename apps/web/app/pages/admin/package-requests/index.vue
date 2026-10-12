@@ -6,7 +6,7 @@ definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
 useSeoMeta({
-  title: () => `${t('admin.nav.packageRequests')} · Rrit Admin`,
+  title: () => `${t('admin.nav.packageRequests')} · Framic Admin`,
   robots: 'noindex, nofollow',
 })
 

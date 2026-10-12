@@ -2,7 +2,7 @@
 definePageMeta({ layout: 'auth' })
 const { t } = useI18n()
 const route = useRoute()
-useSeoMeta({ title: () => `${t('join.title')} · Rrit`, robots: 'noindex' })
+useSeoMeta({ title: () => `${t('join.title')} · Framic`, robots: 'noindex' })
 
 type Preview =
   | { valid: false }

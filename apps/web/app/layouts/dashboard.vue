@@ -218,7 +218,7 @@ watch(
                 }"
               >
                 <template #leading
-                  ><img src="/favicon.svg" alt="" width="26" height="26" class="shrink-0"
+                  ><img src="/f-logo.png" alt="" width="26" height="26" class="shrink-0"
                 /></template>
               </UButton>
             </UTooltip>

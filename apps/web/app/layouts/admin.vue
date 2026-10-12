@@ -115,8 +115,8 @@ const profileMenu = computed(() => [
           color="neutral"
           variant="ghost"
           :square="state === 'collapsed'"
-          :label="state === 'collapsed' ? undefined : 'Rrit Admin'"
-          :avatar="{ src: '/favicon.svg', alt: '', size: 'xs' }"
+          :label="state === 'collapsed' ? undefined : 'Framic Admin'"
+          :avatar="{ src: '/f-logo.png', alt: '', size: 'xs' }"
           class="min-w-0 w-full overflow-hidden"
           :ui="{ label: 'truncate flex-1 text-left font-semibold' }"
         />

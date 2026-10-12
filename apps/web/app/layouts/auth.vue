@@ -20,7 +20,7 @@ const { t } = useI18n()
       </div>
     </aside>
     <main class="auth-form">
-      <ULink to="/" class="small muted block mb-8">← {{ t('public.backToRrit') }}</ULink><slot />
+      <ULink to="/" class="small muted block mb-8">← {{ t('public.backToFramic') }}</ULink><slot />
     </main>
   </div>
 </template>

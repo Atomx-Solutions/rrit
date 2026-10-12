@@ -4,7 +4,7 @@ import type { TableColumn } from '@nuxt/ui'
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
-useSeoMeta({ title: () => `${t('admin.nav.billing')} · Rrit Admin`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${t('admin.nav.billing')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 type Invoice = {
   id: string

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { authClient } from '~/utils/auth-client'
 import { safeRedirect } from '~~/shared/utils/format'
 import { hasPasswordSymbol, PASSWORD_MIN_LENGTH } from '~/utils/password-policy'
+import { workspaceHomeDestination } from '~/utils/workspace-home'
 
 const props = defineProps<{
   mode: 'login' | 'signup' | 'forgot' | 'reset' | 'verify' | 'callback'
@@ -176,7 +177,17 @@ async function submit() {
       if (result.error) error.value = errorText(result.error)
       else {
         state.password = ''
-        await navigateTo('/app')
+        const workspace = useWorkspace()
+        await workspace.initLive()
+        const destination = workspaceHomeDestination({
+          base: workspace.base.value,
+          hasContext: Boolean(workspace.context.value),
+          onboarding: workspace.data.value.onboarding,
+          onboardingSkipped: workspace.data.value.onboardingSkipped,
+        })
+        if (workspace.context.value && destination === `${workspace.base.value}/overview`)
+          useState<string | null>('workspace-home-redirect', () => null).value = destination
+        await navigateTo(destination)
       }
     } else if (props.mode === 'forgot') {
       const result = await authClient.requestPasswordReset({

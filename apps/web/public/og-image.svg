@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Framic — KI-Marketing</title>
+  <desc id="desc">KI-Marketing für Unternehmen in Deutschland, Österreich und der Schweiz.</desc>
+  <rect width="1200" height="630" fill="#f7faf7"/>
+  <circle cx="1080" cy="0" r="220" fill="#dffb55"/>
+  <circle cx="0" cy="630" r="190" fill="#dcece4"/>
+  <image href="/framic-logo.png" x="390" y="125" width="420" height="108" preserveAspectRatio="xMidYMid meet"/>
+  <text x="600" y="355" text-anchor="middle" fill="#162820" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700">KI-Marketing für Unternehmen</text>
+  <text x="600" y="440" text-anchor="middle" fill="#147d5b" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">Deutschland · Österreich · Schweiz</text>
+</svg>

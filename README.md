@@ -1,8 +1,8 @@
-# Rrit — AI Marketing Platform
+# Framic — AI Marketing Platform
 
 **Scope-i aktual: postimet për bizneset në Kosovë.** Facebook/Instagram → njohja e biznesit → krijimi, miratimi dhe kalendari i postimeve. Çmimet janë në EUR. Fushatat dhe strategjitë janë shtyrë nga përvoja aktive sipas kërkesës së fundit; shiko [scope-in aktual](docs/PRODUCT-SCOPE.md) dhe [rishikimin e backlog-ut](docs/BACKLOG-REVIEW-SQ.md).
 
-Frontend në shqip, i ndërtuar nga dokumenti **Production Grade System Design v1.1** dhe backlog-u shoqërues. Emri **Rrit**, marka shembull dhe paketat tregtare janë propozime të implementimit. Backend-i i launch-it është Nitro/TypeScript sipas [ADR-002](docs/adr/ADR-002-production-modular-monolith.md); baseline-i i riprodhueshëm i zhvillimit përshkruhet te [toolchain-i](docs/TOOLCHAIN.md).
+Frontend në shqip, i ndërtuar nga dokumenti **Production Grade System Design v1.1** dhe backlog-u shoqërues. Emri **Framic**, marka shembull dhe paketat tregtare janë propozime të implementimit. Backend-i i launch-it është Nitro/TypeScript sipas [ADR-002](docs/adr/ADR-002-production-modular-monolith.md); baseline-i i riprodhueshëm i zhvillimit përshkruhet te [toolchain-i](docs/TOOLCHAIN.md).
 
 ## Nisja lokale
 

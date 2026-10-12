@@ -3,7 +3,7 @@
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
-useSeoMeta({ title: () => `${t('admin.nav.overview')} · Rrit Admin`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${t('admin.nav.overview')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 type NewOrganization = { id: string; name: string; plan_name: string | null; created_at: string }
 type Overview = {

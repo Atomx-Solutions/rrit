@@ -33,16 +33,16 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      htmlAttrs: { lang: 'sq' },
-      title: 'Rrit — Marketingu yt, me drejtim',
+      htmlAttrs: { lang: 'de' },
+      title: 'Framic — KI-Marketing für Deutschland, Österreich und die Schweiz',
       meta: [
         {
           name: 'description',
           content:
-            'Planifiko, krijo dhe organizo marketingun e biznesit tënd në një hapësirë. Ndërtuar për bizneset shqiptare.',
+            'Erstelle mit KI professionelle Texte, Bilder und Social-Media-Beiträge für dein Unternehmen in Deutschland, Österreich und der Schweiz.',
         },
       ],
-      link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+      link: [{ rel: 'icon', type: 'image/png', href: '/f-logo.png' }],
     },
   },
   runtimeConfig: {

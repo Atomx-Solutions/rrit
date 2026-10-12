@@ -4,7 +4,7 @@ import type { TableColumn } from '@nuxt/ui'
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
-useSeoMeta({ title: () => `${t('admin.nav.audit')} · Rrit Admin`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${t('admin.nav.audit')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 type AuditEvent = {
   id: number

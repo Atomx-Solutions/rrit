@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /app/
+Disallow: /onboarding
+Disallow: /join
+Disallow: /auth/
+
+# Add the absolute sitemap URL after the production domain is selected.

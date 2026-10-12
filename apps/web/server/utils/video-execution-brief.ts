@@ -112,7 +112,7 @@ export function buildVideoExecutionBrief(input: {
     ...timeline,
     'AVOID',
     'No cuts, scene changes, invented objects or people, subject distortion, abrupt camera moves, flicker, watermarks, padding, letterboxing or black bars. Fill the prepared frame edge to edge.',
-    'Do not generate hook or CTA typography, marketing copy, business name, logos, new signage or an end-card. Existing physical text in the source may remain when preserving the scene requires it; RRIT adds exact branding and text later.',
+    'Do not generate hook or CTA typography, marketing copy, business name, logos, new signage or an end-card. Existing physical text in the source may remain when preserving the scene requires it; Framic adds exact branding and text later.',
     ...(guardrails.length ? [`Business restrictions take precedence over all creative direction: ${guardrails.join('; ')}`] : []),
   ]
   // Background for the strategy's direction, most useful to the motion model

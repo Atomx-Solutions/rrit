@@ -2,9 +2,9 @@
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 
 const { t } = useI18n()
-const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'EUR' }).format(value)
+const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'CHF' }).format(value)
 const { showError, showSuccess, onFormError } = useFormFeedback()
-useSeoMeta({ title: () => `${t('nav.billing')} · Rrit` })
+useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
 
 const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { key: 'usage' })
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { key: 'billing-subscription-currency-v2' })
@@ -260,7 +260,7 @@ async function declineProposal() {
               endpoint="/api/billing/package-request"
               compact
               contact-known
-              :currency="billing?.currency || 'EUR'"
+              :currency="(billing?.currency === 'EUR' ? 'EUR' : 'CHF')"
               :exchange-rate="billing?.exchangeRate || 1"
               @sent="requestOpen = false"
             />
@@ -323,7 +323,7 @@ async function declineProposal() {
             <UInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="1" class="w-44" />
           </UFormField>
           <p class="text-sm text-muted">
-            {{ t('billing.buyCreditsEstimate', { amount: formatMoney(creditEstimate, billing?.currency || 'EUR') }) }}
+            {{ t('billing.buyCreditsEstimate', { amount: formatMoney(creditEstimate) }) }}
           </p>
           <UFormField :label="t('billing.buyCreditsMessage')">
             <UTextarea v-model="creditMessage" :rows="3" maxlength="2000" class="w-full" />

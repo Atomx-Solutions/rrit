@@ -63,7 +63,7 @@ export function aiProviderConfiguration(): AiProviderConfiguration {
   }
   if (name === 'openrouter') {
     const referer = safeReferer(process.env.OPENROUTER_SITE_URL || process.env.APP_URL)
-    const title = safeHeader(process.env.OPENROUTER_APP_NAME || 'Rrit', 256)
+    const title = safeHeader(process.env.OPENROUTER_APP_NAME || 'Framic', 256)
     if (referer) headers['HTTP-Referer'] = referer
     if (title) headers['X-OpenRouter-Title'] = title
   }

@@ -5,7 +5,69 @@ definePageMeta({ layout: 'public' })
 const landingRoot = ref<HTMLElement>()
 useLandingMotion(landingRoot)
 const { t } = useI18n()
+const requestUrl = useRequestURL()
 const { capabilities } = useLandingOffer()
+const ogImageUrl = computed(() => new URL('/og-image.png?v=3', requestUrl).toString())
+const structuredData = computed(() => JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${requestUrl.origin}/#organization`,
+      name: 'Framic',
+      url: requestUrl.origin,
+      logo: new URL('/framic-logo.png', requestUrl).toString(),
+      areaServed: ['DE', 'AT', 'CH'],
+    },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': `${requestUrl.origin}/#software`,
+      name: 'Framic',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      description: 'KI-Marketing für Unternehmen in Deutschland, Österreich und der Schweiz.',
+      url: requestUrl.origin,
+      inLanguage: 'de',
+      creator: { '@id': `${requestUrl.origin}/#organization` },
+      areaServed: ['DE', 'AT', 'CH'],
+    },
+    {
+      '@type': 'FAQPage',
+      '@id': `${requestUrl.origin}/#faq`,
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: t('landing.faqStart'),
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: t('landing.faqStartAnswer'),
+          },
+        },
+        {
+          '@type': 'Question',
+          name: t('landing.faqAutoPublish'),
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: t('landing.faqAutoPublishEnabled'),
+          },
+        },
+        {
+          '@type': 'Question',
+          name: t('landing.faqAfterTrial'),
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: capabilities.value?.trialHours
+              ? t('landing.faqAfterTrialAvailable')
+              : t('landing.faqAfterTrialUnavailable'),
+          },
+        },
+      ],
+    },
+  ],
+}))
+useHead({
+  script: [{ type: 'application/ld+json' as 'application/json', innerHTML: structuredData }],
+})
 const { to: trialCtaPath } = publicTrialCta
 const trialCtaLabel = computed(() => {
   const posts = capabilities.value?.trialPosts
@@ -18,7 +80,13 @@ useSeoMeta({
   description: t('landing.seoDescription'),
   ogTitle: t('landing.ogTitle'),
   ogDescription: t('landing.ogDescription'),
+  ogImage: ogImageUrl,
+  ogImageWidth: '1200',
+  ogImageHeight: '630',
+  ogImageType: 'image/png',
   ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterImage: ogImageUrl,
 })
 const questions = computed(() => [
   {
@@ -60,14 +128,14 @@ const questions = computed(() => [
               class="landing-primary-button"
               >{{ trialCtaLabel }}</UButton
             >
-            <UButton to="#perse" variant="link" color="neutral" size="lg">{{ t('landing.seeHowItWorks') }}</UButton>
+            <UButton to="#why-framic" variant="link" color="neutral" size="lg">{{ t('landing.seeHowItWorks') }}</UButton>
           </div>
           <p class="landing-smallprint">{{ t('landing.offerByPostVolume') }}</p>
         </div>
         <LandingPostShowcase />
       </UContainer>
     </section>
-    <section id="perse" class="landing-process" :aria-label="t('landing.processAria')">
+    <section id="why-framic" class="landing-process" :aria-label="t('landing.processAria')">
       <UContainer class="landing-container">
         <div class="landing-process-inner">
           <p>{{ t('landing.allMonth') }}<br /><strong>{{ t('landing.underControl') }}</strong></p>
@@ -109,7 +177,7 @@ const questions = computed(() => [
         </div>
       </UContainer>
     </section>
-    <section id="cmimet" class="landing-pricing-section" aria-labelledby="pricing-title">
+    <section id="pricing" class="landing-pricing-section" aria-labelledby="pricing-title">
       <UContainer class="landing-container landing-pricing-layout">
         <div class="landing-section-heading landing-section-heading--start">
           <p class="landing-kicker">{{ t('landing.pricingKicker') }}</p>
@@ -119,7 +187,7 @@ const questions = computed(() => [
         <LandingPackageRequest />
       </UContainer>
     </section>
-    <section id="pyetje" class="landing-faq-section" aria-labelledby="faq-title">
+    <section id="faq" class="landing-faq-section" aria-labelledby="faq-title">
       <UContainer class="landing-container">
         <div class="landing-faq-layout">
           <div class="landing-faq-intro">

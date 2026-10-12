@@ -1,6 +1,6 @@
 /** The public package journey starts with a request based on monthly posts. */
 export const publicOfferCta = {
-  to: '/#cmimet',
+  to: '/#pricing',
   labelKey: 'landing.requestOffer',
 } as const
 

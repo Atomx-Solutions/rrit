@@ -1,7 +1,16 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'public' })
 const { locale, t } = useI18n()
-useSeoMeta({ title: () => `${t('help.title')} · Rrit` })
+const requestUrl = useRequestURL()
+const ogImageUrl = computed(() => new URL('/og-image.png', requestUrl).toString())
+useSeoMeta({
+  title: () => `${t('help.title')} · Framic`,
+  description: () => t('help.seoDescription'),
+  ogTitle: () => `${t('help.title')} · Framic`,
+  ogDescription: () => t('help.seoDescription'),
+  ogImage: ogImageUrl,
+  ogType: 'website',
+})
 const { data: capabilities } = await useFetch('/api/capabilities')
 const search = ref('')
 const topicKeys = Array.from({ length: 9 }, (_, index) => index + 1)

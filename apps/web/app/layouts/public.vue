@@ -2,9 +2,9 @@
 const route = useRoute()
 const { t, locale, setLocale } = useI18n()
 const languageOptions = computed(() => [
-  { label: `SQ ${t('public.albanian')}`, value: 'sq-XK' },
-  { label: `EN ${t('public.english')}`, value: 'en-US' },
   { label: `DE ${t('public.german')}`, value: 'de-DE' },
+  { label: `EN ${t('public.english')}`, value: 'en-US' },
+  { label: `SQ ${t('public.albanian')}`, value: 'sq-XK' },
 ])
 const languageLabel = computed(() => locale.value === 'de-DE'
   ? t('public.german')
@@ -18,19 +18,19 @@ const language = computed({
 })
 const links = computed(() => [
   {
-    label: t('public.whyRrit'),
-    to: '/#perse',
-    active: route.path === '/' && route.hash === '#perse',
+    label: t('public.whyFramic'),
+    to: '/#why-framic',
+    active: route.path === '/' && route.hash === '#why-framic',
   },
   {
     label: t('landing.requestOffer'),
-    to: '/#cmimet',
-    active: route.path === '/pricing' || (route.path === '/' && route.hash === '#cmimet'),
+    to: '/#pricing',
+    active: route.path === '/pricing' || (route.path === '/' && route.hash === '#pricing'),
   },
   {
     label: t('public.faq'),
-    to: '/#pyetje',
-    active: route.path === '/' && route.hash === '#pyetje',
+    to: '/#faq',
+    active: route.path === '/' && route.hash === '#faq',
   },
 ])
 const legal = [
@@ -46,7 +46,7 @@ const year = new Date().getFullYear()
     <ULink to="#main" class="skip-link">{{ t('public.skipToContent') }}</ULink
     ><UHeader
       class="marketing-header"
-      title="Rrit"
+      title="Framic"
       :menu="{ fullscreen: false }"
       :ui="{
         root: 'bg-default/95 backdrop-blur border-default',
@@ -132,10 +132,10 @@ const year = new Date().getFullYear()
               <p class="text-[27px] font-medium leading-[1.25] tracking-[-1px] max-sm:text-[26px]">{{ t('public.moreTime') }}<br /><span class="text-primary">{{ t('public.forYourBusiness') }}</span></p>
               <span class="mt-[18px] block text-xs text-muted">{{ t('public.youWithBusiness') }}</span>
             </div>
-            <nav class="flex flex-col items-start gap-[14px] text-[13px] max-sm:gap-3 max-sm:text-xs" :aria-label="t('public.exploreRrit')">
+            <nav class="flex flex-col items-start gap-[14px] text-[13px] max-sm:gap-3 max-sm:text-xs" :aria-label="t('public.exploreFramic')">
               <p class="mb-2 text-[9px] tracking-[1.1px] text-muted">{{ t('public.explore') }}</p>
-              <ULink class="py-0.5 hover:text-primary" to="/#perse">{{ t('public.howItWorks') }}</ULink><ULink class="py-0.5 hover:text-primary" :to="offerCtaPath">{{ t(offerCtaLabelKey) }}</ULink
-              ><ULink class="py-0.5 hover:text-primary" to="/#pyetje">{{ t('public.faq') }}</ULink>
+              <ULink class="py-0.5 hover:text-primary" to="/#why-framic">{{ t('public.howItWorks') }}</ULink><ULink class="py-0.5 hover:text-primary" :to="offerCtaPath">{{ t(offerCtaLabelKey) }}</ULink
+              ><ULink class="py-0.5 hover:text-primary" to="/#faq">{{ t('public.faq') }}</ULink>
             </nav>
             <nav class="flex flex-col items-start gap-[14px] text-[13px] max-sm:gap-3 max-sm:text-xs" :aria-label="t('public.accountAndHelp')">
               <p class="mb-2 text-[9px] tracking-[1.1px] text-muted">{{ t('public.getStarted') }}</p>
@@ -155,7 +155,7 @@ const year = new Date().getFullYear()
           </div>
         </UContainer>
       </template>
-      <template #left>© {{ year }} Rrit</template>
+      <template #left>© {{ year }} Framic</template>
       <UNavigationMenu :items="legal" />
     </UFooter>
   </div>

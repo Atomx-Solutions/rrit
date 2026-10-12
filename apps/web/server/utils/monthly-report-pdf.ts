@@ -411,7 +411,7 @@ function legacyMonthlyReportPdf(input: ReportInput) {
   line(coverX, coverWidth)
   y -= 28
 
-  // Match the preview's two Rrit-green cards on the first page.
+  // Match the preview's two Framic-green cards on the first page.
   const businessTop = y
   roundedRect(coverX, businessTop, coverWidth, 142, 16, colors.green)
   y -= 22
@@ -918,7 +918,7 @@ export function monthlyReportPdf(input: ReportInput) {
     current.push(`${colors.line} RG`)
     current.push(`0.6 w ${marginX} 40 m ${pageWidth - marginX} 40 l S`)
     current.push(`${colors.muted} rg`)
-    current.push(`BT /F1 7 Tf ${marginX} 25 Td (${pdfText(`Rrit - ${input.businessName}`)}) Tj ET`)
+    current.push(`BT /F1 7 Tf ${marginX} 25 Td (${pdfText(`Framic - ${input.businessName}`)}) Tj ET`)
     current.push(
       `BT /F1 7 Tf ${pageWidth - marginX - 52} 25 Td (${pdfText(`${index + 1} / ${pageCount}`)}) Tj ET`,
     )
