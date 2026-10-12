@@ -30,9 +30,12 @@ export default defineNuxtConfig({
     // Vercel needs Nitro's serverless output format so the deployed app is
     // routed through the Nuxt handler instead of being served as static files.
     preset: process.env.VERCEL ? 'vercel' : undefined,
-    output: {
-      dir: process.env.NITRO_OUTPUT_DIR || '.output',
-    },
+    // The Vercel preset owns its output directory (.vercel/output), which
+    // Vercel uses to wire the serverless function and static assets together.
+    // Keep the custom directory only for local/non-Vercel builds.
+    output: process.env.VERCEL
+      ? {}
+      : { dir: process.env.NITRO_OUTPUT_DIR || '.output' },
   },
   app: {
     head: {

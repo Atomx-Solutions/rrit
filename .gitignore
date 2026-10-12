@@ -5,6 +5,7 @@ node_modules.stale*/
 .output/
 apps/web/.nuxt-*/
 apps/web/.output-*/
+apps/web/.vercel/
 .nuxt-creative-verify/
 .nuxt-ai-config-verify/
 .nuxt-ai-final-verify/
