@@ -184,7 +184,7 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
           <UFormField name="seller_name" :label="t('admin.plans.sellerName')" required><UInput v-model="invoice.seller_name" maxlength="160" class="w-full" /></UFormField>
           <UFormField name="seller_fiscal_number" :label="t('admin.plans.sellerFiscalNumber')"><UInput v-model="invoice.seller_fiscal_number" maxlength="40" class="w-full" /></UFormField>
           <UFormField name="seller_address" :label="t('admin.plans.sellerAddress')" class="sm:col-span-2"><UInput v-model="invoice.seller_address" maxlength="240" class="w-full" /></UFormField>
-          <UFormField name="number_prefix" :label="t('admin.plans.numberPrefix')" :help="t('admin.plans.numberPrefixHelp', { example: (invoice.number_prefix || 'RRIT') + '-2026-000123' })"><UInput v-model="invoice.number_prefix" maxlength="12" class="w-full uppercase" /></UFormField>
+          <UFormField name="number_prefix" :label="t('admin.plans.numberPrefix')" :help="t('admin.plans.numberPrefixHelp', { example: (invoice.number_prefix || 'FRAMIC') + '-2026-000123' })"><UInput v-model="invoice.number_prefix" maxlength="12" class="w-full uppercase" /></UFormField>
           <UFormField name="vat_percent" :label="t('admin.plans.vat')" :help="t('admin.plans.vatHelp')"><UInputNumber v-model="invoice.vat_percent" :min="0" :max="100" :step="0.01" :format-options="{ maximumFractionDigits: 2 }" class="w-full" /></UFormField>
           <UButton type="submit" class="sm:col-span-2 justify-self-start" :loading="saving.invoice" :disabled="!Object.keys(invoiceChanges).length || invoiceInvalid" :label="t('admin.plans.save')" />
         </UForm>

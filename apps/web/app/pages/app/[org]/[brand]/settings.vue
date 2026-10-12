@@ -3,7 +3,7 @@ import { z } from 'zod'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base, syncing, commit, notify, exportData } = useWorkspace()
 const { setLocale, t } = useI18n()
-useSeoMeta({ title: () => `${t('settings.title')} · Rrit` })
+useSeoMeta({ title: () => `${t('settings.title')} · Framic` })
 const route = useRoute()
 const tabNames = ['profile', 'preferences', 'security', 'organization']
 const tab = computed({

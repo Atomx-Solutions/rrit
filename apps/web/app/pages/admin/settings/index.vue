@@ -2,7 +2,7 @@
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t, locale, setLocale } = useI18n()
 const { onFormError, showError, watchError } = useFormFeedback()
-useSeoMeta({ title: () => `${t('admin.nav.settings')} · Rrit Admin`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${t('admin.nav.settings')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, custom_package_post_price_cents: number, custom_package_credits_per_post: number, package_request_post_options: number[], package_expiry_reminder_days: number }
 const toast = useToast()

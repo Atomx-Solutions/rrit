@@ -25,7 +25,7 @@ export type InvoiceRow = {
 export const invoiceColumns = `id,number,kind,credited_invoice_id,status,issued_at,currency,seller,buyer,lines,
   subtotal_cents,vat_rate_basis_points,vat_cents,total_cents`
 
-/** RRIT-2026-000123: prefix, year of issue and a gapless per-year sequence. */
+/** FRAMIC-2026-000123: prefix, year of issue and a gapless per-year sequence. */
 export function formatInvoiceNumber(prefix: string, year: number, sequence: number) {
   if (!Number.isSafeInteger(sequence) || sequence <= 0) throw new Error('sequence must be a positive integer')
   return `${prefix}-${year}-${String(sequence).padStart(6, '0')}`

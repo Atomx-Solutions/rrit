@@ -32,7 +32,7 @@ const props = withDefaults(
     submitLabelKey: '',
     lean: false,
     resetAfterSentMs: 0,
-    currency: 'EUR',
+    currency: 'CHF',
     exchangeRate: 1,
   },
 )
@@ -78,7 +78,7 @@ const exchangeRate = computed(() => props.contactKnown ? (props.exchangeRate || 
 const displayPostPrice = computed(() => postPrice.value * exchangeRate.value)
 const estimatedTotal = computed(() => displayPostPrice.value * form.postsRequested)
 const money = (value: number) =>
-  new Intl.NumberFormat('sq-XK', { style: 'currency', currency: props.contactKnown ? props.currency : 'EUR' }).format(value)
+  new Intl.NumberFormat('sq-XK', { style: 'currency', currency: props.contactKnown ? props.currency : 'CHF' }).format(value)
 const platformOptions = computed(() => [
   { label: t('request.platformInstagram'), value: 'instagram' as const },
   { label: t('request.platformFacebook'), value: 'facebook' as const },

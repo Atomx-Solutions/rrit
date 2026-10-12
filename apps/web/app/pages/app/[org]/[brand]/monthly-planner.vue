@@ -2,7 +2,7 @@
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t } = useI18n()
-useSeoMeta({ title: () => `${t('monthly.pageTitle')} · Rrit` })
+useSeoMeta({ title: () => `${t('monthly.pageTitle')} · Framic` })
 const month = computed(() =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: data.value.preferences.timezone,

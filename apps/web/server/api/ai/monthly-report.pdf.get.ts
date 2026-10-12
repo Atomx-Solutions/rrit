@@ -36,6 +36,6 @@ export default defineEventHandler(async (event) => {
 
   setHeader(event, 'Content-Type', 'application/pdf')
   setHeader(event, 'Cache-Control', 'private, no-store')
-  setHeader(event, 'Content-Disposition', `attachment; filename="rrit-${type}-${month.data}.pdf"`)
+  setHeader(event, 'Content-Disposition', `attachment; filename="framic-${type}-${month.data}.pdf"`)
   return pdf
 })

@@ -4,7 +4,7 @@ import type { TableColumn } from '@nuxt/ui'
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
-useSeoMeta({ title: () => `${t('admin.nav.ai')} · Rrit Admin`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${t('admin.nav.ai')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 type Costs = {
   summary: { total_cost_micro_eur: number; this_month_cost_micro_eur: number; total_calls: number }

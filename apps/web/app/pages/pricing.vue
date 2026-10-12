@@ -3,9 +3,15 @@ import '~/assets/css/landing.css'
 
 definePageMeta({ layout: 'public' })
 const { t } = useI18n()
+const requestUrl = useRequestURL()
+const ogImageUrl = computed(() => new URL('/og-image.png', requestUrl).toString())
 useSeoMeta({
   title: t('pricing.seoTitle'),
   description: t('pricing.seoDescription'),
+  ogTitle: t('pricing.seoTitle'),
+  ogDescription: t('pricing.seoDescription'),
+  ogImage: ogImageUrl,
+  ogType: 'website',
 })
 const { capabilities } = useLandingOffer()
 const questions = computed(() => [

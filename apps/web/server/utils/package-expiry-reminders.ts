@@ -29,7 +29,7 @@ async function sendReminder(reminder: Reminder) {
   const configuration = emailConfiguration()
   if (!configuration) throw new Error('EMAIL_NOT_CONFIGURED')
   const endDate = formatDate(reminder.endsAt)
-  const dashboardUrl = `${(process.env.APP_URL || 'https://rrit.app').replace(/\/$/, '')}/app`
+  const dashboardUrl = `${(process.env.APP_URL || 'https://framic.app').replace(/\/$/, '')}/app`
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -41,8 +41,8 @@ async function sendReminder(reminder: Reminder) {
       from: configuration.from,
       to: [reminder.email],
       subject: `Paketa jote skadon më ${endDate}`,
-      text: `Përshëndetje,\n\nPaketa "${reminder.packageName}" për ${reminder.organizationName} skadon më ${endDate}. Hyr në Rrit për të kërkuar rinovimin ose kontakto ekipin tonë.\n\n${dashboardUrl}`,
-      html: `<p>Përshëndetje,</p><p>Paketa <strong>${escapeHtml(reminder.packageName)}</strong> për ${escapeHtml(reminder.organizationName)} skadon më <strong>${escapeHtml(endDate)}</strong>.</p><p><a href="${escapeHtml(dashboardUrl)}">Hyr në Rrit</a> për të kërkuar rinovimin ose kontakto ekipin tonë.</p>`,
+      text: `Përshëndetje,\n\nPaketa "${reminder.packageName}" për ${reminder.organizationName} skadon më ${endDate}. Hyr në Framic për të kërkuar rinovimin ose kontakto ekipin tonë.\n\n${dashboardUrl}`,
+      html: `<p>Përshëndetje,</p><p>Paketa <strong>${escapeHtml(reminder.packageName)}</strong> për ${escapeHtml(reminder.organizationName)} skadon më <strong>${escapeHtml(endDate)}</strong>.</p><p><a href="${escapeHtml(dashboardUrl)}">Hyr në Framic</a> për të kërkuar rinovimin ose kontakto ekipin tonë.</p>`,
     }),
   })
   if (!response.ok) {

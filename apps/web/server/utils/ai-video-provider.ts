@@ -45,7 +45,7 @@ function canvas(format: string) {
   return { aspectRatio: `${width / gcd}:${height / gcd}`, resolution: `${Math.min(width, height)}p` }
 }
 
-// RRIT's provider-independent video request. The planner and renderer build
+// Framic's provider-independent video request. The planner and renderer build
 // this shape; adapters convert it into provider-specific payloads. Adding a
 // future provider only means adding another adapter — the rest of the
 // pipeline keeps speaking this type.
@@ -106,7 +106,7 @@ function resolutionCap(requested: string) {
 
 // OpenRouter is the only adapter today. The function is kept narrow so the
 // OpenRouter-specific field names (`frame_images`, `polling_url`,
-// `unsigned_urls`, `generate_audio`) never leak back into RRIT's own code.
+// `unsigned_urls`, `generate_audio`) never leak back into Framic's own code.
 async function openrouterAdapter(request: VideoProviderRequest): Promise<VideoProviderResult | null> {
   const provider = config()
   if (!provider) return null
@@ -160,7 +160,7 @@ async function openrouterAdapter(request: VideoProviderRequest): Promise<VideoPr
   return { bytes: Buffer.from(await video.arrayBuffer()), costUsd: completed.usage?.cost ?? null }
 }
 
-// RRIT entry point. Builds the provider-independent request from the
+// Framic entry point. Builds the provider-independent request from the
 // (image, prompt, duration, format) tuple callers already have, then hands it
 // to the single configured adapter. Keeps the renderer blind to which
 // provider is in use so a future adapter is a one-file addition.

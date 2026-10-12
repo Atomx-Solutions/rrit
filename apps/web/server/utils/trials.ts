@@ -507,7 +507,17 @@ export async function usageSnapshot(
           + (SELECT COALESCE(sum(size_bytes),0)::bigint FROM video_renders WHERE business_id=$1 AND storage_path IS NOT NULL)
         ) AS media_storage_bytes,
         (SELECT COALESCE(requests,0)::integer FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date) AS ai_requests_per_day,
-        (SELECT CASE WHEN instagram_id IS NOT NULL THEN 2 ELSE 1 END FROM meta_connections WHERE business_id=$1 AND status='connected') AS social_accounts,
+        (
+          COALESCE((
+            SELECT 1 + CASE
+              WHEN instagram_id IS NOT NULL AND instagram_username IS NOT NULL THEN 1
+              ELSE 0
+            END
+            FROM meta_connections
+            WHERE business_id=$1 AND status='connected' AND expires_at > now()
+          ), 0)
+          + (SELECT count(*)::integer FROM tiktok_connections WHERE business_id=$1 AND status='connected' AND expires_at > now())
+        ) AS social_accounts,
         (SELECT count(*)::integer FROM video_renders WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS videos_per_month`,
       [businessId],
     ),

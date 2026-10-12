@@ -20,7 +20,7 @@ const { data: options } = await useFetch<{ postPriceCents: number }>('/api/packa
 const postPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
 const estimatedTotal = computed(() => postPrice.value * postsRequested.value)
 const money = (value: number) =>
-  new Intl.NumberFormat(locale.value, { style: 'currency', currency: 'EUR' }).format(value)
+  new Intl.NumberFormat(locale.value, { style: 'currency', currency: 'CHF' }).format(value)
 </script>
 
 <template>

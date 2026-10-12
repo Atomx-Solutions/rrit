@@ -3,7 +3,7 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t } = useI18n()
 const route = useRoute()
-useSeoMeta({ title: () => `${t('nav.socialPosts')} · Rrit` })
+useSeoMeta({ title: () => `${t('nav.socialPosts')} · Framic` })
 const page = ref(1)
 const pageSize = ref(10)
 const requestedChannel = route.query.channel
@@ -57,7 +57,7 @@ async function sync(more = false) {
   message.value = ''
   try {
     const isTikTok = importChannel.value === 'TikTok'
-    const response = await $fetch(isTikTok ? '/api/tiktok/sync' : '/api/meta/sync', {
+    const response = await $fetch<{ imported: number; nextCursor?: string | null }>(isTikTok ? '/api/tiktok/sync' : '/api/meta/sync', {
       method: 'POST',
       body: isTikTok
         ? { ...(more && cursor.value ? { cursor: cursor.value } : {}) }

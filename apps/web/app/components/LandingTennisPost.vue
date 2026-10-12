@@ -13,7 +13,7 @@ const photo = '/images/tennis-ball-court.jpg'
       :alt="preview ? '' : t('landing.tennisPhotoAlt')"
       width="1000"
       height="1500"
-      loading="eager"
+      :loading="preview ? 'lazy' : 'eager'"
       decoding="async"
     />
     <div class="landing-tennis-copy" :class="{ 'landing-depth-item': !preview }">

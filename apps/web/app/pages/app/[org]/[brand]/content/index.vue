@@ -3,7 +3,7 @@ import { statusLabels } from '~~/shared/utils/format'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t } = useI18n()
-useSeoMeta({ title: () => `${t('content.yourPosts')} · Rrit` })
+useSeoMeta({ title: () => `${t('content.yourPosts')} · Framic` })
 const route = useRoute()
 const search = ref('')
 const filter = computed({

@@ -40,14 +40,14 @@ const pdfUrl = computed(
 )
 
 useHead({
-  title: () => `${reportTitle.value} · ${workspace.value.brand.name} · Rrit`,
+  title: () => `${reportTitle.value} · ${workspace.value.brand.name} · Framic`,
 })
 
 function downloadPdf() {
   if (!import.meta.client) return
   const anchor = document.createElement('a')
   anchor.href = pdfUrl.value
-  anchor.download = `rrit-${reportType.value}-${month.value}.pdf`
+  anchor.download = `framic-${reportType.value}-${month.value}.pdf`
   anchor.click()
 }
 </script>
@@ -66,7 +66,7 @@ function downloadPdf() {
         class="report-header flex flex-col justify-between gap-7 border-b border-[#dce6df] pb-8 sm:flex-row sm:items-start print:pt-[0.25in]"
       >
         <div>
-          <img src="/logo.svg" alt="Rrit" width="102" height="44" class="h-9 w-auto" />
+          <img src="/framic-logo.png" alt="Framic" width="220" height="76" class="h-9 w-auto object-contain" />
           <p class="mt-7 text-[10px] font-bold uppercase tracking-[0.24em] text-[#17694d]">
             {{ t('monthly.reportLabel') }}
           </p>
@@ -125,7 +125,7 @@ function downloadPdf() {
         class="report-footer mt-10 flex flex-col justify-between gap-2 border-t border-[#dce6df] pt-5 text-xs text-[#7a8780] sm:flex-row print:mb-[0.25in]"
       >
         <span>{{ t('monthly.reportFooter') }}</span>
-        <span>Rrit · {{ workspace.brand.name }}</span>
+        <span>Framic · {{ workspace.brand.name }}</span>
       </footer>
     </UCard>
   </UContainer>

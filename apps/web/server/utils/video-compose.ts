@@ -99,7 +99,7 @@ const OVERLAY_RISE_RATIO = 0.016
 /**
  * Deterministically compose one provider clip into the delivered MP4: the
  * designed overlay layers are revealed over the motion at their start times,
- * then the already-rendered RRIT card is appended when the video has one.
+ * then the already-rendered Framic card is appended when the video has one.
  */
 export async function composeBrandedVideo(input: {
   motion: Buffer

@@ -4,7 +4,7 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, commit, notify, initLive } = useWorkspace()
 const { t } = useI18n()
 const route = useRoute()
-useSeoMeta({ title: () => `${t('nav.gallery')} · Rrit` })
+useSeoMeta({ title: () => `${t('nav.gallery')} · Framic` })
 const query = ref('')
 const assetFilter = ref<'all' | 'original' | 'generated' | 'generated-video'>('all')
 const selected = ref<string[]>([])
@@ -123,7 +123,7 @@ async function downloadViewerAsset() {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = isVideo ? `${viewerAsset.value.name || 'rrit-video'}.mp4` : viewerAsset.value.name || 'rrit-photo.jpg'
+    anchor.download = isVideo ? `${viewerAsset.value.name || 'framic-video'}.mp4` : viewerAsset.value.name || 'framic-photo.jpg'
     anchor.click()
     URL.revokeObjectURL(url)
   } finally {

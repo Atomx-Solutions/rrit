@@ -5,7 +5,7 @@ import type { AdminOrganizationRow as Organization } from '~/components/AdminOrg
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
-useSeoMeta({ title: () => `${t('admin.nav.organizations')} · Rrit Admin`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${t('admin.nav.organizations')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 const route = useRoute()
 const router = useRouter()

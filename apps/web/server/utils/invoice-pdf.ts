@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { Invoice } from './invoices'
 
 // A dependency-free single-page PDF using the standard Helvetica fonts with
@@ -42,35 +44,36 @@ function svgToPdf(d: string, xOff: number, yBase: number, s: number): string {
   return out.join('\n')
 }
 
-// Approximates a circle as 4 cubic beziers in PDF coordinates.
-function circlePdf(svgCx: number, svgCy: number, svgR: number, xOff: number, yBase: number, s: number): string {
-  const [cx, cy, rv] = [svgCx, svgCy, svgR * s]
-  const pCx = xOff + cx * s, pCy = yBase - cy * s
-  const k = rv * 0.5523
-  return [
-    `${r(pCx + rv)} ${r(pCy)} m`,
-    `${r(pCx + rv)} ${r(pCy + k)} ${r(pCx + k)} ${r(pCy + rv)} ${r(pCx)} ${r(pCy + rv)} c`,
-    `${r(pCx - k)} ${r(pCy + rv)} ${r(pCx - rv)} ${r(pCy + k)} ${r(pCx - rv)} ${r(pCy)} c`,
-    `${r(pCx - rv)} ${r(pCy - k)} ${r(pCx - k)} ${r(pCy - rv)} ${r(pCx)} ${r(pCy - rv)} c`,
-    `${r(pCx + k)} ${r(pCy - rv)} ${r(pCx + rv)} ${r(pCy - k)} ${r(pCx + rv)} ${r(pCy)} c`,
-    'h',
-  ].join('\n')
+// Framic F logo helpers.
+function logoPdfAsset() {
+  const candidates = [
+    resolve(process.cwd(), 'public/f-logo-pdf.jpg'),
+    resolve(process.cwd(), '.output/public/f-logo-pdf.jpg'),
+    resolve(process.cwd(), 'apps/web/public/f-logo-pdf.jpg'),
+  ]
+  const path = candidates.find(candidate => existsSync(candidate))
+  if (!path) throw new Error('Framic invoice logo asset is missing')
+  return readFileSync(path)
 }
 
-// Rrit logo SVG (viewBox 0 0 102 44, fill #17694d).
-// Returns PDF content stream operators for the logo at top-right of an A4 page.
+function logoImagePdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110, left?: number): string {
+  const logoHeight = logoWidth * (1240 / 1268)
+  const x = left ?? pageWidth - topMargin - logoWidth
+  const y = 842 - topMargin - logoHeight
+  return `q\n${r(logoWidth)} 0 0 ${r(logoHeight)} ${r(x)} ${r(y)} cm\n/Im1 Do\nQ`
+}
+
+// Used by the monthly report PDF, whose page builder does not include image
+// XObjects. Invoice PDFs use the exact image above.
 export function logoPdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110, left?: number): string {
   const s = logoWidth / 102
   const xOff = left ?? pageWidth - topMargin - logoWidth
-  const yBase = 842 - topMargin // SVG y=0 maps to this PDF y
+  const yBase = 842 - topMargin
   const paths = [
-    'M4 37V22C4 13 10 9 19 9h5v7h-5c-5 0-7 2-7 7v14Z',
-    'M30 37V22c0-9 6-13 15-13h5v7h-5c-5 0-7 2-7 7v14Z',
-    'M57 11h8v26h-8Z',
-    'M77 2h8v9h13v7H85v7c0 4 2 6 6 6h7v6h-8c-9 0-13-4-13-12v-7h-6v-7h6Z',
+    'M4 37V20C4 10 10 4 20 4h32v7H20c-5 0-8 3-8 9v17Z',
+    'M12 22h32v7H12Z',
   ]
-  const allPaths = paths.map(d => svgToPdf(d, xOff, yBase, s)).join('\n') + '\n' + circlePdf(61, 3, 3, xOff, yBase, s)
-  // 0.09 0.41 0.30 = #17694d in RGB (23/255, 105/255, 77/255)
+  const allPaths = paths.map(d => svgToPdf(d, xOff, yBase, s)).join('\n')
   return `0.09 0.41 0.30 rg\n${allPaths}\nf`
 }
 const winAnsiExtras: Record<string, number> = { '€': 0x80, '–': 0x96, '—': 0x97, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '…': 0x85 }
@@ -121,7 +124,7 @@ export function invoicePdf(invoice: Invoice) {
     ops.push(`${x} ${y} ${w} ${h} re f`)
 
   // --- Logo (green) ---
-  ops.push(logoPdfOps())
+  ops.push(logoImagePdfOps())
 
   // --- Reset to black for all remaining content ---
   ops.push('0 0 0 rg 0 0 0 RG')
@@ -232,10 +235,14 @@ export function invoicePdf(invoice: Invoice) {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Im1 7 0 R >> >> /Contents 6 0 R >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`,
+    (() => {
+      const image = logoPdfAsset()
+      return `<< /Type /XObject /Subtype /Image /Width 1268 /Height 1240 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.length} >>\nstream\n${image.toString('latin1')}\nendstream`
+    })(),
   ]
   let body = '%PDF-1.4\n'
   const offsets: number[] = []

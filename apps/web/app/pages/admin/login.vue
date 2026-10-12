@@ -7,7 +7,7 @@ import { safeRedirect } from '~~/shared/utils/format'
 definePageMeta({ layout: false })
 const { t } = useI18n()
 const route = useRoute()
-useSeoMeta({ title: () => `${t('admin.login.title')} · Rrit`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${t('admin.login.title')} · Framic`, robots: 'noindex, nofollow' })
 
 // Arriving here signed in without the superadmin role (from the page guard).
 const error = ref(route.query.denied ? t('admin.login.denied') : '')
@@ -22,7 +22,7 @@ const schema = z.object({
 type Schema = z.output<typeof schema>
 
 const fields = computed(() => [
-  { name: 'email', type: 'email' as const, label: t('admin.login.email'), placeholder: 'emri@rrit.com', required: true, autocomplete: 'username' },
+  { name: 'email', type: 'email' as const, label: t('admin.login.email'), placeholder: 'emri@framic.com', required: true, autocomplete: 'username' },
   { name: 'password', type: 'password' as const, label: t('admin.login.password'), required: true, autocomplete: 'current-password' },
 ])
 

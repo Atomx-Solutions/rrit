@@ -5,4 +5,4 @@ export {
   passwordMeetsPolicy,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
-} from '../../shared/utils/password-policy'
+} from '#shared/utils/password-policy'

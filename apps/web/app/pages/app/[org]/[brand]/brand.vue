@@ -5,7 +5,7 @@ import { eventResearchCategoryKeys, videoDeliverablesDefault } from '~~/shared/s
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base, syncing, commit, notify } = useWorkspace()
 const { t } = useI18n()
-useSeoMeta({ title: () => `${t('brand.title')} · Rrit` })
+useSeoMeta({ title: () => `${t('brand.title')} · Framic` })
 const { form, clear, recovered, localError } = useDraft(
   `${base.value}:brand`,
   structuredClone(toRaw(data.value.brand)),

@@ -5,7 +5,7 @@ import type { AdminUserRow as User } from '~/components/AdminUserDetails.vue'
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
-useSeoMeta({ title: () => `${t('admin.nav.users')} · Rrit Admin`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${t('admin.nav.users')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 const page = ref(1)
 const pageSize = ref(20)

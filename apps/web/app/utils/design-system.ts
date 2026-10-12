@@ -4,7 +4,7 @@ export const designSystem = {
     componentSystem: 'Nuxt UI v4',
     sharedTokens: 'CSS custom properties prefixed with --rrit-',
     icons: 'Use Nuxt UI/Lucide icons with i-lucide-* names; do not introduce a second icon library.',
-    wrappers: 'Create RRIT wrappers only for product composition or brand-specific presentation.',
+    wrappers: 'Create Framic wrappers only for product composition or brand-specific presentation.',
     exception: 'Illustrative landing scenes may use local art-direction values.',
   },
   tokens: {
