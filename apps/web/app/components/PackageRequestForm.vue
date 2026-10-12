@@ -40,6 +40,7 @@ const emit = defineEmits<{ sent: [] }>()
 // The page around the form may show the chosen volume and its price, so the
 // number is shared rather than duplicated.
 const postsModel = defineModel<number>('posts', { default: 0 })
+const videosModel = defineModel<number>('videos', { default: 0 })
 const { t } = useI18n()
 const { onFormError, watchError, showSuccess } = useFormFeedback()
 
@@ -55,9 +56,14 @@ const form = reactive({
   message: '',
 })
 if (postsModel.value > 0) form.postsRequested = postsModel.value
+if (videosModel.value > 0) form.videosRequested = videosModel.value
 watch(() => form.postsRequested, (value) => { postsModel.value = value })
+watch(() => form.videosRequested, (value) => { videosModel.value = value })
 watch(postsModel, (value) => {
   if (value > 0 && value !== form.postsRequested) form.postsRequested = value
+})
+watch(videosModel, (value) => {
+  if (value >= 0 && value !== form.videosRequested) form.videosRequested = value
 })
 // Suggested amounts come from a platform setting rather than this component,
 // because every organization still agrees its own volume.
@@ -232,6 +238,15 @@ async function submit() {
         />
       </div>
     </UFormField>
+      <UFormField name="videosRequested" label="Videos pro Monat">
+        <UInputNumber
+          v-model="form.videosRequested"
+          :min="0"
+          :max="1000"
+          aria-label="Videos pro Monat"
+          class="w-full"
+        />
+      </UFormField>
     <UFormField v-if="contactKnown" name="message" :label="t('request.message')">
       <UTextarea
         v-model="form.message"

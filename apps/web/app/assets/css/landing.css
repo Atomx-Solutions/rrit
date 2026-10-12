@@ -1088,6 +1088,39 @@
   font-weight: 400;
   color: var(--landing-muted, color-mix(in oklab, var(--landing-ink) 60%, transparent));
 }
+.landing-package-summary {
+  margin-bottom: 4px;
+  color: var(--landing-ink);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.landing-package-summary-top,
+.landing-package-summary-line,
+.landing-package-summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+.landing-package-summary-top {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--landing-line);
+  font-size: 15px;
+}
+.landing-package-summary-line {
+  padding-top: 10px;
+  color: var(--landing-muted);
+}
+.landing-package-summary-total {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--landing-line);
+  font-size: 14px;
+}
+.landing-package-summary-total strong {
+  color: var(--landing-green);
+  font-size: 20px;
+}
 .landing-request-form {
   margin-top: 14px;
   padding-top: 14px;
