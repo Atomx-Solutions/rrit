@@ -207,7 +207,12 @@ export const workspaceSchema = z.object({
     name: z.string(),
     email: z.string(),
     timezone: z.string(),
-    locale: z.enum(['sq-XK', 'en-US', 'de-DE']).default('sq-XK'),
+    // The upcoming Swiss German rollout stores 'de-CH'. Until this build
+    // speaks it, read it as German so such a workspace still loads.
+    locale: z.preprocess(
+      (value) => (value === 'de-CH' ? 'de-DE' : value),
+      z.enum(['sq-XK', 'en-US', 'de-DE']).default('sq-XK'),
+    ),
     currency: z.enum(['CHF', 'EUR']).default('CHF'),
   }),
   onboarding: z.number().min(0).max(4),
