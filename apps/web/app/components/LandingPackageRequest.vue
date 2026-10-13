@@ -7,18 +7,20 @@
  * offer. The price is read from the platform setting rather than written into
  * the page, so the figure quoted here is the one the team charges.
  */
-const { locale, t } = useI18n()
+const { locale } = useI18n()
 
 const postsRequested = ref(14)
 const videosRequested = ref(2)
-const { data: options } = await useFetch<{
+type PackageRequestOptions = {
   postOptions: number[]
   postPriceCents: number
   videoPriceCents: number
-}>('/api/package-requests', {
+  currency: 'CHF' | 'EUR'
+}
+const { data: options } = await useFetch<PackageRequestOptions>('/api/package-requests', {
   key: 'package-request-options',
   server: false,
-  default: () => ({ postOptions: [], postPriceCents: 0, videoPriceCents: 0 }),
+  default: (): PackageRequestOptions => ({ postOptions: [], postPriceCents: 0, videoPriceCents: 0, currency: 'CHF' }),
 })
 const packagePostPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
 const packageVideoPrice = computed(() => (options.value?.videoPriceCents || 0) / 100)
@@ -26,7 +28,7 @@ const packageTotal = computed(() =>
   postsRequested.value * packagePostPrice.value + videosRequested.value * packageVideoPrice.value,
 )
 const money = (value: number) =>
-  new Intl.NumberFormat(locale.value, { style: 'currency', currency: 'CHF' }).format(value)
+  new Intl.NumberFormat(locale.value, { style: 'currency', currency: options.value?.currency || 'CHF' }).format(value)
 </script>
 
 <template>
@@ -37,11 +39,11 @@ const money = (value: number) =>
         <strong>{{ money(packageTotal) }} / Monat</strong>
       </div>
       <div class="landing-package-summary-line">
-        <span>14 Posts</span>
+        <span>{{ postsRequested }} Posts</span>
         <span>{{ money(packagePostPrice) }} pro Post</span>
       </div>
       <div class="landing-package-summary-line">
-        <span>2 Videos</span>
+        <span>{{ videosRequested }} Videos</span>
         <span>{{ money(packageVideoPrice) }} pro Video</span>
       </div>
       <div class="landing-package-summary-total">

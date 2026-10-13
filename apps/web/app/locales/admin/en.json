@@ -433,6 +433,7 @@
   "admin.packages.status.active": "Active",
   "admin.packages.status.expired": "Expired",
   "admin.packages.status.cancelled": "Cancelled",
+  "admin.packages.status.merged": "Merged",
   "admin.packages.notes": "Notes",
   "admin.packages.save": "Save package",
   "admin.packages.saved": "Package saved.",

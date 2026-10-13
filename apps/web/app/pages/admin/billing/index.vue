@@ -4,6 +4,16 @@ import type { TableColumn } from '@nuxt/ui'
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
+const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
+  lazy: true,
+  key: 'admin-billing-platform-currency',
+})
+const packageCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
+const { data: exchangeRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
+  lazy: true,
+  key: 'admin-billing-currency-rate',
+  query: computed(() => ({ from: 'EUR', to: packageCurrency.value })),
+})
 useSeoMeta({ title: () => `${t('admin.nav.billing')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 type Invoice = {
@@ -86,6 +96,8 @@ const formatCents = (cents: number, currency = 'EUR') =>
     currency: currency === 'CHF' ? 'CHF' : 'EUR',
     minimumFractionDigits: 2,
   }).format(cents / 100)
+const formatSummaryCents = (cents: number) =>
+  formatCents(Math.round(cents * (exchangeRate.value?.rate || 1)), packageCurrency.value)
 // Invoices show the purchase time, to the second.
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
@@ -96,9 +108,9 @@ const summaryTiles = computed(() => {
   if (!s) return []
   return [
     // All after credit notes: gross includes VAT, net excludes it.
-    { label: t('admin.billing.grossRevenue'), value: formatCents(s.gross_revenue_cents), icon: 'i-lucide-receipt' },
-    { label: t('admin.billing.netRevenue'), value: formatCents(s.net_revenue_cents), icon: 'i-lucide-trending-up' },
-    { label: t('admin.billing.vat'), value: formatCents(s.vat_cents), icon: 'i-lucide-landmark' },
+    { label: t('admin.billing.grossRevenue'), value: formatSummaryCents(s.gross_revenue_cents), icon: 'i-lucide-receipt' },
+    { label: t('admin.billing.netRevenue'), value: formatSummaryCents(s.net_revenue_cents), icon: 'i-lucide-trending-up' },
+    { label: t('admin.billing.vat'), value: formatSummaryCents(s.vat_cents), icon: 'i-lucide-landmark' },
   ]
 })
 

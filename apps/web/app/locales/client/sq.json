@@ -1720,6 +1720,7 @@
   "landing.leadSubmit": "Dërgo kërkesën",
   "request.estimateLabel": "Vlera e përafërt mujore",
   "request.estimatePerPost": "{{price}} për postim",
+  "request.estimatePerVideo": "{{price}} për video",
   "landing.tryThreePostsFree": "Provo 3 postime falas",
   "landing.tryPostsFree": "Provo {{count}} postime falas",
   "landing.tryFreeTrial": "Provoje falas",

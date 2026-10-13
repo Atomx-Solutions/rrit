@@ -9,6 +9,20 @@ useSeoMeta({
   title: () => `${t('admin.nav.packageRequests')} · Framic Admin`,
   robots: 'noindex, nofollow',
 })
+// Lead conversion totals are package prices, so they use the central
+// superadmin currency rather than formatMoney's legacy EUR default.
+const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
+  lazy: true,
+  key: 'admin-package-request-currency-summary',
+})
+const packageCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
+const { data: exchangeRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
+  lazy: true,
+  key: 'admin-package-request-currency-rate',
+  query: computed(() => ({ from: 'EUR', to: packageCurrency.value })),
+})
+const formatConversionMoney = (cents: number) =>
+  formatMoney((cents / 100) * (exchangeRate.value?.rate || 1), packageCurrency.value)
 
 type PackageRequest = {
   id: string
@@ -357,7 +371,7 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
         </div>
         <div class="rounded-lg border border-default px-3 py-2.5">
           <p class="text-xs text-muted">{{ t('admin.requests.conversionValue') }}</p>
-          <p class="mt-1 text-lg font-semibold tabular-nums">{{ formatMoney((conversionSummary?.conversionValueCents ?? 0) / 100) }}</p>
+          <p class="mt-1 text-lg font-semibold tabular-nums">{{ formatConversionMoney(conversionSummary?.conversionValueCents ?? 0) }}</p>
         </div>
       </div>
     </UCard>

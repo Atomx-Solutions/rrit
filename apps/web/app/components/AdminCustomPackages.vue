@@ -1,20 +1,21 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 import { z } from 'zod'
-import { formatMoney } from '~~/shared/utils/format'
 
 export type AdminCustomPackage = {
   id: string
   name: string
   posts_included: number
+  videos_included: number
   credits_included: number
   post_price_cents: number
+  video_price_cents: number
   price_cents: number
   suggested_price_cents: number
   currency: string
   starts_at: string
   ends_at: string
-  status: 'draft' | 'active' | 'expired' | 'cancelled'
+  status: 'draft' | 'active' | 'expired' | 'cancelled' | 'merged'
   notes: string | null
   used_posts: number
   remaining_posts: number
@@ -26,12 +27,57 @@ const { t } = useI18n()
 const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
 
+// Existing packages keep the currency they were agreed in.  The admin area,
+// however, has one central currency, so render each historical package through
+// the live rate API instead of merely replacing the € / CHF label.
+const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>(
+  '/api/admin/settings',
+  { lazy: true, key: 'admin-custom-packages-currency' },
+)
+const displayCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
+const { data: euroRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
+  lazy: true,
+  key: 'admin-custom-packages-eur-rate',
+  query: computed(() => ({ from: 'EUR', to: displayCurrency.value })),
+})
+const { data: chfRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
+  lazy: true,
+  key: 'admin-custom-packages-chf-rate',
+  query: computed(() => ({ from: 'CHF', to: displayCurrency.value })),
+})
+
+function packageRate(sourceCurrency: string) {
+  if (sourceCurrency === displayCurrency.value) return 1
+  return sourceCurrency === 'CHF' ? (chfRate.value?.rate || 1) : (euroRate.value?.rate || 1)
+}
+function formatPackageMoney(cents: number, sourceCurrency = 'EUR') {
+  return new Intl.NumberFormat('sq-XK', {
+    style: 'currency',
+    currency: displayCurrency.value,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format((cents / 100) * packageRate(sourceCurrency))
+}
+async function currentPackageRate(sourceCurrency: string) {
+  if (sourceCurrency === displayCurrency.value) return 1
+  try {
+    const result = await $fetch<{ rate: number }>('/api/currency/rate', {
+      query: { from: sourceCurrency, to: displayCurrency.value },
+    })
+    return result.rate
+  } catch {
+    // Keep the package editable if the rate provider is momentarily unavailable.
+    return packageRate(sourceCurrency)
+  }
+}
+
 const {
   data,
   status,
   execute: reload,
 } = useFetch<{
   post_price_cents: number
+  video_price_cents: number
   credit_price_cents: number
   packages: AdminCustomPackage[]
 }>(() => `/api/admin/organizations/${props.organizationId}/packages`, {
@@ -49,6 +95,7 @@ const packages = computed(() => data.value?.packages || [])
 // The platform rate is only the default a new package starts from; each
 // package then carries the rate actually agreed with this organization.
 const defaultPostPriceCents = computed(() => data.value?.post_price_cents ?? 0)
+const defaultVideoPriceCents = computed(() => data.value?.video_price_cents ?? 0)
 // Credits are priced from the same platform setting the credits screen edits,
 // so a proposal can never quote a rate the platform does not charge.
 const creditPriceCents = computed(() => data.value?.credit_price_cents ?? 0)
@@ -58,6 +105,7 @@ const statusColors: Record<AdminCustomPackage['status'], 'success' | 'info' | 'n
   draft: 'info',
   expired: 'neutral',
   cancelled: 'neutral',
+  merged: 'neutral',
 }
 function formatDay(value: string) {
   return new Intl.DateTimeFormat('sq-XK', {
@@ -88,8 +136,10 @@ const schema = z
     // A credit top-up carries no posts; the refine below keeps an empty
   // proposal impossible.
   posts_included: z.number().int().min(0).max(1000),
+  videos_included: z.number().int().min(0).max(1000),
   credits_included: z.number().int().min(0).max(10_000_000),
-    post_price_cents: z.number().int().min(1, t('admin.packages.postPriceRequired')),
+    post_price_cents: z.number().int().min(0).max(1_000_000),
+    video_price_cents: z.number().int().min(0).max(1_000_000),
     price_cents: z.number().int().min(0),
     starts_at: z.string().min(1, t('admin.packages.dateRequired')),
     ends_at: z.string().min(1, t('admin.packages.dateRequired')),
@@ -98,12 +148,18 @@ const schema = z
     message: t('admin.packages.periodInvalid'),
     path: ['ends_at'],
   })
+  .refine(
+    value => value.posts_included > 0 || value.videos_included > 0 || value.credits_included > 0,
+    { message: 'A package must include posts, videos, or credits.', path: ['posts_included'] },
+  )
 
 const form = reactive({
   name: '',
   posts_included: 20,
+  videos_included: 0,
   credits_included: 0,
   post_price_cents: 0,
+  video_price_cents: 0,
   price_cents: 0,
   starts_at: '',
   ends_at: '',
@@ -111,11 +167,13 @@ const form = reactive({
   notes: '',
 })
 const suggestedCents = computed(
-  () => form.posts_included * form.post_price_cents + form.credits_included * creditPriceCents.value,
+  () => form.posts_included * form.post_price_cents
+    + form.videos_included * form.video_price_cents
+    + form.credits_included * creditPriceCents.value,
 )
 const overridden = computed(() => form.price_cents !== suggestedCents.value)
-// The field is a currency input, so the admin works in euro while the package
-// is stored, compared and audited in cents.
+// Inputs work in the central admin currency; monetary values remain whole cents
+// in storage and audit records.
 const priceEuro = computed({
   get: () => form.price_cents / 100,
   set: (value: number) => {
@@ -128,6 +186,12 @@ const postPriceEuro = computed({
     form.post_price_cents = Math.round((Number.isFinite(value) ? value : 0) * 100)
   },
 })
+const videoPriceEuro = computed({
+  get: () => form.video_price_cents / 100,
+  set: (value: number) => {
+    form.video_price_cents = Math.round((Number.isFinite(value) ? value : 0) * 100)
+  },
+})
 
 function startCreate() {
   const today = new Date()
@@ -138,8 +202,10 @@ function startCreate() {
   Object.assign(form, {
     name: '',
     posts_included: 20,
+    videos_included: 0,
     credits_included: 0,
     post_price_cents: defaultPostPriceCents.value,
+    video_price_cents: defaultVideoPriceCents.value,
     price_cents: 20 * defaultPostPriceCents.value,
     starts_at: today.toISOString().slice(0, 10),
     ends_at: inAMonth.toISOString().slice(0, 10),
@@ -149,15 +215,19 @@ function startCreate() {
   creating.value = true
 }
 
-function startEdit(row: AdminCustomPackage) {
+async function startEdit(row: AdminCustomPackage) {
   error.value = ''
   creating.value = false
+  const rate = await currentPackageRate(row.currency || 'EUR')
+  const converted = (cents: number) => Math.round(cents * rate)
   Object.assign(form, {
     name: row.name,
     posts_included: row.posts_included,
+    videos_included: row.videos_included ?? 0,
     credits_included: row.credits_included ?? 0,
-    post_price_cents: row.post_price_cents,
-    price_cents: row.price_cents,
+    post_price_cents: converted(row.post_price_cents),
+    video_price_cents: converted(row.video_price_cents ?? 0),
+    price_cents: converted(row.price_cents),
     starts_at: dayInput(row.starts_at),
     ends_at: dayInput(row.ends_at),
     status: row.status,
@@ -169,12 +239,14 @@ function startEdit(row: AdminCustomPackage) {
 // Resizing follows the suggestion only while the price has not been negotiated
 // away from it, so an agreed figure survives a change of size.
 watch(
-  () => [form.posts_included, form.post_price_cents, form.credits_included] as const,
-  ([posts, rate, credits], [previousPosts, previousRate, previousCredits]) => {
+  () => [form.posts_included, form.post_price_cents, form.videos_included, form.video_price_cents, form.credits_included] as const,
+  ([posts, postRate, videos, videoRate, credits], [previousPosts, previousPostRate, previousVideos, previousVideoRate, previousCredits]) => {
     if (previousPosts === undefined) return
-    if (posts === previousPosts && rate === previousRate && credits === previousCredits) return
+    if (posts === previousPosts && postRate === previousPostRate && videos === previousVideos && videoRate === previousVideoRate && credits === previousCredits) return
     const previousSuggestion =
-      previousPosts * previousRate + (previousCredits || 0) * creditPriceCents.value
+      previousPosts * previousPostRate
+      + (previousVideos || 0) * previousVideoRate
+      + (previousCredits || 0) * creditPriceCents.value
     if (form.price_cents === previousSuggestion) form.price_cents = suggestedCents.value
   },
 )
@@ -190,8 +262,10 @@ async function submit() {
   const body = {
     name: form.name.trim(),
     posts_included: form.posts_included,
+    videos_included: form.videos_included,
     credits_included: form.credits_included,
     post_price_cents: form.post_price_cents,
+    video_price_cents: form.video_price_cents,
     price_cents: form.price_cents,
     starts_at: dayToIso(form.starts_at),
     ends_at: dayToIso(form.ends_at),
@@ -265,10 +339,11 @@ const listUi = {
       </template>
       <template #posts-cell="{ row }">
         <span>{{ t('admin.packages.postsValue', { count: row.original.posts_included }) }}</span>
+        <span v-if="row.original.videos_included > 0" class="text-muted"> · {{ row.original.videos_included }} {{ t('admin.packages.videos') }}</span>
         <span v-if="row.original.credits_included > 0" class="text-muted"> · {{ t('admin.packages.creditsValue', { count: row.original.credits_included }) }}</span>
         <span class="ms-2 text-xs text-muted">
           {{
-            t('admin.packages.perPost', { price: formatMoney(row.original.post_price_cents / 100) })
+            t('admin.packages.perPost', { price: formatPackageMoney(row.original.post_price_cents, row.original.currency) })
           }}
         </span>
         <p class="text-xs text-muted">
@@ -282,7 +357,7 @@ const listUi = {
         </p>
       </template>
       <template #price-cell="{ row }">
-        <span>{{ formatMoney(row.original.price_cents / 100) }}</span>
+        <span>{{ formatPackageMoney(row.original.price_cents, row.original.currency) }}</span>
         <UBadge
           v-if="row.original.price_cents !== row.original.suggested_price_cents"
           color="warning"
@@ -336,6 +411,9 @@ const listUi = {
           <UFormField name="posts_included" :label="t('admin.packages.posts')" required>
             <UInputNumber v-model="form.posts_included" :min="0" :max="1000" class="w-full" />
           </UFormField>
+          <UFormField name="videos_included" :label="t('admin.packages.videos')" required>
+            <UInputNumber v-model="form.videos_included" :min="0" :max="1000" class="w-full" />
+          </UFormField>
           <UFormField
             name="credits_included"
             :label="t('admin.packages.credits')"
@@ -353,7 +431,20 @@ const listUi = {
               :min="0.01"
               :max="10000"
               :step="0.01"
-              :format-options="{ style: 'currency', currency: 'EUR' }"
+              :format-options="{ style: 'currency', currency: displayCurrency }"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField
+            name="video_price_cents"
+            :label="t('admin.packages.videoPrice')"
+          >
+            <UInputNumber
+              v-model="videoPriceEuro"
+              :min="0"
+              :max="10000"
+              :step="0.01"
+              :format-options="{ style: 'currency', currency: displayCurrency }"
               class="w-full"
             />
           </UFormField>
@@ -361,14 +452,14 @@ const listUi = {
         <UFormField
           name="price_cents"
           :label="t('admin.packages.price')"
-          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100) })"
+          :hint="t('admin.packages.suggested', { price: formatPackageMoney(suggestedCents, displayCurrency) })"
           required
         >
           <UInputNumber
             v-model="priceEuro"
             :min="0"
             :step="0.01"
-            :format-options="{ style: 'currency', currency: 'EUR' }"
+            :format-options="{ style: 'currency', currency: displayCurrency }"
             class="w-full"
           />
         </UFormField>

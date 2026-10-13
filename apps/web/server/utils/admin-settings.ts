@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { adminServiceClient } from './admin-supabase'
+import { getExchangeRate } from './exchange-rates'
 
 export type PlatformSettings = {
+  package_currency: 'CHF' | 'EUR'
   ai_top_up_url: string
   ai_warn_balance_usd: number
   ai_low_balance_usd: number
@@ -19,6 +21,7 @@ export type PlatformSettings = {
 }
 
 export const platformSettingsChangesSchema = z.object({
+  package_currency: z.enum(['CHF', 'EUR']).optional(),
   // Only https, so the button never sends an admin to an unencrypted page.
   ai_top_up_url: z.url().refine(value => value.startsWith('https://')).max(300).optional(),
   ai_warn_balance_usd: z.coerce.number().min(0).max(100_000).optional(),
@@ -33,6 +36,7 @@ export const platformSettingsChangesSchema = z.object({
 function normalize(value: unknown): PlatformSettings {
   const row = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
   return {
+    package_currency: row.package_currency === 'EUR' ? 'EUR' : 'CHF',
     ai_top_up_url: typeof row.ai_top_up_url === 'string' ? row.ai_top_up_url : 'https://openrouter.ai/settings/credits',
     ai_warn_balance_usd: Number(row.ai_warn_balance_usd ?? 30) || 0,
     ai_low_balance_usd: Number(row.ai_low_balance_usd ?? 10) || 0,
@@ -61,7 +65,47 @@ async function rpc(name: string, args: Record<string, unknown>) {
 }
 
 export const platformSettings = () => rpc('admin_platform_settings', {})
-export const updatePlatformSettings = (
+export async function updatePlatformSettings(
   actor: { id: string, email?: string },
   changes: z.infer<typeof platformSettingsChangesSchema>,
-) => rpc('admin_update_platform_settings', { p_actor_id: actor.id, p_actor_email: actor.email ?? '', p_changes: changes })
+) {
+  const targetCurrency = changes.package_currency
+  if (!targetCurrency) {
+    return rpc('admin_update_platform_settings', {
+      p_actor_id: actor.id,
+      p_actor_email: actor.email ?? '',
+      p_changes: changes,
+    })
+  }
+
+  const current = await platformSettings()
+  if (current.package_currency === targetCurrency) {
+    return rpc('admin_update_platform_settings', {
+      p_actor_id: actor.id,
+      p_actor_email: actor.email ?? '',
+      p_changes: changes,
+    })
+  }
+
+  // Prices are monetary values, not labels. Persist their converted cents at
+  // the same moment the central currency changes, so every admin and public
+  // package flow reads the same real amount afterwards.
+  let rate: number
+  try {
+    rate = (await getExchangeRate(current.package_currency, targetCurrency)).rate
+  } catch {
+    throw createError({ statusCode: 503, message: 'server.EXCHANGE_RATE_UNAVAILABLE' })
+  }
+  const convertCents = (value: number) => Math.max(1, Math.round(value * rate))
+  return rpc('admin_update_platform_settings', {
+    p_actor_id: actor.id,
+    p_actor_email: actor.email ?? '',
+    p_changes: {
+      ...changes,
+      custom_package_post_price_cents:
+        changes.custom_package_post_price_cents ?? convertCents(current.custom_package_post_price_cents),
+      custom_package_video_price_cents:
+        changes.custom_package_video_price_cents ?? convertCents(current.custom_package_video_price_cents),
+    },
+  })
+}
