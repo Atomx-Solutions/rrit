@@ -1,10 +1,10 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
-const { t, locale, setLocale } = useI18n()
+const { t } = useI18n()
 const { onFormError, showError, watchError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.settings')} · Framic Admin`, robots: 'noindex, nofollow' })
 
-type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, custom_package_post_price_cents: number, custom_package_credits_per_post: number, package_request_post_options: number[], package_expiry_reminder_days: number }
+type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, package_currency: 'CHF' | 'EUR', custom_package_post_price_cents: number, custom_package_credits_per_post: number, package_request_post_options: number[], package_expiry_reminder_days: number }
 const toast = useToast()
 const { data, status, error, refresh } = await useFetch<Settings>('/api/admin/settings', { lazy: true })
 watch(error, (value) => {
@@ -72,6 +72,23 @@ const packageChanged = computed(() =>
     || postOptions.value.join(',') !== data.value.package_request_post_options.join(',')
     || Number(packageForm.expiry_reminder_days) !== data.value.package_expiry_reminder_days))
 const savingPackage = ref(false)
+const packageCurrency = ref<'CHF' | 'EUR'>('CHF')
+const currencySaving = ref(false)
+watch(data, (value) => {
+  if (value) packageCurrency.value = value.package_currency
+}, { immediate: true })
+async function saveCurrency() {
+  currencySaving.value = true
+  try {
+    await $fetch('/api/admin/settings', { method: 'PATCH', body: { package_currency: packageCurrency.value } })
+    await refresh()
+    toast.add({ title: 'Currency saved', color: 'success' })
+  } catch (problem) {
+    saveError.value = (problem as { data?: { message?: string } }).data?.message || 'Currency could not be saved.'
+  } finally {
+    currencySaving.value = false
+  }
+}
 async function savePackageRate() {
   if (!packageChanged.value) return
   savingPackage.value = true
@@ -95,30 +112,24 @@ async function savePackageRate() {
   }
 }
 
-// The same two languages as the customer app; the choice is per admin.
-const languageOptions = computed(() => [
-  { label: t('admin.settings.albanian'), value: 'sq-XK' },
-  { label: t('admin.settings.english'), value: 'en-US' },
-])
-const language = computed({
-  get: () => locale.value,
-  set: (value: string) => setLocale(value),
-})
 </script>
 
 <template>
   <AdminPage :title="t('admin.nav.settings')">
-    <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }">
-        <template #header>
-          <UUser
-            :name="t('admin.settings.language')"
-            :description="t('admin.settings.languageHint')"
-            :avatar="{ icon: 'i-lucide-languages', size: 'sm' }"
-          />
-        </template>
-        <USelect v-model="language" :items="languageOptions" :aria-label="t('admin.settings.language')" class="w-full sm:w-64" />
-      </UCard>
-
+    <UCard class="shrink-0 overflow-hidden" :ui="{ header: 'px-4 py-4 sm:px-6', body: 'p-4 sm:p-6' }">
+      <template #header>
+        <div class="flex items-start justify-between gap-4">
+          <UUser name="Currency" description="Central currency for all prices in the superadmin area and new package proposals." :avatar="{ icon: 'i-lucide-coins', size: 'sm' }" />
+          <UBadge color="success" variant="subtle" :label="packageCurrency" />
+        </div>
+      </template>
+      <UForm :state="{ packageCurrency }" class="grid items-start gap-5 sm:grid-cols-[minmax(0,32rem)_auto]" @submit="saveCurrency" @error="onFormError">
+        <UFormField name="package_currency" label="Currency" help="This selection is used for all administrative price fields and new package proposals.">
+          <USelect v-model="packageCurrency" :items="[{ label: 'Swiss franc (CHF)', value: 'CHF' }, { label: 'Euro (EUR)', value: 'EUR' }]" class="w-full" />
+        </UFormField>
+        <UButton type="submit" class="w-full sm:mt-6 sm:w-auto sm:justify-self-start" :loading="currencySaving" label="Save currency" />
+      </UForm>
+    </UCard>
       <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }">
         <template #header>
           <UUser

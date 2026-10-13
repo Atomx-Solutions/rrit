@@ -433,6 +433,7 @@
   "admin.packages.status.active": "Aktive",
   "admin.packages.status.expired": "Skaduar",
   "admin.packages.status.cancelled": "Anuluar",
+  "admin.packages.status.merged": "Bashkuar",
   "admin.packages.notes": "Shënime",
   "admin.packages.save": "Ruaj paketën",
   "admin.packages.saved": "Paketa u ruajt.",

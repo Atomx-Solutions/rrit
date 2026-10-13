@@ -21,6 +21,20 @@ const { data, status, error, refresh } = await useFetch<Overview>('/api/admin/ov
   key: 'admin-overview',
   getCachedData: () => undefined,
 })
+const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
+  lazy: true,
+  key: 'admin-platform-currency-overview',
+})
+// Overview KPIs are produced from the platform ledger in EUR. Convert that
+// common base through the same exchange-rate API used when Settings changes
+// currency; changing the symbol alone would misstate every KPI.
+const overviewCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
+const { data: overviewExchange } = await useFetch<{ rate: number }>('/api/currency/rate', {
+  lazy: true,
+  key: 'admin-overview-currency-rate',
+  query: computed(() => ({ from: 'EUR', to: overviewCurrency.value })),
+})
+const overviewRate = computed(() => overviewExchange.value?.rate || 1)
 watch(error, (value) => {
   if (value) showError(t('admin.overview.loadError'))
 }, { immediate: true })
@@ -56,7 +70,12 @@ onMounted(() => {
 
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const money = (value: number) => new Intl.NumberFormat('sq-XK', {
+  style: 'currency',
+  currency: overviewCurrency.value,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(value * overviewRate.value)
 const count = new Intl.NumberFormat('sq-XK')
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
@@ -67,11 +86,11 @@ const tiles = computed(() => {
   const margin = overview.ai.margin_cents_this_month
   return [
     { label: t('admin.overview.activeOrganizations'), hint: t('admin.overview.activeOrganizationsHint'), value: count.format(overview.organizations.active), icon: 'i-lucide-building-2' },
-    { label: t('admin.overview.mrr'), hint: t('admin.overview.mrrHint'), value: euro.format(overview.subscriptions.mrr_cents / 100), icon: 'i-lucide-repeat' },
-    { label: t('admin.overview.totalRevenue'), hint: t('admin.overview.totalRevenueHint'), value: euro.format(overview.revenue.total_cents / 100), icon: 'i-lucide-receipt' },
+    { label: t('admin.overview.mrr'), hint: t('admin.overview.mrrHint'), value: money(overview.subscriptions.mrr_cents / 100), icon: 'i-lucide-repeat' },
+    { label: t('admin.overview.totalRevenue'), hint: t('admin.overview.totalRevenueHint'), value: money(overview.revenue.total_cents / 100), icon: 'i-lucide-receipt' },
     // Ledger costs are in micro-euros: 1 € = 1 000 000.
-    { label: t('admin.overview.aiCost'), hint: t('admin.overview.aiCostHint'), value: euro.format(overview.ai.cost_micro_eur_this_month / 1_000_000), icon: 'i-lucide-cpu' },
-    { label: t('admin.overview.aiMargin'), hint: t('admin.overview.aiMarginHint'), value: euro.format(margin / 100), icon: margin < 0 ? 'i-lucide-trending-down' : 'i-lucide-trending-up' },
+    { label: t('admin.overview.aiCost'), hint: t('admin.overview.aiCostHint'), value: money(overview.ai.cost_micro_eur_this_month / 1_000_000), icon: 'i-lucide-cpu' },
+    { label: t('admin.overview.aiMargin'), hint: t('admin.overview.aiMarginHint'), value: money(margin / 100), icon: margin < 0 ? 'i-lucide-trending-down' : 'i-lucide-trending-up' },
     { label: t('admin.overview.signups'), hint: t('admin.overview.signupsHint'), value: count.format(overview.signups.this_month), icon: 'i-lucide-user-plus' },
   ]
 })
@@ -153,7 +172,7 @@ const revenueChannels = computed(() => {
         <div class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p class="text-xs font-medium uppercase tracking-wider text-muted">{{ t('admin.overview.salesTitle') }}</p>
-            <p class="mt-1 text-3xl font-bold tabular-nums tracking-tight">{{ euro.format(revenueSplit.total / 100) }}</p>
+            <p class="mt-1 text-3xl font-bold tabular-nums tracking-tight">{{ money(revenueSplit.total / 100) }}</p>
           </div>
           <!-- Stacked bar legend -->
           <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
@@ -179,7 +198,7 @@ const revenueChannels = computed(() => {
               <div class="flex items-center gap-2 px-1 py-0.5 text-xs">
                 <span class="size-2 shrink-0 rounded-full" :style="{ background: item.hex }" />
                 <span>{{ item.label }}</span>
-                <span class="font-semibold tabular-nums">{{ euro.format(item.cents / 100) }}</span>
+                <span class="font-semibold tabular-nums">{{ money(item.cents / 100) }}</span>
                 <span class="tabular-nums text-muted">{{ item.percent }}%</span>
               </div>
             </template>
@@ -195,7 +214,7 @@ const revenueChannels = computed(() => {
           >
             <div class="absolute inset-y-0 left-0 w-1 rounded-l-xl" :style="{ background: item.hex }" />
             <p class="text-xs text-muted">{{ item.label }}</p>
-            <p class="mt-0.5 text-lg font-semibold tabular-nums">{{ euro.format(item.cents / 100) }}</p>
+            <p class="mt-0.5 text-lg font-semibold tabular-nums">{{ money(item.cents / 100) }}</p>
             <p class="text-xs tabular-nums text-muted">{{ item.percent }}%</p>
           </div>
         </div>

@@ -21,6 +21,7 @@ const { data: platform, refresh: refreshPlatform } = await useFetch<{
   custom_package_credits_per_post: number
   custom_package_post_price_cents: number
   custom_package_video_price_cents: number
+  package_currency: 'CHF' | 'EUR'
 }>('/api/admin/settings', { lazy: true, key: 'admin-platform-package-pricing' })
 watch(error, (value) => {
   if (value) showError(t('admin.plans.loadError'))
@@ -46,12 +47,38 @@ const creditsPerPost = ref(0)
 // settings screen.
 const postPriceChf = ref(0)
 const videoPriceChf = ref(2)
+const packageCurrency = ref<'CHF' | 'EUR'>('CHF')
+const previousPackageCurrency = ref<'CHF' | 'EUR'>('CHF')
+const convertingCurrency = ref(false)
 watch(platform, (value) => {
   if (!value) return
   creditsPerPost.value = value.custom_package_credits_per_post
   postPriceChf.value = value.custom_package_post_price_cents / 100
   videoPriceChf.value = value.custom_package_video_price_cents / 100
+  packageCurrency.value = value.package_currency
+  previousPackageCurrency.value = value.package_currency
 }, { immediate: true })
+watch(packageCurrency, async (next) => {
+  const previous = previousPackageCurrency.value
+  if (!platform.value || next === previous || convertingCurrency.value) return
+  convertingCurrency.value = true
+  try {
+    const quote = await $fetch<{ rate: number }>('/api/currency/rate', {
+      query: { from: previous, to: next },
+    })
+    const convert = (value: number) => Math.round(value * quote.rate * 1_000_000) / 1_000_000
+    pricing.credit_price = convert(pricing.credit_price)
+    pricing.provider_cost = convert(pricing.provider_cost)
+    postPriceChf.value = Math.round(convert(postPriceChf.value) * 100) / 100
+    videoPriceChf.value = Math.round(convert(videoPriceChf.value) * 100) / 100
+    previousPackageCurrency.value = next
+  } catch {
+    packageCurrency.value = previous
+    toast.add({ title: 'Exchange rate unavailable. Currency was not changed.', color: 'error' })
+  } finally {
+    convertingCurrency.value = false
+  }
+})
 const postPriceCents = computed(() => Math.round(Number(postPriceChf.value) * 100))
 const platformChanges = computed(() => {
   if (!platform.value) return {}
@@ -65,6 +92,7 @@ const platformChanges = computed(() => {
     ...(Math.round(Number(videoPriceChf.value) * 100) !== platform.value.custom_package_video_price_cents
       ? { custom_package_video_price_cents: Math.round(Number(videoPriceChf.value) * 100) }
       : {}),
+    ...(packageCurrency.value !== platform.value.package_currency ? { package_currency: packageCurrency.value } : {}),
   }
 })
 const invoice = reactive({ number_prefix: '', seller_name: '', seller_address: '', seller_fiscal_number: '', vat_percent: 0 })
@@ -166,12 +194,12 @@ const cardUi = { header: 'px-4 py-3 sm:px-5', body: 'p-4 sm:p-5' }
         <UForm :state="pricing" class="grid gap-4 sm:grid-cols-2" @submit="saveSettings('pricing')" @error="onFormError">
           <!-- What a credit costs and is worth, then the photo settings, then
                the video ones, so each subject is read in one place. -->
-          <UFormField name="credit_price" :label="t('admin.plans.creditPrice')" :help="t('admin.plans.creditPriceHelp')"><UInputNumber v-model="pricing.credit_price" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 4 }" class="w-full" /></UFormField>
-          <UFormField name="provider_cost" :label="t('admin.plans.providerCost')" :help="t('admin.plans.providerCostHelp')"><UInputNumber v-model="pricing.provider_cost" :min="0.000001" :step="0.001" :format-options="{ style: 'currency', currency: 'EUR', maximumFractionDigits: 6 }" class="w-full" /></UFormField>
+          <UFormField name="credit_price" :label="`${t('admin.plans.creditPrice')} (${packageCurrency})`" :help="t('admin.plans.creditPriceHelp')"><UInputNumber v-model="pricing.credit_price" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: packageCurrency, maximumFractionDigits: 4 }" class="w-full" /></UFormField>
+          <UFormField name="provider_cost" :label="`${t('admin.plans.providerCost')} (${packageCurrency})`" :help="t('admin.plans.providerCostHelp')"><UInputNumber v-model="pricing.provider_cost" :min="0.000001" :step="0.001" :format-options="{ style: 'currency', currency: packageCurrency, maximumFractionDigits: 6 }" class="w-full" /></UFormField>
           <UFormField name="low_credit_threshold" :label="t('admin.plans.lowCreditThreshold')" :help="t('admin.plans.lowCreditThresholdHelp')" class="sm:col-span-2"><UInputNumber v-model="pricing.low_credit_threshold" :min="0" class="w-full" /></UFormField>
-          <UFormField name="post_price_chf" :label="'Post-Preis (CHF)'" :help="t('admin.settings.postPriceHint')"><UInputNumber v-model="postPriceChf" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'CHF', maximumFractionDigits: 2 }" class="w-full" /></UFormField>
+          <UFormField name="post_price" :label="`Post-Preis (${packageCurrency})`" :help="t('admin.settings.postPriceHint')"><UInputNumber v-model="postPriceChf" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: packageCurrency, maximumFractionDigits: 2 }" class="w-full" /></UFormField>
           <UFormField name="credits_per_post" :label="t('admin.settings.creditsPerPost')" :help="t('admin.settings.creditsPerPostHint')"><UInputNumber v-model="creditsPerPost" :min="1" :max="100000" class="w-full" /></UFormField>
-          <UFormField name="video_price_chf" :label="'Video-Preis (CHF)'" :help="t('admin.settings.videoPriceHint')"><UInputNumber v-model="videoPriceChf" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: 'CHF', maximumFractionDigits: 2 }" class="w-full" /></UFormField>
+          <UFormField name="video_price" :label="`Video-Preis (${packageCurrency})`" :help="t('admin.settings.videoPriceHint')"><UInputNumber v-model="videoPriceChf" :min="0.01" :step="0.01" :format-options="{ style: 'currency', currency: packageCurrency, maximumFractionDigits: 2 }" class="w-full" /></UFormField>
           <UFormField name="video_credits" :label="t('admin.plans.tiktokVideoCredits')" :help="t('admin.plans.tiktokVideoCreditsHelp')"><UInputNumber v-model="pricing.video_credits" :min="1" :max="100000" class="w-full" /></UFormField>
           <UAlert class="sm:col-span-2" :color="margin > 0 ? 'neutral' : 'error'" variant="subtle" icon="i-lucide-percent" :title="t('admin.plans.margin', { margin })" />
           <UButton type="submit" class="sm:col-span-2 justify-self-start" :loading="saving.pricing" :disabled="(!Object.keys(pricingChanges).length && !Object.keys(platformChanges).length) || pricingInvalid" :label="t('admin.plans.save')" />

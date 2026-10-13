@@ -1720,6 +1720,7 @@
   "landing.leadSubmit": "Send request",
   "request.estimateLabel": "Approximate monthly value",
   "request.estimatePerPost": "{{price}} per post",
+  "request.estimatePerVideo": "{{price}} per video",
   "landing.tryThreePostsFree": "Try 3 posts free",
   "landing.tryPostsFree": "Try {{count}} posts free",
   "landing.tryFreeTrial": "Try free",

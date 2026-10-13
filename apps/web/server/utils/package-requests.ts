@@ -77,6 +77,13 @@ export async function packageRequestVideoPrice() {
   return Number(result.rows[0]?.package_request_video_price_cents ?? 200)
 }
 
+export async function packageRequestCurrency() {
+  const result = await withUserTransaction('', client =>
+    client.query<{ package_currency: string }>('SELECT package_currency() AS package_currency'),
+  )
+  return result.rows[0]?.package_currency === 'EUR' ? 'EUR' : 'CHF'
+}
+
 /**
  * A keyed hash of the caller's address, so the rate limit can recognise a
  * repeat submitter without the address ever being stored. Requests are still
@@ -84,6 +91,9 @@ export async function packageRequestVideoPrice() {
  * should take the form offline.
  */
 export function submitterHash(event: H3Event) {
+  // Local test switch: returning no hash bypasses the database's per-address
+  // rate limit while preserving every other validation rule.
+  if (process.env.PACKAGE_REQUEST_RATE_LIMIT_DISABLED === 'true') return null
   const key = process.env.TRIAL_HASH_KEY
   if (!key || key.length < 32) return null
   const forwarded = getRequestHeader(event, 'x-forwarded-for') || ''

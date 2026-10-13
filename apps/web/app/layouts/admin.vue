@@ -3,7 +3,8 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 import { adminAuthClient } from '~/utils/auth-client'
 import { adminDashboardKey } from '~/utils/dashboard'
 
-const { t } = useI18n()
+const { t, setLocale } = useI18n()
+await setLocale('en-US')
 const toast = useToast()
 const route = useRoute()
 const { data: admin } = await useFetch('/api/admin/me', { key: 'admin-me', lazy: true })

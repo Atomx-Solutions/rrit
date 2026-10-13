@@ -1,16 +1,19 @@
 import { packageUsageSummary } from '../../utils/custom-packages'
 import { creditPricing } from '../../utils/credits'
-import { convertCurrency, getExchangeRate } from '../../utils/exchange-rates'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const { customPackage, packageProposal, creditPriceCents, currency, exchangeRate } = await withBusinessTransaction(user.id, async (client, business) => {
-    const workspaceResult = await client.query<{ currency: string | null }>(
-      `SELECT state->'preferences'->>'currency' AS currency FROM businesses WHERE id=$1`,
-      [business.id],
+    // Package and credit rates are platform settings. They are already stored
+    // in the central admin currency, so converting them a second time here
+    // turns CHF 99 into an incorrect CHF 92.20.
+    const currencyResult = await client.query<{ currency: string }>(
+      // This transaction runs with the organization's database role. Read the
+      // public setting through the security-definer function rather than
+      // granting organizations direct access to platform_settings.
+      `SELECT public.package_currency() AS currency`,
     )
-    const currency = workspaceResult.rows[0]?.currency === 'CHF' ? 'CHF' : 'EUR'
-    const exchangeRate = await getExchangeRate('EUR', currency)
+    const currency = currencyResult.rows[0]?.currency === 'EUR' ? 'EUR' : 'CHF'
     // A custom package is a negotiated agreement that replaces plan purchase
     // while it runs. Row level security scopes this read to the caller's own
     // organization, so the query does not filter by id itself.
@@ -67,7 +70,7 @@ export default defineEventHandler(async (event) => {
       // before asking for one instead of leaving the amount a mystery.
       creditPriceCents: (await creditPricing(client)).creditPriceCents,
       currency,
-      exchangeRate: exchangeRate.rate,
+      exchangeRate: 1,
     }
   })
   setHeader(event, 'Cache-Control', 'private, no-store')
@@ -75,7 +78,7 @@ export default defineEventHandler(async (event) => {
     currency,
     exchangeRate,
     // Keep per-credit precision; the UI rounds only the requested total.
-    creditPrice: convertCurrency(creditPriceCents / 100, exchangeRate, 6),
+    creditPrice: creditPriceCents / 100,
     packageProposal: packageProposal && {
       name: packageProposal.name,
       // The page states what the offer actually carries, so each kind is sent
@@ -83,7 +86,7 @@ export default defineEventHandler(async (event) => {
       postsIncluded: packageProposal.posts_included,
       videosIncluded: packageProposal.videos_included,
       creditsIncluded: packageProposal.credits_included,
-      price: convertCurrency(packageProposal.price_cents / 100, exchangeRate),
+      price: packageProposal.price_cents / 100,
       startsAt: new Date(packageProposal.starts_at).toISOString(),
       endsAt: new Date(packageProposal.ends_at).toISOString(),
     },
@@ -102,7 +105,7 @@ export default defineEventHandler(async (event) => {
         videosIncluded: customPackage.videos_included,
         usedVideos: customPackage.used_videos,
         remainingVideos: Math.max(0, customPackage.videos_included - customPackage.used_videos),
-        price: convertCurrency(customPackage.price_cents / 100, exchangeRate),
+        price: customPackage.price_cents / 100,
         startsAt,
         endsAt,
         ...usage,

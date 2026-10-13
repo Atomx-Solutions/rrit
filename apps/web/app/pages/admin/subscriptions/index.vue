@@ -4,6 +4,16 @@ import type { TableColumn } from '@nuxt/ui'
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
+const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
+  lazy: true,
+  key: 'admin-subscriptions-platform-currency',
+})
+const packageCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
+const { data: exchangeRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
+  lazy: true,
+  key: 'admin-subscriptions-currency-rate',
+  query: computed(() => ({ from: 'EUR', to: packageCurrency.value })),
+})
 useSeoMeta({ title: () => `${t('admin.nav.subscriptions')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 type Subscription = {
@@ -57,7 +67,15 @@ const statusTabs = computed(() => [
   ...['active', 'draft', 'cancelled', 'expired'].map(value => ({ label: t(`admin.status.${value}`), value })),
 ])
 
-const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const currencyFormatter = () => new Intl.NumberFormat('sq-XK', {
+  style: 'currency',
+  currency: packageCurrency.value,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+const euro = {
+  format: (value: number) => currencyFormatter().format(value * (exchangeRate.value?.rate || 1)),
+}
 const formatCents = (value: number | null) => (value == null ? '—' : euro.format(value / 100))
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))

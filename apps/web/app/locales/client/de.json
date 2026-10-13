@@ -1720,6 +1720,7 @@
   "landing.leadSubmit": "Anfrage senden",
   "request.estimateLabel": "Ungefährer Monatswert",
   "request.estimatePerPost": "{{price}} pro Beitrag",
+  "request.estimatePerVideo": "{{price}} pro Video",
   "landing.tryThreePostsFree": "3 Beiträge kostenlos testen",
   "landing.tryPostsFree": "{{count}} Beiträge kostenlos testen",
   "landing.tryFreeTrial": "Kostenlos testen",

@@ -67,12 +67,18 @@ watch(videosModel, (value) => {
 })
 // Suggested amounts come from a platform setting rather than this component,
 // because every organization still agrees its own volume.
-const { data: options } = await useFetch<{ postOptions: number[], postPriceCents: number }>(
+const { data: options } = await useFetch<{
+  postOptions: number[]
+  postPriceCents: number
+  videoPriceCents: number
+  currency: 'CHF' | 'EUR'
+}>(
   '/api/package-requests',
   {
-    key: 'package-request-options',
+    // LandingPackageRequest has its own ready-state default. A separate key
+    // avoids Nuxt merging the two incompatible useFetch option sets.
+    key: 'package-request-form-options',
     server: false,
-    default: () => ({ postOptions: [], postPriceCents: 0 }),
   },
 )
 const postOptions = computed(() => options.value?.postOptions || [])
@@ -80,9 +86,16 @@ const postOptions = computed(() => options.value?.postOptions || [])
 // asks for a volume without knowing what it implies; the team still confirms
 // the final figure in the offer.
 const postPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
+const videoPrice = computed(() => (options.value?.videoPriceCents || 0) / 100)
 const exchangeRate = computed(() => props.contactKnown ? (props.exchangeRate || 1) : 1)
 const displayPostPrice = computed(() => postPrice.value * exchangeRate.value)
-const estimatedTotal = computed(() => displayPostPrice.value * form.postsRequested)
+const displayVideoPrice = computed(() => videoPrice.value * exchangeRate.value)
+// A mixed request is one package: its estimate must include every requested
+// deliverable, not only the post volume.
+const estimatedTotal = computed(() =>
+  displayPostPrice.value * form.postsRequested
+  + displayVideoPrice.value * form.videosRequested,
+)
 const money = (value: number) =>
   new Intl.NumberFormat('sq-XK', { style: 'currency', currency: props.contactKnown ? props.currency : 'CHF' }).format(value)
 const platformOptions = computed(() => [
@@ -238,12 +251,12 @@ async function submit() {
         />
       </div>
     </UFormField>
-      <UFormField name="videosRequested" label="Videos pro Monat">
+      <UFormField name="videosRequested" :label="t('request.videos')">
         <UInputNumber
           v-model="form.videosRequested"
           :min="0"
           :max="1000"
-          aria-label="Videos pro Monat"
+          :aria-label="t('request.videos')"
           class="w-full"
         />
       </UFormField>
@@ -318,11 +331,14 @@ async function submit() {
         />
       </UFormField>
     </div>
-    <div v-if="displayPostPrice > 0 && !lean" class="request-estimate">
+    <div v-if="(displayPostPrice > 0 || displayVideoPrice > 0) && !lean" class="request-estimate">
       <div>
         <p class="request-estimate-label">{{ t('request.estimateLabel') }}</p>
-        <p class="request-estimate-note">
+        <p v-if="displayPostPrice > 0" class="request-estimate-note">
           {{ t('request.estimatePerPost', { price: money(displayPostPrice) }) }}
+        </p>
+        <p v-if="form.videosRequested > 0 && displayVideoPrice > 0" class="request-estimate-note">
+          {{ t('request.estimatePerVideo', { price: money(displayVideoPrice) }) }}
         </p>
       </div>
       <p class="request-estimate-total">{{ money(estimatedTotal) }}</p>

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { formatMoney } from '~~/shared/utils/format'
 import type { AdminPackageRequest } from './AdminPackageRequestDetails.vue'
 
 /**
@@ -17,10 +16,20 @@ const emit = defineEmits<{ close: []; done: [] }>()
 const { t } = useI18n()
 const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
+const { data: platformSettings } = await useFetch<{
+  package_currency: 'CHF' | 'EUR'
+  custom_package_post_price_cents: number
+  custom_package_video_price_cents: number
+}>('/api/admin/settings', {
+  lazy: true,
+  key: 'admin-package-request-currency',
+})
+const currency = computed(() => platformSettings.value?.package_currency || 'CHF')
 
 type OrganizationRow = { id: string; name: string }
 const search = ref('')
-const newOrganizationName = ref('')
+const invitation = reactive({ name: '', email: '' })
+const invitationUrl = ref('')
 const creatingOrganization = ref(false)
 // A landing lead has no account yet, so the picker is only loaded when the
 // request did not arrive from inside the app.
@@ -38,21 +47,41 @@ function slugFor(value: string) {
   return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70)
 }
-async function createOrganization() {
-  const name = newOrganizationName.value.trim()
+async function inviteClientAndCreateOrganization() {
+  if (!props.request) return
+  const name = invitation.name.trim()
+  const email = invitation.email.trim()
   const slug = slugFor(name)
-  if (name.length < 2 || slug.length < 2) {
+  if (name.length < 2 || slug.length < 2 || !/^\S+@\S+\.\S+$/.test(email)) {
     error.value = t('admin.requests.organizationInvalid')
     return
   }
   creatingOrganization.value = true
   error.value = ''
   try {
-    const organization = await $fetch<OrganizationRow>('/api/v1/organizations', {
-      method: 'POST', body: { name, slug },
+    // This is deliberately the same path used by "Invite client": it opens
+    // the organization and gives the lead an owner invitation in one action.
+    // Creating a bare organization here left a public lead without an account
+    // invitation or a way to access the agreed package.
+    const result = await $fetch<{ url: string; organization: OrganizationRow }>('/api/admin/invitations', {
+      method: 'POST',
+      body: {
+        name,
+        slug,
+        email,
+        role: 'owner',
+        expires_days: 7,
+        package_request_id: props.request.id,
+        profile: {
+          businessName: name,
+          contactName: props.request.contact_name,
+          phone: props.request.phone || undefined,
+          industry: props.request.industry || undefined,
+        },
+      },
     })
-    form.organizationId = organization.id
-    newOrganizationName.value = ''
+    form.organizationId = result.organization.id
+    invitationUrl.value = result.url
     await refreshOrganizations()
   } catch (problem) {
     error.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.requests.organizationCreateFailed')
@@ -65,49 +94,29 @@ const form = reactive({
   organizationId: '',
   name: '',
   postsIncluded: 20,
+  videosIncluded: 0,
   postPriceEuro: 1.5,
+  videoPriceEuro: 0,
   priceEuro: 30,
   startsAt: '',
   endsAt: '',
   notes: '',
 })
 const postPriceCents = computed(() => Math.round(form.postPriceEuro * 100))
-const suggestedCents = computed(() => form.postsIncluded * postPriceCents.value)
-const priceCents = computed(() => Math.round(form.priceEuro * 100))
+const videoPriceCents = computed(() => Math.round(form.videoPriceEuro * 100))
+const suggestedCents = computed(() => form.postsIncluded * postPriceCents.value + form.videosIncluded * videoPriceCents.value)
+watch(platformSettings, (settings) => {
+  if (!settings) return
+  form.postPriceEuro = settings.custom_package_post_price_cents / 100
+  form.videoPriceEuro = settings.custom_package_video_price_cents / 100
+  form.priceEuro = suggestedCents.value / 100
+}, { immediate: true })
 // The rate cannot always divide the total evenly, so an agreed total of 45.61
 // over 30 posts keeps that total and shows the nearest rate beside it.
-const overridden = computed(() => priceCents.value !== suggestedCents.value)
 
 function dayToIso(value: string) {
   return new Date(`${value}T00:00:00.000Z`).toISOString()
 }
-
-// The three amounts are one equation: posts times the rate is the total. Editing
-// any of them moves the other that follows from it, so the figures on screen
-// always describe the same agreement. The guard stops one edit from bouncing
-// back through the field that caused it.
-let syncing = false
-function sync(update: () => void) {
-  if (syncing) return
-  syncing = true
-  update()
-  syncing = false
-}
-watch(
-  [() => form.postsIncluded, () => form.postPriceEuro],
-  () => sync(() => {
-    form.priceEuro = Math.round(suggestedCents.value) / 100
-  }),
-  { flush: 'sync' },
-)
-watch(
-  () => form.priceEuro,
-  () => sync(() => {
-    if (form.postsIncluded > 0)
-      form.postPriceEuro = Math.round(priceCents.value / form.postsIncluded) / 100
-  }),
-  { flush: 'sync' },
-)
 
 watch(
   () => props.request?.id,
@@ -121,29 +130,23 @@ watch(
       organizationId: request.organization_id || '',
       name: request.organization_name || request.business_name || request.contact_name,
       postsIncluded: request.posts_requested,
+      videosIncluded: request.videos_requested || 0,
       startsAt: today.toISOString().slice(0, 10),
       endsAt: inAMonth.toISOString().slice(0, 10),
       notes: request.message || '',
     })
+    Object.assign(invitation, {
+      name: request.business_name || request.contact_name,
+      email: request.contact_email,
+    })
+    invitationUrl.value = ''
     if (!request.organization_id) await refreshOrganizations()
-    await loadRate()
+    // Start with the dynamic net package total. The admin can still override
+    // the agreed price manually before sending the proposal.
+    form.priceEuro = suggestedCents.value / 100
   },
   { immediate: true },
 )
-
-// The platform rate is only the starting point; it is per organization from here.
-async function loadRate() {
-  if (!form.organizationId) return
-  try {
-    const settings = await $fetch<{ post_price_cents: number }>(
-      `/api/admin/organizations/${form.organizationId}/packages`,
-    )
-    form.postPriceEuro = settings.post_price_cents / 100
-  } catch {
-    // The default in the form stands when the rate cannot be read.
-  }
-}
-watch(() => form.organizationId, loadRate)
 
 const saving = ref(false)
 const error = ref('')
@@ -163,8 +166,12 @@ async function submit() {
       body: {
         name: form.name.trim(),
         posts_included: form.postsIncluded,
+        videos_included: form.videosIncluded,
         post_price_cents: postPriceCents.value,
-        price_cents: priceCents.value,
+        video_price_cents: videoPriceCents.value,
+        // The offer price is always derived from the configured item rates.
+        // VAT is added later when the invoice is issued.
+        price_cents: suggestedCents.value,
         starts_at: dayToIso(form.startsAt),
         ends_at: dayToIso(form.endsAt),
         status: 'draft',
@@ -184,6 +191,15 @@ async function submit() {
       = t((problem as { data?: { message?: string } }).data?.message || 'admin.requests.convertFailed')
   } finally {
     saving.value = false
+  }
+}
+
+async function copyInvitationLink() {
+  try {
+    await navigator.clipboard.writeText(invitationUrl.value)
+    toast.add({ title: 'Invitation link copied.', color: 'success' })
+  } catch {
+    error.value = 'The invitation link could not be copied.'
   }
 }
 </script>
@@ -212,9 +228,19 @@ async function submit() {
             searchable
             class="w-full"
           />
-          <div class="mt-2 flex gap-2">
-            <UInput v-model="newOrganizationName" :placeholder="t('admin.requests.newOrganizationPlaceholder')" class="flex-1" />
-            <UButton color="neutral" variant="outline" :loading="creatingOrganization" :label="t('admin.requests.createOrganization')" @click="createOrganization" />
+          <div v-if="!form.organizationId" class="mt-3 space-y-2 rounded-lg border border-default bg-elevated/30 p-3">
+            <p class="text-xs text-muted">
+              Invite the lead to create their client account and business. The package request is linked automatically.
+            </p>
+            <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+              <UInput v-model="invitation.name" placeholder="Business name" maxlength="120" />
+              <UInput v-model="invitation.email" type="email" placeholder="Client email" maxlength="320" />
+              <UButton type="button" color="neutral" variant="outline" :loading="creatingOrganization" label="Invite client" @click="inviteClientAndCreateOrganization" />
+            </div>
+          </div>
+          <div v-else-if="invitationUrl" class="mt-3 flex items-center gap-2 rounded-lg border border-default bg-elevated/30 p-2">
+            <UInput :model-value="invitationUrl" readonly class="min-w-0 flex-1 font-mono text-xs" />
+            <UButton type="button" icon="i-lucide-copy" color="neutral" variant="outline" aria-label="Copy invitation link" @click="copyInvitationLink" />
           </div>
         </UFormField>
         <UFormField name="name" :label="t('admin.packages.name')" required>
@@ -229,34 +255,38 @@ async function submit() {
           >
             <UInputNumber v-model="form.postsIncluded" :min="0" :max="1000" class="w-full" />
           </UFormField>
-          <UFormField name="postPriceEuro" :label="t('admin.packages.postPrice')" required>
+          <UFormField name="postPriceEuro" :label="`${t('admin.packages.postPrice')} (${currency})`" required>
             <UInputNumber
               v-model="form.postPriceEuro"
               :min="0.01"
               :max="10000"
               :step="0.01"
-              :format-options="{ style: 'currency', currency: 'EUR' }"
+              :format-options="{ style: 'currency', currency }"
               class="w-full"
             />
           </UFormField>
         </div>
+        <div v-if="form.videosIncluded > 0" class="grid gap-4 sm:grid-cols-2">
+          <UFormField name="videosIncluded" label="Videos" :hint="`Asked for ${request?.videos_requested ?? 0}`" required>
+            <UInputNumber v-model="form.videosIncluded" :min="0" :max="1000" class="w-full" />
+          </UFormField>
+          <UFormField name="videoPriceEuro" :label="`Video price (${currency})`" required>
+            <UInputNumber v-model="form.videoPriceEuro" :min="0.01" :max="10000" :step="0.01" :format-options="{ style: 'currency', currency }" class="w-full" />
+          </UFormField>
+        </div>
         <UFormField
           name="priceEuro"
-          :label="t('admin.packages.price')"
-          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, 'EUR') })"
+          label="Offer price"
+          :hint="`Calculated from the configured post and video prices. VAT is added on the invoice.`"
           required
         >
           <UInputNumber
-            v-model="form.priceEuro"
-            :min="0"
-            :step="0.01"
-            :format-options="{ style: 'currency', currency: 'EUR' }"
+            :model-value="suggestedCents / 100"
+            :format-options="{ style: 'currency', currency }"
+            disabled
             class="w-full"
           />
         </UFormField>
-        <p v-if="overridden" class="text-xs text-muted">
-          {{ t('admin.packages.overriddenHint') }}
-        </p>
         <div class="grid gap-4 sm:grid-cols-2">
           <UFormField name="startsAt" :label="t('admin.packages.startsAt')" required>
             <UInput v-model="form.startsAt" type="date" class="w-full" />
