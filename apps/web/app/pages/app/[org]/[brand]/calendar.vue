@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   calendarPeriod,
+  defaultCalendarView,
   dayInZone,
   moveCalendar,
   type CalendarView,
@@ -12,7 +13,7 @@ const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.calendar')} · Framic` })
 const today = computed(() => dayInZone(new Date(), data.value.preferences.timezone))
 const anchor = ref(today.value)
-const view = ref<CalendarView>('list')
+const view = ref<CalendarView>(defaultCalendarView)
 const monthNames = computed(() => [
   t('calendar.months.january'),
   t('calendar.months.february'),
