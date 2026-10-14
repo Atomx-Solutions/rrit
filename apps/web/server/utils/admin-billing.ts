@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { adminServiceClient } from './admin-supabase'
 
+export const invoicePaymentFilters = ['paid', 'unpaid', 'overdue', 'credited'] as const
+
 const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -14,7 +16,51 @@ export const adminBillingInvoicesQuerySchema = z.object({
   source_type: z.enum(['subscription_activation', 'subscription_upgrade', 'credit_top_up', 'credit_note', 'custom_package', 'video_purchase']).optional(),
   from: isoDate.optional(),
   to: isoDate.optional(),
+  payment: z.enum(invoicePaymentFilters).optional(),
 })
+
+export const invoicePaymentMethods = ['cash', 'bank_transfer', 'card', 'other'] as const
+
+export const invoicePaymentChangeSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('paid'),
+    paid_at: isoDate,
+    method: z.enum(invoicePaymentMethods),
+    note: z.string().trim().max(500).optional(),
+  }).strict(),
+  z.object({ status: z.literal('unpaid') }).strict(),
+])
+
+const paymentFailures: Record<string, { statusCode: number; message: string }> = {
+  INVOICE_PAYMENT_NOT_FOUND: { statusCode: 404, message: 'server.INVOICE_NOT_FOUND' },
+  INVOICE_PAYMENT_INVALID: { statusCode: 400, message: 'server.VALUES_INVALID' },
+}
+
+/** Records a payment on an invoice, or clears one recorded by mistake. */
+export async function setInvoicePayment(
+  actor: { id: string; email: string },
+  invoiceId: string,
+  change: z.infer<typeof invoicePaymentChangeSchema>,
+) {
+  const paid = change.status === 'paid' ? change : null
+  const { data, error } = await adminServiceClient().rpc('admin_set_invoice_payment', {
+    p_actor_id: actor.id,
+    p_actor_email: actor.email,
+    p_invoice_id: invoiceId,
+    p_status: change.status,
+    p_paid_at: paid ? `${paid.paid_at}T12:00:00Z` : null,
+    p_method: paid?.method ?? null,
+    p_note: paid?.note ?? null,
+  })
+  if (error) {
+    const failure = paymentFailures[error.message]
+    if (failure)
+      throw createError({ statusCode: failure.statusCode, message: failure.message, data: { code: error.message } })
+    console.error('Admin invoice payment update failed.', { code: error.code, message: error.message })
+    throw createError({ statusCode: 502, message: 'server.SETTINGS_NOT_SAVED' })
+  }
+  return data as Record<string, unknown>
+}
 
 export type AdminBillingInvoicesQuery = z.infer<typeof adminBillingInvoicesQuerySchema>
 
@@ -27,6 +73,7 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
     p_source_type: query.source_type ?? null,
     p_from: query.from ? `${query.from}T00:00:00Z` : null,
     p_to: query.to ? `${query.to}T00:00:00Z` : null,
+    p_payment: query.payment ?? null,
   })
   if (error) {
     console.error('Admin billing invoices query failed.', { code: error.code, message: error.message })
@@ -47,6 +94,11 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
       source_type: string
       currency: string
       lines: unknown[]
+      payment_status: (typeof invoicePaymentFilters)[number] | null
+      due_at: string | null
+      paid_at: string | null
+      payment_method: (typeof invoicePaymentMethods)[number] | null
+      payment_note: string | null
     }>
     summary: {
       total_revenue_cents: number
@@ -54,6 +106,8 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
       gross_revenue_cents: number
       net_revenue_cents: number
       vat_cents: number
+      outstanding_cents: number
+      overdue_cents: number
       this_month_cents: number
       this_month_net_cents: number
     }

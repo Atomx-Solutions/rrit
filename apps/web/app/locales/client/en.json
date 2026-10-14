@@ -2087,6 +2087,7 @@
   "server.OFFER_DEACTIVATION_INVALID": "The offer cannot be deactivated.",
   "server.BILLING_MANAGED_BY_ADMIN": "The package and credits are managed by the admin team.",
   "server.CREDITS_EXHAUSTED": "The credits have been used up.",
+  "server.PAYMENT_OVERDUE": "Your package is paused because an invoice is overdue. Please contact us.",
   "server.WORKER_DATABASE_NOT_CONFIGURED": "The worker database is not configured.",
   "server.SERVER_STORAGE_NOT_CONFIGURED": "Server storage is not configured yet.",
   "server.META_CONFIG_INVALID": "The Meta configuration is not valid.",

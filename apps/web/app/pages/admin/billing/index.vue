@@ -3,7 +3,7 @@ import type { TableColumn } from '@nuxt/ui'
 
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
-const { showError } = useFormFeedback()
+const { showError, showSuccess } = useFormFeedback()
 const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
   lazy: true,
   key: 'admin-billing-platform-currency',
@@ -30,7 +30,15 @@ type Invoice = {
   source_type: string
   currency: string
   lines: unknown[]
+  payment_status: PaymentStatus | null
+  due_at: string | null
+  paid_at: string | null
+  payment_method: PaymentMethod | null
+  payment_note: string | null
 }
+
+type PaymentStatus = 'paid' | 'unpaid' | 'overdue' | 'credited'
+type PaymentMethod = 'cash' | 'bank_transfer' | 'card' | 'other'
 
 type BillingResponse = {
   invoices: Invoice[]
@@ -40,6 +48,8 @@ type BillingResponse = {
     gross_revenue_cents: number
     net_revenue_cents: number
     vat_cents: number
+    outstanding_cents: number
+    overdue_cents: number
     this_month_cents: number
     this_month_net_cents: number
   }
@@ -58,14 +68,19 @@ const dateFilters = reactive({ from: '', to: '' })
 // proposal flow, so the list separates them by what was actually bought.
 const sourceKinds = ['all', 'custom_package', 'video_purchase', 'credit_top_up'] as const
 const search = reactive({ org: '', number: '', source: 'all' as (typeof sourceKinds)[number] })
+// Payment state is filtered by the API, so the outstanding totals and the
+// page count describe the same invoices the table shows.
+const paymentFilters = ['all', 'unpaid', 'overdue', 'paid'] as const
+const paymentFilter = ref<(typeof paymentFilters)[number]>('all')
 
-watch([() => dateFilters.from, () => dateFilters.to], () => { page.value = 1 })
+watch([() => dateFilters.from, () => dateFilters.to, paymentFilter], () => { page.value = 1 })
 
 const query = computed(() => ({
   page: page.value,
   per_page: pageSize.value,
   ...(dateFilters.from ? { from: dateFilters.from } : {}),
   ...(dateFilters.to ? { to: dateFilters.to } : {}),
+  ...(paymentFilter.value !== 'all' ? { payment: paymentFilter.value } : {}),
 }))
 
 const { data, status, error, refresh } = await useFetch<BillingResponse>('/api/admin/billing/invoices', {
@@ -111,11 +126,14 @@ const summaryTiles = computed(() => {
     { label: t('admin.billing.grossRevenue'), value: formatSummaryCents(s.gross_revenue_cents), icon: 'i-lucide-receipt' },
     { label: t('admin.billing.netRevenue'), value: formatSummaryCents(s.net_revenue_cents), icon: 'i-lucide-trending-up' },
     { label: t('admin.billing.vat'), value: formatSummaryCents(s.vat_cents), icon: 'i-lucide-landmark' },
+    { label: t('admin.billing.payment.outstanding'), value: formatSummaryCents(s.outstanding_cents), icon: 'i-lucide-hourglass' },
+    { label: t('admin.billing.payment.overdueTotal'), value: formatSummaryCents(s.overdue_cents), icon: 'i-lucide-alert-triangle' },
   ]
 })
 
 const hasFilters = computed(() =>
-  !!(dateFilters.from || dateFilters.to || search.org || search.number) || search.source !== 'all',
+  !!(dateFilters.from || dateFilters.to || search.org || search.number)
+  || search.source !== 'all' || paymentFilter.value !== 'all',
 )
 function clearFilters() {
   dateFilters.from = ''
@@ -123,6 +141,53 @@ function clearFilters() {
   search.org = ''
   search.number = ''
   search.source = 'all'
+  paymentFilter.value = 'all'
+}
+
+const paymentColor: Record<PaymentStatus, 'success' | 'warning' | 'error' | 'neutral'> = {
+  paid: 'success',
+  unpaid: 'warning',
+  overdue: 'error',
+  credited: 'neutral',
+}
+const formatDay = (value: string) =>
+  new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
+
+const paymentMethods: PaymentMethod[] = ['bank_transfer', 'cash', 'card', 'other']
+const paying = ref<Invoice | null>(null)
+const paymentForm = reactive({ paid_at: today, method: 'bank_transfer' as PaymentMethod, note: '' })
+const savingPayment = ref(false)
+function openPayment(inv: Invoice) {
+  paymentForm.paid_at = today
+  paymentForm.method = 'bank_transfer'
+  paymentForm.note = ''
+  paying.value = inv
+}
+async function savePayment(inv: Invoice, body: Record<string, unknown>, successKey: string) {
+  savingPayment.value = true
+  try {
+    await $fetch(`/api/admin/billing/invoices/${inv.id}/payment`, { method: 'PATCH', body })
+    showSuccess(t(successKey, { number: inv.number }))
+    paying.value = null
+    await refresh()
+  } catch {
+    showError(t('admin.billing.payment.saveError'))
+  } finally {
+    savingPayment.value = false
+  }
+}
+function markPaid() {
+  if (!paying.value) return
+  const note = paymentForm.note.trim()
+  void savePayment(paying.value, {
+    status: 'paid',
+    paid_at: paymentForm.paid_at,
+    method: paymentForm.method,
+    ...(note ? { note } : {}),
+  }, 'admin.billing.payment.markedPaid')
+}
+function markUnpaid(inv: Invoice) {
+  void savePayment(inv, { status: 'unpaid' }, 'admin.billing.payment.markedUnpaid')
 }
 
 const preview = ref<Invoice | null>(null)
@@ -149,6 +214,7 @@ const columns = computed<TableColumn<Invoice>[]>(() => [
   { id: 'kind', header: t('admin.billing.kind'), meta: wide },
   { id: 'source', header: t('admin.billing.filterSource'), meta: wide },
   { id: 'issued_at', header: t('admin.billing.issuedAt') },
+  { id: 'payment', header: t('admin.billing.payment.column') },
   { id: 'total', header: t('admin.billing.total'), meta: endAligned },
   { id: 'actions', header: '', meta: endAligned },
 ])
@@ -167,7 +233,7 @@ const sourceLabel: Record<string, string> = {
   <AdminPage :title="t('admin.nav.billing')">
     <!-- Summary tiles -->
     <UCard v-if="summaryTiles.length" class="shrink-0" :ui="{ body: 'p-4 sm:p-5' }">
-      <UPageGrid class="grid-cols-1 gap-3 sm:grid-cols-3">
+      <UPageGrid class="grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <UCard
           v-for="tile in summaryTiles"
           :key="tile.label"
@@ -199,6 +265,13 @@ const sourceLabel: Record<string, string> = {
             <USelect
               v-model="search.source"
               :items="sourceKinds.map(value => ({ label: t(`admin.billing.sourceFilter.${value}`), value }))"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField :label="t('admin.billing.payment.column')" class="w-40">
+            <USelect
+              v-model="paymentFilter"
+              :items="paymentFilters.map(value => ({ label: t(`admin.billing.payment.filter.${value}`), value }))"
               class="w-full"
             />
           </UFormField>
@@ -258,12 +331,47 @@ const sourceLabel: Record<string, string> = {
         <template #issued_at-cell="{ row }">
           {{ formatDate(row.original.issued_at) }}
         </template>
+        <template #payment-cell="{ row }">
+          <div v-if="row.original.payment_status" class="flex flex-col items-start gap-0.5">
+            <UBadge
+              :color="paymentColor[row.original.payment_status]"
+              variant="subtle"
+              :label="t(`admin.billing.payment.status.${row.original.payment_status}`)"
+            />
+            <span v-if="row.original.payment_status === 'paid' && row.original.paid_at" class="text-xs text-muted">
+              {{ formatDay(row.original.paid_at) }} · {{ t(`admin.billing.payment.method.${row.original.payment_method}`) }}
+            </span>
+            <span v-else-if="row.original.due_at && row.original.payment_status !== 'credited'" class="text-xs text-muted">
+              {{ t('admin.billing.payment.dueOn', { date: formatDay(row.original.due_at) }) }}
+            </span>
+          </div>
+          <span v-else class="text-muted">—</span>
+        </template>
         <template #total-cell="{ row }">
           <span :class="row.original.kind === 'credit_note' ? 'text-warning' : ''">
             {{ formatCents(row.original.total_cents, row.original.currency) }}
           </span>
         </template>
         <template #actions-cell="{ row }">
+          <UButton
+            v-if="row.original.payment_status === 'unpaid' || row.original.payment_status === 'overdue'"
+            icon="i-lucide-badge-check"
+            color="success"
+            variant="ghost"
+            size="xs"
+            :aria-label="`${t('admin.billing.payment.markPaid')} ${row.original.number}`"
+            @click="openPayment(row.original)"
+          />
+          <UButton
+            v-else-if="row.original.payment_status === 'paid'"
+            icon="i-lucide-undo-2"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :loading="savingPayment"
+            :aria-label="`${t('admin.billing.payment.markUnpaid')} ${row.original.number}`"
+            @click="markUnpaid(row.original)"
+          />
           <UButton
             icon="i-lucide-eye"
             color="neutral"
@@ -308,6 +416,44 @@ const sourceLabel: Record<string, string> = {
           variant="outline"
           label="PDF"
         />
+      </template>
+    </UModal>
+
+    <UModal
+      :open="!!paying"
+      :title="t('admin.billing.payment.markPaid')"
+      :description="paying ? `${paying.number} · ${paying.organization_name}` : ''"
+      @update:open="(value: boolean) => { if (!value) paying = null }"
+    >
+      <template #body>
+        <div class="flex flex-col gap-4">
+          <UFormField :label="t('admin.billing.payment.paidAt')">
+            <UInput v-model="paymentForm.paid_at" type="date" :max="today" class="w-full" />
+          </UFormField>
+          <UFormField :label="t('admin.billing.payment.methodLabel')">
+            <USelect
+              v-model="paymentForm.method"
+              :items="paymentMethods.map(value => ({ label: t(`admin.billing.payment.method.${value}`), value }))"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField :label="t('admin.billing.payment.note')">
+            <UTextarea v-model="paymentForm.note" :rows="2" :maxlength="500" class="w-full" />
+          </UFormField>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="outline" :label="t('admin.billing.payment.cancel')" @click="paying = null" />
+          <UButton
+            color="success"
+            icon="i-lucide-badge-check"
+            :loading="savingPayment"
+            :disabled="!paymentForm.paid_at"
+            :label="t('admin.billing.payment.confirmPaid')"
+            @click="markPaid"
+          />
+        </div>
       </template>
     </UModal>
 

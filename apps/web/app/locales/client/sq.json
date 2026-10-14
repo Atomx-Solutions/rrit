@@ -2087,6 +2087,7 @@
   "server.OFFER_DEACTIVATION_INVALID": "Oferta nuk mund te çaktivizohet.",
   "server.BILLING_MANAGED_BY_ADMIN": "Paketa dhe kreditet menaxhohen nga ekipi i administrimit.",
   "server.CREDITS_EXHAUSTED": "Kreditet kane perfunduar.",
+  "server.PAYMENT_OVERDUE": "Paketa jote është pezulluar sepse një faturë ka kaluar afatin e pagesës. Na kontakto.",
   "server.WORKER_DATABASE_NOT_CONFIGURED": "Databaza e worker-it nuk është konfiguruar.",
   "server.SERVER_STORAGE_NOT_CONFIGURED": "Ruajtja në server ende nuk është konfiguruar.",
   "server.META_CONFIG_INVALID": "Konfigurimi i Meta-s nuk është i vlefshëm.",
