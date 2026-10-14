@@ -15,17 +15,22 @@
   "
 >
   <img src="/f-logo.png" width="44" height="44" alt="" style="margin: auto" />
-  <strong data-loading-locale="sq">Po përgatisim hapësirën tënde…</strong>
+  <strong data-loading-locale="de">Dein Workspace wird vorbereitet…</strong>
   <strong data-loading-locale="en" hidden>Preparing your workspace…</strong>
+  <strong data-loading-locale="sq" hidden>Po përgatisim hapësirën tënde…</strong>
   <noscript>
-    <span data-loading-locale="sq">Aktivizo JavaScript për hapësirën e punës. Faqja publike është e lexueshme edhe pa të.</span>
+    <span data-loading-locale="de">Aktiviere JavaScript für deinen Workspace. Die öffentliche Website ist auch ohne JavaScript lesbar.</span>
     <span data-loading-locale="en" hidden>Enable JavaScript for your workspace. The public site is still readable without it.</span>
+    <span data-loading-locale="sq" hidden>Aktivizo JavaScript për hapësirën e punës. Faqja publike është e lexueshme edhe pa të.</span>
   </noscript>
   <script>
     (() => {
-      const locale = document.cookie.match(/(?:^|; )rrit-locale=([^;]+)/)?.[1] || 'sq-XK'
-      const language = decodeURIComponent(locale).toLowerCase().startsWith('en') ? 'en' : 'sq'
-      document.documentElement.lang = language
+      // Mirrors useI18n: no cookie yet means the Swiss German default.
+      const locale = decodeURIComponent(
+        document.cookie.match(/(?:^|; )rrit-locale=([^;]+)/)?.[1] || 'de-CH',
+      ).toLowerCase()
+      const language = locale.startsWith('de') ? 'de' : locale.startsWith('en') ? 'en' : 'sq'
+      document.documentElement.lang = language === 'de' ? 'de-CH' : language
       document.querySelectorAll('[data-loading-locale]').forEach((element) => {
         element.hidden = element.dataset.loadingLocale !== language
       })

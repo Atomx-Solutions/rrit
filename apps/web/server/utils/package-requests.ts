@@ -8,7 +8,7 @@ import { withUserTransaction } from './database'
  * much they need, and the team answers with an offer.
  */
 export const packageRequestPlatformSchema = z.enum(['instagram', 'facebook', 'both'])
-export const packageRequestSchema = z.object({
+const packageRequestFields = z.object({
   contactName: z.string().trim().min(2).max(120),
   contactEmail: z.email().max(320),
   phone: z.string().trim().min(4).max(40),
@@ -17,17 +17,22 @@ export const packageRequestSchema = z.object({
   platform: packageRequestPlatformSchema.optional(),
   // A predefined amount and a typed one are the same answer to the database:
   // what matters is the number the visitor settled on.
-  postsRequested: z.number().int().min(1).max(1000),
+  // Posts or videos alone are both a package; asking for neither is not.
+  postsRequested: z.number().int().min(0).max(1000),
   videosRequested: z.number().int().min(0).max(1000).default(0),
   message: z.string().trim().max(2000).optional(),
 })
+export const packageRequestSchema = packageRequestFields.refine(
+  (value) => value.postsRequested > 0 || value.videosRequested > 0,
+  { message: 'server.REQUEST_POSTS_OR_VIDEOS', path: ['postsRequested'] },
+)
 export type PackageRequestInput = z.infer<typeof packageRequestSchema>
 
 /**
  * From inside the app the contact is whoever is signed in, so identity is taken
  * from the session rather than accepted from the request body.
  */
-export const appPackageRequestSchema = packageRequestSchema
+export const appPackageRequestSchema = packageRequestFields
   .pick({ message: true })
   .extend({
     // Inside the app a request may be for posts, for credits, or for both.

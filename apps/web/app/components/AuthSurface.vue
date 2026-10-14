@@ -195,9 +195,10 @@ async function submit() {
         redirectTo: '/reset-password',
       })
       if (result.error) error.value = errorText(result.error)
-      else
+      else {
         success.value = t('auth.recoveryRequested')
         showSuccess(success.value)
+      }
     } else if (props.mode === 'verify') {
       const result = await authClient.sendVerificationEmail({
         email: state.email.trim(),

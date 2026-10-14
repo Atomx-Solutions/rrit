@@ -713,11 +713,6 @@ td {
   font-weight: 550;
   color: var(--ui-text-highlighted);
 }
-.request-estimate-note {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--ui-text-muted);
-}
 .request-estimate-total {
   font-size: 20px;
   font-weight: 600;
