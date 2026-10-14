@@ -5,7 +5,7 @@ import type { Post } from '~~/shared/schemas/workspace'
 const channelIcons: Record<Post['channel'], string> = {
   Instagram: 'i-lucide-instagram',
   Facebook: 'i-lucide-facebook',
-  TikTok: 'i-lucide-music',
+  TikTok: 'i-simple-icons-tiktok',
 }
 
 export function channelIcon(channel: Post['channel']) {

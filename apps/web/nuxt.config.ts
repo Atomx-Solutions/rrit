@@ -33,7 +33,7 @@ export default defineNuxtConfig({
   ui: { fonts: false },
   colorMode: { preference: 'light', fallback: 'light' },
   icon: {
-    serverBundle: { collections: ['lucide', 'flag'] },
+    serverBundle: { collections: ['lucide', 'flag', 'simple-icons'] },
     clientBundle: { scan: { globInclude: ['app/**/*.{vue,ts}'] } },
   },
   typescript: { strict: true },
