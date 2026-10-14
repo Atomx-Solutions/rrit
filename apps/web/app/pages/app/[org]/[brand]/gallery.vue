@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { Asset, Post } from '~~/shared/schemas/workspace'
+import { galleryAssets } from '~/utils/gallery-assets'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, commit, notify, initLive } = useWorkspace()
 const { t } = useI18n()
 const route = useRoute()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Framic` })
 const query = ref('')
-const assetFilter = ref<'all' | 'original' | 'generated' | 'generated-video'>('all')
+const assetFilter = ref<'all' | 'original'>('all')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
 const deleteOpen = ref(false)
@@ -73,7 +74,7 @@ function openDetail(asset: Asset) {
   void resolveVideo(asset)
 }
 const allAssets = computed(() =>
-  data.value.assets.filter((a) =>
+  galleryAssets(data.value.assets).filter((a) =>
     `${a.name} ${a.tags.join(' ')}`
       .toLocaleLowerCase('sq')
       .includes(query.value.trim().toLocaleLowerCase('sq')),
@@ -81,13 +82,10 @@ const allAssets = computed(() =>
 )
 const assets = computed(() =>
   allAssets.value.filter((asset) => {
-    if (assetFilter.value === 'generated') return asset.generated && !videoPostFor(asset)
     if (assetFilter.value === 'original') return !asset.generated
-    if (assetFilter.value === 'generated-video') return !!videoPostFor(asset)
     return true
   }),
 )
-const generatedFilterActive = computed(() => assetFilter.value === 'generated' || assetFilter.value === 'generated-video')
 const viewerAssets = computed(() => allAssets.value.filter((asset) => asset.kind === 'photo'))
 const viewerAsset = computed(() => viewerAssets.value[viewerIndex.value] || null)
 function openViewer(asset: Asset) {
@@ -140,8 +138,6 @@ onMounted(() => window.addEventListener('keydown', onViewerKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 const filterTabs = computed(() => [
   { label: t('gallery.allAssets'), value: 'all' },
-  { label: t('gallery.generatedAssets'), value: 'generated' },
-  { label: t('gallery.generatedVideos'), value: 'generated-video' },
   { label: t('gallery.originalAssets'), value: 'original' },
 ])
 const { page, pageSize, total, paginated } = usePagination(assets)
@@ -324,7 +320,7 @@ async function saveMetadata() {
             size="sm"
             :aria-label="t('gallery.assetFilter')"
           />
-          <span role="status" class="text-sm text-muted">{{ assets.length }} {{ assetFilter === 'generated-video' ? t('gallery.videos') : assetFilter === 'all' ? t('gallery.items') : t('gallery.photos') }}</span
+          <span role="status" class="text-sm text-muted">{{ assets.length }} {{ assetFilter === 'all' ? t('gallery.items') : t('gallery.photos') }}</span
           ><UButton
             v-if="selected.length"
             color="neutral"
