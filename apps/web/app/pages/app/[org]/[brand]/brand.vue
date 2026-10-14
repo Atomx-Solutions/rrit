@@ -147,6 +147,7 @@ function setPrice(fact: BrandFact, value: string | number) {
   <DashboardPage
     :title="t('brand.title')"
     :description="t('brand.description')"
+    :toolbar-border="false"
   >
     <UAlert
       v-if="recovered"

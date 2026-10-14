@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { dashboardKey } from '~/utils/dashboard'
-defineProps<{ title: string; description?: string; eyebrow?: string }>()
+import { dashboardToolbarUi } from '~/utils/dashboard-header'
+
+const props = withDefaults(
+  defineProps<{
+    title: string
+    description?: string
+    eyebrow?: string
+    toolbarBorder?: boolean
+  }>(),
+  { description: undefined, eyebrow: undefined, toolbarBorder: true },
+)
 const route = useRoute()
 const chrome = inject(dashboardKey)
 if (!chrome) throw new Error('DashboardPage requires the dashboard layout')
@@ -21,11 +31,7 @@ const spendableCredits = computed(() => headerUsage.value?.credits?.spendable)
 // left the description about sixty pixels wide, one word per line and
 // overlapping the save status. A wide set of actions now drops to its own line
 // and the description keeps the row, while a single button still shares it.
-const toolbarUi = {
-  root: 'min-h-9 px-3 py-1 gap-2 flex-wrap',
-  left: 'min-w-0 grow basis-40',
-  right: 'shrink-0',
-}
+const toolbarUi = computed(() => dashboardToolbarUi(props.toolbarBorder))
 let creditTimer: ReturnType<typeof setInterval>
 onMounted(() => {
   creditTimer = setInterval(() => refreshHeaderUsage(), 30_000)

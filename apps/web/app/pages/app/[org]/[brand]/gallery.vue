@@ -296,6 +296,7 @@ async function saveMetadata() {
   <DashboardPage
     :title="t('nav.gallery')"
     :description="t('gallery.description')"
+    :toolbar-border="false"
   >
     <template #actions>
       <div class="flex flex-wrap gap-2">
