@@ -1,6 +1,7 @@
 import { months as defaultMonths } from './format'
 
 export type CalendarView = 'month' | 'week' | 'list'
+export const defaultCalendarView: CalendarView = 'month'
 export function dayInZone(value: Date | string, timezone: string): string {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
