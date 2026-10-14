@@ -17,6 +17,12 @@ const emit = defineEmits<{ close: []; done: [] }>()
 const { t } = useI18n()
 const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
+const { data: currencySettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
+  lazy: true,
+  key: 'admin-package-request-currency',
+})
+// Offers are written in the central admin currency (Admin → Settings).
+const currency = computed(() => currencySettings.value?.package_currency || 'CHF')
 
 // The per-credit rate opens at the platform figure and is negotiable from
 // there, exactly as the per-post rate is for a package. The platform rate
@@ -174,21 +180,21 @@ async function submit() {
             v-model="form.creditPrice"
             :min="0"
             :step="0.01"
-            :format-options="{ style: 'currency', currency: 'CHF', minimumFractionDigits: 2, maximumFractionDigits: 4 }"
+            :format-options="{ style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 4 }"
             class="w-full"
           />
         </UFormField>
         <UFormField
           name="price"
           :label="t('admin.packages.price')"
-          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, 'CHF') })"
+          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, currency) })"
           required
         >
           <UInputNumber
             v-model="form.price"
             :min="0"
             :step="0.01"
-            :format-options="{ style: 'currency', currency: 'CHF' }"
+            :format-options="{ style: 'currency', currency }"
             class="w-full"
           />
           <template v-if="overridden" #help>

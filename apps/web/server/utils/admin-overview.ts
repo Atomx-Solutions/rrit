@@ -1,13 +1,16 @@
 import { adminServiceClient } from './admin-supabase'
 import { adminAiCosts, adminAiCostsRange } from './admin-ai-costs'
 import { aiProviderConfiguration } from './ai-provider'
+import { getExchangeRate } from './exchange-rates'
 
 export type AdminOverview = {
+  /** Every amount below is already converted to this currency. */
+  currency: 'CHF' | 'EUR'
   organizations: { total: number, active: number, trialing: number, paused: number, cancelled: number }
   subscriptions: { mrr_cents: number, active: number, trialing: number }
   revenue: { total_cents: number, this_month_cents: number }
   sales: { plans_total_cents: number, plans_this_month_cents: number, credits_total_cents: number, credits_this_month_cents: number, videos_total_cents: number, videos_this_month_cents: number, vat_total_cents: number, vat_this_month_cents: number }
-  ai: { cost_micro_eur_this_month: number, cost_micro_eur_total: number, margin_cents_this_month: number }
+  ai: { cost_micro_eur_this_month: number, cost_micro_eur_total: number, cost_cents_this_month: number, margin_cents_this_month: number }
   users: { total: number }
   signups: { this_week: number, this_month: number }
   new_organizations: { id: string, name: string, plan_name: string | null, created_at: string }[]
@@ -35,6 +38,7 @@ export function normalizeAdminOverview(value: unknown): AdminOverview {
   const sales = record(overview.sales)
 
   return {
+    currency: overview.currency === 'EUR' ? 'EUR' : 'CHF',
     organizations: {
       total: number(organizations.total),
       active: number(organizations.active),
@@ -64,6 +68,7 @@ export function normalizeAdminOverview(value: unknown): AdminOverview {
     ai: {
       cost_micro_eur_this_month: number(ai.cost_micro_eur_this_month),
       cost_micro_eur_total: number(ai.cost_micro_eur_total),
+      cost_cents_this_month: number(ai.cost_cents_this_month),
       margin_cents_this_month: number(ai.margin_cents_this_month),
     },
     users: { total: number(users.total) },
@@ -92,49 +97,78 @@ export async function adminOverview() {
   } catch {
     // Without a configured key no call can be attributed to the platform.
   }
-  const [kpis, sales, aiCosts, customPackages] = await Promise.all([
+  const [kpis, sales, aiCosts, customPackages, settings] = await Promise.all([
     adminServiceClient().rpc('admin_overview_kpis'),
-    adminServiceClient().rpc('admin_revenue_by_source'),
+    adminServiceClient().rpc('admin_revenue_by_source_currency'),
     adminAiCosts(adminAiCostsRange({})!, keyFingerprint),
-    adminServiceClient().from('custom_packages').select('price_cents, status, starts_at, ends_at, created_at'),
+    adminServiceClient().from('custom_packages').select('price_cents, currency, status, starts_at, ends_at, created_at'),
+    adminServiceClient().from('platform_settings').select('package_currency').eq('singleton', true).maybeSingle(),
   ])
-  const failed = kpis.error || sales.error || customPackages.error
+  const failed = kpis.error || sales.error || customPackages.error || settings.error
   if (failed) {
     console.error('Admin overview query failed.', { code: failed.code, message: failed.message })
     throw createError({ statusCode: 502, message: 'server.ADMIN_STATS_LOAD_FAILED' })
   }
+  // Invoices and packages keep the currency they were issued in; each amount
+  // is converted to the superadmin's currency before anything is added up.
+  const currency: 'CHF' | 'EUR' = settings.data?.package_currency === 'EUR' ? 'EUR' : 'CHF'
+  const rates = new Map<string, number>()
+  const rateFrom = async (from: string) => {
+    const base = from === 'EUR' ? 'EUR' : 'CHF'
+    if (!rates.has(base)) rates.set(base, (await getExchangeRate(base, currency)).rate)
+    return rates.get(base)!
+  }
+  const convert = async (cents: unknown, from: unknown) =>
+    Math.round(number(cents) * await rateFrom(typeof from === 'string' ? from : currency))
+
+  const totals = {
+    plans_total_cents: 0, plans_this_month_cents: 0,
+    credits_total_cents: 0, credits_this_month_cents: 0,
+    videos_total_cents: 0, videos_this_month_cents: 0,
+    vat_total_cents: 0, vat_this_month_cents: 0,
+  }
+  for (const row of (Array.isArray(sales.data) ? sales.data : []).map(record)) {
+    const source = row.source === 'credits' || row.source === 'videos' ? row.source : 'plans'
+    totals[`${source}_total_cents`] += await convert(row.total_cents, row.currency)
+    totals[`${source}_this_month_cents`] += await convert(row.this_month_cents, row.currency)
+    totals.vat_total_cents += await convert(row.vat_total_cents, row.currency)
+    totals.vat_this_month_cents += await convert(row.vat_this_month_cents, row.currency)
+  }
+
   const summary = record(record(aiCosts).summary)
   const overview = record(kpis.data)
   const costMicroEur = number(summary.this_month_cost_micro_eur)
-  // The AI margin is real money: credit top-ups sold this month minus what the
-  // provider charged. Credits included in plans are paid for by the plan price,
-  // so valuing them at the credit price would count money never collected.
-  const creditSalesCents = number(record(sales.data).credits_this_month_cents)
+  const costCents = Math.round((costMicroEur / 10_000) * await rateFrom('EUR'))
   const packageRows = customPackages.data ?? []
   const now = Date.now()
   const inForce = packageRows.filter((pkg) => pkg.status === 'active'
     && new Date(pkg.starts_at).getTime() <= now
     && new Date(pkg.ends_at).getTime() > now)
-  const packageMrrCents = inForce.reduce((sum, pkg) => sum + number(pkg.price_cents), 0)
-  const packageRevenueTotalCents = number(record(sales.data).plans_total_cents)
-  const packageRevenueMonthCents = number(record(sales.data).plans_this_month_cents)
-  const creditRevenueTotalCents = number(record(sales.data).credits_total_cents)
-  const creditRevenueMonthCents = number(record(sales.data).credits_this_month_cents)
-  const videoRevenueTotalCents = number(record(sales.data).videos_total_cents)
-  const videoRevenueMonthCents = number(record(sales.data).videos_this_month_cents)
+  let packageMrrCents = 0
+  for (const pkg of inForce) packageMrrCents += await convert(pkg.price_cents, pkg.currency)
   // Every revenue figure here is net of VAT: VAT is collected for the state,
   // not earned. Monthly revenue is what was invoiced this month (an annual plan
   // counts in full in its purchase month), net of credit notes.
   return normalizeAdminOverview({
     ...overview,
+    currency,
     organizations: { ...record(overview.organizations), active: inForce.length },
     subscriptions: { ...record(overview.subscriptions), active: inForce.length, mrr_cents: packageMrrCents },
-    revenue: { ...record(overview.revenue), total_cents: packageRevenueTotalCents + creditRevenueTotalCents + videoRevenueTotalCents, this_month_cents: packageRevenueMonthCents + creditRevenueMonthCents + videoRevenueMonthCents },
-    sales: { ...record(sales.data), plans_total_cents: packageRevenueTotalCents, plans_this_month_cents: packageRevenueMonthCents },
+    revenue: {
+      ...record(overview.revenue),
+      total_cents: totals.plans_total_cents + totals.credits_total_cents + totals.videos_total_cents,
+      this_month_cents: totals.plans_this_month_cents + totals.credits_this_month_cents + totals.videos_this_month_cents,
+    },
+    sales: totals,
     ai: {
       ...record(overview.ai),
       cost_micro_eur_this_month: costMicroEur,
-      margin_cents_this_month: creditSalesCents - Math.round(costMicroEur / 10_000),
+      cost_cents_this_month: costCents,
+      // The AI margin is real money: credit top-ups sold this month minus what
+      // the provider charged. Credits included in plans are paid for by the
+      // plan price, so valuing them at the credit price would count money never
+      // collected.
+      margin_cents_this_month: totals.credits_this_month_cents - costCents,
     },
   })
 }

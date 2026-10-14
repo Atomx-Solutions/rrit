@@ -4,16 +4,6 @@ import type { TableColumn } from '@nuxt/ui'
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError, showSuccess } = useFormFeedback()
-const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
-  lazy: true,
-  key: 'admin-billing-platform-currency',
-})
-const packageCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
-const { data: exchangeRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
-  lazy: true,
-  key: 'admin-billing-currency-rate',
-  query: computed(() => ({ from: 'EUR', to: packageCurrency.value })),
-})
 useSeoMeta({ title: () => `${t('admin.nav.billing')} · Framic Admin`, robots: 'noindex, nofollow' })
 
 type Invoice = {
@@ -55,6 +45,8 @@ type BillingResponse = {
   }
   total: number
   page: number
+  // The server converts every invoice's own currency into this one.
+  summary_currency: 'CHF' | 'EUR'
 }
 
 const today = new Date().toISOString().slice(0, 10)
@@ -111,8 +103,7 @@ const formatCents = (cents: number, currency = 'EUR') =>
     currency: currency === 'CHF' ? 'CHF' : 'EUR',
     minimumFractionDigits: 2,
   }).format(cents / 100)
-const formatSummaryCents = (cents: number) =>
-  formatCents(Math.round(cents * (exchangeRate.value?.rate || 1)), packageCurrency.value)
+const formatSummaryCents = (cents: number) => formatCents(cents, data.value?.summary_currency)
 // Invoices show the purchase time, to the second.
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Belgrade' }).format(new Date(value))
@@ -156,7 +147,8 @@ const formatDay = (value: string) =>
 const paymentMethods: PaymentMethod[] = ['bank_transfer', 'cash', 'card', 'other']
 const paying = ref<Invoice | null>(null)
 const paymentForm = reactive({ paid_at: today, method: 'bank_transfer' as PaymentMethod, note: '' })
-const savingPayment = ref(false)
+// Only the row being saved shows a spinner; the others stay usable.
+const savingPayment = ref<string | null>(null)
 function openPayment(inv: Invoice) {
   paymentForm.paid_at = today
   paymentForm.method = 'bank_transfer'
@@ -164,7 +156,7 @@ function openPayment(inv: Invoice) {
   paying.value = inv
 }
 async function savePayment(inv: Invoice, body: Record<string, unknown>, successKey: string) {
-  savingPayment.value = true
+  savingPayment.value = inv.id
   try {
     await $fetch(`/api/admin/billing/invoices/${inv.id}/payment`, { method: 'PATCH', body })
     showSuccess(t(successKey, { number: inv.number }))
@@ -173,7 +165,7 @@ async function savePayment(inv: Invoice, body: Record<string, unknown>, successK
   } catch {
     showError(t('admin.billing.payment.saveError'))
   } finally {
-    savingPayment.value = false
+    savingPayment.value = null
   }
 }
 function markPaid() {
@@ -304,7 +296,7 @@ const sourceLabel: Record<string, string> = {
       <UTable
         :data="invoices"
         :columns="columns"
-        :loading="status === 'pending'"
+        :loading="status === 'pending' && !data"
         :empty="t('admin.billing.empty')"
         :ui="tableUi"
       >
@@ -368,7 +360,8 @@ const sourceLabel: Record<string, string> = {
             color="neutral"
             variant="ghost"
             size="xs"
-            :loading="savingPayment"
+            :loading="savingPayment === row.original.id"
+            :disabled="!!savingPayment && savingPayment !== row.original.id"
             :aria-label="`${t('admin.billing.payment.markUnpaid')} ${row.original.number}`"
             @click="markUnpaid(row.original)"
           />
@@ -448,7 +441,7 @@ const sourceLabel: Record<string, string> = {
           <UButton
             color="success"
             icon="i-lucide-badge-check"
-            :loading="savingPayment"
+            :loading="!!paying && savingPayment === paying.id"
             :disabled="!paymentForm.paid_at"
             :label="t('admin.billing.payment.confirmPaid')"
             @click="markPaid"

@@ -154,7 +154,7 @@ export default defineNuxtPlugin(() => {
   onNuxtReady(() => {
     const storedLocale = document.cookie
       .split('; ')
-      .find((entry) => entry.startsWith('rrit-locale='))
+      .find((entry) => entry.startsWith(`${localeCookieName()}=`))
       ?.split('=')[1]
     setLocale(storedLocale ? decodeURIComponent(storedLocale) : locale.value)
     // Let Vue finish hydration before mutating rendered text nodes. The

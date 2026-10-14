@@ -88,6 +88,15 @@ describe('invoice amounts', () => {
 })
 
 describe('invoice PDF', () => {
+  it('states the recorded payment instead of the stored status', async () => {
+    const invoice = await annualPackage1(invoiceClient())
+    const unpaid = invoicePdf(invoice, { status: 'unpaid', dueAt: '2026-10-28T10:00:00Z', paidAt: null }).toString('latin1')
+    expect(unpaid).toContain('Status: Unpaid - due by 28.10.2026')
+    const paid = invoicePdf(invoice, { status: 'paid', dueAt: '2026-10-28T10:00:00Z', paidAt: '2026-10-20T10:00:00Z' })
+    expect(paid.toString('latin1')).toContain('Status: Paid \\(20.10.2026\\)')
+    if (process.env.INVOICE_PDF_OUT) (await import('node:fs')).writeFileSync(process.env.INVOICE_PDF_OUT, paid)
+  })
+
   it('contains the number, date, items and amount', async () => {
     const invoice = await annualPackage1(invoiceClient())
     const pdf = invoicePdf(invoice).toString('latin1')

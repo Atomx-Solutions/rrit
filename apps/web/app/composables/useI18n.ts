@@ -15,8 +15,17 @@ export function needsAdminDictionary() {
   return authScopeForPath(window.location.pathname) === 'admin'
 }
 
+/**
+ * The admin console and the client app each remember their own language, so
+ * switching the console to English never changes what a client reads.
+ */
+export function localeCookieName() {
+  const path = import.meta.client ? window.location.pathname : useRequestURL().pathname
+  return authScopeForPath(path) === 'admin' ? 'rrit-admin-locale' : 'rrit-locale'
+}
+
 export function useI18n() {
-  const cookie = useCookie<AppLocale>('rrit-locale', { default: () => 'de-CH' })
+  const cookie = useCookie<AppLocale>(localeCookieName(), { default: () => 'de-CH' })
   const locale = useState<AppLocale>('rrit-ui-locale', () =>
     localeForLanguage(languageForLocale(cookie.value)),
   )

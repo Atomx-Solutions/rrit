@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { adminServiceClient } from './admin-supabase'
+import { adminCurrency, sumInCurrency } from './admin-currency'
 
 export const invoicePaymentFilters = ['paid', 'unpaid', 'overdue', 'credited'] as const
 
@@ -64,7 +65,30 @@ export async function setInvoicePayment(
 
 export type AdminBillingInvoicesQuery = z.infer<typeof adminBillingInvoicesQuerySchema>
 
+const summaryFields = ['gross_revenue_cents', 'net_revenue_cents', 'vat_cents', 'outstanding_cents', 'overdue_cents'] as const
+
 export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
+  const filters = {
+    p_org_id: query.org_id ?? null,
+    p_kind: query.kind ?? null,
+    p_source_type: query.source_type ?? null,
+    p_from: query.from ? `${query.from}T00:00:00Z` : null,
+    p_to: query.to ? `${query.to}T00:00:00Z` : null,
+  }
+  const [byCurrency, currency] = await Promise.all([
+    adminServiceClient().rpc('admin_billing_summary_by_currency', filters),
+    adminCurrency(),
+  ])
+  if (byCurrency.error) {
+    console.error('Admin billing summary query failed.', { code: byCurrency.error.code, message: byCurrency.error.message })
+    throw createError({ statusCode: 502, message: 'server.INVOICES_LOAD_FAILED' })
+  }
+  // Each currency is converted before it is added, so the tiles show real money.
+  const summary = await sumInCurrency(
+    (Array.isArray(byCurrency.data) ? byCurrency.data : []) as Array<Record<string, unknown>>,
+    summaryFields,
+    currency,
+  )
   const { data, error } = await adminServiceClient().rpc('admin_billing_invoices', {
     p_page: query.page ?? 1,
     p_per_page: query.per_page ?? 50,
@@ -79,7 +103,7 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
     console.error('Admin billing invoices query failed.', { code: error.code, message: error.message })
     throw createError({ statusCode: 502, message: 'server.INVOICES_LOAD_FAILED' })
   }
-  return data as {
+  const page = data as {
     invoices: Array<{
       id: string
       number: string
@@ -114,4 +138,5 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
     total: number
     page: number
   }
+  return { ...page, summary: { ...page.summary, ...summary }, summary_currency: currency }
 }

@@ -16,6 +16,12 @@ const emit = defineEmits<{ close: []; done: [] }>()
 const { t } = useI18n()
 const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
+const { data: currencySettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
+  lazy: true,
+  key: 'admin-package-request-currency',
+})
+// Offers are written in the central admin currency (Admin → Settings).
+const currency = computed(() => currencySettings.value?.package_currency || 'CHF')
 
 type OrganizationRow = { id: string; name: string }
 const search = ref('')
@@ -234,7 +240,7 @@ async function submit() {
               :min="0"
               :max="10000"
               :step="0.01"
-              :format-options="{ style: 'currency', currency: 'EUR' }"
+              :format-options="{ style: 'currency', currency }"
               class="w-full"
             />
           </UFormField>
@@ -242,14 +248,14 @@ async function submit() {
         <UFormField
           name="priceEuro"
           :label="t('admin.packages.price')"
-          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, 'EUR') })"
+          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, currency) })"
           required
         >
           <UInputNumber
             v-model="form.priceEuro"
             :min="0"
             :step="0.01"
-            :format-options="{ style: 'currency', currency: 'EUR' }"
+            :format-options="{ style: 'currency', currency }"
             class="w-full"
           />
         </UFormField>

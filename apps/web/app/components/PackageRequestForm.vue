@@ -97,7 +97,12 @@ const estimatedTotal = computed(() =>
   + displayVideoPrice.value * form.videosRequested,
 )
 const money = (value: number) =>
-  new Intl.NumberFormat('sq-XK', { style: 'currency', currency: props.contactKnown ? props.currency : 'CHF' }).format(value)
+  new Intl.NumberFormat('sq-XK', {
+    style: 'currency',
+    // Signed-in clients see their own currency; public visitors see the rates
+    // in the currency they are stored in.
+    currency: props.contactKnown ? props.currency : (options.value?.currency || 'CHF'),
+  }).format(value)
 const platformOptions = computed(() => [
   { label: t('request.platformInstagram'), value: 'instagram' as const },
   { label: t('request.platformFacebook'), value: 'facebook' as const },
