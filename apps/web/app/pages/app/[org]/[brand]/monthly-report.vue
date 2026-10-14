@@ -11,6 +11,7 @@ const reportType = computed<'research' | 'strategy'>(() =>
 )
 const month = computed(() => (typeof route.query.month === 'string' ? route.query.month : ''))
 const { data: planner, error } = await useFetch('/api/ai/monthly-plan', {
+  lazy: true,
   query: computed(() => ({ month: month.value })),
   key: computed(() => `monthly-report-${month.value}`),
 })

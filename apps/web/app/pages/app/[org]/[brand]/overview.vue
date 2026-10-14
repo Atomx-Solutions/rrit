@@ -14,7 +14,7 @@ const { data: meta, status: metaStatus } = useFetch('/api/meta/status', {
   server: false,
 })
 const connectionView = computed(() => metaConnectionView(metaStatus.value, meta.value?.connection))
-const { data: tiktok } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
+const { data: tiktok } = await useFetch('/api/tiktok/status', { lazy: true, key: 'tiktok-status' })
 const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
 const upcoming = computed(() =>
   data.value.posts
@@ -42,7 +42,7 @@ function dateKey(value: Date | string, timezone: string) {
 
 function activityDateLabel(key: string, timezone: string) {
   const isEnglish = locale.value === 'en-US'
-  const isGerman = locale.value === 'de-DE'
+  const isGerman = locale.value === 'de-CH'
   const formatter = new Intl.DateTimeFormat(isGerman ? 'de-DE' : isEnglish ? 'en-GB' : 'sq-AL', {
     day: 'numeric',
     month: 'short',

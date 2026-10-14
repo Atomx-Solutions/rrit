@@ -24,7 +24,7 @@ const schema = z.object({
     .max(100)
     .default([]),
   timezone: ianaTimezoneSchema.default('Europe/Belgrade'),
-  locale: z.enum(['sq-XK', 'en-US', 'de-DE']).default('sq-XK'),
+  locale: z.enum(['sq-XK', 'en-US', 'de-CH']).default('de-CH'),
 })
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)

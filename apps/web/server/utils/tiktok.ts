@@ -3,7 +3,6 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 const authorizeUrl = 'https://www.tiktok.com/v2/auth/authorize/'
 const tokenUrl = 'https://open.tiktokapis.com/v2/oauth/token/'
 const inboxVideoInitUrl = 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/'
-const directVideoInitUrl = 'https://open.tiktokapis.com/v2/post/publish/video/init/'
 const videoListUrl = 'https://open.tiktokapis.com/v2/video/list/'
 
 export const hashTikTokState = (value: string) => createHash('sha256').update(value).digest('hex')

@@ -1,15 +1,24 @@
 <script setup lang="ts">
 const route = useRoute()
 const { t, locale, setLocale } = useI18n()
+// The public landing experience is Swiss German by default for this market.
+// Existing cookies from earlier locales must not change the landing language.
+if (locale.value !== 'de-CH') setLocale('de-CH')
+const requestUrl = useRequestURL()
+const canonicalUrl = computed(() => `${requestUrl.origin}${requestUrl.pathname}`)
+useHead({
+  link: [{ rel: 'canonical', href: canonicalUrl }],
+  meta: [{ property: 'og:url', content: canonicalUrl }],
+})
 const languageOptions = computed(() => [
-  { label: `DE ${t('public.german')}`, value: 'de-DE' },
+  { label: `DE-CH ${t('public.german')}`, value: 'de-CH' },
   { label: `EN ${t('public.english')}`, value: 'en-US' },
   { label: `SQ ${t('public.albanian')}`, value: 'sq-XK' },
 ])
-const languageLabel = computed(() => locale.value === 'de-DE'
+const languageLabel = computed(() => locale.value === 'de-CH'
   ? t('public.german')
   : locale.value === 'en-US' ? t('public.english') : t('public.albanian'))
-const languageFlag = computed(() => locale.value === 'de-DE'
+const languageFlag = computed(() => locale.value === 'de-CH'
   ? 'i-flag-de-4x3'
   : locale.value === 'en-US' ? 'i-flag-gb-4x3' : 'i-flag-al-4x3')
 const language = computed({

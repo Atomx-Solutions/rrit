@@ -12,6 +12,16 @@ export default defineNuxtRouteMiddleware(async (to) => {
   )
   pendingRedirect.value = null
   if (reuse) return
+  // Moving between pages of the workspace already loaded needs no round trip
+  // before the page shows; refresh it in the background instead.
+  const loaded = workspace.ready.value ? workspace.context.value : null
+  if (loaded && to.params.org === loaded.id && to.params.brand === loaded.slug) {
+    workspace.initLive().catch((error) => {
+      if ((error as { statusCode?: number }).statusCode === 401)
+        navigateTo({ path: '/login', query: { redirect: to.fullPath } })
+    })
+    return
+  }
   try {
     const business = await workspace.initLive()
     if (!business && to.path !== '/onboarding') return navigateTo('/onboarding', { replace: true })

@@ -11,24 +11,16 @@ const { locale } = useI18n()
 
 const postsRequested = ref(14)
 const videosRequested = ref(2)
-type PackageRequestOptions = {
-  postOptions: number[]
-  postPriceCents: number
-  videoPriceCents: number
-  currency: 'CHF' | 'EUR'
-}
-const { data: options } = await useFetch<PackageRequestOptions>('/api/package-requests', {
-  key: 'package-request-options',
-  server: false,
-  default: (): PackageRequestOptions => ({ postOptions: [], postPriceCents: 0, videoPriceCents: 0, currency: 'CHF' }),
-})
-const packagePostPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
-const packageVideoPrice = computed(() => (options.value?.videoPriceCents || 0) / 100)
+// Swiss-market landing prices are intentionally independent from the admin
+// platform currency. The default 14-post/2-video package is CHF 99.00.
+const landingCurrency = 'CHF' as const
+const packagePostPrice = 5.35
+const packageVideoPrice = 12.05
 const packageTotal = computed(() =>
-  postsRequested.value * packagePostPrice.value + videosRequested.value * packageVideoPrice.value,
+  postsRequested.value * packagePostPrice + videosRequested.value * packageVideoPrice,
 )
 const money = (value: number) =>
-  new Intl.NumberFormat(locale.value, { style: 'currency', currency: options.value?.currency || 'CHF' }).format(value)
+  new Intl.NumberFormat(locale.value, { style: 'currency', currency: landingCurrency }).format(value)
 </script>
 
 <template>

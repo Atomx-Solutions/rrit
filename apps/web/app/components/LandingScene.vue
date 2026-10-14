@@ -72,7 +72,7 @@ onBeforeUnmount(() => cleanup?.())
     <figcaption>
       <span>{{ caption }}</span>
       <UButton
-        v-if="!reduced"
+        class="landing-showcase-pause"
         :icon="paused ? 'i-lucide-play' : 'i-lucide-pause'"
         :aria-label="`${paused ? t('landing.resume') : t('landing.pause')} ${label}`"
         :aria-pressed="paused"

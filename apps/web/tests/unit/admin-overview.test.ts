@@ -14,7 +14,7 @@ describe('admin overview response', () => {
       organizations: { total: 0, active: 2, trialing: 0, paused: 0, cancelled: 0 },
       subscriptions: { mrr_cents: 0, active: 0, trialing: 0 },
       revenue: { total_cents: 0, this_month_cents: 0 },
-      sales: { plans_total_cents: 0, plans_this_month_cents: 0, credits_total_cents: 0, credits_this_month_cents: 0, vat_total_cents: 0, vat_this_month_cents: 0 },
+      sales: { plans_total_cents: 0, plans_this_month_cents: 0, credits_total_cents: 0, credits_this_month_cents: 0, vat_total_cents: 0, vat_this_month_cents: 0, videos_total_cents: 0, videos_this_month_cents: 0 },
       ai: { cost_micro_eur_this_month: 0, cost_micro_eur_total: 30, margin_cents_this_month: 0 },
       users: { total: 0 },
       signups: { this_week: 0, this_month: 0 },

@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { imageFallback, imageSrcset, landingImageSizes } from '~~/shared/utils/responsive-image'
 const { t } = useI18n()
 // Illustrative compositions only. These never create or publish business records.
 const photos = {
-  burger: '/images/burger.jpg',
+  burger: '/images/burger-small.webp',
 }
+// The source print renders at 31% of the scene, the composed poster at 47%.
+const sourcePhotoSizes = landingImageSizes(30, 192)
+const composedPhotoSizes = landingImageSizes(45, 291)
 </script>
 <template>
   <div class="landing-stories">
@@ -27,10 +31,12 @@ const photos = {
           <div class="landing-studio-orbit" aria-hidden="true" />
           <UCard class="landing-source-photo landing-depth-item" :ui="{ body: 'p-2 sm:p-2' }">
             <img
-              :src="photos.burger"
+              :src="imageFallback(photos.burger)"
+              :srcset="imageSrcset(photos.burger)"
+              :sizes="sourcePhotoSizes"
               :alt="t('landing.originalBurgerAlt')"
-              width="900"
-              height="748"
+              width="600"
+              height="499"
               loading="lazy"
               decoding="async"
             />
@@ -44,10 +50,12 @@ const photos = {
               <span>{{ t('legacy.withTaste') }}</span>
               <p>{{ t('legacy.yesAlso') }}<br /><em>{{ t('legacy.bite') }}</em></p>
               <img
-                :src="photos.burger"
+                :src="imageFallback(photos.burger)"
+                :srcset="imageSrcset(photos.burger)"
+                :sizes="composedPhotoSizes"
                 :alt="t('landing.composedBurgerAlt')"
-                width="900"
-                height="748"
+                width="600"
+                height="499"
                 loading="lazy"
                 decoding="async"
               />

@@ -18,9 +18,18 @@ const tab = computed({
     )
   },
 })
-const { form, clear, recovered, localError } = useDraft(`${base.value}:preferences`, {
+const initialPreferences: {
+  name: string
+  email: string
+  timezone: string
+  locale: 'sq-XK' | 'en-US' | 'de-CH'
+  currency: 'EUR' | 'CHF'
+} = {
+  // The workspace schema already reads the former 'de-DE' locale as 'de-CH',
+  // so the stored language and time zone are shown exactly as saved.
   ...data.value.preferences,
-})
+}
+const { form, clear, recovered, localError } = useDraft(`${base.value}:preferences`, initialPreferences)
 watch(
   () => form.locale,
   (value) => {
@@ -47,7 +56,7 @@ const schema = z.object({
       return false
     }
   }, t('settings.timezoneInvalid')),
-  locale: z.enum(['sq-XK', 'en-US', 'de-DE']),
+  locale: z.enum(['sq-XK', 'en-US', 'de-CH']),
   currency: z.enum(['CHF', 'EUR']),
 })
 async function save() {
@@ -152,7 +161,7 @@ async function saveAndLeave() {
               :items="[
                 { label: t('settings.albanianKosovo'), value: 'sq-XK' },
                 { label: t('settings.englishUnitedStates'), value: 'en-US' },
-                { label: t('settings.germanGermany'), value: 'de-DE' },
+                { label: t('settings.germanGermany'), value: 'de-CH' },
               ]"
             /></UFormField
 ><UFormField :label="t('settings.timezone')" name="timezone" class="field"
@@ -163,6 +172,7 @@ async function saveAndLeave() {
                 { label: t('onboarding.timezoneAlbania'), value: 'Europe/Tirane' },
                 { label: t('onboarding.timezoneNorthMacedonia'), value: 'Europe/Skopje' },
                 { label: t('onboarding.timezoneUnitedKingdom'), value: 'Europe/London' },
+                { label: 'Schweizer Zeit', value: 'Europe/Zurich' },
               ]" /></UFormField
           ><UFormField :label="t('settings.currency')" name="currency" class="field"
             ><USelect

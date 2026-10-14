@@ -1,4 +1,4 @@
-import type { Post } from '../../shared/schemas/workspace'
+import type { AppLocaleValue, Post } from '../../shared/schemas/workspace'
 import type { ShotDirection } from '../../shared/schemas/monthly-plan'
 
 export type VideoCreativePlanBeat = {
@@ -12,7 +12,7 @@ export type VideoCreativePlan = {
   shot: ShotDirection
   timeline: VideoCreativePlanBeat[]
   typography: {
-    language: 'sq-XK' | 'en-US' | 'de-DE'
+    language: AppLocaleValue
     hook: string
     cta: string
   }
@@ -91,7 +91,7 @@ function conceptFrom(brief: {
 export function buildVideoCreativePlan(input: {
   brief: NonNullable<Post['video']>
   brand: { color?: string }
-  locale?: 'sq-XK' | 'en-US' | 'de-DE'
+  locale?: AppLocaleValue
   durationSeconds: number
 }): VideoCreativePlan {
   const { brief, brand, locale, durationSeconds } = input

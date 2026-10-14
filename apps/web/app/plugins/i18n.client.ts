@@ -1,21 +1,48 @@
-import sq from '~/locales/client/sq.json'
-import en from '~/locales/client/en.json'
-import adminSq from '~/locales/admin/sq.json'
-import adminEn from '~/locales/admin/en.json'
+import { loadDictionary } from '~/utils/dictionary'
 
 const attributes = ['aria-label', 'placeholder', 'title', 'alt']
-const sqDictionary = { ...sq, ...adminSq }
-const enDictionary = { ...en, ...adminEn }
-const maps = {
-  sqToEn: new Map(Object.entries(sqDictionary).map(([key, value]) => [value, enDictionary[key as keyof typeof enDictionary]])),
-  enToSq: new Map(Object.entries(enDictionary).map(([key, value]) => [value, sqDictionary[key as keyof typeof sqDictionary]])),
-}
-const normalizedMaps = {
-  sqToEn: new Map([...maps.sqToEn].map(([key, value]) => [key.replace(/\s+/g, ' '), value])),
-  enToSq: new Map([...maps.enToSq].map(([key, value]) => [key.replace(/\s+/g, ' '), value])),
+const skippedTags = ['SCRIPT', 'STYLE', 'NOSCRIPT']
+
+type Language = 'sq' | 'en'
+
+function collapse(value: string) {
+  return value.replace(/\s+/g, ' ')
 }
 
-function dynamicText(value: string, language: 'sq' | 'en') {
+// One lookup per direction, built the first time that direction is needed:
+// a session only ever translates one way, and walking both dictionaries costs
+// more than the page's own startup work. The dictionaries arrive as their own
+// chunks after hydration, so this never sits on the critical path.
+const lookups = new Map<Language, Map<string, string>>()
+const lookupPending = new Map<Language, Promise<void>>()
+
+async function ensureLookup(language: Language) {
+  if (lookups.has(language)) return
+  let run = lookupPending.get(language)
+  if (!run) {
+    run = (async () => {
+      const [source, target] = await Promise.all([
+        loadDictionary(language === 'en' ? 'sq' : 'en', true),
+        loadDictionary(language === 'en' ? 'en' : 'sq', true),
+      ])
+      const lookup = new Map<string, string>()
+      // Whitespace-collapsed keys go in first so an exact key always wins.
+      for (const [key, value] of Object.entries(source)) {
+        const translated = target[key]
+        if (translated) lookup.set(collapse(value), translated)
+      }
+      for (const [key, value] of Object.entries(source)) {
+        const translated = target[key]
+        if (translated) lookup.set(value, translated)
+      }
+      lookups.set(language, lookup)
+    })()
+    lookupPending.set(language, run)
+  }
+  await run
+}
+
+function dynamicText(value: string, language: Language) {
   if (language === 'en') {
     return value
       .replace(/^(\d+) kredi$/, '$1 credits')
@@ -34,73 +61,108 @@ function dynamicText(value: string, language: 'sq' | 'en') {
     .replace(/^(\d+) of (\d+) posts$/, '$1 nga $2 postime')
 }
 
-function translate(value: string, language: 'sq' | 'en') {
+function translate(value: string, language: Language) {
   const trimmed = value.trim()
   if (!trimmed) return value
-  const map = language === 'en' ? maps.sqToEn : maps.enToSq
-  const normalizedMap = language === 'en' ? normalizedMaps.sqToEn : normalizedMaps.enToSq
-  const translated = map.get(trimmed) || normalizedMap.get(trimmed.replace(/\s+/g, ' ')) || dynamicText(trimmed, language)
+  const lookup = lookups.get(language)
+  if (!lookup) return value
+  const translated = lookup.get(trimmed)
+    || lookup.get(collapse(trimmed))
+    || dynamicText(trimmed, language)
   if (!translated || translated === trimmed) return value
   return value.replace(trimmed, translated)
 }
 
-function scan(root: ParentNode, language: 'sq' | 'en') {
+function translateTextNode(node: Text, language: Language) {
+  const parent = node.parentElement
+  if (!parent || skippedTags.includes(parent.tagName)) return
+  const next = translate(node.nodeValue || '', language)
+  if (next !== node.nodeValue) node.nodeValue = next
+}
+
+function translateAttributes(element: Element, language: Language) {
+  for (const attribute of attributes) {
+    const value = element.getAttribute(attribute)
+    if (!value) continue
+    const next = translate(value, language)
+    if (next !== value) element.setAttribute(attribute, next)
+  }
+}
+
+function scan(root: Node, language: Language) {
+  if (root.nodeType === Node.TEXT_NODE) {
+    translateTextNode(root as Text, language)
+    return
+  }
+  if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  const nodes: Text[] = []
-  while (walker.nextNode()) nodes.push(walker.currentNode as Text)
-  for (const node of nodes) {
-    const parent = node.parentElement
-    if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue
-    const next = translate(node.nodeValue || '', language)
-    if (next !== node.nodeValue) node.nodeValue = next
-  }
-  const elements = root instanceof Element ? [root, ...root.querySelectorAll('*')] : [...root.querySelectorAll('*')]
-  for (const element of elements) {
-    for (const attribute of attributes) {
-      const value = element.getAttribute(attribute)
-      if (value) {
-        const next = translate(value, language)
-        if (next !== value) element.setAttribute(attribute, next)
-      }
-    }
-  }
+  while (walker.nextNode()) translateTextNode(walker.currentNode as Text, language)
+  if (root instanceof Element) translateAttributes(root, language)
+  for (const element of (root as Element | DocumentFragment).querySelectorAll('*'))
+    translateAttributes(element, language)
 }
 
 export default defineNuxtPlugin(() => {
   const { locale, setLocale } = useI18n()
   // German client copy currently uses the English fallback dictionary for text
   // outside Vue translations, while preserving the selected document language.
-  const language = computed(() => locale.value === 'sq-XK' ? 'sq' : 'en')
+  const language = computed<Language>(() => locale.value === 'sq-XK' ? 'sq' : 'en')
   let observer: MutationObserver | undefined
+  const pending = new Set<Node>()
   let queued = false
-  const refresh = () => {
-    if (!document.body) return
-    document.documentElement.lang = locale.value === 'de-DE' ? 'de' : language.value
-    scan(document.body, language.value)
+
+  const refreshHead = () => {
+    document.documentElement.lang = locale.value === 'de-CH' ? 'de-CH' : language.value
     document.title = translate(document.title, language.value)
     for (const meta of document.querySelectorAll('meta[name="description"]')) {
       const content = meta.getAttribute('content')
       if (content) meta.setAttribute('content', translate(content, language.value))
     }
   }
-  const queueRefresh = () => {
+  const refresh = async () => {
+    if (!document.body) return
+    await ensureLookup(language.value)
+    scan(document.body, language.value)
+    refreshHead()
+  }
+  // Mutations are translated in place rather than by rescanning the document:
+  // the observer watches the whole body, and a full walk per mutation batch was
+  // the page's longest main-thread task.
+  const flush = () => {
+    queued = false
+    const roots = [...pending]
+    pending.clear()
+    for (const root of roots) {
+      if (!root.isConnected) continue
+      scan(root, language.value)
+    }
+  }
+  const queue = (node: Node) => {
+    pending.add(node)
     if (queued) return
     queued = true
-    queueMicrotask(() => {
-      queued = false
-      refresh()
-    })
+    queueMicrotask(flush)
   }
+  const handle = (records: MutationRecord[]) => {
+    for (const record of records) {
+      if (record.type === 'characterData') queue(record.target)
+      else if (record.type === 'attributes') queue(record.target)
+      else for (const node of record.addedNodes) queue(node)
+    }
+  }
+
   onNuxtReady(() => {
     const storedLocale = document.cookie
       .split('; ')
       .find((entry) => entry.startsWith('rrit-locale='))
       ?.split('=')[1]
     setLocale(storedLocale ? decodeURIComponent(storedLocale) : locale.value)
-    // Let Vue finish hydration before mutating rendered text nodes.
-    window.setTimeout(() => {
-      refresh()
-      observer = new MutationObserver(queueRefresh)
+    // Let Vue finish hydration before mutating rendered text nodes. The
+    // dictionaries this needs are fetched here rather than up front, so they
+    // stay off the first paint's critical path.
+    window.setTimeout(async () => {
+      await refresh()
+      observer = new MutationObserver(handle)
       observer.observe(document.body, {
         subtree: true,
         childList: true,
@@ -108,7 +170,7 @@ export default defineNuxtPlugin(() => {
         attributes: true,
         attributeFilter: attributes,
       })
-      window.addEventListener('rrit-locale-change', refresh)
+      window.addEventListener('rrit-locale-change', () => void refresh())
     }, 50)
   })
   return {

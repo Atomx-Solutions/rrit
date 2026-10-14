@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { t } = useI18n()
 defineProps<{ preview?: boolean }>()
-const photo = '/images/tennis-ball-court.jpg'
+const photo = '/images/tennis-ball-court-small.webp'
 </script>
 
 <template>
@@ -11,8 +11,8 @@ const photo = '/images/tennis-ball-court.jpg'
       :class="{ 'landing-depth-item': !preview }"
       :src="photo"
       :alt="preview ? '' : t('landing.tennisPhotoAlt')"
-      width="1000"
-      height="1500"
+      width="420"
+      height="630"
       :loading="preview ? 'lazy' : 'eager'"
       decoding="async"
     />

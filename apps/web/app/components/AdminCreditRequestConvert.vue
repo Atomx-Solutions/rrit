@@ -21,10 +21,10 @@ const { onFormError, watchError } = useFormFeedback()
 // The per-credit rate opens at the platform figure and is negotiable from
 // there, exactly as the per-post rate is for a package. The platform rate
 // itself is never written by this form.
-const form = reactive({ credits: 0, creditPriceEuro: 0, priceEuro: 0, notes: '' })
-const creditPriceCents = computed(() => Math.round(form.creditPriceEuro * 100))
+const form = reactive({ credits: 0, creditPrice: 0, price: 0, notes: '' })
+const creditPriceCents = computed(() => Math.round(form.creditPrice * 100))
 const suggestedCents = computed(() => form.credits * creditPriceCents.value)
-const priceCents = computed(() => Math.round(form.priceEuro * 100))
+const priceCents = computed(() => Math.round(form.price * 100))
 const overridden = computed(() => priceCents.value !== suggestedCents.value)
 const organizationId = computed(() => props.request?.organization_id || '')
 
@@ -40,7 +40,10 @@ async function loadRate() {
     const settings = await $fetch<{ credit_price_cents: number }>(
       `/api/admin/organizations/${organizationId.value}/packages`,
     )
-    form.creditPriceEuro = settings.credit_price_cents / 100
+    form.creditPrice = settings.credit_price_cents / 100
+    // Seed the agreed price immediately after loading the platform rate.
+    // Without this, the input keeps its zero default until another field changes.
+    form.price = Math.round(form.credits * form.creditPrice * 100) / 100
   } catch {
     // Without the rate the admin still types the agreed price by hand.
   }
@@ -58,16 +61,16 @@ function sync(update: () => void) {
   syncing = false
 }
 watch(
-  [() => form.credits, () => form.creditPriceEuro],
+  [() => form.credits, () => form.creditPrice],
   () => sync(() => {
-    form.priceEuro = Math.round(suggestedCents.value) / 100
+    form.price = Math.round(suggestedCents.value) / 100
   }),
   { flush: 'sync' },
 )
 watch(
-  () => form.priceEuro,
+  () => form.price,
   () => sync(() => {
-    if (form.credits > 0) form.creditPriceEuro = priceCents.value / form.credits / 100
+    if (form.credits > 0) form.creditPrice = priceCents.value / form.credits / 100
   }),
   { flush: 'sync' },
 )
@@ -78,7 +81,7 @@ watch(
     if (!request) return
     form.credits = request.credits_requested || 0
     form.notes = request.message || ''
-    form.creditPriceEuro = 0
+    form.creditPrice = 0
     await loadRate()
   },
   { immediate: true },
@@ -162,30 +165,30 @@ async function submit() {
           <UInputNumber v-model="form.credits" :min="0" :max="1000000" :step="100" class="w-full" />
         </UFormField>
         <UFormField
-          name="creditPriceEuro"
+          name="creditPrice"
           :label="t('admin.requests.creditPrice')"
           :description="t('admin.requests.creditRateHelp')"
           required
         >
           <UInputNumber
-            v-model="form.creditPriceEuro"
+            v-model="form.creditPrice"
             :min="0"
             :step="0.01"
-            :format-options="{ style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }"
+            :format-options="{ style: 'currency', currency: 'CHF', minimumFractionDigits: 2, maximumFractionDigits: 4 }"
             class="w-full"
           />
         </UFormField>
         <UFormField
-          name="priceEuro"
+          name="price"
           :label="t('admin.packages.price')"
-          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, 'EUR') })"
+          :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, 'CHF') })"
           required
         >
           <UInputNumber
-            v-model="form.priceEuro"
+            v-model="form.price"
             :min="0"
             :step="0.01"
-            :format-options="{ style: 'currency', currency: 'EUR' }"
+            :format-options="{ style: 'currency', currency: 'CHF' }"
             class="w-full"
           />
           <template v-if="overridden" #help>

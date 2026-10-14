@@ -133,6 +133,7 @@
     0 30px 38px -20px #0b271d60,
     0 2px 4px #0b271d10;
   backface-visibility: hidden;
+  will-change: transform;
   animation-duration: 15s;
   animation-iteration-count: infinite;
   animation-timing-function: ease-in-out;
@@ -818,22 +819,24 @@
   font-size: 11px;
   color: var(--landing-muted);
 }
+/*
+ * Transform only. The deck is a preserve-3d context, so the translateZ values
+ * already decide which poster paints in front; animating z-index as well made
+ * this a main-thread animation that restyled the hero on every frame.
+ */
 @keyframes rrit-shuffle {
   0%,
   25%,
   100% {
     transform: translate3d(-60%, 40px, -60px) rotateY(12deg) rotateZ(-12deg);
-    z-index: 1;
   }
   33%,
   58% {
     transform: translate3d(0, 0, 35px) rotateY(0deg) rotateZ(3deg);
-    z-index: 3;
   }
   66%,
   91% {
     transform: translate3d(60%, 60px, -70px) rotateY(-16deg) rotateZ(13deg);
-    z-index: 2;
   }
 }
 @keyframes rrit-orbit {
@@ -1022,6 +1025,12 @@
     animation: none !important;
     transition: none !important;
   }
+  /* Nothing moves here, so the control that pauses the deck has nothing to do.
+     Hiding it in CSS rather than withholding it until mount keeps the rendered
+     caption the same height the server sent. */
+  .landing-showcase-pause {
+    display: none;
+  }
 }
 
 /* The request card keeps the plan cards' surface: white, one hairline ring and
@@ -1125,4 +1134,18 @@
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid var(--landing-line);
+}
+
+/*
+ * Everything below the hero is off screen on first paint, and laying it all
+ * out was the landing page's largest main-thread cost. `auto` lets the browser
+ * remember each section's real size after it has been rendered once, so the
+ * placeholder height never disagrees with the content.
+ */
+.landing-process,
+.landing-pricing-section,
+.landing-faq-section,
+.landing-final {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 700px;
 }

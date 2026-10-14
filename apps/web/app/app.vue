@@ -2,7 +2,7 @@
 import { de, en, sq } from '@nuxt/ui/locale'
 const { locale: appLocale, t } = useI18n()
 const locale = computed(() => {
-  const base = appLocale.value === 'de-DE' ? de : appLocale.value === 'en-US' ? en : sq
+  const base = appLocale.value === 'de-CH' ? de : appLocale.value === 'en-US' ? en : sq
   return {
     ...base,
     messages: {

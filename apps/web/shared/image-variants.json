@@ -1,0 +1,10 @@
+{
+  "quality": 72,
+  "images": [
+    { "source": "images/table.webp", "widths": [360, 640] },
+    { "source": "images/burger.webp", "widths": [360, 640] },
+    { "source": "images/interior.webp", "widths": [360, 640] },
+    { "source": "images/burger-small.webp", "widths": [360, 600] },
+    { "source": "framic-logo-small.webp", "widths": [220, 440] }
+  ]
+}

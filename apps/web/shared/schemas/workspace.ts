@@ -156,6 +156,22 @@ export const strategySchema = z.object({
   cadence: z.number().min(1).max(14),
   updatedAt: z.string(),
 })
+export const APP_LOCALES = ['sq-XK', 'en-US', 'de-CH'] as const
+
+export type AppLocaleValue = (typeof APP_LOCALES)[number]
+
+const SWISS_GERMAN_LOCALE: AppLocaleValue = 'de-CH'
+// Workspaces saved before the Swiss German rollout still hold the old German
+// locale. Reading one must not fail, so it is normalised here rather than
+// leaving every stored row unparseable.
+const LEGACY_GERMAN_LOCALE = 'de-DE'
+
+export const appLocaleSchema = z.preprocess(
+  (value) =>
+    value === undefined || value === LEGACY_GERMAN_LOCALE ? SWISS_GERMAN_LOCALE : value,
+  z.enum(APP_LOCALES),
+)
+
 export const workspaceSchema = z.object({
   revision: z.number(),
   brandRevision: z.number().int().min(0).default(0),
@@ -207,7 +223,7 @@ export const workspaceSchema = z.object({
     name: z.string(),
     email: z.string(),
     timezone: z.string(),
-    locale: z.enum(['sq-XK', 'en-US', 'de-DE']).default('sq-XK'),
+    locale: appLocaleSchema,
     currency: z.enum(['CHF', 'EUR']).default('CHF'),
   }),
   onboarding: z.number().min(0).max(4),

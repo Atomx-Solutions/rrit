@@ -1,20 +1,7 @@
-import sq from '~/locales/client/sq.json'
-import en from '~/locales/client/en.json'
-import de from '~/locales/client/de.json'
-import adminSq from '~/locales/admin/sq.json'
-import adminEn from '~/locales/admin/en.json'
+import { authScopeForPath } from '~~/shared/utils/auth-scope'
+import { dictionaryFor, isDictionaryReady, loadDictionary, type AppLanguage } from '~/utils/dictionary'
 
-export type AppLocale = 'sq-XK' | 'en-US' | 'de-DE'
-export type AppLanguage = 'sq' | 'en' | 'de'
-
-// Client/shared text and Superadmin text intentionally live in separate
-// dictionaries. Consumers still use one translation function.
-const dictionaries = {
-  sq: { ...sq, ...adminSq },
-  en: { ...en, ...adminEn },
-  // German client text falls back to English until each screen is translated.
-  de: { ...en, ...adminEn, ...de },
-} as const
+export type AppLocale = 'sq-XK' | 'en-US' | 'de-CH'
 
 export function languageForLocale(value: string | undefined): AppLanguage {
   const normalized = value?.toLowerCase() || ''
@@ -22,8 +9,14 @@ export function languageForLocale(value: string | undefined): AppLanguage {
   return normalized.startsWith('en') ? 'en' : 'sq'
 }
 
+/** Superadmin copy is only needed while the browser is on an admin route. */
+export function needsAdminDictionary() {
+  if (!import.meta.client) return true
+  return authScopeForPath(window.location.pathname) === 'admin'
+}
+
 export function useI18n() {
-  const cookie = useCookie<AppLocale>('rrit-locale', { default: () => 'de-DE' })
+  const cookie = useCookie<AppLocale>('rrit-locale', { default: () => 'de-CH' })
   const locale = useState<AppLocale>('rrit-ui-locale', () =>
     localeForLanguage(languageForLocale(cookie.value)),
   )
@@ -35,12 +28,11 @@ export function useI18n() {
 
   function t(key: string, params: Record<string, string | number> = {}) {
     const language = languageForLocale(locale.value)
-    const value = (dictionaries[language] as Record<string, string>)[key] || key
+    const value = dictionaryFor(language)?.[key] || key
     return value.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(params[name] ?? ''))
   }
 
-  function setLocale(value: string) {
-    const next = localeForLanguage(languageForLocale(value))
+  function apply(next: AppLocale) {
     locale.value = next
     cookie.value = next
     if (import.meta.client) {
@@ -49,10 +41,23 @@ export function useI18n() {
     }
   }
 
-  return { locale, language: computed(() => languageForLocale(locale.value)), t, setLocale, dictionaries }
+  function setLocale(value: string) {
+    const next = localeForLanguage(languageForLocale(value))
+    const language = languageForLocale(next)
+    const admin = needsAdminDictionary()
+    // Switch only once the new dictionary is in hand: applying it earlier would
+    // render translation keys instead of text.
+    if (isDictionaryReady(language, admin)) {
+      apply(next)
+      return
+    }
+    void loadDictionary(language, admin).then(() => apply(next))
+  }
+
+  return { locale, language: computed(() => languageForLocale(locale.value)), t, setLocale }
 }
 
 function localeForLanguage(language: AppLanguage): AppLocale {
-  if (language === 'de') return 'de-DE'
+  if (language === 'de') return 'de-CH'
   return language === 'en' ? 'en-US' : 'sq-XK'
 }
