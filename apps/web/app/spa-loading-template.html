@@ -18,10 +18,16 @@
   <strong data-loading-locale="de">Dein Workspace wird vorbereitet…</strong>
   <strong data-loading-locale="en" hidden>Preparing your workspace…</strong>
   <strong data-loading-locale="sq" hidden>Po përgatisim hapësirën tënde…</strong>
+  <strong data-loading-locale="it" hidden>Stiamo preparando il tuo spazio di lavoro…</strong>
+  <strong data-loading-locale="fr" hidden>Préparation de votre espace de travail…</strong>
+  <strong data-loading-locale="tr" hidden>Çalışma alanınız hazırlanıyor…</strong>
   <noscript>
     <span data-loading-locale="de">Aktiviere JavaScript für deinen Workspace. Die öffentliche Website ist auch ohne JavaScript lesbar.</span>
     <span data-loading-locale="en" hidden>Enable JavaScript for your workspace. The public site is still readable without it.</span>
     <span data-loading-locale="sq" hidden>Aktivizo JavaScript për hapësirën e punës. Faqja publike është e lexueshme edhe pa të.</span>
+    <span data-loading-locale="it" hidden>Attiva JavaScript per il tuo spazio di lavoro. Il sito pubblico resta leggibile anche senza.</span>
+    <span data-loading-locale="fr" hidden>Activez JavaScript pour votre espace de travail. Le site public reste lisible sans.</span>
+    <span data-loading-locale="tr" hidden>Çalışma alanınız için JavaScript’i etkinleştirin. Herkese açık site onsuz da okunabilir.</span>
   </noscript>
   <script>
     (() => {
@@ -29,8 +35,8 @@
       const locale = decodeURIComponent(
         document.cookie.match(/(?:^|; )rrit-locale=([^;]+)/)?.[1] || 'de-CH',
       ).toLowerCase()
-      const language = locale.startsWith('de') ? 'de' : locale.startsWith('en') ? 'en' : 'sq'
-      document.documentElement.lang = language === 'de' ? 'de-CH' : language
+      const language = ['de', 'en', 'it', 'fr', 'tr'].find(code => locale.startsWith(code)) || 'sq'
+      document.documentElement.lang = locale
       document.querySelectorAll('[data-loading-locale]').forEach((element) => {
         element.hidden = element.dataset.loadingLocale !== language
       })

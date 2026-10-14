@@ -156,7 +156,7 @@ export const strategySchema = z.object({
   cadence: z.number().min(1).max(14),
   updatedAt: z.string(),
 })
-export const APP_LOCALES = ['sq-XK', 'en-US', 'de-CH'] as const
+export const APP_LOCALES = ['sq-XK', 'en-US', 'de-CH', 'it-CH', 'fr-CH', 'tr-TR'] as const
 
 export type AppLocaleValue = (typeof APP_LOCALES)[number]
 

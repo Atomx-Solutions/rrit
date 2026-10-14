@@ -1,11 +1,14 @@
 import { authScopeForPath } from '~~/shared/utils/auth-scope'
 import { dictionaryFor, isDictionaryReady, loadDictionary, type AppLanguage } from '~/utils/dictionary'
 
-export type AppLocale = 'sq-XK' | 'en-US' | 'de-CH'
+export type AppLocale = 'sq-XK' | 'en-US' | 'de-CH' | 'it-CH' | 'fr-CH' | 'tr-TR'
 
 export function languageForLocale(value: string | undefined): AppLanguage {
   const normalized = value?.toLowerCase() || ''
   if (normalized.startsWith('de')) return 'de'
+  if (normalized.startsWith('it')) return 'it'
+  if (normalized.startsWith('fr')) return 'fr'
+  if (normalized.startsWith('tr')) return 'tr'
   return normalized.startsWith('en') ? 'en' : 'sq'
 }
 
@@ -45,7 +48,7 @@ export function useI18n() {
     locale.value = next
     cookie.value = next
     if (import.meta.client) {
-      document.documentElement.lang = languageForLocale(next)
+      document.documentElement.lang = next
       window.dispatchEvent(new CustomEvent('rrit-locale-change', { detail: next }))
     }
   }
@@ -68,5 +71,8 @@ export function useI18n() {
 
 function localeForLanguage(language: AppLanguage): AppLocale {
   if (language === 'de') return 'de-CH'
+  if (language === 'it') return 'it-CH'
+  if (language === 'fr') return 'fr-CH'
+  if (language === 'tr') return 'tr-TR'
   return language === 'en' ? 'en-US' : 'sq-XK'
 }

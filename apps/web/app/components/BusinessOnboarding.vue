@@ -84,6 +84,9 @@ const localeOptions = [
   { label: t('settings.albanianKosovo'), value: 'sq-XK' },
   { label: t('settings.englishUnitedStates'), value: 'en-US' },
   { label: t('settings.germanSwitzerland'), value: 'de-CH' },
+  { label: t('settings.italianSwitzerland'), value: 'it-CH' },
+  { label: t('settings.frenchSwitzerland'), value: 'fr-CH' },
+  { label: t('settings.turkishTurkey'), value: 'tr-TR' },
 ]
 function toggleGoal(goal: string, checked: boolean) {
   if (checked && !form.goals.includes(goal)) form.goals.push(goal)

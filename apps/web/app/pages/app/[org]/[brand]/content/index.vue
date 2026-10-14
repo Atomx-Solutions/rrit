@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { statusLabels } from '~~/shared/utils/format'
+import { postSchema } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t } = useI18n()
@@ -22,6 +23,11 @@ const filter = computed({
   },
 })
 const channel = ref('all')
+// Every network a post can be saved for, so the filter never misses one.
+const channelItems = computed(() => [
+  { label: t('content.allChannels'), value: 'all' },
+  ...postSchema.shape.channel.options,
+])
 const format = ref<'all' | 'video' | 'post'>('all')
 const hasFilters = computed(
   () => !!search.value.trim() || filter.value !== 'all' || channel.value !== 'all' || format.value !== 'all',
@@ -91,7 +97,7 @@ watch([search, filter, channel, format], () => {
           />
           <USelect
             v-model="channel"
-            :items="[{ label: t('content.allChannels'), value: 'all' }, 'Instagram', 'Facebook']"
+            :items="channelItems"
             :aria-label="t('content.filterChannel')"
             class="w-32 sm:w-auto"
           />

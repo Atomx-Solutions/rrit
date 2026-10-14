@@ -1,26 +1,28 @@
 <script setup lang="ts">
 const route = useRoute()
 const { t, locale, setLocale } = useI18n()
-// The public landing experience is Swiss German by default for this market.
-// Existing cookies from earlier locales must not change the landing language.
-if (locale.value !== 'de-CH') setLocale('de-CH')
+// The public landing experience is Swiss German by default for this market;
+// a visitor who picked another language keeps it while browsing.
 const requestUrl = useRequestURL()
 const canonicalUrl = computed(() => `${requestUrl.origin}${requestUrl.pathname}`)
 useHead({
   link: [{ rel: 'canonical', href: canonicalUrl }],
   meta: [{ property: 'og:url', content: canonicalUrl }],
 })
-const languageOptions = computed(() => [
-  { label: `DE-CH ${t('public.german')}`, value: 'de-CH' },
-  { label: `EN ${t('public.english')}`, value: 'en-US' },
-  { label: `SQ ${t('public.albanian')}`, value: 'sq-XK' },
-])
-const languageLabel = computed(() => locale.value === 'de-CH'
-  ? t('public.german')
-  : locale.value === 'en-US' ? t('public.english') : t('public.albanian'))
-const languageFlag = computed(() => locale.value === 'de-CH'
-  ? 'i-flag-de-4x3'
-  : locale.value === 'en-US' ? 'i-flag-gb-4x3' : 'i-flag-al-4x3')
+const publicLanguages = [
+  { value: 'de-CH', code: 'DE-CH', key: 'public.german', flag: 'i-flag-ch-4x3' },
+  { value: 'fr-CH', code: 'FR-CH', key: 'public.french', flag: 'i-flag-ch-4x3' },
+  { value: 'it-CH', code: 'IT-CH', key: 'public.italian', flag: 'i-flag-ch-4x3' },
+  { value: 'en-US', code: 'EN', key: 'public.english', flag: 'i-flag-gb-4x3' },
+  { value: 'tr-TR', code: 'TR', key: 'public.turkish', flag: 'i-flag-tr-4x3' },
+  { value: 'sq-XK', code: 'SQ', key: 'public.albanian', flag: 'i-flag-al-4x3' },
+] as const
+const languageOptions = computed(() =>
+  publicLanguages.map(item => ({ label: `${item.code} ${t(item.key)}`, value: item.value })))
+const activeLanguage = computed(() =>
+  publicLanguages.find(item => item.value === locale.value) ?? publicLanguages[0])
+const languageLabel = computed(() => t(activeLanguage.value.key))
+const languageFlag = computed(() => activeLanguage.value.flag)
 const language = computed({
   get: () => locale.value,
   set: (value: string) => setLocale(value),

@@ -41,9 +41,9 @@ function dateKey(value: Date | string, timezone: string) {
 }
 
 function activityDateLabel(key: string, timezone: string) {
-  const isEnglish = locale.value === 'en-US'
-  const isGerman = locale.value === 'de-CH'
-  const formatter = new Intl.DateTimeFormat(isGerman ? 'de-DE' : isEnglish ? 'en-GB' : 'sq-AL', {
+  // Albanian month names come back lower-case and are capitalised below.
+  const isAlbanian = locale.value === 'sq-XK'
+  const formatter = new Intl.DateTimeFormat(isAlbanian ? 'sq-AL' : locale.value === 'en-US' ? 'en-GB' : locale.value, {
     day: 'numeric',
     month: 'short',
     timeZone: timezone,
@@ -51,7 +51,7 @@ function activityDateLabel(key: string, timezone: string) {
   return formatter
     .formatToParts(new Date(`${key}T12:00:00.000Z`))
     .map((part) => {
-      if (isEnglish || isGerman || part.type !== 'month') return part.value
+      if (!isAlbanian || part.type !== 'month') return part.value
       const firstLetter = part.value.charAt(0)
       return `${firstLetter.toLocaleUpperCase('sq-AL')}${part.value.slice(1)}`
     })

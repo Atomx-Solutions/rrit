@@ -35,7 +35,7 @@ describe('admin locales', () => {
   })
 
   it('uses the same select control for the client language switcher', () => {
-    expect(publicLayout).toContain("const languageOptions = computed(() => [")
+    expect(publicLayout).toContain("const languageOptions = computed(() =>")
     expect(publicLayout).toMatch(/<USelect\s+v-model="language"/)
     expect(publicLayout).toContain(':items="languageOptions"')
     expect(publicLayout).toContain('class="size-4 sm:hidden"')
