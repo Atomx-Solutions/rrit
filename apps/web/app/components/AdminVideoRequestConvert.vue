@@ -232,10 +232,10 @@ async function submit() {
             :hint="t('admin.requests.askedForVideos', { count: request?.videos_requested ?? 0 })"
             required
           >
-            <UInputNumber v-model="form.videosIncluded" :min="1" :max="1000" class="w-full" />
+            <LiveInputNumber v-model="form.videosIncluded" :min="1" :max="1000" class="w-full" />
           </UFormField>
           <UFormField name="videoPriceEuro" :label="t('admin.packages.videoPrice')" required>
-            <UInputNumber
+            <LiveInputNumber
               v-model="form.videoPriceEuro"
               :min="0"
               :max="10000"
@@ -251,7 +251,7 @@ async function submit() {
           :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, currency) })"
           required
         >
-          <UInputNumber
+          <LiveInputNumber
             v-model="form.priceEuro"
             :min="0"
             :step="0.01"

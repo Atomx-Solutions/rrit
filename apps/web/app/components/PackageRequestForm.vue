@@ -249,7 +249,7 @@ async function submit() {
             @click="form.postsRequested = amount"
           />
         </div>
-        <UInputNumber
+        <LiveInputNumber
           v-model="form.postsRequested"
           :min="0"
           :max="1000"
@@ -259,7 +259,7 @@ async function submit() {
       </div>
     </UFormField>
       <UFormField name="videosRequested" :label="t('request.videos')">
-        <UInputNumber
+        <LiveInputNumber
           v-model="form.videosRequested"
           :min="0"
           :max="1000"

@@ -409,24 +409,24 @@ const listUi = {
         </UFormField>
         <div class="grid gap-4 sm:grid-cols-2">
           <UFormField name="posts_included" :label="t('admin.packages.posts')" required>
-            <UInputNumber v-model="form.posts_included" :min="0" :max="1000" class="w-full" />
+            <LiveInputNumber v-model="form.posts_included" :min="0" :max="1000" class="w-full" />
           </UFormField>
           <UFormField name="videos_included" :label="t('admin.packages.videos')" required>
-            <UInputNumber v-model="form.videos_included" :min="0" :max="1000" class="w-full" />
+            <LiveInputNumber v-model="form.videos_included" :min="0" :max="1000" class="w-full" />
           </UFormField>
           <UFormField
             name="credits_included"
             :label="t('admin.packages.credits')"
             :description="t('admin.packages.creditsHint')"
           >
-            <UInputNumber v-model="form.credits_included" :min="0" :max="1000000" :step="100" class="w-full" />
+            <LiveInputNumber v-model="form.credits_included" :min="0" :max="1000000" :step="100" class="w-full" />
           </UFormField>
           <UFormField
             name="post_price_cents"
             :label="t('admin.packages.postPrice')"
             required
           >
-            <UInputNumber
+            <LiveInputNumber
               v-model="postPriceEuro"
               :min="0.01"
               :max="10000"
@@ -439,7 +439,7 @@ const listUi = {
             name="video_price_cents"
             :label="t('admin.packages.videoPrice')"
           >
-            <UInputNumber
+            <LiveInputNumber
               v-model="videoPriceEuro"
               :min="0"
               :max="10000"
@@ -455,7 +455,7 @@ const listUi = {
           :hint="t('admin.packages.suggested', { price: formatPackageMoney(suggestedCents, displayCurrency) })"
           required
         >
-          <UInputNumber
+          <LiveInputNumber
             v-model="priceEuro"
             :min="0"
             :step="0.01"

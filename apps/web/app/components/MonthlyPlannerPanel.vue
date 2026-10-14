@@ -830,10 +830,10 @@ onBeforeUnmount(() => clearInterval(timer))
         <div class="flex w-full flex-col gap-2 lg:flex-row lg:items-end xl:w-auto xl:shrink-0">
           <div class="grid w-full grid-cols-2 gap-2 rounded-xl border border-primary/10 bg-default/70 p-2 sm:w-[28rem] lg:shrink-0">
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
-              <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
+              <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
             <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
-              <UInputNumber
+              <LiveInputNumber
                 v-model="selectedVideoQuantity"
                 :min="0"
                 :max="maxVideosThisBatch"
@@ -913,10 +913,10 @@ onBeforeUnmount(() => clearInterval(timer))
         <div class="flex w-full flex-col gap-2 lg:flex-row lg:items-end xl:w-auto xl:shrink-0">
           <div class="grid w-full grid-cols-2 gap-2 rounded-xl border border-primary/10 bg-default/70 p-2 sm:w-[28rem] lg:shrink-0">
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
-              <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
+              <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
             <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
-              <UInputNumber
+              <LiveInputNumber
                 v-model="selectedVideoQuantity"
                 :min="0"
                 :max="maxVideosThisBatch"
@@ -1189,7 +1189,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="text-sm font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
               <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
             </div>
-            <UInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
+            <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
           </div>
           <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
             <UIcon name="i-lucide-clapperboard" class="size-5 shrink-0 text-primary" />
@@ -1197,7 +1197,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="text-sm font-medium text-highlighted">{{ t('video.include') }}</p>
               <p class="truncate text-xs text-muted">{{ t('video.remaining', { count: remainingVideos }) }}</p>
             </div>
-            <UInputNumber
+            <LiveInputNumber
               v-model="selectedVideoQuantity"
               :min="0"
               :max="maxVideosThisBatch"
@@ -1257,7 +1257,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <div class="flex flex-col items-center gap-3 text-center">
               <UIcon :name="option.icon" class="size-8" />
               <span class="text-sm font-semibold text-highlighted">{{ option.label }}</span>
-              <UInputNumber
+              <LiveInputNumber
                 :model-value="channelSplit[option.value]"
                 :min="0"
                 :max="selectedQuantity"
@@ -1300,7 +1300,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <TikTokMark v-if="option.value === 'TikTok'" class="size-6" />
               <UIcon v-else :name="option.icon" class="size-6" />
               <span class="text-xs font-semibold">{{ option.label }}</span>
-              <UInputNumber
+              <LiveInputNumber
                 :model-value="videoChannelSplit[option.value]"
                 :min="0"
                 :max="selectedVideoQuantity"

@@ -351,7 +351,7 @@ async function declineProposal() {
       <template #body>
         <div class="space-y-4">
           <UFormField :label="t('billing.buyCreditsAmount')">
-            <UInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="1" class="w-44" />
+            <LiveInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="1" class="w-44" />
           </UFormField>
           <p class="text-sm text-muted">
             {{ t('billing.buyCreditsEstimate', { amount: formatMoney(creditEstimate) }) }}
@@ -373,7 +373,7 @@ async function declineProposal() {
     <UModal v-model:open="videoRequestOpen" :title="t('billing.requestVideosTitle')" :description="t('billing.requestVideosDescription')">
       <template #body>
         <div class="space-y-4">
-          <UFormField :label="t('billing.videoQuantity')"><UInputNumber v-model="videosRequested" :min="1" :max="1000" class="w-44" /></UFormField>
+          <UFormField :label="t('billing.videoQuantity')"><LiveInputNumber v-model="videosRequested" :min="1" :max="1000" class="w-44" /></UFormField>
           <p class="text-sm text-muted">{{ t('billing.videoPriceEstimate', { amount: formatMoney(videoEstimate) }) }}</p>
         </div>
       </template>

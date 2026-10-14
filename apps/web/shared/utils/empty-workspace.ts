@@ -1,5 +1,5 @@
 import type { Workspace } from '../schemas/workspace'
-import { videoDeliverablesDefault } from '../schemas/workspace'
+import { DEFAULT_TIMEZONE, videoDeliverablesDefault } from '../schemas/workspace'
 export function emptyWorkspace(name = '', email = ''): Workspace {
   return {
     revision: 0,
@@ -27,8 +27,8 @@ export function emptyWorkspace(name = '', email = ''): Workspace {
     preferences: {
       name,
       email,
-      timezone: 'Europe/Belgrade',
-      locale: 'sq-XK',
+      timezone: DEFAULT_TIMEZONE,
+      locale: 'de-CH',
       currency: 'CHF',
     },
     posts: [],

@@ -58,8 +58,22 @@ const available = computed(() => {
   if (props.mode === 'callback') return true
   return capabilities.value?.authentication
 })
+// The recovery link signs the person in for this one step: Supabase sends a
+// one-time code that must become a session before the password can change.
+const recoverySession = ref(false)
+async function openRecoverySession() {
+  const result = await authClient.handleCallback()
+  recoverySession.value = !!result.data.session
+  if (result.error) error.value = errorText(result.error)
+  else if (!recoverySession.value) error.value = t('auth.confirmPasswordLinkError')
+  return recoverySession.value
+}
 onMounted(async () => {
   hydrated.value = true
+  if (props.mode === 'reset') {
+    await openRecoverySession()
+    return
+  }
   if (props.mode !== 'callback') return
 
   busy.value = true
@@ -210,12 +224,8 @@ async function submit() {
         showSuccess(success.value)
       }
     } else if (props.mode === 'reset') {
-      const token = typeof route.query.token === 'string' ? route.query.token : ''
-      if (!token) {
-        error.value = t('auth.confirmPasswordLinkError')
-        return
-      }
-      const result = await authClient.resetPassword({ token, newPassword: state.password })
+      if (!recoverySession.value && !(await openRecoverySession())) return
+      const result = await authClient.resetPassword({ newPassword: state.password })
       if (result.error) error.value = errorText(result.error)
       else {
         state.password = ''

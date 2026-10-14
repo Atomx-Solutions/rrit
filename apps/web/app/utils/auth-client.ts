@@ -106,8 +106,8 @@ function createAuthClient(scope: AuthScope) {
       })
       return errorResult(result.error)
     },
-    async resetPassword(input: { token?: string; newPassword: string }) {
-      void input.token
+    // Runs inside the session the recovery link opened (see handleCallback).
+    async resetPassword(input: { newPassword: string }) {
       const result = await auth().updateUser({ password: input.newPassword })
       return errorResult(result.error)
     },

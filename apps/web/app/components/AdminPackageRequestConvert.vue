@@ -253,10 +253,10 @@ async function copyInvitationLink() {
             :hint="t('admin.requests.askedFor', { count: request?.posts_requested ?? 0 })"
             required
           >
-            <UInputNumber v-model="form.postsIncluded" :min="0" :max="1000" class="w-full" />
+            <LiveInputNumber v-model="form.postsIncluded" :min="0" :max="1000" class="w-full" />
           </UFormField>
           <UFormField name="postPriceEuro" :label="`${t('admin.packages.postPrice')} (${currency})`" required>
-            <UInputNumber
+            <LiveInputNumber
               v-model="form.postPriceEuro"
               :min="0.01"
               :max="10000"
@@ -268,10 +268,10 @@ async function copyInvitationLink() {
         </div>
         <div v-if="form.videosIncluded > 0" class="grid gap-4 sm:grid-cols-2">
           <UFormField name="videosIncluded" label="Videos" :hint="`Asked for ${request?.videos_requested ?? 0}`" required>
-            <UInputNumber v-model="form.videosIncluded" :min="0" :max="1000" class="w-full" />
+            <LiveInputNumber v-model="form.videosIncluded" :min="0" :max="1000" class="w-full" />
           </UFormField>
           <UFormField name="videoPriceEuro" :label="`Video price (${currency})`" required>
-            <UInputNumber v-model="form.videoPriceEuro" :min="0.01" :max="10000" :step="0.01" :format-options="{ style: 'currency', currency }" class="w-full" />
+            <LiveInputNumber v-model="form.videoPriceEuro" :min="0.01" :max="10000" :step="0.01" :format-options="{ style: 'currency', currency }" class="w-full" />
           </UFormField>
         </div>
         <UFormField
@@ -280,7 +280,7 @@ async function copyInvitationLink() {
           :hint="`Calculated from the configured post and video prices. VAT is added on the invoice.`"
           required
         >
-          <UInputNumber
+          <LiveInputNumber
             :model-value="suggestedCents / 100"
             :format-options="{ style: 'currency', currency }"
             disabled

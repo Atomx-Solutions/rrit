@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { APP_LOCALES } from '~~/shared/schemas/workspace'
+import { APP_LOCALES, TIMEZONE_OPTIONS } from '~~/shared/schemas/workspace'
 import { z } from 'zod'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base, syncing, commit, notify, exportData } = useWorkspace()
@@ -163,7 +163,7 @@ async function saveAndLeave() {
               :items="[
                 { label: t('settings.albanianKosovo'), value: 'sq-XK' },
                 { label: t('settings.englishUnitedStates'), value: 'en-US' },
-                { label: t('settings.germanGermany'), value: 'de-CH' },
+                { label: t('settings.germanSwitzerland'), value: 'de-CH' },
                 { label: t('settings.italianSwitzerland'), value: 'it-CH' },
                 { label: t('settings.frenchSwitzerland'), value: 'fr-CH' },
                 { label: t('settings.turkishTurkey'), value: 'tr-TR' },
@@ -173,13 +173,7 @@ async function saveAndLeave() {
             ><USelect
               v-model="form.timezone"
               class="w-72 max-w-full"
-              :items="[
-                { label: t('onboarding.timezoneKosovo'), value: 'Europe/Belgrade' },
-                { label: t('onboarding.timezoneAlbania'), value: 'Europe/Tirane' },
-                { label: t('onboarding.timezoneNorthMacedonia'), value: 'Europe/Skopje' },
-                { label: t('onboarding.timezoneUnitedKingdom'), value: 'Europe/London' },
-                { label: t('onboarding.timezoneSwitzerland'), value: 'Europe/Zurich' },
-              ]" /></UFormField
+              :items="TIMEZONE_OPTIONS.map(zone => ({ label: t(zone.labelKey), value: zone.value }))" /></UFormField
           ><UFormField :label="t('settings.currency')" name="currency" class="field"
             ><USelect
               v-model="form.currency"

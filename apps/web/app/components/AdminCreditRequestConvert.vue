@@ -168,7 +168,7 @@ async function submit() {
           :hint="t('admin.requests.askedForCredits', { count: request?.credits_requested ?? 0 })"
           required
         >
-          <UInputNumber v-model="form.credits" :min="0" :max="1000000" :step="100" class="w-full" />
+          <LiveInputNumber v-model="form.credits" :min="0" :max="1000000" :step="100" class="w-full" />
         </UFormField>
         <UFormField
           name="creditPrice"
@@ -176,7 +176,7 @@ async function submit() {
           :description="t('admin.requests.creditRateHelp')"
           required
         >
-          <UInputNumber
+          <LiveInputNumber
             v-model="form.creditPrice"
             :min="0"
             :step="0.01"
@@ -190,7 +190,7 @@ async function submit() {
           :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, currency) })"
           required
         >
-          <UInputNumber
+          <LiveInputNumber
             v-model="form.price"
             :min="0"
             :step="0.01"
