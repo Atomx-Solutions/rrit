@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { AppLocaleValue } from '../../shared/schemas/workspace'
 import {
   aiProviderConfiguration,
   aiProviderJsonSchema,
@@ -74,7 +75,7 @@ export async function reviewVideoQuality(input: {
   frames: Buffer[]
   caption: string
   brandName: string
-  locale: 'sq-XK' | 'en-US' | 'de-DE'
+  locale: AppLocaleValue
   verifiedFacts: string[]
   targetChannel: 'Instagram' | 'Facebook' | 'TikTok'
 }) {
@@ -92,7 +93,7 @@ export async function reviewVideoQuality(input: {
     body: JSON.stringify({
       model: aiProviderModel('AI_PLANNER_MODEL'),
       store: false,
-    instructions: `Review the finished vertical social video shown as chronological frames against the original business photograph and the supplied verified facts. The target platform is ${input.targetChannel}; treat Instagram, Facebook and TikTok as equally supported video targets. Evaluate the caption, visible subjects, motion continuity, overlays, legibility, brand fit, source fidelity, end card, and platform fit for ${input.targetChannel}. For TikTok, check vertical full-screen composition, first-frame clarity, safe text placement and native short-form presentation. For Instagram and Facebook, check the vertical Reel/video presentation, first-frame clarity, safe text placement and legibility. Platform fit and subjective visual weaknesses must produce WARN only. Do not assume motion between sampled frames is proven. Set factuality=false only for invented products, people, venue features, offers, unsupported claims or a source photograph mismatch. Give specific, actionable reasons in ${input.locale === 'de-DE' ? 'German' : input.locale === 'en-US' ? 'English' : 'Albanian'}. Use WARN for subjective weaknesses and BLOCK only for factual or source-evidence failures. Return the required structured quality result.`,
+    instructions: `Review the finished vertical social video shown as chronological frames against the original business photograph and the supplied verified facts. The target platform is ${input.targetChannel}; treat Instagram, Facebook and TikTok as equally supported video targets. Evaluate the caption, visible subjects, motion continuity, overlays, legibility, brand fit, source fidelity, end card, and platform fit for ${input.targetChannel}. For TikTok, check vertical full-screen composition, first-frame clarity, safe text placement and native short-form presentation. For Instagram and Facebook, check the vertical Reel/video presentation, first-frame clarity, safe text placement and legibility. Platform fit and subjective visual weaknesses must produce WARN only. Do not assume motion between sampled frames is proven. Set factuality=false only for invented products, people, venue features, offers, unsupported claims or a source photograph mismatch. Give specific, actionable reasons in ${input.locale === 'de-CH' ? 'German' : input.locale === 'en-US' ? 'English' : 'Albanian'}. Use WARN for subjective weaknesses and BLOCK only for factual or source-evidence failures. Return the required structured quality result.`,
       max_output_tokens: 1200,
       input: [{
         role: 'user',

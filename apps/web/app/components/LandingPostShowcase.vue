@@ -1,14 +1,18 @@
 <script setup lang="ts">
+import { imageFallback, imageSrcset, landingPosterSizes } from '~~/shared/utils/responsive-image'
 const { t } = useI18n()
 const stage = ref<HTMLElement>()
 const reduced = ref(true)
 const paused = ref(false)
 const visible = ref(true)
+// The deck posters render at 46% of the showcase column, so they only ever
+// need the small generated variants rather than the full-size source photos.
 const photos = {
-  coffee: '/images/table.jpg',
-  burger: '/images/burger.jpg',
-  space: '/images/interior.jpg',
+  coffee: '/images/table.webp',
+  burger: '/images/burger.webp',
+  space: '/images/interior.webp',
 }
+const posterSizes = landingPosterSizes
 let cleanup: (() => void) | undefined
 onMounted(() => {
   const media = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -50,11 +54,14 @@ const moving = computed(() => !reduced.value && !paused.value && visible.value)
           <p class="poster-coffee-title">{{ t('legacy.satisfy') }}<br /><span>{{ t('legacy.day') }}</span></p>
           <div class="poster-coffee-photo">
             <img
-              :src="photos.coffee"
+              :src="imageFallback(photos.coffee)"
+              :srcset="imageSrcset(photos.coffee)"
+              :sizes="posterSizes"
               :alt="t('landing.coffeeAlt')"
               width="1000"
               height="667"
-              fetchpriority="high"
+              loading="eager"
+              decoding="async"
             />
           </div>
           <p class="poster-footer">{{ t('legacy.goodCoffee') }}</p>
@@ -66,7 +73,9 @@ const moving = computed(() => !reduced.value && !paused.value && visible.value)
           <p class="poster-food-title">{{ t('legacy.fewWords') }}<br /><span>{{ t('legacy.muchTaste') }}</span></p>
           <div class="poster-food-photo">
             <img
-              :src="photos.burger"
+              :src="imageFallback(photos.burger)"
+              :srcset="imageSrcset(photos.burger)"
+              :sizes="posterSizes"
               :alt="t('landing.burgerAlt')"
               width="900"
               height="748"
@@ -80,11 +89,15 @@ const moving = computed(() => !reduced.value && !paused.value && visible.value)
       <UCard class="landing-design-post landing-post-space" :ui="{ body: 'p-0 sm:p-0 h-full' }">
         <div class="poster poster-space">
           <img
-            :src="photos.space"
+            :src="imageFallback(photos.space)"
+            :srcset="imageSrcset(photos.space)"
+            :sizes="posterSizes"
             :alt="t('landing.spaceAlt')"
             width="1000"
-            height="667"
+            height="686"
+            loading="eager"
             decoding="async"
+            fetchpriority="high"
           />
           <div class="poster-space-copy">
             <div class="poster-brand"><span>{{ t('legacy.spaceForYou') }}</span><span>↗</span></div>
@@ -97,7 +110,7 @@ const moving = computed(() => !reduced.value && !paused.value && visible.value)
     <figcaption id="showcase-caption">
       <span>{{ t('legacy.illustrativeDesigns') }}</span>
       <UButton
-        v-if="!reduced"
+        class="landing-showcase-pause"
         :icon="paused ? 'i-lucide-play' : 'i-lucide-pause'"
         :aria-label="paused ? t('landing.resumeAnimation') : t('landing.pauseAnimation')"
         :aria-pressed="paused"

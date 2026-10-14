@@ -83,7 +83,7 @@ const timezoneOptions = [
 const localeOptions = [
   { label: t('settings.albanianKosovo'), value: 'sq-XK' },
   { label: t('settings.englishUnitedStates'), value: 'en-US' },
-  { label: t('settings.germanGermany'), value: 'de-DE' },
+  { label: t('settings.germanSwitzerland'), value: 'de-CH' },
 ]
 function toggleGoal(goal: string, checked: boolean) {
   if (checked && !form.goals.includes(goal)) form.goals.push(goal)

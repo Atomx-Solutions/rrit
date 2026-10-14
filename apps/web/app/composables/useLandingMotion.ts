@@ -46,7 +46,18 @@ export function useLandingMotion(root: Ref<HTMLElement | undefined>) {
     }
     observe()
     // Plan cards can arrive after mount or after retrying the catalog request.
-    const mutations = new MutationObserver(observe)
+    // Re-querying the whole subtree per mutation record was wasted work, so a
+    // burst of mutations collapses into a single pass.
+    let queued = false
+    const queueObserve = () => {
+      if (queued) return
+      queued = true
+      queueMicrotask(() => {
+        queued = false
+        observe()
+      })
+    }
+    const mutations = new MutationObserver(queueObserve)
     mutations.observe(root.value, { childList: true, subtree: true })
     const stop = () => {
       if (media.matches) {

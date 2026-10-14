@@ -6,10 +6,10 @@ const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: '
 const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
 
-const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { key: 'usage' })
-const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { key: 'billing-subscription-currency-v2' })
-const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { key: 'billing-details' })
-const { data: platformPricing } = await useFetch<{ videoPriceCents: number }>('/api/package-requests', { key: 'package-pricing' })
+const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { lazy: true, key: 'usage' })
+const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { lazy: true, key: 'billing-subscription-currency-v2' })
+const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { lazy: true, key: 'billing-details' })
+const { data: platformPricing } = await useFetch<{ videoPriceCents: number }>('/api/package-requests', { lazy: true, key: 'package-pricing' })
 
 const detailsForm = reactive({ legalName: '', address: '', city: '', country: '', fiscalNumber: '' })
 const savingDetails = ref(false)
@@ -18,6 +18,7 @@ const videoRequestOpen = ref(false)
 const videosRequested = ref(1)
 const sendingVideoRequest = ref(false)
 const creditRequestOpen = ref(false)
+const offerOpen = ref(false)
 const creditsRequested = ref(500)
 const creditMessage = ref('')
 const sendingCreditRequest = ref(false)
@@ -46,7 +47,7 @@ const proposalSummary = computed(() => {
     parts.push(t('billing.proposalCredits', { count: proposal.creditsIncluded }))
   // Only posts and videos carry a period of their own; credits join the package
   // that is already running, so dates would be misleading on a pure top-up.
-  if (proposal.postsIncluded > 0 || (proposal.videosIncluded ?? 0) > 0)
+  if ((proposal.postsIncluded > 0 || (proposal.videosIncluded ?? 0) > 0) && proposal.startsAt && proposal.endsAt)
     parts.push(t('billing.customPackagePeriod', {
       start: formatPeriodDate(proposal.startsAt),
       end: formatPeriodDate(proposal.endsAt),
@@ -159,6 +160,7 @@ async function acceptProposal() {
     // The accepted package grants its post-based credits atomically. Refresh
     // every visible balance immediately instead of waiting for polling.
     await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('header-credit-balance')])
+    offerOpen.value = false
     showSuccess(t('billing.packageProposalAccepted'))
   } catch (error) {
     showError((error as { data?: { message?: string } }).data?.message || t('billing.packageProposalFailed'))
@@ -171,6 +173,7 @@ async function declineProposal() {
   try {
     await $fetch('/api/billing/custom-package-decline', { method: 'POST', body: {} })
     await refreshBilling()
+    offerOpen.value = false
     showSuccess(t('billing.packageProposalDeclined'))
   } catch (error) {
     showError((error as { data?: { message?: string } }).data?.message || t('billing.packageProposalFailed'))
@@ -188,7 +191,7 @@ async function declineProposal() {
       :description="t('billing.activationByTeamDescription')"
     />
 
-    <UCard v-if="packageProposal" color="primary" variant="subtle" :ui="{ body: 'p-4 sm:p-5' }">
+    <UCard v-if="packageProposal" color="primary" variant="subtle" :ui="{ body: 'p-4 sm:p-5' }" class="cursor-pointer transition-shadow hover:shadow-md" @click="offerOpen = true">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="space-y-1">
           <div class="flex items-center gap-2"><UIcon name="i-lucide-handshake" class="size-5 text-primary" /><h2 class="text-sm font-semibold">{{ t('billing.packageProposalTitle') }}</h2></div>
@@ -201,6 +204,34 @@ async function declineProposal() {
         </div>
       </div>
     </UCard>
+
+    <UModal v-model:open="offerOpen" :title="t('billing.packageProposalTitle')">
+      <template #body>
+        <div v-if="packageProposal" class="space-y-5">
+          <div class="rounded-xl bg-primary/5 p-4">
+            <p class="text-lg font-semibold">{{ packageProposal.name }}</p>
+            <p class="mt-1 text-2xl font-bold text-primary">{{ formatMoney(packageProposal.price) }}</p>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div v-if="packageProposal.postsIncluded > 0" class="flex justify-between gap-4 border-b border-default pb-2">
+              <span>{{ t('billing.customPackagePosts', { count: packageProposal.postsIncluded }) }}</span>
+              <UIcon name="i-lucide-check" class="size-5 text-primary" />
+            </div>
+            <div v-if="(packageProposal.videosIncluded ?? 0) > 0" class="flex justify-between gap-4 border-b border-default pb-2">
+              <span>{{ t('billing.proposalVideos', { count: packageProposal.videosIncluded }) }}</span>
+              <UIcon name="i-lucide-check" class="size-5 text-primary" />
+            </div>
+            <p class="text-muted">{{ proposalSummary }}</p>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click="declineProposal" />
+          <UButton icon="i-lucide-check" :loading="acceptingProposal" :label="t('billing.packageProposalAccept')" @click="acceptProposal" />
+        </div>
+      </template>
+    </UModal>
 
     <UCard v-if="customPackage" :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
       <UIcon name="i-lucide-handshake" class="size-5 shrink-0 text-primary mt-0.5" />

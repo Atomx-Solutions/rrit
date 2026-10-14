@@ -153,14 +153,18 @@ const commands = computed(() => [
     })),
   },
 ])
-watch(
-  () => route.path,
-  () => {
-    if (import.meta.client && window.matchMedia('(max-width: 1023px)').matches) {
-      sidebarOpen.value = false
-    }
-  },
-)
+// Close the phone menu the moment a link is tapped, not once the next page has
+// finished loading, so the tap gets an immediate response.
+const removeNavigationGuard = useRouter().beforeEach((to, from) => {
+  if (
+    to.path !== from.path &&
+    import.meta.client &&
+    window.matchMedia('(max-width: 1023px)').matches
+  ) {
+    sidebarOpen.value = false
+  }
+})
+onBeforeUnmount(removeNavigationGuard)
 </script>
 <template>
   <div>
@@ -171,10 +175,21 @@ watch(
         v-model:open="sidebarOpen"
         collapsible="icon"
         rail
-        :menu="{ title: t('nav.navigation'), description: t('nav.navigationDescription') }"
+        :menu="{
+          title: t('nav.navigation'),
+          description: t('nav.navigationDescription'),
+          // The phone menu should feel like it follows the tap, not trail it.
+          ui: {
+            overlay:
+              'data-[state=open]:animate-[fade-in_120ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_90ms_var(--ease-out)]',
+            content:
+              'data-[state=open]:animate-[slide-in-from-left_140ms_var(--ease-out)] data-[state=closed]:animate-[slide-out-to-left_100ms_var(--ease-out)]',
+          },
+        }"
         :ui="{
           root: '[--sidebar-width:12.5rem] [--sidebar-width-icon:3.25rem]',
-          container: 'h-full',
+          gap: 'duration-120',
+          container: 'h-full duration-120',
           inner: 'bg-elevated/25 divide-transparent',
           header: 'h-[52px] min-h-[52px] px-1.5 gap-1',
           body: 'p-2 gap-3',

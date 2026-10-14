@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 // Keep the suite reproducible across developer machines and CI. Tests that need
@@ -5,6 +6,8 @@ import { defineConfig } from 'vitest/config'
 process.env.TZ = 'UTC'
 
 export default defineConfig({
+  // Mirrors the Nuxt alias, so modules shared with the app resolve the same way.
+  resolve: { alias: { '#shared': fileURLToPath(new URL('./shared', import.meta.url)) } },
   test: {
     include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
     environment: 'node',

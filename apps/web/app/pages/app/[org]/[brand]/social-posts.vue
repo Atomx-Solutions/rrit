@@ -22,11 +22,11 @@ const {
   error: loadError,
   status,
   refresh,
-} = await useFetch('/api/meta/posts', { key: 'social-posts', query })
-const { data: connection } = await useFetch('/api/meta/status', { key: 'meta-status' })
+} = await useFetch('/api/meta/posts', { lazy: true, key: 'social-posts', query })
+const { data: connection } = await useFetch('/api/meta/status', { lazy: true, key: 'meta-status' })
 const selected = ref<NonNullable<typeof result.value>['posts'][number] | null>(null)
 const importing = ref(false)
-const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
+const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { lazy: true, key: 'tiktok-status' })
 const importChannel = ref<'Facebook' | 'Instagram' | 'TikTok'>(
   requestedChannel === 'TikTok' ? 'TikTok' : 'Facebook',
 )
@@ -97,14 +97,14 @@ async function sync(more = false) {
         <USelect
           v-model="importChannel"
           size="md"
-          class="h-11 min-h-11 w-full"
+          class="h-10 min-h-10 w-full"
           :items="['Facebook', 'Instagram', 'TikTok']"
           :disabled="importing"
         />
       </UFormField>
       <UButton
         size="md"
-        class="h-11 min-h-11 shrink-0 px-4"
+        class="h-10 min-h-10 shrink-0 px-4"
         variant="outline"
         color="neutral"
         icon="i-lucide-refresh-cw"
@@ -118,7 +118,7 @@ async function sync(more = false) {
         variant="outline"
         color="neutral"
         size="md"
-        class="h-11 min-h-11 shrink-0 px-4"
+        class="h-10 min-h-10 shrink-0 px-4"
         :loading="importing"
         @click="sync(true)"
         >{{ t('social.loadOlder') }}</UButton

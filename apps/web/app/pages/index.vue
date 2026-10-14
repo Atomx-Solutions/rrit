@@ -1,12 +1,29 @@
 <script setup lang="ts">
 import '~/assets/css/landing.css'
 import '~/assets/css/landing-scenes.css'
+import { imageFallback, imageSrcset, landingPosterSizes } from '~~/shared/utils/responsive-image'
 definePageMeta({ layout: 'public' })
 const landingRoot = ref<HTMLElement>()
 useLandingMotion(landingRoot)
 const { t } = useI18n()
 const requestUrl = useRequestURL()
 const { capabilities } = useLandingOffer()
+// Every hero poster is above the fold and the deck animation can bring any of
+// them forward, so all three are discoverable from the HTML. The space poster
+// is the largest painted element, so it carries the priority hint.
+const heroPosters = ['/images/interior.webp', '/images/table.webp', '/images/burger.webp']
+useHead({
+  link: [
+    ...heroPosters.map((poster, index) => ({
+      rel: 'preload' as const,
+      as: 'image' as const,
+      href: imageFallback(poster),
+      imagesrcset: imageSrcset(poster),
+      imagesizes: landingPosterSizes,
+      fetchpriority: index === 0 ? ('high' as const) : ('auto' as const),
+    })),
+  ],
+})
 const ogImageUrl = computed(() => new URL('/og-image.png?v=3', requestUrl).toString())
 const structuredData = computed(() => JSON.stringify({
   '@context': 'https://schema.org',
@@ -16,8 +33,8 @@ const structuredData = computed(() => JSON.stringify({
       '@id': `${requestUrl.origin}/#organization`,
       name: 'Framic',
       url: requestUrl.origin,
-      logo: new URL('/framic-logo.png', requestUrl).toString(),
-      areaServed: ['DE', 'AT', 'CH'],
+      logo: new URL('/framic-logo.webp', requestUrl).toString(),
+      areaServed: ['CH'],
     },
     {
       '@type': 'SoftwareApplication',
@@ -29,7 +46,7 @@ const structuredData = computed(() => JSON.stringify({
       url: requestUrl.origin,
       inLanguage: 'de',
       creator: { '@id': `${requestUrl.origin}/#organization` },
-      areaServed: ['DE', 'AT', 'CH'],
+      areaServed: ['CH'],
     },
     {
       '@type': 'FAQPage',
@@ -164,7 +181,7 @@ const questions = computed(() => [
           </ol>
         </div>
       </UContainer>
-      <LandingStories />
+      <LazyLandingStories hydrate-on-visible />
       <UContainer class="landing-container">
         <div class="landing-process-cta">
           <p>{{ t('landing.processCtaDescription') }}</p>
@@ -184,7 +201,7 @@ const questions = computed(() => [
           <h2 id="pricing-title">{{ t('landing.howManyPosts') }}</h2>
           <p>{{ t('landing.packageRhythm') }}</p>
         </div>
-        <LandingPackageRequest />
+        <LazyLandingPackageRequest hydrate-on-visible />
       </UContainer>
     </section>
     <section id="faq" class="landing-faq-section" aria-labelledby="faq-title">
