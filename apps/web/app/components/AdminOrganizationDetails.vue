@@ -112,9 +112,25 @@ const steps = computed(() => [
   { key: 'invoices', label: t('admin.details.stepInvoices', { count: latestInvoices.value.length }) },
 ])
 const step = ref(0)
+// A package to open for editing, from "Edit package" here or on the list.
+const route = useRoute()
+const editPackageId = ref<string | null>(null)
+function editPackage(id: string | null | undefined) {
+  if (!id) return
+  editPackageId.value = id
+  step.value = steps.value.findIndex(item => item.key === 'packages')
+}
+function packageEditOpened() {
+  editPackageId.value = null
+  if (route.query.editPackage) {
+    const { editPackage: _editPackage, ...query } = route.query
+    void navigateTo({ query }, { replace: true })
+  }
+}
 watch(() => props.organization?.id, () => {
   step.value = 0
-})
+  editPackage(typeof route.query.editPackage === 'string' ? route.query.editPackage : null)
+}, { immediate: true })
 const currentStep = computed(() => steps.value[step.value]?.key ?? 'overview')
 // The steps double as a navigation bar, so a section can be reached directly
 // instead of only by walking through the ones before it.
@@ -172,7 +188,7 @@ async function copyId() {
     :open="!!organization"
     :title="organization?.name"
     :description="organization?.slug"
-    :ui="{ content: 'sm:max-w-2xl', body: 'space-y-4' }"
+    :ui="{ content: 'sm:max-w-5xl', body: 'space-y-4' }"
     @update:open="(value: boolean) => { if (!value) emit('close') }"
   >
     <template #body>
@@ -277,6 +293,8 @@ async function copyId() {
         v-if="organization && currentStep === 'packages'"
         :organization-id="organization.id"
         :organization-name="organization.name"
+        :edit-package-id="editPackageId"
+        @edit-opened="packageEditOpened"
       />
       <UCard v-if="currentStep === 'invoices'" variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
         <template #header>
@@ -354,7 +372,7 @@ async function copyId() {
             :organization-name="organization.name"
             :package="organization.custom_package"
             @changed="onSubscriptionChanged"
-            @edit="step = steps.findIndex(item => item.key === 'packages')"
+            @edit="editPackage(organization.custom_package?.id)"
           />
         </div>
       </div>

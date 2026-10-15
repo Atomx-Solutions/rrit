@@ -789,13 +789,25 @@ export async function monthlyProviderCall(
   }
   // Web requests use the runtime role, never the worker credential. Re-establish
   // tenant context in a short transaction after the network call has finished.
-  async function persist(sql: string, values: unknown[]) {
+  // `releaseKey` returns the credits reserved for this call when it ended
+  // without the provider charging anything; without it they would stay
+  // reserved for good and the balance could never be spent.
+  async function persist(sql: string, values: unknown[], releaseKey?: string) {
     const connection = await db.connect()
     try {
       await connection.query('BEGIN')
       if (args.tenant) await setTenantContext(connection, args.tenant)
       const result = await connection.query(sql, values)
       if (!result.rowCount) throw new PlannerFailure('PROVIDER_UNCERTAIN')
+      if (releaseKey && creditReserve > 0 && !platformCost)
+        await releaseReservedCredits(connection, {
+          organizationId: args.businessId,
+          credits: creditReserve,
+          usageKind: usageKind,
+          referenceType: 'monthly_ai_run',
+          referenceId: runId,
+          idempotencyKey: releaseKey,
+        })
       await connection.query('COMMIT')
     } catch (error) {
       try {
@@ -960,6 +972,7 @@ export async function monthlyProviderCall(
           ? "UPDATE monthly_ai_runs SET status='failed',error_code=$1,result=COALESCE($2::jsonb,result),actual_cost_micro_eur=0,completed_at=now() WHERE id=$3 AND status='reserved'"
           : "UPDATE monthly_ai_runs SET status=CASE WHEN status='reserved' THEN 'uncertain' ELSE status END WHERE id=$1",
         knownFailure ? [error.code, failureResult, runId] : [runId],
+        knownFailure ? `monthly-ai-failure-release:${runId}` : undefined,
       )
     } catch (persistError) {
       console.warn('Monthly text run state will be reconciled after database recovery.', {
@@ -1132,13 +1145,25 @@ export async function monthlyImageCall(
     client.release()
   }
 
-  async function persist(sql: string, values: unknown[]) {
+  // `releaseKey` returns the credits reserved for this call when it ended
+  // without the provider charging anything; without it they would stay
+  // reserved for good and the balance could never be spent.
+  async function persist(sql: string, values: unknown[], releaseKey?: string) {
     const connection = await db.connect()
     try {
       await connection.query('BEGIN')
       if (args.tenant) await setTenantContext(connection, args.tenant)
       const result = await connection.query(sql, values)
       if (!result.rowCount) throw new PlannerFailure('PROVIDER_UNCERTAIN')
+      if (releaseKey && creditReserve > 0)
+        await releaseReservedCredits(connection, {
+          organizationId: args.businessId,
+          credits: creditReserve,
+          usageKind: 'generation',
+          referenceType: 'monthly_ai_run',
+          referenceId: runId,
+          idempotencyKey: releaseKey,
+        })
       await connection.query('COMMIT')
     } catch (error) {
       try {
@@ -1322,6 +1347,7 @@ export async function monthlyImageCall(
           ? "UPDATE monthly_ai_runs SET status='failed',error_code=$1,result=COALESCE($2::jsonb,result),actual_cost_micro_eur=0,completed_at=now() WHERE id=$3 AND status='reserved'"
           : "UPDATE monthly_ai_runs SET status=CASE WHEN status='reserved' THEN 'uncertain' ELSE status END WHERE id=$1",
         knownFailure ? [error.code, failureResult, runId] : [runId],
+        knownFailure ? `monthly-image-failure-release:${runId}` : undefined,
       )
     } catch (persistError) {
       console.warn('Monthly image run state will be reconciled after database recovery.', {

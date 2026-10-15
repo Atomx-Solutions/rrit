@@ -168,7 +168,7 @@ async function submit() {
           :hint="t('admin.requests.askedForCredits', { count: request?.credits_requested ?? 0 })"
           required
         >
-          <LiveInputNumber v-model="form.credits" :min="0" :max="1000000" :step="100" class="w-full" />
+          <LiveInputNumber v-model="form.credits" :min="0" :max="1000000" :step="100" :step-snapping="false" class="w-full" />
         </UFormField>
         <UFormField
           name="creditPrice"

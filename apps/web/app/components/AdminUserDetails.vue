@@ -59,7 +59,7 @@ async function copy(value: string | null | undefined, message: string) {
     :open="!!user"
     :title="user?.email || user?.id"
     :description="t('admin.userDetails.description')"
-    :ui="{ content: 'sm:max-w-2xl', body: 'space-y-4' }"
+    :ui="{ content: 'sm:max-w-5xl', body: 'space-y-4' }"
     @update:open="(value: boolean) => { if (!value) emit('close') }"
   >
     <template #body>

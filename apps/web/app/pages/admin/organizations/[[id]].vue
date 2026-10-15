@@ -80,8 +80,12 @@ watch(page, () => {
 // /admin/organizations/[id] opens that organization's details over the list,
 // so the details can be linked to (e.g. from the overview) and survive a reload.
 const selectedId = computed(() => (typeof route.params.id === 'string' && route.params.id) || null)
-function openOrganization(id: string) {
-  navigateTo({ path: `/admin/organizations/${id}`, query: route.query })
+function openOrganization(id: string, editPackage?: string) {
+  navigateTo({
+    path: `/admin/organizations/${id}`,
+    // "Edit package" lands straight in that package's edit dialog.
+    query: editPackage ? { ...route.query, editPackage } : route.query,
+  })
 }
 function closeOrganization() {
   navigateTo({ path: '/admin/organizations', query: route.query })
@@ -214,7 +218,7 @@ const columns = computed<TableColumn<Organization>[]>(() => [
               :organization-name="organization.name"
               :package="organization.custom_package"
               @changed="refresh()"
-              @edit="openOrganization(organization.id)"
+              @edit="openOrganization(organization.id, organization.custom_package?.id)"
             />
           </UFieldGroup>
         </UCard>
@@ -293,7 +297,7 @@ const columns = computed<TableColumn<Organization>[]>(() => [
               :organization-name="row.original.name"
               :package="row.original.custom_package"
               @changed="refresh()"
-              @edit="openOrganization(row.original.id)"
+              @edit="openOrganization(row.original.id, row.original.custom_package?.id)"
             />
           </template>
         </UTable>

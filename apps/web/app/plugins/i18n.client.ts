@@ -1,4 +1,4 @@
-import { loadDictionary } from '~/utils/dictionary'
+import { dictionaryFor, loadDictionary } from '~/utils/dictionary'
 
 const attributes = ['aria-label', 'placeholder', 'title', 'alt']
 const skippedTags = ['SCRIPT', 'STYLE', 'NOSCRIPT']
@@ -61,9 +61,12 @@ function dynamicText(value: string, language: Language) {
     .replace(/^(\d+) of (\d+) posts$/, '$1 nga $2 postime')
 }
 
-function translate(value: string, language: Language) {
+function translate(value: string, language: Language, protectedValues?: Set<string>) {
   const trimmed = value.trim()
   if (!trimmed) return value
+  // A translated UI label can also be a word in the legacy source language.
+  // Turkish "Dil" (language), for example, is Albanian for "Sign out".
+  if (protectedValues?.has(trimmed)) return value
   const lookup = lookups.get(language)
   if (!lookup) return value
   const translated = lookup.get(trimmed)
@@ -73,33 +76,33 @@ function translate(value: string, language: Language) {
   return value.replace(trimmed, translated)
 }
 
-function translateTextNode(node: Text, language: Language) {
+function translateTextNode(node: Text, language: Language, protectedValues?: Set<string>) {
   const parent = node.parentElement
   if (!parent || skippedTags.includes(parent.tagName)) return
-  const next = translate(node.nodeValue || '', language)
+  const next = translate(node.nodeValue || '', language, protectedValues)
   if (next !== node.nodeValue) node.nodeValue = next
 }
 
-function translateAttributes(element: Element, language: Language) {
+function translateAttributes(element: Element, language: Language, protectedValues?: Set<string>) {
   for (const attribute of attributes) {
     const value = element.getAttribute(attribute)
     if (!value) continue
-    const next = translate(value, language)
+    const next = translate(value, language, protectedValues)
     if (next !== value) element.setAttribute(attribute, next)
   }
 }
 
-function scan(root: Node, language: Language) {
+function scan(root: Node, language: Language, protectedValues?: Set<string>) {
   if (root.nodeType === Node.TEXT_NODE) {
-    translateTextNode(root as Text, language)
+    translateTextNode(root as Text, language, protectedValues)
     return
   }
   if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  while (walker.nextNode()) translateTextNode(walker.currentNode as Text, language)
-  if (root instanceof Element) translateAttributes(root, language)
+  while (walker.nextNode()) translateTextNode(walker.currentNode as Text, language, protectedValues)
+  if (root instanceof Element) translateAttributes(root, language, protectedValues)
   for (const element of (root as Element | DocumentFragment).querySelectorAll('*'))
-    translateAttributes(element, language)
+    translateAttributes(element, language, protectedValues)
 }
 
 export default defineNuxtPlugin(() => {
@@ -107,22 +110,27 @@ export default defineNuxtPlugin(() => {
   // Text outside Vue translations is only kept in Albanian and English, so the
   // other languages use the English copy while keeping their document language.
   const language = computed<Language>(() => locale.value === 'sq-XK' ? 'sq' : 'en')
+  const protectedValues = computed(() =>
+    locale.value === 'sq-XK' || locale.value === 'en-US'
+      ? undefined
+      : new Set(Object.values(dictionaryFor(languageForLocale(locale.value)) || {})),
+  )
   let observer: MutationObserver | undefined
   const pending = new Set<Node>()
   let queued = false
 
   const refreshHead = () => {
     document.documentElement.lang = locale.value === 'sq-XK' || locale.value === 'en-US' ? language.value : locale.value
-    document.title = translate(document.title, language.value)
+    document.title = translate(document.title, language.value, protectedValues.value)
     for (const meta of document.querySelectorAll('meta[name="description"]')) {
       const content = meta.getAttribute('content')
-      if (content) meta.setAttribute('content', translate(content, language.value))
+      if (content) meta.setAttribute('content', translate(content, language.value, protectedValues.value))
     }
   }
   const refresh = async () => {
     if (!document.body) return
     await ensureLookup(language.value)
-    scan(document.body, language.value)
+    scan(document.body, language.value, protectedValues.value)
     refreshHead()
   }
   // Mutations are translated in place rather than by rescanning the document:
@@ -134,7 +142,7 @@ export default defineNuxtPlugin(() => {
     pending.clear()
     for (const root of roots) {
       if (!root.isConnected) continue
-      scan(root, language.value)
+      scan(root, language.value, protectedValues.value)
     }
   }
   const queue = (node: Node) => {
