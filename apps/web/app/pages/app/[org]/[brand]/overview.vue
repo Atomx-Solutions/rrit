@@ -15,6 +15,19 @@ const { data: meta, status: metaStatus } = useFetch('/api/meta/status', {
 })
 const connectionView = computed(() => metaConnectionView(metaStatus.value, meta.value?.connection))
 const { data: tiktok } = await useFetch('/api/tiktok/status', { lazy: true, key: 'tiktok-status' })
+// A connection made in another tab shows here as soon as this tab is back in
+// view, instead of waiting for a reload.
+function refreshConnectionsWhenVisible() {
+  if (document.visibilityState === 'visible') void refreshNuxtData(['meta-status', 'tiktok-status'])
+}
+onMounted(() => {
+  document.addEventListener('visibilitychange', refreshConnectionsWhenVisible)
+  window.addEventListener('focus', refreshConnectionsWhenVisible)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', refreshConnectionsWhenVisible)
+  window.removeEventListener('focus', refreshConnectionsWhenVisible)
+})
 const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
 const upcoming = computed(() =>
   data.value.posts
@@ -342,7 +355,7 @@ const summaries = computed(() => [
       </UCard>
       <UCard :ui="{ body: 'p-5 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-4">
-          <h2 class="text-sm font-semibold">{{ t('nav.meta') }}</h2>
+          <h2 class="text-sm font-semibold">{{ t('overview.metaCardTitle') }}</h2>
           <UBadge color="neutral" variant="outline" size="sm">{{
             connectionView === 'loading'
               ? t('common.loading')
@@ -350,7 +363,7 @@ const summaries = computed(() => [
                 ? t('overview.connectionUnavailable')
                 : connectionView === 'connected'
                   ? t('overview.connected')
-                  : t('overview.connectionRequired')
+                  : t('tiktok.notConnected')
           }}</UBadge>
         </div>
         <p class="text-sm text-muted leading-relaxed max-w-lg">
