@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg'
 import { APP_LOCALES, DEFAULT_TIMEZONE } from '../../shared/schemas/workspace'
 import { z } from 'zod'
 import { emptyWorkspace } from '../../shared/utils/empty-workspace'
@@ -27,6 +28,35 @@ const schema = z.object({
   timezone: ianaTimezoneSchema.default(DEFAULT_TIMEZONE),
   locale: z.enum(APP_LOCALES).default('de-CH'),
 })
+/**
+ * Organization slugs are unique across the platform, while business names are
+ * not: two cafés may both be called "Altin". Other organizations are hidden by
+ * row-level security, so a clash is detected on insert and the slug is made
+ * unique with the start of the organization's own id.
+ */
+async function insertOrganization(
+  client: PoolClient,
+  input: { id: string; slug: string; name: string; userId: string },
+) {
+  const insert = (slug: string) =>
+    client.query('INSERT INTO organizations (id, slug, name, created_by) VALUES ($1, $2, $3, $4)', [
+      input.id,
+      slug,
+      input.name,
+      input.userId,
+    ])
+  await client.query('SAVEPOINT organization_slug')
+  try {
+    await insert(input.slug)
+  } catch (error) {
+    const clash = (error as { code?: string; constraint?: string }).code === '23505'
+      && (error as { constraint?: string }).constraint === 'organizations_slug_key'
+    if (!clash) throw error
+    await client.query('ROLLBACK TO SAVEPOINT organization_slug')
+    await insert(`${input.slug.slice(0, 70)}-${input.id.replace(/-/g, '').slice(0, 8)}`)
+  }
+}
+
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
@@ -62,7 +92,9 @@ export default defineEventHandler(async (event) => {
     .slice(0, 70)
     .padEnd(2, '0')
   const device = deviceIdentity(event)
-  const client = await database().connect()
+  const client = await database().connect().catch((error: unknown) => {
+    throw databaseFailure(error, 'server.BUSINESS_NOT_SAVED')
+  })
   try {
     await client.query('BEGIN')
     await setUserContext(client, user.id)
@@ -88,10 +120,7 @@ export default defineEventHandler(async (event) => {
     // otherwise a plain INSERT passes the policy's created_by check.
     const existingOrganization = await client.query('SELECT 1 FROM organizations WHERE id=$1', [id])
     if (!existingOrganization.rowCount)
-      await client.query(
-        'INSERT INTO organizations (id, slug, name, created_by) VALUES ($1, $2, $3, $4)',
-        [id, slug, parsed.data.name, user.id],
-      )
+      await insertOrganization(client, { id, slug, name: parsed.data.name, userId: user.id })
     await setTenantContext(client, { userId: user.id, organizationId: id })
     await client.query(
       `INSERT INTO organization_memberships (organization_id, user_id, role, brand_scope)
@@ -189,8 +218,9 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 201)
     return business
   } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
+    // A dropped connection cannot roll back; the failure is reported anyway.
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw databaseFailure(error, 'server.BUSINESS_NOT_SAVED')
   } finally {
     client.release()
   }

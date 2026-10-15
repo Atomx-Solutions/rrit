@@ -417,14 +417,8 @@ async function saveMetadata() {
     </UCard>
     <DashboardEmpty
       v-if="!assets.length"
-      :title="query.trim() ? t('gallery.noResults') : generatedFilterActive ? t('gallery.noGeneratedTitle') : t('gallery.emptyTitle')"
-      :description="
-        query.trim()
-          ? t('gallery.noResultsDescription')
-          : generatedFilterActive
-            ? t('gallery.noGeneratedDescription')
-          : t('gallery.emptyDescription')
-      "
+      :title="query.trim() ? t('gallery.noResults') : t('gallery.emptyTitle')"
+      :description="query.trim() ? t('gallery.noResultsDescription') : t('gallery.emptyDescription')"
       icon="i-lucide-images"
       :actions="
         query.trim()
