@@ -62,6 +62,7 @@ watch([search, filter, channel, format], () => {
   <DashboardPage
     :title="t('content.yourPosts')"
     :description="t('content.yourPostsDescription')"
+    :toolbar-border="false"
   >
     <!-- Search, channel and the action share one row on a phone instead of
          taking two. Only the button's label can give way: at 375px the three

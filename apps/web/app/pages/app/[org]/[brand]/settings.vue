@@ -99,7 +99,11 @@ async function saveAndLeave() {
 }
 </script>
 <template>
-  <DashboardPage :title="t('settings.title')" :description="t('settings.description')">
+  <DashboardPage
+    :title="t('settings.title')"
+    :description="t('settings.description')"
+    :toolbar-border="false"
+  >
     <template #toolbar>
       <UTabs
         v-model="tab"
@@ -113,7 +117,7 @@ async function saveAndLeave() {
         :content="false"
         variant="link"
         class="w-full"
-        :ui="{ list: 'flex-wrap gap-1', trigger: 'grow-0 px-3 min-h-10' }"
+        :ui="{ list: 'flex-wrap gap-1 border-b-0', trigger: 'grow-0 px-3 min-h-10' }"
       />
     </template>
     <UAlert

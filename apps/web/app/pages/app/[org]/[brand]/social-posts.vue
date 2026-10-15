@@ -88,7 +88,11 @@ async function sync(more = false) {
 }
 </script>
 <template>
-  <DashboardPage :title="t('nav.socialPosts')" :description="t('legacy.socialPostsDescription')">
+  <DashboardPage
+    :title="t('nav.socialPosts')"
+    :description="t('legacy.socialPostsDescription')"
+    :toolbar-border="false"
+  >
     <SocialConnections />
     <div class="mt-6"><TikTokConnection /></div>
     <div class="mt-6 border-t border-default pt-6">
