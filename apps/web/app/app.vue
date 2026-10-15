@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { de, en, sq } from '@nuxt/ui/locale'
+import { de, en, fr, it, sq, tr } from '@nuxt/ui/locale'
 const { locale: appLocale, t } = useI18n()
 const locale = computed(() => {
-  const base = appLocale.value === 'de-CH' ? de : appLocale.value === 'en-US' ? en : sq
+  const base = { 'de-CH': de, 'en-US': en, 'it-CH': it, 'fr-CH': fr, 'tr-TR': tr, 'sq-XK': sq }[appLocale.value] ?? de
   return {
     ...base,
     messages: {

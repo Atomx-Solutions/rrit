@@ -156,7 +156,19 @@ export const strategySchema = z.object({
   cadence: z.number().min(1).max(14),
   updatedAt: z.string(),
 })
-export const APP_LOCALES = ['sq-XK', 'en-US', 'de-CH'] as const
+/** The time zone a new business starts in; the market is Switzerland. */
+export const DEFAULT_TIMEZONE = 'Europe/Zurich'
+
+/** The zones a business can pick, each with its label key. */
+export const TIMEZONE_OPTIONS: ReadonlyArray<{ value: string; labelKey: string }> = [
+  { value: 'Europe/Zurich', labelKey: 'onboarding.timezoneSwitzerland' },
+  { value: 'Europe/Belgrade', labelKey: 'onboarding.timezoneKosovo' },
+  { value: 'Europe/Tirane', labelKey: 'onboarding.timezoneAlbania' },
+  { value: 'Europe/Skopje', labelKey: 'onboarding.timezoneNorthMacedonia' },
+  { value: 'Europe/London', labelKey: 'onboarding.timezoneUnitedKingdom' },
+]
+
+export const APP_LOCALES = ['sq-XK', 'en-US', 'de-CH', 'it-CH', 'fr-CH', 'tr-TR'] as const
 
 export type AppLocaleValue = (typeof APP_LOCALES)[number]
 

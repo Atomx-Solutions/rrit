@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { t, language } = useI18n()
+const { t, locale } = useI18n()
 const { base } = useWorkspace()
 const { data: usage, error } = useHeaderUsage()
 const trial = computed(() => usage.value?.trial)
@@ -44,7 +44,7 @@ const remaining = computed(() => {
         <p v-if="trial.expiresAt && trial.state === 'active'" class="text-xs text-muted mt-1">
           {{ t('trial.endsAt') }}
           {{
-            new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'sq-XK', {
+            new Intl.DateTimeFormat(locale, {
               day: '2-digit',
               month: '2-digit',
               year: 'numeric',

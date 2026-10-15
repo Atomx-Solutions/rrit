@@ -83,6 +83,19 @@ describe('single credit balance', () => {
     ).rejects.toMatchObject({ statusCode: 402, data: { code: 'CREDITS_EXHAUSTED' } })
   })
 
+  it('pauses new work while an invoice is overdue', async () => {
+    vi.stubGlobal('createError', createError)
+    const client = balanceClient(300, 0)
+    const query = client.query.getMockImplementation()!
+    client.query.mockImplementation(async (sql: string, values: unknown[] = []) =>
+      sql.includes('organization_payment_overdue') ? { rows: [{ overdue: true }] } : query(sql, values),
+    )
+    await expect(
+      reserveCredits(client as never, { organizationId, credits: 10, usageKind: 'generation', referenceType: 'ai_generation', referenceId: 'o', idempotencyKey: 'o' }),
+    ).rejects.toMatchObject({ statusCode: 402, data: { code: 'PAYMENT_OVERDUE' } })
+    expect(client.state.reserved).toBe(0)
+  })
+
   it('adds a top-up to the single balance without splitting it', async () => {
     const client = balanceClient(0, 0)
     const balance = await grantAdditionalCredits(client as never, {

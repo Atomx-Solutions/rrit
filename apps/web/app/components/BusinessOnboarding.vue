@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { TIMEZONE_OPTIONS } from '~~/shared/schemas/workspace'
 import { monthlyPlannerPath } from '~/utils/creation-route'
 import { authClient } from '~/utils/auth-client'
 import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 
 const { data, base, context, ready, applyBusiness, commit, syncing } = useWorkspace()
-const { setLocale, t } = useI18n()
+const { setLocale, t, locale: activeLocale } = useI18n()
 const step = ref(context.value ? Math.min(data.value.onboarding, 2) : 0)
 // The workspace only exists once the business row does. An invited client
 // arrives with one, so the logo is asked for on the first step; a self-service
@@ -51,7 +52,9 @@ const {
   facebookUrl: data.value.brand.facebookUrl,
   instagramUrl: data.value.brand.instagramUrl,
   timezone: data.value.preferences.timezone,
-  locale: data.value.preferences.locale,
+  // The language the person is already reading is the one they chose; a new
+  // workspace's stored default must not contradict the screen.
+  locale: activeLocale.value,
 })
 watchError(localError, 'warning')
 watch(
@@ -60,7 +63,7 @@ watch(
     if (value) setLocale(value)
   },
 )
-const steps = [t('onboarding.business'), t('onboarding.networks'), t('onboarding.firstStep')]
+const steps = computed(() => [t('onboarding.business'), t('onboarding.networks'), t('onboarding.firstStep')])
 const goalOptions = [
   'Rrit njohjen e biznesit',
   'Gjej kliente te rinj',
@@ -74,17 +77,17 @@ const goalLabelKeys: Record<string, string> = {
   'Nderto marredhenie me komunitetin': 'onboarding.goalCommunity',
 }
 function goalLabel(goal: string) { return t(goalLabelKeys[goal] || goal) }
-const timezoneOptions = [
-  { label: t('onboarding.timezoneKosovo'), value: 'Europe/Belgrade' },
-  { label: t('onboarding.timezoneAlbania'), value: 'Europe/Tirane' },
-  { label: t('onboarding.timezoneNorthMacedonia'), value: 'Europe/Skopje' },
-  { label: t('onboarding.timezoneUnitedKingdom'), value: 'Europe/London' },
-]
-const localeOptions = [
+// Computed, so the labels follow the language picked a few fields below.
+const timezoneOptions = computed(() =>
+  TIMEZONE_OPTIONS.map(zone => ({ label: t(zone.labelKey), value: zone.value })))
+const localeOptions = computed(() => [
   { label: t('settings.albanianKosovo'), value: 'sq-XK' },
   { label: t('settings.englishUnitedStates'), value: 'en-US' },
   { label: t('settings.germanSwitzerland'), value: 'de-CH' },
-]
+  { label: t('settings.italianSwitzerland'), value: 'it-CH' },
+  { label: t('settings.frenchSwitzerland'), value: 'fr-CH' },
+  { label: t('settings.turkishTurkey'), value: 'tr-TR' },
+])
 function toggleGoal(goal: string, checked: boolean) {
   if (checked && !form.goals.includes(goal)) form.goals.push(goal)
   if (!checked) form.goals = form.goals.filter((item) => item !== goal)

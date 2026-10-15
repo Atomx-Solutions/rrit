@@ -16,13 +16,8 @@ const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'E
   key: 'admin-package-request-currency-summary',
 })
 const packageCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
-const { data: exchangeRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
-  lazy: true,
-  key: 'admin-package-request-currency-rate',
-  query: computed(() => ({ from: 'EUR', to: packageCurrency.value })),
-})
-const formatConversionMoney = (cents: number) =>
-  formatMoney((cents / 100) * (exchangeRate.value?.rate || 1), packageCurrency.value)
+// The server converts every won lead from its own currency already.
+const formatConversionMoney = (cents: number) => formatMoney(cents / 100, packageCurrency.value)
 
 type PackageRequest = {
   id: string

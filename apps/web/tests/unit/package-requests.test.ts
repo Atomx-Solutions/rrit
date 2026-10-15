@@ -43,6 +43,12 @@ describe('package request input', () => {
     expect(() => packageRequestSchema.parse(request({ postsRequested: 1001 }))).toThrow()
   })
 
+  it('accepts videos without posts', () => {
+    expect(
+      packageRequestSchema.parse(request({ postsRequested: 0, videosRequested: 3 })),
+    ).toMatchObject({ postsRequested: 0, videosRequested: 3 })
+  })
+
   it('never takes identity from the body inside the app', () => {
     const parsed = appPackageRequestSchema.parse(request())
 

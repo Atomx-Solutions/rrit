@@ -5,7 +5,16 @@ import { dashboardKey } from '~/utils/dashboard'
 import { authClient } from '~/utils/auth-client'
 import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 const { data, base, ready, context, conflict, reload, exportData } = useWorkspace()
-const { t } = useI18n()
+// The business settings decide the client app's language. A cookie left by an
+// earlier visit must not override what the workspace saved.
+const { t, locale: activeLocale, setLocale: applyLocale } = useI18n()
+watch(
+  () => ready.value && data.value.preferences.locale,
+  (saved) => {
+    if (saved && saved !== activeLocale.value) applyLocale(saved)
+  },
+  { immediate: true },
+)
 const toast = useToast()
 async function signOut() {
   const result = await authClient.signOut()

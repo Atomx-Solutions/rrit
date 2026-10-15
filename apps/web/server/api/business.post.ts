@@ -1,3 +1,4 @@
+import { APP_LOCALES, DEFAULT_TIMEZONE } from '../../shared/schemas/workspace'
 import { z } from 'zod'
 import { emptyWorkspace } from '../../shared/utils/empty-workspace'
 import { ianaTimezoneSchema } from '../../shared/schemas/brand'
@@ -23,8 +24,8 @@ const schema = z.object({
     )
     .max(100)
     .default([]),
-  timezone: ianaTimezoneSchema.default('Europe/Belgrade'),
-  locale: z.enum(['sq-XK', 'en-US', 'de-CH']).default('de-CH'),
+  timezone: ianaTimezoneSchema.default(DEFAULT_TIMEZONE),
+  locale: z.enum(APP_LOCALES).default('de-CH'),
 })
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)

@@ -1,4 +1,4 @@
-export type AppLanguage = 'sq' | 'en' | 'de'
+export type AppLanguage = 'sq' | 'en' | 'de' | 'it' | 'fr' | 'tr'
 
 type Dictionary = Record<string, string>
 
@@ -13,6 +13,19 @@ const clientLoaders: Record<AppLanguage, () => Promise<Dictionary[]>> = {
     (await import('~/locales/client/en.json')).default,
     (await import('~/locales/client/de.json')).default,
   ],
+  // Any key not yet translated falls back to English rather than showing a key.
+  it: async () => [
+    (await import('~/locales/client/en.json')).default,
+    (await import('~/locales/client/it.json')).default,
+  ],
+  fr: async () => [
+    (await import('~/locales/client/en.json')).default,
+    (await import('~/locales/client/fr.json')).default,
+  ],
+  tr: async () => [
+    (await import('~/locales/client/en.json')).default,
+    (await import('~/locales/client/tr.json')).default,
+  ],
 }
 
 // Superadmin copy is only ever rendered under /admin, so every other page
@@ -21,6 +34,9 @@ const adminLoaders: Record<AppLanguage, () => Promise<Dictionary>> = {
   sq: async () => (await import('~/locales/admin/sq.json')).default,
   en: async () => (await import('~/locales/admin/en.json')).default,
   de: async () => (await import('~/locales/admin/en.json')).default,
+  it: async () => (await import('~/locales/admin/en.json')).default,
+  fr: async () => (await import('~/locales/admin/en.json')).default,
+  tr: async () => (await import('~/locales/admin/en.json')).default,
 }
 
 const loaded = new Map<AppLanguage, Dictionary>()

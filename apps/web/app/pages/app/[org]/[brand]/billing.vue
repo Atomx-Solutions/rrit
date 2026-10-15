@@ -6,7 +6,7 @@ const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: '
 const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
 
-const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { lazy: true, key: 'usage' })
+const { data: usage, error: usageError } = await useFetch('/api/usage', { lazy: true, key: 'usage' })
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { lazy: true, key: 'billing-subscription-currency-v2' })
 const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { lazy: true, key: 'billing-details' })
 const { data: platformPricing } = await useFetch<{ videoPriceCents: number }>('/api/package-requests', { lazy: true, key: 'package-pricing' })
@@ -18,6 +18,33 @@ const videoRequestOpen = ref(false)
 const videosRequested = ref(1)
 const sendingVideoRequest = ref(false)
 const creditRequestOpen = ref(false)
+// The low-credit reminder asks for a request dialog, from this page or another
+// one; a direct link with ?request= does the same.
+const route = useRoute()
+const { pending: pendingRequest } = useBillingRequest()
+function openRequested(request: unknown) {
+  // Opened after the click that asked for it, so that click does not count as
+  // a click outside the dialog and close it again.
+  setTimeout(() => {
+    if (request === 'credits') creditRequestOpen.value = true
+    if (request === 'package') requestOpen.value = true
+  }, 0)
+}
+onMounted(() => {
+  openRequested(pendingRequest.value?.request ?? route.query.request)
+  pendingRequest.value = null
+  // The request is a one-time instruction: drop it from the address so a
+  // reload or a shared link does not open the dialog again.
+  if (route.query.request) {
+    const { request: _request, ...query } = route.query
+    void navigateTo({ query }, { replace: true })
+  }
+})
+watch(pendingRequest, (asked) => {
+  if (!asked) return
+  openRequested(asked.request)
+  pendingRequest.value = null
+})
 const offerOpen = ref(false)
 const creditsRequested = ref(500)
 const creditMessage = ref('')
@@ -159,7 +186,7 @@ async function acceptProposal() {
     await $fetch('/api/billing/custom-package-accept', { method: 'POST', body: {} })
     // The accepted package grants its post-based credits atomically. Refresh
     // every visible balance immediately instead of waiting for polling.
-    await Promise.all([refreshBilling(), refreshUsage(), refreshNuxtData('header-credit-balance')])
+    await Promise.all([refreshBilling(), refreshCreditBalance()])
     offerOpen.value = false
     showSuccess(t('billing.packageProposalAccepted'))
   } catch (error) {
@@ -351,7 +378,7 @@ async function declineProposal() {
       <template #body>
         <div class="space-y-4">
           <UFormField :label="t('billing.buyCreditsAmount')">
-            <UInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="1" class="w-44" />
+            <LiveInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="1" class="w-44" />
           </UFormField>
           <p class="text-sm text-muted">
             {{ t('billing.buyCreditsEstimate', { amount: formatMoney(creditEstimate) }) }}
@@ -373,15 +400,14 @@ async function declineProposal() {
     <UModal v-model:open="videoRequestOpen" :title="t('billing.requestVideosTitle')" :description="t('billing.requestVideosDescription')">
       <template #body>
         <div class="space-y-4">
-          <UFormField :label="t('billing.videoQuantity')"><UInputNumber v-model="videosRequested" :min="1" :max="1000" class="w-44" /></UFormField>
-          <p class="text-sm text-muted">{{ t('billing.videoPriceEstimate', { amount: formatMoney(videoEstimate), unit: formatMoney(videoPrice) }) }}</p>
+          <UFormField :label="t('billing.videoQuantity')"><LiveInputNumber v-model="videosRequested" :min="1" :max="1000" class="w-44" /></UFormField>
+          <p class="text-sm text-muted">{{ t('billing.videoPriceEstimate', { amount: formatMoney(videoEstimate) }) }}</p>
         </div>
       </template>
       <template #footer><div class="flex w-full justify-end gap-2"><UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="videoRequestOpen = false" /><UButton :loading="sendingVideoRequest" :disabled="videosRequested < 1" :label="t('billing.requestVideosSubmit')" @click="sendVideoRequest" /></div></template>
     </UModal>
 
     <template v-if="usage">
-      <UAlert v-if="usage.credits.spendable === 0" color="warning" variant="outline" icon="i-lucide-circle-alert" :title="t('billing.creditsExhausted')" />
       <UCard as="section" :ui="{ body: 'p-4' }">
         <div class="mb-5"><h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2><p class="text-sm text-muted mt-1">{{ t('billing.currentUsageDescription') }}</p><p v-if="postsUsage" class="text-sm font-medium mt-2">{{ t('billing.postsRemaining', { count: usageValue('posts_per_month', postsUsage.remaining) }) }}</p></div>
         <div class="grid gap-5 sm:grid-cols-2">

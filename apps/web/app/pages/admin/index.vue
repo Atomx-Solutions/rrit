@@ -11,7 +11,8 @@ type Overview = {
   subscriptions: { mrr_cents: number }
   revenue: { total_cents: number }
   sales: { plans_total_cents: number; plans_this_month_cents: number; credits_total_cents: number; credits_this_month_cents: number; videos_total_cents: number; videos_this_month_cents: number }
-  ai: { cost_micro_eur_this_month: number; margin_cents_this_month: number }
+  ai: { cost_micro_eur_this_month: number; cost_cents_this_month: number; margin_cents_this_month: number }
+  currency: 'CHF' | 'EUR'
   signups: { this_month: number }
   new_organizations: NewOrganization[]
 }
@@ -21,20 +22,9 @@ const { data, status, error, refresh } = await useFetch<Overview>('/api/admin/ov
   key: 'admin-overview',
   getCachedData: () => undefined,
 })
-const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
-  lazy: true,
-  key: 'admin-platform-currency-overview',
-})
-// Overview KPIs are produced from the platform ledger in EUR. Convert that
-// common base through the same exchange-rate API used when Settings changes
-// currency; changing the symbol alone would misstate every KPI.
-const overviewCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
-const { data: overviewExchange } = await useFetch<{ rate: number }>('/api/currency/rate', {
-  lazy: true,
-  key: 'admin-overview-currency-rate',
-  query: computed(() => ({ from: 'EUR', to: overviewCurrency.value })),
-})
-const overviewRate = computed(() => overviewExchange.value?.rate || 1)
+// The server converts every invoice and package from its own currency to the
+// superadmin's currency, so the page only formats what it receives.
+const overviewCurrency = computed(() => data.value?.currency || 'CHF')
 watch(error, (value) => {
   if (value) showError(t('admin.overview.loadError'))
 }, { immediate: true })
@@ -75,7 +65,7 @@ const money = (value: number) => new Intl.NumberFormat('sq-XK', {
   currency: overviewCurrency.value,
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
-}).format(value * overviewRate.value)
+}).format(value)
 const count = new Intl.NumberFormat('sq-XK')
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('sq-XK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Belgrade' }).format(new Date(value))
@@ -88,8 +78,7 @@ const tiles = computed(() => {
     { label: t('admin.overview.activeOrganizations'), hint: t('admin.overview.activeOrganizationsHint'), value: count.format(overview.organizations.active), icon: 'i-lucide-building-2' },
     { label: t('admin.overview.mrr'), hint: t('admin.overview.mrrHint'), value: money(overview.subscriptions.mrr_cents / 100), icon: 'i-lucide-repeat' },
     { label: t('admin.overview.totalRevenue'), hint: t('admin.overview.totalRevenueHint'), value: money(overview.revenue.total_cents / 100), icon: 'i-lucide-receipt' },
-    // Ledger costs are in micro-euros: 1 € = 1 000 000.
-    { label: t('admin.overview.aiCost'), hint: t('admin.overview.aiCostHint'), value: money(overview.ai.cost_micro_eur_this_month / 1_000_000), icon: 'i-lucide-cpu' },
+    { label: t('admin.overview.aiCost'), hint: t('admin.overview.aiCostHint'), value: money(overview.ai.cost_cents_this_month / 100), icon: 'i-lucide-cpu' },
     { label: t('admin.overview.aiMargin'), hint: t('admin.overview.aiMarginHint'), value: money(margin / 100), icon: margin < 0 ? 'i-lucide-trending-down' : 'i-lucide-trending-up' },
     { label: t('admin.overview.signups'), hint: t('admin.overview.signupsHint'), value: count.format(overview.signups.this_month), icon: 'i-lucide-user-plus' },
   ]

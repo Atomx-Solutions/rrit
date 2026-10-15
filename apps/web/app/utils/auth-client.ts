@@ -49,7 +49,8 @@ function createAuthClient(scope: AuthScope) {
           email: input.email,
           password: input.password,
           options: {
-            data: { name: input.name },
+            // Submitting the sign-up form, which shows the terms, is the consent.
+            data: { name: input.name, terms_accepted_at: new Date().toISOString() },
             emailRedirectTo: callbackUrl(input.callbackURL),
           },
         })
@@ -64,7 +65,13 @@ function createAuthClient(scope: AuthScope) {
       async google(input: { callbackURL: string }) {
         const result = await auth().signInWithOAuth({
           provider: 'google',
-          options: { redirectTo: callbackUrl(input.callbackURL) },
+          options: {
+            redirectTo: callbackUrl(input.callbackURL),
+            // Google skips its account chooser and permission screen when it
+            // can; asking for both lets the person pick the account and see
+            // what Framic receives every time.
+            queryParams: { prompt: 'select_account consent' },
+          },
         })
         return { data: result.data, ...errorResult(result.error) }
       },
@@ -83,6 +90,17 @@ function createAuthClient(scope: AuthScope) {
 
       const result = await auth().getSession()
       return { data: result.data, ...errorResult(result.error) }
+    },
+    /** Whether the signed-in person accepted the terms; null without a session. */
+    async termsAccepted() {
+      const result = await auth().getSession()
+      const user = result.data.session?.user
+      return user ? Boolean(user.user_metadata?.terms_accepted_at) : null
+    },
+    /** Records that the signed-in person accepted the terms and privacy policy. */
+    async acceptTerms() {
+      const result = await auth().updateUser({ data: { terms_accepted_at: new Date().toISOString() } })
+      return errorResult(result.error)
     },
     async refreshSession() {
       const result = await auth().refreshSession()
@@ -106,8 +124,8 @@ function createAuthClient(scope: AuthScope) {
       })
       return errorResult(result.error)
     },
-    async resetPassword(input: { token?: string; newPassword: string }) {
-      void input.token
+    // Runs inside the session the recovery link opened (see handleCallback).
+    async resetPassword(input: { newPassword: string }) {
       const result = await auth().updateUser({ password: input.newPassword })
       return errorResult(result.error)
     },

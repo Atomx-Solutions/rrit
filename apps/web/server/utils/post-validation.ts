@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
-import type { Post } from '../../shared/schemas/workspace'
+import { DEFAULT_TIMEZONE, type Post } from '../../shared/schemas/workspace'
 import { factIsUsable, sameFactContent, type BrandFact } from '../../shared/schemas/business-brain'
 import { dayInZone } from '../../shared/utils/calendar'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
@@ -145,9 +145,9 @@ export async function localPostChecks(
     const currentFacts = (row?.state?.brand?.facts || []) as BrandFact[]
     const intendedDay = dayInZone(
       post.scheduledAt || post.proposedAt || new Date(),
-      row?.state?.preferences?.timezone || 'Europe/Belgrade',
+      row?.state?.preferences?.timezone || DEFAULT_TIMEZONE,
     )
-    const today = dayInZone(new Date(), row?.state?.preferences?.timezone || 'Europe/Belgrade')
+    const today = dayInZone(new Date(), row?.state?.preferences?.timezone || DEFAULT_TIMEZONE)
     // Delayed publication cannot keep an expired offer valid by its old schedule.
     const useDay = intendedDay > today ? intendedDay : today
     aiChecks.push({

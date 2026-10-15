@@ -8,7 +8,7 @@ import { withUserTransaction } from './database'
  * much they need, and the team answers with an offer.
  */
 export const packageRequestPlatformSchema = z.enum(['instagram', 'facebook', 'both'])
-export const packageRequestSchema = z.object({
+const packageRequestFields = z.object({
   contactName: z.string().trim().min(2).max(120),
   contactEmail: z.email().max(320),
   phone: z.string().trim().min(4).max(40),
@@ -17,17 +17,22 @@ export const packageRequestSchema = z.object({
   platform: packageRequestPlatformSchema.optional(),
   // A predefined amount and a typed one are the same answer to the database:
   // what matters is the number the visitor settled on.
-  postsRequested: z.number().int().min(1).max(1000),
+  // Posts or videos alone are both a package; asking for neither is not.
+  postsRequested: z.number().int().min(0).max(1000),
   videosRequested: z.number().int().min(0).max(1000).default(0),
   message: z.string().trim().max(2000).optional(),
 })
+export const packageRequestSchema = packageRequestFields.refine(
+  (value) => value.postsRequested > 0 || value.videosRequested > 0,
+  { message: 'server.REQUEST_POSTS_OR_VIDEOS', path: ['postsRequested'] },
+)
 export type PackageRequestInput = z.infer<typeof packageRequestSchema>
 
 /**
  * From inside the app the contact is whoever is signed in, so identity is taken
  * from the session rather than accepted from the request body.
  */
-export const appPackageRequestSchema = packageRequestSchema
+export const appPackageRequestSchema = packageRequestFields
   .pick({ message: true })
   .extend({
     // Inside the app a request may be for posts, for credits, or for both.
@@ -94,12 +99,20 @@ export function submitterHash(event: H3Event) {
   // Local test switch: returning no hash bypasses the database's per-address
   // rate limit while preserving every other validation rule.
   if (process.env.PACKAGE_REQUEST_RATE_LIMIT_DISABLED === 'true') return null
+  return visitorHash(event, 'package-request')
+}
+
+/**
+ * A keyed hash of the visitor's address for one purpose, so a public endpoint
+ * can count requests without storing the address itself.
+ */
+export function visitorHash(event: H3Event, purpose: string) {
   const key = process.env.TRIAL_HASH_KEY
   if (!key || key.length < 32) return null
   const forwarded = getRequestHeader(event, 'x-forwarded-for') || ''
   const address = forwarded.split(',')[0]?.trim() || getRequestIP(event, { xForwardedFor: true })
   if (!address) return null
-  return createHmac('sha256', key).update(`package-request:${address}`).digest('hex')
+  return createHmac('sha256', key).update(`${purpose}:${address}`).digest('hex')
 }
 
 const failures: Record<string, { statusCode: number; message: string }> = {

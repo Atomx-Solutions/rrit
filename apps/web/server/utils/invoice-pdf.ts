@@ -111,7 +111,10 @@ function truncate(value: string, max: number) {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value
 }
 
-export function invoicePdf(invoice: Invoice) {
+/** The payment state recorded beside the invoice; the invoice row never changes. */
+export type InvoicePaymentState = { status: 'paid' | 'unpaid'; dueAt: string; paidAt: string | null }
+
+export function invoicePdf(invoice: Invoice, payment?: InvoicePaymentState | null) {
   const ops: string[] = []
   // Text in current fill color
   const text = (x: number, y: number, value: string, size = 10, bold = false) =>
@@ -124,7 +127,8 @@ export function invoicePdf(invoice: Invoice) {
     ops.push(`${x} ${y} ${w} ${h} re f`)
 
   // --- Logo (green) ---
-  ops.push(logoImagePdfOps())
+  // Sized to sit beside the title and end above the divider at y=742.
+  ops.push(logoImagePdfOps(595, 45, 44))
 
   // --- Reset to black for all remaining content ---
   ops.push('0 0 0 rg 0 0 0 RG')
@@ -141,7 +145,13 @@ export function invoicePdf(invoice: Invoice) {
   // --- Invoice meta ---
   text(50, 726, `No. ${invoice.number}`, 10, true)
   text(50, 711, `Date & time: ${formatDate(invoice.issuedAt)}`)
-  const statusLabel = invoice.status === 'paid' ? 'Paid' : invoice.status
+  // The stored invoice status predates payment tracking and always reads
+  // "paid"; the recorded payment is what the document must state.
+  const statusLabel = !payment
+    ? (invoice.status === 'paid' ? 'Paid' : invoice.status)
+    : payment.status === 'paid'
+      ? `Paid${payment.paidAt ? ` (${formatDate(payment.paidAt).split(' ')[0]})` : ''}`
+      : `Unpaid - due by ${formatDate(payment.dueAt).split(' ')[0]}`
   text(50, 696, `Status: ${statusLabel}`)
 
   // --- Section divider ---

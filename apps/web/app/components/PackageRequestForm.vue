@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
 import { z } from 'zod'
 
 /**
@@ -51,8 +52,8 @@ const form = reactive({
   businessName: '',
   industry: '',
   platform: 'both' as 'instagram' | 'facebook' | 'both',
-  postsRequested: 20,
-  videosRequested: 0,
+  postsRequested: DEFAULT_PACKAGE_REQUEST.posts,
+  videosRequested: DEFAULT_PACKAGE_REQUEST.videos,
   message: '',
 })
 if (postsModel.value > 0) form.postsRequested = postsModel.value
@@ -97,7 +98,12 @@ const estimatedTotal = computed(() =>
   + displayVideoPrice.value * form.videosRequested,
 )
 const money = (value: number) =>
-  new Intl.NumberFormat('sq-XK', { style: 'currency', currency: props.contactKnown ? props.currency : 'CHF' }).format(value)
+  new Intl.NumberFormat('sq-XK', {
+    style: 'currency',
+    // Signed-in clients see their own currency; public visitors see the rates
+    // in the currency they are stored in.
+    currency: props.contactKnown ? props.currency : (options.value?.currency || 'CHF'),
+  }).format(value)
 const platformOptions = computed(() => [
   { label: t('request.platformInstagram'), value: 'instagram' as const },
   { label: t('request.platformFacebook'), value: 'facebook' as const },
@@ -110,15 +116,19 @@ const phoneField = z
   .trim()
   .max(24)
   .refine(value => value.replace(/\D/g, '').length >= 6, t('request.phoneRequired'))
+// Videos alone are a package too; only an empty request is refused.
+const asksForSomething = (value: { postsRequested: number; videosRequested: number }) =>
+  value.postsRequested > 0 || value.videosRequested > 0
+const postsOrVideos = { message: t('request.postsRequired'), path: ['postsRequested'] }
 const schema = computed(() =>
   props.contactKnown
     ? z.object({
-        postsRequested: z.number().int().min(1, t('request.postsRequired')).max(1000),
+        postsRequested: z.number().int().min(0).max(1000),
         videosRequested: z.number().int().min(0).max(1000),
         message: z.string().trim().max(2000),
-      })
+      }).refine(asksForSomething, postsOrVideos)
     : z.object({
-        postsRequested: z.number().int().min(1, t('request.postsRequired')).max(1000),
+        postsRequested: z.number().int().min(0).max(1000),
         videosRequested: z.number().int().min(0).max(1000),
         contactName: z.string().trim().min(2, t('request.nameRequired')).max(120),
         contactEmail: z.email(t('request.emailInvalid')).max(320),
@@ -130,7 +140,7 @@ const schema = computed(() =>
               industry: z.string().trim().min(2, t('request.industryRequired')).max(100),
               platform: z.enum(['instagram', 'facebook', 'both']),
             }),
-      }),
+      }).refine(asksForSomething, postsOrVideos),
 )
 
 // The plus belongs to the field rather than to what is typed, so the country
@@ -163,8 +173,6 @@ function resetAfterSuccess() {
   form.industry = ''
   form.platform = 'both'
   form.message = ''
-  // Keep the amount that is displayed and selected by the surrounding offer.
-  form.postsRequested = postsModel.value || 20
 }
 
 onBeforeUnmount(() => {
@@ -242,9 +250,9 @@ async function submit() {
             @click="form.postsRequested = amount"
           />
         </div>
-        <UInputNumber
+        <LiveInputNumber
           v-model="form.postsRequested"
-          :min="1"
+          :min="0"
           :max="1000"
           :aria-label="t('request.posts')"
           class="w-full"
@@ -252,7 +260,7 @@ async function submit() {
       </div>
     </UFormField>
       <UFormField name="videosRequested" :label="t('request.videos')">
-        <UInputNumber
+        <LiveInputNumber
           v-model="form.videosRequested"
           :min="0"
           :max="1000"
@@ -332,15 +340,7 @@ async function submit() {
       </UFormField>
     </div>
     <div v-if="(displayPostPrice > 0 || displayVideoPrice > 0) && !lean" class="request-estimate">
-      <div>
-        <p class="request-estimate-label">{{ t('request.estimateLabel') }}</p>
-        <p v-if="displayPostPrice > 0" class="request-estimate-note">
-          {{ t('request.estimatePerPost', { price: money(displayPostPrice) }) }}
-        </p>
-        <p v-if="form.videosRequested > 0 && displayVideoPrice > 0" class="request-estimate-note">
-          {{ t('request.estimatePerVideo', { price: money(displayVideoPrice) }) }}
-        </p>
-      </div>
+      <p class="request-estimate-label">{{ t('request.estimateLabel') }}</p>
       <p class="request-estimate-total">{{ money(estimatedTotal) }}</p>
     </div>
     <UButton type="submit" :loading="sending" :label="t(props.submitLabelKey || 'request.submit')" block />

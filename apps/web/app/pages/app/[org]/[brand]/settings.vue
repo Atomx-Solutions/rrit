@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { APP_LOCALES, TIMEZONE_OPTIONS } from '~~/shared/schemas/workspace'
 import { z } from 'zod'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base, syncing, commit, notify, exportData } = useWorkspace()
@@ -22,7 +23,7 @@ const initialPreferences: {
   name: string
   email: string
   timezone: string
-  locale: 'sq-XK' | 'en-US' | 'de-CH'
+  locale: AppLocale
   currency: 'EUR' | 'CHF'
 } = {
   // The workspace schema already reads the former 'de-DE' locale as 'de-CH',
@@ -56,7 +57,7 @@ const schema = z.object({
       return false
     }
   }, t('settings.timezoneInvalid')),
-  locale: z.enum(['sq-XK', 'en-US', 'de-CH']),
+  locale: z.enum(APP_LOCALES),
   currency: z.enum(['CHF', 'EUR']),
 })
 async function save() {
@@ -158,25 +159,25 @@ async function saveAndLeave() {
            <UFormField :label="t('settings.language')" name="locale" class="field"
             ><USelect
               v-model="form.locale"
+              class="w-72 max-w-full"
               :items="[
                 { label: t('settings.albanianKosovo'), value: 'sq-XK' },
                 { label: t('settings.englishUnitedStates'), value: 'en-US' },
-                { label: t('settings.germanGermany'), value: 'de-CH' },
+                { label: t('settings.germanSwitzerland'), value: 'de-CH' },
+                { label: t('settings.italianSwitzerland'), value: 'it-CH' },
+                { label: t('settings.frenchSwitzerland'), value: 'fr-CH' },
+                { label: t('settings.turkishTurkey'), value: 'tr-TR' },
               ]"
             /></UFormField
 ><UFormField :label="t('settings.timezone')" name="timezone" class="field"
             ><USelect
               v-model="form.timezone"
-              :items="[
-                { label: t('onboarding.timezoneKosovo'), value: 'Europe/Belgrade' },
-                { label: t('onboarding.timezoneAlbania'), value: 'Europe/Tirane' },
-                { label: t('onboarding.timezoneNorthMacedonia'), value: 'Europe/Skopje' },
-                { label: t('onboarding.timezoneUnitedKingdom'), value: 'Europe/London' },
-                { label: 'Schweizer Zeit', value: 'Europe/Zurich' },
-              ]" /></UFormField
+              class="w-72 max-w-full"
+              :items="TIMEZONE_OPTIONS.map(zone => ({ label: t(zone.labelKey), value: zone.value }))" /></UFormField
           ><UFormField :label="t('settings.currency')" name="currency" class="field"
             ><USelect
               v-model="form.currency"
+              class="w-72 max-w-full"
               :items="[
                 { label: t('settings.currencyChf'), value: 'CHF' },
                 { label: t('settings.currencyEuro'), value: 'EUR' },
@@ -231,3 +232,4 @@ async function saveAndLeave() {
     />
   </DashboardPage>
 </template>
+

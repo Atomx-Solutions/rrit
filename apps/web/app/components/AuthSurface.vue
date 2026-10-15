@@ -58,8 +58,22 @@ const available = computed(() => {
   if (props.mode === 'callback') return true
   return capabilities.value?.authentication
 })
+// The recovery link signs the person in for this one step: Supabase sends a
+// one-time code that must become a session before the password can change.
+const recoverySession = ref(false)
+async function openRecoverySession() {
+  const result = await authClient.handleCallback()
+  recoverySession.value = !!result.data.session
+  if (result.error) error.value = errorText(result.error)
+  else if (!recoverySession.value) error.value = t('auth.confirmPasswordLinkError')
+  return recoverySession.value
+}
 onMounted(async () => {
   hydrated.value = true
+  if (props.mode === 'reset') {
+    await openRecoverySession()
+    return
+  }
   if (props.mode !== 'callback') return
 
   busy.value = true
@@ -68,6 +82,9 @@ onMounted(async () => {
     if (result.error) error.value = errorText(result.error)
     else if (!result.data.session)
       error.value = t('auth.callbackIncompleteError')
+    // Google creates the account without the sign-up form, so the terms are
+    // accepted here before the person goes any further.
+    else if (!result.data.session.user.user_metadata?.terms_accepted_at) needsConsent.value = true
     else await navigateTo(safeRedirect(route.query.next, '/onboarding'), { replace: true })
   } catch (caught) {
     error.value = errorText({ message: caught instanceof Error ? caught.message : '' })
@@ -75,6 +92,42 @@ onMounted(async () => {
     busy.value = false
   }
 })
+const needsConsent = ref(false)
+const consentGiven = ref(false)
+async function acceptConsent() {
+  if (!consentGiven.value || busy.value) return
+  busy.value = true
+  try {
+    const result = await authClient.acceptTerms()
+    if (result.error) error.value = errorText(result.error)
+    else await navigateTo(safeRedirect(route.query.next, '/onboarding'), { replace: true })
+  } finally {
+    busy.value = false
+  }
+}
+async function declineConsent() {
+  await authClient.signOut()
+  await navigateTo('/login', { replace: true })
+}
+// Whether an address has an account here. Unknown (null) when the lookup is
+// refused or fails, in which case the form keeps its usual behaviour.
+async function emailRegistered(email: string) {
+  try {
+    const result = await $fetch<{ registered: boolean }>('/api/auth/email-status', {
+      method: 'POST',
+      body: { email },
+    })
+    return result.registered
+  } catch {
+    return null
+  }
+}
+function isInvalidCredentials(problem: { code?: string; message?: string }) {
+  const code = problem.code?.toLowerCase() || ''
+  const message = problem.message?.toLowerCase() || ''
+  return code === 'invalid_credentials' || code === 'invalid_login_credentials'
+    || message.includes('invalid login credentials') || message.includes('invalid credentials')
+}
 function errorText(problem: {
   code?: string | undefined
   status?: number | undefined
@@ -174,7 +227,13 @@ async function submit() {
         email: state.email.trim(),
         password: state.password,
       })
-      if (result.error) error.value = errorText(result.error)
+      // A wrong password and an unknown address look the same to Supabase;
+      // tell the person which one it is so they know whether to sign up.
+      if (result.error)
+        error.value = isInvalidCredentials(result.error)
+          && (await emailRegistered(state.email.trim())) === false
+          ? t('auth.noAccountError')
+          : errorText(result.error)
       else {
         state.password = ''
         const workspace = useWorkspace()
@@ -190,14 +249,20 @@ async function submit() {
         await navigateTo(destination)
       }
     } else if (props.mode === 'forgot') {
+      // No account means no email would ever arrive; say so instead.
+      if ((await emailRegistered(state.email.trim())) === false) {
+        error.value = t('auth.noAccountError')
+        return
+      }
       const result = await authClient.requestPasswordReset({
         email: state.email.trim(),
         redirectTo: '/reset-password',
       })
       if (result.error) error.value = errorText(result.error)
-      else
+      else {
         success.value = t('auth.recoveryRequested')
         showSuccess(success.value)
+      }
     } else if (props.mode === 'verify') {
       const result = await authClient.sendVerificationEmail({
         email: state.email.trim(),
@@ -209,12 +274,8 @@ async function submit() {
         showSuccess(success.value)
       }
     } else if (props.mode === 'reset') {
-      const token = typeof route.query.token === 'string' ? route.query.token : ''
-      if (!token) {
-        error.value = t('auth.confirmPasswordLinkError')
-        return
-      }
-      const result = await authClient.resetPassword({ token, newPassword: state.password })
+      if (!recoverySession.value && !(await openRecoverySession())) return
+      const result = await authClient.resetPassword({ newPassword: state.password })
       if (result.error) error.value = errorText(result.error)
       else {
         state.password = ''
@@ -390,6 +451,20 @@ async function continueWithGoogle() {
       {{ t('auth.continueWithGoogle') }}
     </UButton>
   </UForm>
+  <div v-if="mode === 'callback' && needsConsent && !error" class="flex flex-col gap-4">
+    <h2 class="text-lg font-semibold">{{ t('auth.consentTitle') }}</h2>
+    <p class="text-sm text-muted">{{ t('auth.consentDescription') }}</p>
+    <UCheckbox v-model="consentGiven" :disabled="busy">
+      <template #label>
+        {{ t('auth.consentAccept') }}
+        <ULink to="/terms" target="_blank" class="text-primary underline underline-offset-2">{{ t('auth.terms') }}</ULink>
+        {{ t('auth.and') }}
+        <ULink to="/privacy" target="_blank" class="text-primary underline underline-offset-2">{{ t('auth.privacy') }}</ULink>.
+      </template>
+    </UCheckbox>
+    <UButton block :loading="busy" :disabled="!consentGiven" :label="t('auth.consentContinue')" @click="acceptConsent" />
+    <UButton block variant="ghost" color="neutral" :disabled="busy" :label="t('auth.consentDecline')" @click="declineConsent" />
+  </div>
   <UButton
     v-if="(mode === 'reset' && success) || (mode === 'callback' && error)"
     to="/login"
