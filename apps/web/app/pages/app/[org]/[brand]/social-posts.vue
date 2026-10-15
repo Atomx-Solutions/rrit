@@ -90,6 +90,7 @@ async function sync(more = false) {
 <template>
   <DashboardPage
     :title="t('nav.socialPosts')"
+    :mobile-title="t('nav.posts')"
     :description="t('legacy.socialPostsDescription')"
     :toolbar-border="false"
   >
