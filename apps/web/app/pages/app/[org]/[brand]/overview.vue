@@ -167,6 +167,7 @@ const summaries = computed(() => [
   <DashboardPage
     :title="t('overview.title')"
     :description="`${data.brand.name} · ${data.brand.city}`"
+    :toolbar-border="false"
   >
     <template #actions
       ><UButton :to="monthlyPlannerPath(base)" variant="outline" icon="i-lucide-plus">{{

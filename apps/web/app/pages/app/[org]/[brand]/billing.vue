@@ -209,7 +209,11 @@ async function declineProposal() {
 </script>
 
 <template>
-  <DashboardPage :title="t('nav.billing')" :description="t('billing.description')">
+  <DashboardPage
+    :title="t('nav.billing')"
+    :description="t('billing.description')"
+    :toolbar-border="false"
+  >
     <UAlert
       color="neutral"
       variant="subtle"

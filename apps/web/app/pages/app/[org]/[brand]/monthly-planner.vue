@@ -16,6 +16,7 @@ const month = computed(() =>
   <DashboardPage
     :title="t('monthly.pageTitle')"
     :description="t('monthly.pageDescription')"
+    :toolbar-border="false"
   >
     <template #actions>
       <div class="flex flex-wrap gap-2">

@@ -104,7 +104,11 @@ function move(direction: number) {
 }
 </script>
 <template>
-  <DashboardPage :title="t('nav.calendar')" :description="t('calendar.description')">
+  <DashboardPage
+    :title="t('nav.calendar')"
+    :description="t('calendar.description')"
+    :toolbar-border="false"
+  >
     <template #actions
       ><div class="flex flex-wrap gap-2">
         <UButton :to="`${base}/monthly-planner`" variant="outline" icon="i-lucide-sparkles">
