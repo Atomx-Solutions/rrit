@@ -140,3 +140,47 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
   }
   return { ...page, summary: { ...page.summary, ...summary }, summary_currency: currency }
 }
+
+type OrganizationCurrencyRow = {
+  organization_id: string
+  organization_name: string
+  currency: string
+  invoice_count: number
+  gross_revenue_cents: number
+  outstanding_cents: number
+  overdue_cents: number
+  overdue_count: number
+  last_issued_at: string
+}
+
+/** Organizations with invoices, each with totals in the admin currency. */
+export async function adminBillingOrganizations() {
+  const [{ data, error }, currency] = await Promise.all([
+    adminServiceClient().rpc('admin_billing_organizations'),
+    adminCurrency(),
+  ])
+  if (error) {
+    console.error('Admin billing organizations query failed.', { code: error.code, message: error.message })
+    throw createError({ statusCode: 502, message: 'server.INVOICES_LOAD_FAILED' })
+  }
+  const byOrganization = new Map<string, OrganizationCurrencyRow[]>()
+  for (const row of (Array.isArray(data) ? data : []) as OrganizationCurrencyRow[]) {
+    const rows = byOrganization.get(row.organization_id) ?? []
+    rows.push(row)
+    byOrganization.set(row.organization_id, rows)
+  }
+  const organizations = await Promise.all([...byOrganization.values()].map(async (rows) => {
+    const totals = await sumInCurrency(rows, ['gross_revenue_cents', 'outstanding_cents', 'overdue_cents'] as const, currency)
+    return {
+      organization_id: rows[0]!.organization_id,
+      organization_name: rows[0]!.organization_name,
+      invoice_count: rows.reduce((sum, row) => sum + Number(row.invoice_count), 0),
+      overdue_count: rows.reduce((sum, row) => sum + Number(row.overdue_count), 0),
+      last_issued_at: rows.map(row => row.last_issued_at).sort().at(-1) ?? null,
+      ...totals,
+    }
+  }))
+  // Most recent activity first: that is usually the organization being asked about.
+  organizations.sort((a, b) => String(b.last_issued_at).localeCompare(String(a.last_issued_at)))
+  return { organizations, currency }
+}

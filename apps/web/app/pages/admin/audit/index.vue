@@ -160,11 +160,32 @@ const euro = new Intl.NumberFormat('sq-XK', { style: 'currency', currency: 'EUR'
 // cents as euros, basis points as percent, timestamps as local time.
 function fieldValue(key: string, value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
-  if (key === 'status' && typeof value === 'string') return t(`admin.status.${value}`)
+  if (key === 'status' && typeof value === 'string') return translatedOr(`admin.status.${value}`, value)
+  if (key === 'method' && typeof value === 'string') return translatedOr(`admin.billing.payment.method.${value}`, value)
+  // Who made a change is the actor shown above; an id here only repeats it.
+  if (['updated_by', 'actor_id', 'created_by'].includes(key) && typeof value === 'string')
+    return value === selected.value?.actor_id ? (selected.value?.actor_email || value) : value
   if (key === 'billing_interval') return value === 'annual' ? t('admin.subscriptions.intervalAnnual') : t('admin.subscriptions.intervalMonthly')
   if (key.endsWith('_cents') && typeof value === 'number') return euro.format(value / 100)
   if (key === 'vat_rate_basis_points' && typeof value === 'number') return `${value / 100}%`
   return display(value)
+}
+function translatedOr(key: string, value: string) {
+  const translated = t(key)
+  if (translated !== key) return translated
+  const text = value.replace(/[_.]+/g, ' ').trim()
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+// The organization an event belongs to, also for platform-scope events that
+// carry it in their metadata (payment and package changes made by the team).
+function eventOrganizationId(event: AuditEvent | null) {
+  const fromMetadata = event?.metadata?.organization_id
+  return event?.organization_id || (typeof fromMetadata === 'string' ? fromMetadata : null)
+}
+function eventOrganizationName(event: AuditEvent | null) {
+  if (event?.organization_name) return event.organization_name
+  const id = eventOrganizationId(event)
+  return (id && data.value?.organizations.find(org => org.id === id)?.name) || null
 }
 function display(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
@@ -181,11 +202,14 @@ const eventRows = computed<DetailRow[]>(() => {
     { label: t('admin.audit.type'), value: `${actionLabel(event.action)} (${event.action})` },
     { label: t('admin.audit.result'), value: t(`admin.audit.results.${event.result}`) },
     { label: t('admin.audit.actor'), value: event.actor_email || event.actor_id || '—' },
-    { label: t('admin.audit.organization'), value: event.organization_name || t('admin.audit.platform') },
-    { label: t('admin.audit.resource'), value: `${event.resource_type} · ${event.resource_id}` },
+    { label: t('admin.audit.organization'), value: eventOrganizationName(event) || t('admin.audit.platform') },
+    { label: t('admin.audit.resource'), value: `${translatedOr(`admin.audit.resources.${event.resource_type}`, event.resource_type)} · ${event.resource_id}` },
   ]
 })
 type ChangeRow = { label: string, before: string, after: string, changed: boolean }
+// Ids and bookkeeping columns: the time, actor and organization are already
+// in the event rows, so repeating them only hides what actually changed.
+const technicalFields = ['id', 'invoice_id', 'organization_id', 'business_id', 'updated_at', 'updated_by', 'created_at']
 const asObject = (value: unknown) =>
   (value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null)
 // Before/after side by side, every field once; changed fields first.
@@ -194,6 +218,7 @@ const changeRows = computed<ChangeRow[]>(() => {
   const after = asObject(selected.value?.metadata.after)
   if (!before && !after) return []
   const keys = [...new Set([...Object.keys(before || {}), ...Object.keys(after || {})])]
+    .filter(key => !technicalFields.includes(key))
   return keys
     .map(key => ({
       label: humanize(key),
@@ -309,7 +334,7 @@ const tableUi = {
           <UFieldGroup class="flex flex-wrap items-center gap-1.5">
             <UBadge :color="resultColors[event.result] || 'neutral'" variant="subtle" :label="t(`admin.audit.results.${event.result}`)" />
             <UBadge color="neutral" variant="soft" icon="i-lucide-user" :label="actorParts(event).full || '—'" class="max-w-full truncate" />
-            <UBadge color="neutral" variant="outline" icon="i-lucide-building-2" :label="event.organization_name || t('admin.audit.platform')" />
+            <UBadge color="neutral" variant="outline" icon="i-lucide-building-2" :label="eventOrganizationName(event) || t('admin.audit.platform')" />
           </UFieldGroup>
         </UCard>
         <UEmpty
@@ -364,13 +389,13 @@ const tableUi = {
           </template>
           <template #organization-cell="{ row }">
             <UButton
-              v-if="row.original.organization_id"
-              :to="`/admin/organizations/${row.original.organization_id}`"
+              v-if="eventOrganizationId(row.original)"
+              :to="`/admin/organizations/${eventOrganizationId(row.original)}`"
               color="neutral"
               variant="soft"
               size="xs"
               icon="i-lucide-building-2"
-              :label="row.original.organization_name || row.original.organization_id"
+              :label="eventOrganizationName(row.original) || eventOrganizationId(row.original) || ''"
               class="max-w-52"
               :ui="{ label: 'truncate' }"
             />
@@ -393,7 +418,7 @@ const tableUi = {
       :open="!!selected"
       :title="selected ? actionLabel(selected.action) : ''"
       :description="selected ? formatTime(selected.created_at) : ''"
-      :ui="{ content: 'sm:max-w-2xl', body: 'space-y-4' }"
+      :ui="{ content: 'sm:max-w-5xl', body: 'space-y-4' }"
       @update:open="(value: boolean) => { if (!value) selected = null }"
     >
       <template #body>
@@ -409,8 +434,13 @@ const tableUi = {
           variant="subtle"
           icon="i-lucide-arrow-right-left"
           :title="t('admin.audit.whatChanged')"
-          :description="summary.join(' · ')"
-        />
+        >
+          <template #description>
+            <ul class="mt-1 space-y-1">
+              <li v-for="line in summary" :key="line">{{ line }}</li>
+            </ul>
+          </template>
+        </UAlert>
         <UCard v-if="changeRows.length" variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
           <template #header>
             <UUser :name="t('admin.audit.beforeAfter')" :avatar="{ icon: 'i-lucide-git-compare', size: 'xs' }" />
@@ -438,8 +468,8 @@ const tableUi = {
       </template>
       <template #footer>
         <UButton
-          v-if="selected?.organization_id"
-          :to="`/admin/organizations/${selected.organization_id}`"
+          v-if="eventOrganizationId(selected)"
+          :to="`/admin/organizations/${eventOrganizationId(selected)}`"
           icon="i-lucide-building-2"
           color="neutral"
           variant="outline"

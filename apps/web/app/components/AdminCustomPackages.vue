@@ -22,7 +22,8 @@ export type AdminCustomPackage = {
   remaining_days: number
 }
 
-const props = defineProps<{ organizationId: string; organizationName: string }>()
+const props = defineProps<{ organizationId: string; organizationName: string; editPackageId?: string | null }>()
+const emit = defineEmits<{ editOpened: [] }>()
 const { t } = useI18n()
 const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
@@ -172,6 +173,14 @@ const suggestedCents = computed(
     + form.credits_included * creditPriceCents.value,
 )
 const overridden = computed(() => form.price_cents !== suggestedCents.value)
+// How the suggested price adds up, one line per kind of deliverable.
+const priceLines = computed(() => [
+  { label: `${form.posts_included} × ${t('admin.packages.posts')} · ${formatPackageMoney(form.post_price_cents, displayCurrency.value)}`, cents: form.posts_included * form.post_price_cents },
+  { label: `${form.videos_included} × ${t('admin.packages.videos')} · ${formatPackageMoney(form.video_price_cents, displayCurrency.value)}`, cents: form.videos_included * form.video_price_cents },
+  ...(form.credits_included > 0
+    ? [{ label: `${form.credits_included} × ${t('admin.packages.credits')}`, cents: form.credits_included * creditPriceCents.value }]
+    : []),
+])
 // Inputs work in the central admin currency; monetary values remain whole cents
 // in storage and audit records.
 const priceEuro = computed({
@@ -235,6 +244,14 @@ async function startEdit(row: AdminCustomPackage) {
   })
   editing.value = row
 }
+// Asked from "Edit package": open that package's dialog once the list has it.
+watch([() => props.editPackageId, packages], ([id, rows]) => {
+  if (!id) return
+  const row = rows.find(item => item.id === id)
+  if (!row) return
+  void startEdit(row)
+  emit('editOpened')
+}, { immediate: true })
 
 // Resizing follows the suggestion only while the price has not been negotiated
 // away from it, so an agreed figure survives a change of size.
@@ -393,6 +410,7 @@ const listUi = {
     :open="open"
     :title="editing ? t('admin.packages.editTitle') : t('admin.packages.createTitle')"
     :description="organizationName"
+    :ui="{ content: 'sm:max-w-3xl', body: 'space-y-6' }"
     @update:open="
       (value: boolean) => {
         if (!value) {
@@ -403,112 +421,134 @@ const listUi = {
     "
   >
     <template #body>
-      <UForm :schema="schema" :state="form" class="space-y-4" @submit="submit" @error="onFormError">
-        <UFormField name="name" :label="t('admin.packages.name')" required>
-          <UInput v-model="form.name" :maxlength="120" class="w-full" />
-        </UFormField>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <UFormField name="posts_included" :label="t('admin.packages.posts')" required>
-            <LiveInputNumber v-model="form.posts_included" :min="0" :max="1000" class="w-full" />
+      <UForm id="custom-package-form" :schema="schema" :state="form" class="space-y-6" @submit="submit" @error="onFormError">
+        <!-- Who it is for and when it runs -->
+        <section class="space-y-4">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">{{ t('admin.packages.sectionDetails') }}</h3>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <UFormField name="name" :label="t('admin.packages.name')" required>
+              <UInput v-model="form.name" :maxlength="120" class="w-full" />
+            </UFormField>
+            <UFormField name="status" :label="t('admin.packages.statusLabel')" :hint="t('admin.packages.statusHint')" required>
+              <USelect
+                v-model="form.status"
+                :items="[
+                  { label: t('admin.packages.status.draft'), value: 'draft' },
+                  { label: t('admin.packages.status.active'), value: 'active' },
+                  { label: t('admin.packages.status.expired'), value: 'expired' },
+                  { label: t('admin.packages.status.cancelled'), value: 'cancelled' },
+                ]"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField name="starts_at" :label="t('admin.packages.startsAt')" required>
+              <UInput v-model="form.starts_at" type="date" class="w-full" />
+            </UFormField>
+            <UFormField name="ends_at" :label="t('admin.packages.endsAt')" required>
+              <UInput v-model="form.ends_at" type="date" class="w-full" />
+            </UFormField>
+          </div>
+        </section>
+
+        <USeparator />
+
+        <!-- What the client receives -->
+        <section class="space-y-4">
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">{{ t('admin.packages.sectionContents') }}</h3>
+            <p class="mt-1 text-xs text-muted">{{ t('admin.packages.creditsHint') }}</p>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-3">
+            <UFormField name="posts_included" :label="t('admin.packages.posts')" required>
+              <LiveInputNumber v-model="form.posts_included" :min="0" :max="1000" class="w-full" />
+            </UFormField>
+            <UFormField name="videos_included" :label="t('admin.packages.videos')" required>
+              <LiveInputNumber v-model="form.videos_included" :min="0" :max="1000" class="w-full" />
+            </UFormField>
+            <UFormField name="credits_included" :label="t('admin.packages.credits')">
+              <LiveInputNumber v-model="form.credits_included" :min="0" :max="1000000" :step="100" :step-snapping="false" class="w-full" />
+            </UFormField>
+          </div>
+        </section>
+
+        <USeparator />
+
+        <!-- What it costs: the rates, how they add up, and the agreed figure -->
+        <section class="space-y-4">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">{{ t('admin.packages.sectionPricing') }}</h3>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <UFormField name="post_price_cents" :label="t('admin.packages.postPrice')" required>
+              <LiveInputNumber
+                v-model="postPriceEuro"
+                :min="0.01"
+                :max="10000"
+                :step="0.01"
+                :format-options="{ style: 'currency', currency: displayCurrency }"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField name="video_price_cents" :label="t('admin.packages.videoPrice')">
+              <LiveInputNumber
+                v-model="videoPriceEuro"
+                :min="0"
+                :max="10000"
+                :step="0.01"
+                :format-options="{ style: 'currency', currency: displayCurrency }"
+                class="w-full"
+              />
+            </UFormField>
+          </div>
+          <div class="rounded-lg bg-elevated/60 ring ring-default p-4 space-y-2 text-sm">
+            <div v-for="line in priceLines" :key="line.label" class="flex items-center justify-between gap-3">
+              <span class="text-muted">{{ line.label }}</span>
+              <span class="tabular-nums">{{ formatPackageMoney(line.cents, displayCurrency) }}</span>
+            </div>
+            <USeparator />
+            <div class="flex items-center justify-between gap-3 font-medium">
+              <span>{{ t('admin.packages.suggestedTotal') }}</span>
+              <span class="tabular-nums">{{ formatPackageMoney(suggestedCents, displayCurrency) }}</span>
+            </div>
+          </div>
+          <UFormField name="price_cents" :label="t('admin.packages.price')" required>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <LiveInputNumber
+                v-model="priceEuro"
+                :min="0"
+                :step="0.01"
+                :format-options="{ style: 'currency', currency: displayCurrency }"
+                class="w-full sm:flex-1"
+              />
+              <UButton
+                v-if="overridden"
+                color="neutral"
+                variant="outline"
+                :label="t('admin.packages.useSuggestion')"
+                @click="useSuggestion"
+              />
+            </div>
+            <template v-if="overridden" #help>
+              {{ t('admin.packages.overriddenHint') }}
+            </template>
           </UFormField>
-          <UFormField name="videos_included" :label="t('admin.packages.videos')" required>
-            <LiveInputNumber v-model="form.videos_included" :min="0" :max="1000" class="w-full" />
-          </UFormField>
-          <UFormField
-            name="credits_included"
-            :label="t('admin.packages.credits')"
-            :description="t('admin.packages.creditsHint')"
-          >
-            <LiveInputNumber v-model="form.credits_included" :min="0" :max="1000000" :step="100" class="w-full" />
-          </UFormField>
-          <UFormField
-            name="post_price_cents"
-            :label="t('admin.packages.postPrice')"
-            required
-          >
-            <LiveInputNumber
-              v-model="postPriceEuro"
-              :min="0.01"
-              :max="10000"
-              :step="0.01"
-              :format-options="{ style: 'currency', currency: displayCurrency }"
-              class="w-full"
-            />
-          </UFormField>
-          <UFormField
-            name="video_price_cents"
-            :label="t('admin.packages.videoPrice')"
-          >
-            <LiveInputNumber
-              v-model="videoPriceEuro"
-              :min="0"
-              :max="10000"
-              :step="0.01"
-              :format-options="{ style: 'currency', currency: displayCurrency }"
-              class="w-full"
-            />
-          </UFormField>
-        </div>
-        <UFormField
-          name="price_cents"
-          :label="t('admin.packages.price')"
-          :hint="t('admin.packages.suggested', { price: formatPackageMoney(suggestedCents, displayCurrency) })"
-          required
-        >
-          <LiveInputNumber
-            v-model="priceEuro"
-            :min="0"
-            :step="0.01"
-            :format-options="{ style: 'currency', currency: displayCurrency }"
-            class="w-full"
-          />
-        </UFormField>
-        <div v-if="overridden" class="flex items-center justify-between gap-2">
-          <p class="text-xs text-muted">
-            {{ t('admin.packages.overriddenHint') }}
-          </p>
-          <UButton
-            color="neutral"
-            variant="outline"
-            size="xs"
-            :label="t('admin.packages.useSuggestion')"
-            @click="useSuggestion"
-          />
-        </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <UFormField name="starts_at" :label="t('admin.packages.startsAt')" required>
-            <UInput v-model="form.starts_at" type="date" class="w-full" />
-          </UFormField>
-          <UFormField name="ends_at" :label="t('admin.packages.endsAt')" required>
-            <UInput v-model="form.ends_at" type="date" class="w-full" />
-          </UFormField>
-        </div>
-        <UFormField
-          name="status"
-          :label="t('admin.packages.statusLabel')"
-          :hint="t('admin.packages.statusHint')"
-          required
-        >
-          <USelect
-            v-model="form.status"
-            :items="[
-              { label: t('admin.packages.status.draft'), value: 'draft' },
-              { label: t('admin.packages.status.active'), value: 'active' },
-              { label: t('admin.packages.status.expired'), value: 'expired' },
-              { label: t('admin.packages.status.cancelled'), value: 'cancelled' },
-            ]"
-            class="w-full"
-          />
-        </UFormField>
-        <UFormField
-          name="notes"
-          :label="t('admin.packages.notes')"
-          :hint="t('admin.subscription.optional')"
-        >
+        </section>
+
+        <USeparator />
+
+        <UFormField name="notes" :label="t('admin.packages.notes')" :hint="t('admin.subscription.optional')">
           <UTextarea v-model="form.notes" :maxlength="2000" :rows="2" class="w-full" />
         </UFormField>
-        <UButton type="submit" :loading="saving" :label="t('admin.packages.save')" block />
       </UForm>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton
+          color="neutral"
+          variant="outline"
+          :label="t('admin.packages.cancel')"
+          @click="creating = false; editing = null"
+        />
+        <UButton type="submit" form="custom-package-form" :loading="saving" :label="t('admin.packages.save')" />
+      </div>
     </template>
   </UModal>
 </template>

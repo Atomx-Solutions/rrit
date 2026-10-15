@@ -59,7 +59,45 @@ const dateFilters = reactive({ from: '', to: '' })
 // A package invoice and a credit top-up are both sold through the same
 // proposal flow, so the list separates them by what was actually bought.
 const sourceKinds = ['all', 'custom_package', 'video_purchase', 'credit_top_up'] as const
-const search = reactive({ org: '', number: '', source: 'all' as (typeof sourceKinds)[number] })
+const search = reactive({ number: '', source: 'all' as (typeof sourceKinds)[number] })
+
+// The page opens on the organizations that have invoices; choosing one lists
+// only its invoices, with totals and filters for that organization alone.
+const route = useRoute()
+const selectedOrgId = computed(() => (typeof route.query.org === 'string' ? route.query.org : null))
+type BillingOrganization = {
+  organization_id: string
+  organization_name: string
+  invoice_count: number
+  overdue_count: number
+  last_issued_at: string | null
+  gross_revenue_cents: number
+  outstanding_cents: number
+  overdue_cents: number
+}
+const { data: organizationsData, status: organizationsStatus, refresh: refreshOrganizations } = await useFetch<{
+  organizations: BillingOrganization[]
+  currency: 'CHF' | 'EUR'
+}>('/api/admin/billing/organizations', { lazy: true, key: 'admin-billing-organizations' })
+const orgSearch = ref('')
+const organizations = computed(() => {
+  const term = orgSearch.value.trim().toLowerCase()
+  return (organizationsData.value?.organizations ?? [])
+    .filter(org => !term || org.organization_name.toLowerCase().includes(term))
+})
+const selectedOrgName = computed(() =>
+  organizationsData.value?.organizations.find(org => org.organization_id === selectedOrgId.value)?.organization_name
+  ?? data.value?.invoices[0]?.organization_name
+  ?? '')
+function openOrganization(org: BillingOrganization) {
+  page.value = 1
+  void navigateTo({ query: { ...route.query, org: org.organization_id } })
+}
+function backToOrganizations() {
+  const { org: _org, ...query } = route.query
+  void navigateTo({ query })
+}
+watch(selectedOrgId, () => { page.value = 1 })
 // Payment state is filtered by the API, so the outstanding totals and the
 // page count describe the same invoices the table shows.
 const paymentFilters = ['all', 'unpaid', 'overdue', 'paid'] as const
@@ -68,6 +106,7 @@ const paymentFilter = ref<(typeof paymentFilters)[number]>('all')
 watch([() => dateFilters.from, () => dateFilters.to, paymentFilter], () => { page.value = 1 })
 
 const query = computed(() => ({
+  ...(selectedOrgId.value ? { org_id: selectedOrgId.value } : {}),
   page: page.value,
   per_page: pageSize.value,
   ...(dateFilters.from ? { from: dateFilters.from } : {}),
@@ -88,11 +127,9 @@ watch(error, (value) => {
 // Client-side search on top of the API page
 const invoices = computed(() => {
   const list = data.value?.invoices ?? []
-  const org = search.org.trim().toLowerCase()
   const num = search.number.trim().toLowerCase()
   return list.filter(inv =>
-    (!org || inv.organization_name?.toLowerCase().includes(org))
-    && (!num || inv.number.toLowerCase().includes(num))
+    (!num || inv.number.toLowerCase().includes(num))
     && (search.source === 'all' || inv.source_type === search.source),
   )
 })
@@ -123,13 +160,12 @@ const summaryTiles = computed(() => {
 })
 
 const hasFilters = computed(() =>
-  !!(dateFilters.from || dateFilters.to || search.org || search.number)
+  !!(dateFilters.from || dateFilters.to || search.number)
   || search.source !== 'all' || paymentFilter.value !== 'all',
 )
 function clearFilters() {
   dateFilters.from = ''
   dateFilters.to = ''
-  search.org = ''
   search.number = ''
   search.source = 'all'
   paymentFilter.value = 'all'
@@ -161,7 +197,7 @@ async function savePayment(inv: Invoice, body: Record<string, unknown>, successK
     await $fetch(`/api/admin/billing/invoices/${inv.id}/payment`, { method: 'PATCH', body })
     showSuccess(t(successKey, { number: inv.number }))
     paying.value = null
-    await refresh()
+    await Promise.all([refresh(), refreshOrganizations()])
   } catch {
     showError(t('admin.billing.payment.saveError'))
   } finally {
@@ -200,9 +236,19 @@ const tableUi = {
 const wide = { class: { th: 'hidden lg:table-cell', td: 'hidden lg:table-cell' } }
 const endAligned = { class: { td: 'text-end', th: 'text-end' } }
 
+const organizationColumns = computed<TableColumn<BillingOrganization>[]>(() => [
+  { id: 'organization', header: t('admin.billing.organization') },
+  { id: 'invoices', header: t('admin.billing.orgs.invoices'), meta: endAligned },
+  { id: 'gross', header: t('admin.billing.grossRevenue'), meta: endAligned },
+  { id: 'outstanding', header: t('admin.billing.payment.outstanding'), meta: endAligned },
+  { id: 'last', header: t('admin.billing.orgs.lastInvoice'), meta: wide },
+  { id: 'open', header: '', meta: endAligned },
+])
+const organizationCurrency = computed(() => organizationsData.value?.currency ?? 'CHF')
+
+
 const columns = computed<TableColumn<Invoice>[]>(() => [
   { accessorKey: 'number', header: t('admin.billing.number') },
-  { id: 'organization', header: t('admin.billing.organization') },
   { id: 'kind', header: t('admin.billing.kind'), meta: wide },
   { id: 'source', header: t('admin.billing.filterSource'), meta: wide },
   { id: 'issued_at', header: t('admin.billing.issuedAt') },
@@ -223,6 +269,72 @@ const sourceLabel: Record<string, string> = {
 
 <template>
   <AdminPage :title="t('admin.nav.billing')">
+    <!-- Organizations with invoices -->
+    <UCard v-if="!selectedOrgId" class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-0 sm:p-0' }">
+      <template #header>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold">{{ t('admin.billing.orgs.title') }}</h2>
+            <p class="text-xs text-muted mt-1">{{ t('admin.billing.orgs.description') }}</p>
+          </div>
+          <UInput v-model="orgSearch" icon="i-lucide-search" :placeholder="t('admin.billing.filterOrg')" class="w-64 max-w-full" />
+        </div>
+      </template>
+      <UTable
+        :data="organizations"
+        :columns="organizationColumns"
+        :loading="organizationsStatus === 'pending' && !organizationsData"
+        :empty="t('admin.billing.orgs.empty')"
+        :ui="{ ...tableUi, tr: 'cursor-pointer hover:bg-elevated/50' }"
+        @select="(_event: Event, row: { original: BillingOrganization }) => openOrganization(row.original)"
+      >
+        <template #organization-cell="{ row }">
+          <UUser
+            :name="row.original.organization_name"
+            :avatar="{ alt: row.original.organization_name, size: 'xs' }"
+            :ui="{ name: 'truncate max-w-64' }"
+          />
+        </template>
+        <template #invoices-cell="{ row }">
+          <span class="tabular-nums">{{ row.original.invoice_count }}</span>
+          <UBadge
+            v-if="row.original.overdue_count"
+            color="error"
+            variant="subtle"
+            size="sm"
+            class="ms-2"
+            :label="t('admin.billing.orgs.overdueCount', { count: row.original.overdue_count })"
+          />
+        </template>
+        <template #gross-cell="{ row }">
+          <span class="tabular-nums">{{ formatCents(row.original.gross_revenue_cents, organizationCurrency) }}</span>
+        </template>
+        <template #outstanding-cell="{ row }">
+          <span class="tabular-nums" :class="row.original.outstanding_cents ? 'text-warning' : 'text-muted'">
+            {{ formatCents(row.original.outstanding_cents, organizationCurrency) }}
+          </span>
+        </template>
+        <template #last-cell="{ row }">
+          <span class="text-muted">{{ row.original.last_issued_at ? formatDay(row.original.last_issued_at) : '—' }}</span>
+        </template>
+        <template #open-cell>
+          <UIcon name="i-lucide-chevron-right" class="size-4 text-muted" />
+        </template>
+      </UTable>
+    </UCard>
+
+    <template v-else>
+    <div class="flex items-center gap-2">
+      <UButton
+        icon="i-lucide-arrow-left"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        :label="t('admin.billing.orgs.back')"
+        @click="backToOrganizations"
+      />
+      <h2 class="text-base font-semibold truncate">{{ selectedOrgName }}</h2>
+    </div>
     <!-- Summary tiles -->
     <UCard v-if="summaryTiles.length" class="shrink-0" :ui="{ body: 'p-4 sm:p-5' }">
       <UPageGrid class="grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-5">
@@ -246,10 +358,6 @@ const sourceLabel: Record<string, string> = {
     <UCard class="shrink-0" :ui="{ header: 'px-4 py-3 sm:px-5', body: 'p-0 sm:p-0' }">
       <template #header>
         <div class="flex flex-wrap items-end gap-3">
-          <!-- Text search: client-side -->
-          <UFormField :label="t('admin.billing.filterOrg')" class="w-44">
-            <UInput v-model="search.org" icon="i-lucide-building-2" :placeholder="t('admin.billing.filterOrg')" class="w-full" />
-          </UFormField>
           <UFormField :label="t('admin.billing.number')" class="w-44">
             <UInput v-model="search.number" icon="i-lucide-hash" :placeholder="t('admin.billing.number')" class="w-full" />
           </UFormField>
@@ -302,13 +410,6 @@ const sourceLabel: Record<string, string> = {
       >
         <template #number-cell="{ row }">
           <UBadge color="neutral" variant="soft" :label="row.original.number" />
-        </template>
-        <template #organization-cell="{ row }">
-          <UUser
-            :name="row.original.organization_name || row.original.organization_id"
-            :avatar="{ alt: row.original.organization_name || '', size: 'xs' }"
-            :ui="{ name: 'truncate max-w-52' }"
-          />
         </template>
         <template #kind-cell="{ row }">
           <UBadge
@@ -450,7 +551,9 @@ const sourceLabel: Record<string, string> = {
       </template>
     </UModal>
 
-    <template #footer>
+    </template>
+
+    <template v-if="selectedOrgId" #footer>
       <ListPagination
         v-model:page="page"
         v-model:page-size="pageSize"
