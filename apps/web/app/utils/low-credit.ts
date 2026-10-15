@@ -1,4 +1,4 @@
-export type LowCreditAction = 'contact-team'
+export type LowCreditAction = 'request-package' | 'request-credits'
 
 /**
  * The reminder shows below the threshold unless the customer dismissed it in
@@ -10,6 +10,10 @@ export function showLowCreditReminder(spendable: number, threshold: number, dism
   return dismissedAt === null || spendable < dismissedAt
 }
 
-export function lowCreditAction(): LowCreditAction {
-  return 'contact-team'
+/**
+ * Without a package in force there is nothing to top up, so the customer asks
+ * for a new package; with one, they ask for more credits for it.
+ */
+export function lowCreditAction(hasActivePackage: boolean | undefined): LowCreditAction {
+  return hasActivePackage ? 'request-credits' : 'request-package'
 }

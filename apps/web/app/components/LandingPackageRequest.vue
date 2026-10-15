@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
 /**
  * Public landing lead form.
  *
@@ -9,8 +10,8 @@
  */
 const { locale } = useI18n()
 
-const postsRequested = ref(14)
-const videosRequested = ref(2)
+const postsRequested = ref<number>(DEFAULT_PACKAGE_REQUEST.posts)
+const videosRequested = ref<number>(DEFAULT_PACKAGE_REQUEST.videos)
 // Swiss-market landing prices are intentionally independent from the admin
 // platform currency. The default 14-post/2-video package is CHF 99.00.
 const landingCurrency = 'CHF' as const

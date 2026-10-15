@@ -99,12 +99,20 @@ export function submitterHash(event: H3Event) {
   // Local test switch: returning no hash bypasses the database's per-address
   // rate limit while preserving every other validation rule.
   if (process.env.PACKAGE_REQUEST_RATE_LIMIT_DISABLED === 'true') return null
+  return visitorHash(event, 'package-request')
+}
+
+/**
+ * A keyed hash of the visitor's address for one purpose, so a public endpoint
+ * can count requests without storing the address itself.
+ */
+export function visitorHash(event: H3Event, purpose: string) {
   const key = process.env.TRIAL_HASH_KEY
   if (!key || key.length < 32) return null
   const forwarded = getRequestHeader(event, 'x-forwarded-for') || ''
   const address = forwarded.split(',')[0]?.trim() || getRequestIP(event, { xForwardedFor: true })
   if (!address) return null
-  return createHmac('sha256', key).update(`package-request:${address}`).digest('hex')
+  return createHmac('sha256', key).update(`${purpose}:${address}`).digest('hex')
 }
 
 const failures: Record<string, { statusCode: number; message: string }> = {

@@ -9,7 +9,7 @@ const { base, storageError, syncing } = useWorkspace()
 const { t, locale } = useI18n()
 const { watchError } = useFormFeedback()
 watchError(storageError, 'error')
-const { data: headerUsage, refresh: refreshHeaderUsage } = useHeaderUsage()
+const { data: headerUsage } = useHeaderUsage()
 // Show settled customer credits in the global header. `spendable` subtracts
 // temporary reservations and can rise again when a cheaper AI run settles,
 // which makes the balance look like credits were returned during generation.
@@ -27,10 +27,21 @@ const toolbarUi = {
   right: 'shrink-0',
 }
 let creditTimer: ReturnType<typeof setInterval>
+// Coming back to the tab (after the team changed a package, for example)
+// reads the balance at once instead of waiting for the next tick.
+function refreshWhenVisible() {
+  if (document.visibilityState === 'visible') void refreshCreditBalance()
+}
 onMounted(() => {
-  creditTimer = setInterval(() => refreshHeaderUsage(), 30_000)
+  creditTimer = setInterval(() => refreshCreditBalance(), 30_000)
+  document.addEventListener('visibilitychange', refreshWhenVisible)
+  window.addEventListener('focus', refreshWhenVisible)
 })
-onBeforeUnmount(() => clearInterval(creditTimer))
+onBeforeUnmount(() => {
+  clearInterval(creditTimer)
+  document.removeEventListener('visibilitychange', refreshWhenVisible)
+  window.removeEventListener('focus', refreshWhenVisible)
+})
 </script>
 <template>
   <UDashboardPanel

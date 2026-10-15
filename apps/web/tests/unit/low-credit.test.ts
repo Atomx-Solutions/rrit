@@ -3,9 +3,10 @@ import { lowCreditAction, showLowCreditReminder } from '../../app/utils/low-cred
 import { lowCreditStatus } from '../../server/utils/credits'
 
 describe('low-credit reminder', () => {
-  it('directs a customer with low credits to contact the team', () => {
+  it('asks for credits with a package in force, and for a package without one', () => {
     expect(showLowCreditReminder(80, 100, null)).toBe(true)
-    expect(lowCreditAction()).toBe('contact-team')
+    expect(lowCreditAction(true)).toBe('request-credits')
+    expect(lowCreditAction(false)).toBe('request-package')
   })
 
   it('stays hidden for a customer with 150 credits', () => {

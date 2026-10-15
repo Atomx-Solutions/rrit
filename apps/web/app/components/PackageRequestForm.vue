@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
 import { z } from 'zod'
 
 /**
@@ -51,8 +52,8 @@ const form = reactive({
   businessName: '',
   industry: '',
   platform: 'both' as 'instagram' | 'facebook' | 'both',
-  postsRequested: 20,
-  videosRequested: 0,
+  postsRequested: DEFAULT_PACKAGE_REQUEST.posts,
+  videosRequested: DEFAULT_PACKAGE_REQUEST.videos,
   message: '',
 })
 if (postsModel.value > 0) form.postsRequested = postsModel.value
