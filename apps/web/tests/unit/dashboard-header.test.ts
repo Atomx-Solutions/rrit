@@ -71,4 +71,8 @@ describe('dashboard toolbar borders', () => {
   it('removes the inactive tab baseline from the settings toolbar', () => {
     expect(settingsPage).toContain("list: 'flex-wrap gap-1 border-b-0'")
   })
+
+  it('uses a compact mobile title for social posts', () => {
+    expect(socialPostsPage).toContain(":mobile-title=\"t('nav.posts')\"")
+  })
 })

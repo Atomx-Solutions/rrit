@@ -8,8 +8,9 @@ const props = withDefaults(
     description?: string
     eyebrow?: string
     toolbarBorder?: boolean
+    mobileTitle?: string
   }>(),
-  { description: undefined, eyebrow: undefined, toolbarBorder: true },
+  { description: undefined, eyebrow: undefined, toolbarBorder: true, mobileTitle: undefined },
 )
 const route = useRoute()
 const chrome = inject(dashboardKey)
@@ -65,6 +66,10 @@ onBeforeUnmount(() => {
           right: 'gap-1.5',
         }"
       >
+        <template v-if="mobileTitle" #title>
+          <span class="sm:hidden">{{ mobileTitle }}</span>
+          <span class="hidden sm:inline">{{ title }}</span>
+        </template>
         <template #leading>
           <UButton
             icon="i-lucide-panel-left"
