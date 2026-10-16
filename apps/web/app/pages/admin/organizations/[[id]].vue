@@ -151,7 +151,6 @@ const columns = computed<TableColumn<Organization>[]>(() => [
 </script>
 <template>
   <AdminPage :title="t('admin.nav.organizations')">
-    <AdminOrganizationInvite @created="refresh()" />
     <!-- shrink-0: in the flex panel body the card would otherwise shrink and clip rows instead of scrolling. -->
     <UCard ref="listCard" class="shrink-0 scroll-mt-4" :ui="{ body: 'p-0 sm:p-0', header: 'px-3 py-3 sm:px-4' }">
       <template #header>
