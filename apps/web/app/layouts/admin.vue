@@ -54,6 +54,7 @@ const menu = computed<NavigationMenuItem[]>(() =>
   [
     { to: '/admin', label: t('admin.nav.overview'), icon: 'i-lucide-layout-dashboard' },
     { to: '/admin/organizations', label: t('admin.nav.organizations'), icon: 'i-lucide-building-2' },
+    { to: '/admin/invitations', label: t('admin.nav.invitations'), icon: 'i-lucide-user-plus' },
     {
       to: '/admin/package-requests',
       label: t('admin.nav.packageRequests'),

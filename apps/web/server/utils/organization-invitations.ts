@@ -64,13 +64,13 @@ export const invitationCreateSchema = z
     email: z.email().max(320),
     role: invitationRoleSchema.default('owner'),
     package_request_id: z.uuid().optional(),
-    expires_days: z.number().int().min(1).max(30).default(7),
+    expires_minutes: z.number().int().min(1).max(1440).default(60),
     profile: invitationProfileSchema.default({}),
   })
   .strict()
 
 export const invitationResendSchema = z
-  .object({ expires_days: z.number().int().min(1).max(30).default(7) })
+  .object({ expires_minutes: z.number().int().min(1).max(1440).default(60) })
   .strict()
 
 export const invitationTokenBodySchema = z.object({ token: tokenSchema }).strict()
@@ -174,6 +174,14 @@ export function revokeOrganizationInvitation(
   })
 }
 
+export function deleteOrganizationInvitation(invitationId: string, actor: { id: string; email: string }) {
+  return rpc('admin_delete_organization_invitation', {
+    p_invitation_id: invitationId,
+    p_actor_id: actor.id,
+    p_actor_email: actor.email,
+  })
+}
+
 export async function resendOrganizationInvitation(
   invitationId: string,
   actor: { id: string; email: string },
@@ -185,7 +193,7 @@ export async function resendOrganizationInvitation(
     p_actor_id: actor.id,
     p_actor_email: actor.email,
     p_token_hash: invitationTokenHash(token),
-    p_expires_days: values.expires_days,
+    p_expires_minutes: values.expires_minutes,
   })
   return { ...result, url: invitationUrl(token) }
 }
