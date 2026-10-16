@@ -126,3 +126,14 @@ export function updateCustomPackage(
     p_changes: changes,
   })
 }
+
+export function deleteCustomPackage(
+  packageId: string,
+  actor: { id: string; email: string },
+) {
+  return rpc('admin_delete_custom_package', {
+    p_package_id: packageId,
+    p_actor_id: actor.id,
+    p_actor_email: actor.email,
+  })
+}

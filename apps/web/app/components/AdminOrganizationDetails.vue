@@ -328,7 +328,7 @@ async function copyId() {
           </template>
           <template #total-cell="{ row }">
             <UBadge v-if="row.original.kind === 'credit_note'" color="neutral" variant="subtle" :label="t('billing.creditNote')" class="me-2" />
-            <UBadge color="neutral" variant="soft" :label="formatMoney(row.original.total)" />
+            <UBadge color="neutral" variant="soft" :label="formatMoney(row.original.total, row.original.currency)" />
           </template>
           <template #pdf-cell="{ row }">
             <UButton

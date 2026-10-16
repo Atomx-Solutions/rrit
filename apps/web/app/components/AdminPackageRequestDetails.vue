@@ -27,11 +27,7 @@ const emit = defineEmits<{
   status: [status: AdminPackageRequest['status'], note?: string]
   remove: []
 }>()
-// Deleting is asked for twice, because the row leaves the inbox for good.
-const confirmingDelete = ref(false)
-watch(() => props.request?.id, () => {
-  confirmingDelete.value = false
-})
+const deleteConfirmationOpen = ref(false)
 const { t } = useI18n()
 const note = ref('')
 const selectedStatus = ref<AdminPackageRequest['status']>()
@@ -168,10 +164,11 @@ function saveNote() {
 }
 function removeRequest() {
   if (!props.request) return
-  if (!confirmingDelete.value) {
-    confirmingDelete.value = true
-    return
-  }
+  deleteConfirmationOpen.value = true
+}
+function confirmRemoveRequest() {
+  if (!props.request || props.saving) return
+  deleteConfirmationOpen.value = false
   pendingAction.value = 'delete'
   emit('remove')
 }
@@ -254,7 +251,7 @@ function removeRequest() {
             type="button"
             color="neutral"
             variant="soft"
-            class="h-11 w-32 justify-center"
+            class="h-11 min-w-max shrink-0 justify-center whitespace-nowrap px-3"
             icon="i-lucide-building-2"
             :to="`/admin/organizations/${request.organization_id}`"
             :label="t('admin.requests.openOrganizationShort')"
@@ -266,7 +263,7 @@ function removeRequest() {
             class="size-11 justify-center"
             icon="i-lucide-trash-2"
             :loading="saving && pendingAction === 'delete'"
-            :aria-label="confirmingDelete ? t('admin.requests.deleteConfirm') : t('admin.requests.delete')"
+            :aria-label="t('admin.requests.delete')"
             @click.stop.prevent="removeRequest"
           />
         </div>
@@ -282,6 +279,48 @@ function removeRequest() {
           <UButton v-if="canSendProposal" type="button" class="h-11 w-40 justify-center" :loading="saving && pendingAction === 'proposal'" :label="t('admin.requests.sendProposal')" @click.stop.prevent="sendProposal" />
           <UButton v-else type="button" color="neutral" variant="outline" class="h-11 w-40 justify-center" :loading="saving && pendingAction === 'note'" :label="t('admin.requests.saveNote')" @click.stop.prevent="saveNote" />
         </div>
+      </div>
+    </template>
+  </UModal>
+  <UModal
+    :open="deleteConfirmationOpen"
+    :title="t('admin.requests.deleteConfirm')"
+    :description="request?.contact_name || ''"
+    :ui="{ content: 'sm:max-w-xl' }"
+    @update:open="(value: boolean) => { if (!value) deleteConfirmationOpen = false }"
+  >
+    <template #body>
+      <p class="mb-4 text-sm text-muted">
+        {{ t('admin.requests.deleteWarning') }}
+      </p>
+      <dl class="space-y-2 rounded-md border border-default bg-elevated/30 p-3 text-sm">
+        <div class="flex gap-3">
+          <dt class="w-32 shrink-0 whitespace-nowrap text-muted">{{ t('admin.requests.name') }}</dt>
+          <dd class="min-w-0 break-words font-medium">{{ request?.contact_name }}</dd>
+        </div>
+        <div class="flex gap-3">
+          <dt class="w-32 shrink-0 whitespace-nowrap text-muted">{{ t('admin.requests.email') }}</dt>
+          <dd class="min-w-0 break-words font-medium">{{ request?.contact_email }}</dd>
+        </div>
+        <div class="flex gap-3">
+          <dt class="w-32 shrink-0 whitespace-nowrap text-muted">{{ t('admin.requests.businessName') }}</dt>
+          <dd class="min-w-0 break-words font-medium">{{ request?.organization_name || request?.business_name || '—' }}</dd>
+        </div>
+      </dl>
+      <div class="mt-5 flex justify-end gap-2">
+        <UButton
+          type="button"
+          color="neutral"
+          variant="outline"
+          :label="t('admin.requests.cancel')"
+          @click="deleteConfirmationOpen = false"
+        />
+        <UButton
+          type="button"
+          color="error"
+          :label="t('admin.requests.delete')"
+          @click="confirmRemoveRequest"
+        />
       </div>
     </template>
   </UModal>
