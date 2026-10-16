@@ -92,7 +92,9 @@ watch(
   },
   { immediate: true },
 )
-const packages = computed(() => data.value?.packages || [])
+// Extra credits and videos bought on top of a package are merged into it; they
+// are part of that package, not packages of their own, so the list leaves them out.
+const packages = computed(() => (data.value?.packages || []).filter(pkg => pkg.status !== 'merged'))
 // The platform rate is only the default a new package starts from; each
 // package then carries the rate actually agreed with this organization.
 const defaultPostPriceCents = computed(() => data.value?.post_price_cents ?? 0)
@@ -126,6 +128,7 @@ function dayToIso(value: string) {
 
 const editing = ref<AdminCustomPackage | null>(null)
 const creating = ref(false)
+const deleting = ref<AdminCustomPackage | null>(null)
 const open = computed(() => creating.value || !!editing.value)
 const saving = ref(false)
 const error = ref('')
@@ -312,6 +315,24 @@ async function submit() {
   }
 }
 
+async function confirmDelete() {
+  if (!deleting.value) return
+  saving.value = true
+  try {
+    await $fetch(`/api/admin/organizations/${props.organizationId}/packages/${deleting.value.id}`, {
+      method: 'DELETE',
+      body: {},
+    })
+    toast.add({ title: t('admin.packages.deleted'), color: 'success' })
+    deleting.value = null
+    await reload()
+  } catch (problem) {
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.packages.deleteFailed')
+  } finally {
+    saving.value = false
+  }
+}
+
 const columns: TableColumn<AdminCustomPackage>[] = [
   { accessorKey: 'name', header: '' },
   { id: 'posts', header: '', meta: { class: { td: 'text-end whitespace-nowrap' } } },
@@ -402,6 +423,14 @@ const listUi = {
           size="xs"
           :aria-label="t('admin.packages.editFor', { name: row.original.name })"
           @click="startEdit(row.original)"
+        />
+        <UButton
+          icon="i-lucide-trash-2"
+          color="error"
+          variant="ghost"
+          size="xs"
+          :aria-label="t('admin.packages.deleteFor', { name: row.original.name })"
+          @click="deleting = row.original"
         />
       </template>
     </UTable>
@@ -548,6 +577,25 @@ const listUi = {
           @click="creating = false; editing = null"
         />
         <UButton type="submit" form="custom-package-form" :loading="saving" :label="t('admin.packages.save')" />
+      </div>
+    </template>
+  </UModal>
+  <UModal
+    :open="!!deleting"
+    :title="t('admin.packages.deleteTitle')"
+    :description="organizationName"
+    :ui="{ content: 'sm:max-w-xl' }"
+    @update:open="(value: boolean) => { if (!value) deleting = null }"
+  >
+    <template #body>
+      <p class="mb-4 text-sm text-muted">{{ t('admin.packages.deleteWarning') }}</p>
+      <dl class="space-y-2 rounded-md border border-default bg-elevated/30 p-3 text-sm">
+        <div class="flex gap-3"><dt class="w-32 shrink-0 text-muted">{{ t('admin.packages.name') }}</dt><dd class="font-medium">{{ deleting?.name }}</dd></div>
+        <div class="flex gap-3"><dt class="w-32 shrink-0 text-muted">{{ t('admin.details.organization') }}</dt><dd class="font-medium">{{ organizationName }}</dd></div>
+      </dl>
+      <div class="mt-5 flex justify-end gap-2">
+        <UButton color="neutral" variant="outline" :label="t('admin.packages.cancel')" @click="deleting = null" />
+        <UButton color="error" :loading="saving" :label="t('admin.packages.delete')" @click="confirmDelete" />
       </div>
     </template>
   </UModal>
