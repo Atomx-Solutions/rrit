@@ -169,9 +169,9 @@ async function submit() {
         videos_included: form.videosIncluded,
         post_price_cents: postPriceCents.value,
         video_price_cents: videoPriceCents.value,
-        // The offer price is always derived from the configured item rates.
-        // VAT is added later when the invoice is issued.
-        price_cents: suggestedCents.value,
+        // The admin can negotiate this total independently of the suggested
+        // item rates. VAT is added later when the invoice is issued.
+        price_cents: Math.round(form.priceEuro * 100),
         starts_at: dayToIso(form.startsAt),
         ends_at: dayToIso(form.endsAt),
         status: 'draft',

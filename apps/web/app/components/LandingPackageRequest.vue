@@ -1,32 +1,21 @@
 <script setup lang="ts">
 import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
-/**
- * Public landing lead form.
- *
- * The visitor says how many posts they need, sees what that costs at the
- * current rate and leaves their details so the team can answer with a real
- * offer. The price is read from the platform setting rather than written into
- * the page, so the figure quoted here is the one the team charges.
- */
-const { locale } = useI18n()
 
+/** Public lead form. The customer requests volume; the team sends the price. */
+const props = withDefaults(defineProps<{ showSummary?: boolean }>(), { showSummary: true })
 const postsRequested = ref<number>(DEFAULT_PACKAGE_REQUEST.posts)
 const videosRequested = ref<number>(DEFAULT_PACKAGE_REQUEST.videos)
-// Swiss-market landing prices are intentionally independent from the admin
-// platform currency. The default 14-post/2-video package is CHF 99.00.
+const { locale } = useI18n()
 const landingCurrency = 'CHF' as const
 const packagePostPrice = 5.35
 const packageVideoPrice = 12.05
-const packageTotal = computed(() =>
-  postsRequested.value * packagePostPrice + videosRequested.value * packageVideoPrice,
-)
-const money = (value: number) =>
-  new Intl.NumberFormat(locale.value, { style: 'currency', currency: landingCurrency }).format(value)
+const packageTotal = computed(() => postsRequested.value * packagePostPrice + videosRequested.value * packageVideoPrice)
+const money = (value: number) => new Intl.NumberFormat(locale.value, { style: 'currency', currency: landingCurrency }).format(value)
 </script>
 
 <template>
   <div class="landing-request">
-    <div class="landing-package-summary">
+    <div v-if="props.showSummary" class="landing-package-summary">
       <div class="landing-package-summary-top">
         <strong>Framic Content Paket</strong>
         <strong>{{ money(packageTotal) }} / Monat</strong>
@@ -44,7 +33,6 @@ const money = (value: number) =>
         <strong>{{ money(packageTotal) }}</strong>
       </div>
     </div>
-
     <div class="landing-request-form">
       <PackageRequestForm
         v-model:posts="postsRequested"
