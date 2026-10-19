@@ -29,6 +29,10 @@ export function paddleProductId() {
   return process.env.PADDLE_PRODUCT_ID?.trim() || null
 }
 
+export function paddlePackagePriceId() {
+  return process.env.PADDLE_PACKAGE_PRICE_ID?.trim() || null
+}
+
 export async function createPaddleTransaction(input: {
   amountCents: number
   currency: string
@@ -39,8 +43,25 @@ export async function createPaddleTransaction(input: {
 }) {
   const apiKey = paddleApiKey()
   if (!apiKey) throw new Error('PADDLE_API_KEY is not configured')
-  const productId = paddleProductId()
-  if (!productId) throw new Error('PADDLE_PRODUCT_ID is not configured')
+  let productId = paddleProductId()
+  // A price ID is commonly configured while setting up Paddle. Inline prices
+  // require the parent product ID, so resolve it instead of sending `pri_...`
+  // as `product_id` (which Paddle rejects).
+  const configuredPriceId = paddlePackagePriceId()
+  if (!productId || productId.startsWith('pri_')) {
+    const priceId = productId?.startsWith('pri_') ? productId : configuredPriceId
+    if (priceId) {
+      const priceResponse = await fetch(`${paddleApiBaseUrl()}/prices/${encodeURIComponent(priceId)}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+      const pricePayload = await priceResponse.json().catch(() => null) as {
+        data?: { product_id?: string }
+      } | null
+      productId = pricePayload?.data?.product_id || null
+    }
+  }
+  if (!productId || !/^pro_[a-z\d]{26}$/.test(productId))
+    throw new Error('PADDLE_PRODUCT_ID must be a Paddle product ID (pro_...) or a valid PADDLE_PACKAGE_PRICE_ID must be configured')
   const response = await fetch(`${paddleApiBaseUrl()}/transactions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
