@@ -16,8 +16,13 @@ export default defineEventHandler(async (event) => {
       message: 'server.INVITATION_DATA_INVALID',
       data: { code: 'INVITATION_INVALID' },
     })
-  const existing = await adminServiceClient().auth.admin.getUserByEmail(values.data.email.trim().toLowerCase())
-  if (existing.data.user) {
+  const email = values.data.email.trim().toLowerCase()
+  const existing = await adminServiceClient().auth.admin.listUsers({ page: 1, perPage: 1000 })
+  if (existing.error) {
+    console.error('Admin invitation account lookup failed.', { code: existing.error.code, message: existing.error.message })
+    throw createError({ statusCode: 502, message: 'server.INVITATION_ACCOUNT_LOOKUP_FAILED' })
+  }
+  if (existing.data.users.some(user => user.email?.toLowerCase() === email)) {
     throw createError({
       statusCode: 409,
       message: 'server.INVITATION_ACCOUNT_EXISTS',

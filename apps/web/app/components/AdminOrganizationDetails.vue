@@ -83,7 +83,7 @@ const creditRows = computed(() => {
   ]
 })
 
-type AdminInvoice = { id: string; number: string; kind: 'invoice' | 'credit_note'; issuedAt: string; total: number; lines: Array<{ description: string }> }
+type AdminInvoice = { id: string; number: string; kind: 'invoice' | 'credit_note'; issuedAt: string; currency: string; total: number; lines: Array<{ description: string }> }
 // Invoices load when an organization is opened, not with the whole list.
 const organizationId = computed(() => props.organization?.id)
 const { data: invoiceData, status: invoiceStatus, execute: loadInvoices } = useFetch<{ invoices: AdminInvoice[] }>(
