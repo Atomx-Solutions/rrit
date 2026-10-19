@@ -34,6 +34,7 @@ export default defineEventHandler(async (event) => {
   const client = await database().connect()
   try {
     await client.query('BEGIN')
+    await client.query('SET LOCAL ROLE app_runtime')
     const inserted = await client.query(
       `INSERT INTO paddle_webhook_events(event_id,event_type,occurred_at,payload)
        VALUES($1,$2,$3,$4) ON CONFLICT(event_id) DO NOTHING RETURNING event_id`,
