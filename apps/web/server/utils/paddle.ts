@@ -61,9 +61,17 @@ export async function createPaddleTransaction(input: {
       custom_data: input.customData,
     }),
   })
-  const payload = await response.json().catch(() => null) as { data?: { id?: string }; error?: { detail?: string } } | null
-  if (!response.ok || !payload?.data?.id)
-    throw new Error(payload?.error?.detail || `Paddle transaction failed (${response.status})`)
+  const payload = await response.json().catch(() => null) as {
+    data?: { id?: string }
+    error?: { detail?: string; errors?: Array<{ field?: string; message?: string }> }
+  } | null
+  if (!response.ok || !payload?.data?.id) {
+    const fields = payload?.error?.errors
+      ?.map(item => [item.field, item.message].filter(Boolean).join(': '))
+      .filter(Boolean)
+      .join('; ')
+    throw new Error(fields || payload?.error?.detail || `Paddle transaction failed (${response.status})`)
+  }
   return payload.data.id
 }
 
