@@ -33,12 +33,16 @@ export function acquireOperationsWorkerDatabase() {
   const connectionString = process.env.WORKER_DATABASE_URL
   if (!connectionString)
     throw createError({ statusCode: 503, message: 'server.WORKER_DATABASE_NOT_CONFIGURED' })
+  const configuredTimeout = Number(process.env.WORKER_DATABASE_STATEMENT_TIMEOUT_MS || 60000)
+  const statementTimeout = Number.isFinite(configuredTimeout)
+    ? Math.min(Math.max(Math.trunc(configuredTimeout), 10000), 300000)
+    : 60000
   const worker = (operationsWorkerPool ||= new pg.Pool({
     connectionString,
     max: 6,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 30000,
-    statement_timeout: 10000,
+    statement_timeout: statementTimeout,
   }))
   if (operationsWorkerLeases === 0)
     worker.on('error', (error) => {

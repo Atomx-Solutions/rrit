@@ -57,6 +57,7 @@ export default defineEventHandler(async (event) => {
       [business.id],
     )
     const proposal = await client.query<{
+      id: string
       name: string
       posts_included: number
       videos_included: number
@@ -65,7 +66,7 @@ export default defineEventHandler(async (event) => {
       starts_at: Date
       ends_at: Date
     }>(
-      `SELECT name,posts_included,videos_included,credits_included,price_cents,starts_at,ends_at
+      `SELECT id,name,posts_included,videos_included,credits_included,price_cents,starts_at,ends_at
          FROM custom_packages
         WHERE organization_id=$1 AND status='draft'
         ORDER BY created_at DESC,id DESC LIMIT 1`,
@@ -90,6 +91,7 @@ export default defineEventHandler(async (event) => {
     // Keep per-credit precision; the UI rounds only the requested total.
     creditPrice: convertCurrency(creditPriceCents / 100, exchangeRate, 4),
     packageProposal: packageProposal && {
+      id: packageProposal.id,
       name: packageProposal.name,
       // The page states what the offer actually carries, so each kind is sent
       // on its own rather than being inferred from the absence of another.
