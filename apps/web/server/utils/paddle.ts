@@ -25,24 +25,35 @@ export function paddleApiBaseUrl() {
     : 'https://sandbox-api.paddle.com'
 }
 
+export function paddleProductId() {
+  return process.env.PADDLE_PRODUCT_ID?.trim() || null
+}
+
 export async function createPaddleTransaction(input: {
   amountCents: number
   currency: string
   description: string
+  name: string
+  recurring: boolean
   customData: Record<string, string>
 }) {
   const apiKey = paddleApiKey()
   if (!apiKey) throw new Error('PADDLE_API_KEY is not configured')
+  const productId = paddleProductId()
+  if (!productId) throw new Error('PADDLE_PRODUCT_ID is not configured')
   const response = await fetch(`${paddleApiBaseUrl()}/transactions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       collection_mode: 'automatic',
+      currency_code: input.currency,
       items: [{
         quantity: 1,
         price: {
+          product_id: productId,
           description: input.description,
-          billing_cycle: { interval: 'month', frequency: 1 },
+          name: input.name,
+          billing_cycle: input.recurring ? { interval: 'month', frequency: 1 } : null,
           tax_mode: 'account_setting',
           unit_price: { amount: String(input.amountCents), currency_code: input.currency },
         },

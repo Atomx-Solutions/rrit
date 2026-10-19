@@ -42,6 +42,10 @@ export default defineEventHandler(async (event) => {
       amountCents: packageRow.price_cents,
       currency: packageRow.currency,
       description: 'Framic content package',
+      name: packageRow.posts_included || packageRow.videos_included
+        ? 'Framic content package'
+        : 'Framic additional credits',
+      recurring: packageRow.posts_included > 0 || packageRow.videos_included > 0,
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })
     await client.query(
