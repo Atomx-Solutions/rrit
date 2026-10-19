@@ -49,7 +49,7 @@ const offerOpen = ref(false)
 const creditsRequested = ref(500)
 const creditMessage = ref('')
 const sendingCreditRequest = ref(false)
-const acceptingProposal = ref(false)
+const payingProposal = ref(false)
 const decliningProposal = ref(false)
 watch(() => billingDetailsData.value?.details, (details) => {
   if (details) Object.assign(detailsForm, details)
@@ -180,19 +180,19 @@ async function saveDetails() {
     savingDetails.value = false
   }
 }
-async function acceptProposal() {
-  acceptingProposal.value = true
+async function payForProposal() {
+  if (!packageProposal.value || payingProposal.value) return
+  payingProposal.value = true
   try {
-    await $fetch('/api/billing/custom-package-accept', { method: 'POST', body: {} })
-    // The accepted package grants its post-based credits atomically. Refresh
-    // every visible balance immediately instead of waiting for polling.
-    await Promise.all([refreshBilling(), refreshCreditBalance()])
-    offerOpen.value = false
-    showSuccess(t('billing.packageProposalAccepted'))
+    await $fetch('/api/billing/package-payment', { method: 'POST', body: { packageId: packageProposal.value.id } })
+    showSuccess(t('billing.paymentPending'))
   } catch (error) {
-    showError((error as { data?: { message?: string } }).data?.message || t('billing.packageProposalFailed'))
+    const data = (error as { data?: { data?: { code?: string }; code?: string } }).data
+    showError((data?.data?.code || data?.code) === 'PADDLE_NOT_CONFIGURED'
+      ? t('billing.paymentNotConfigured')
+      : t('billing.paymentFailed'))
   } finally {
-    acceptingProposal.value = false
+    payingProposal.value = false
   }
 }
 async function declineProposal() {
@@ -231,7 +231,7 @@ async function declineProposal() {
         </div>
         <div class="flex gap-2">
           <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click="declineProposal" />
-          <UButton icon="i-lucide-check" :loading="acceptingProposal" :label="t('billing.packageProposalAccept')" @click="acceptProposal" />
+          <UButton icon="i-lucide-credit-card" :loading="payingProposal" :label="t('billing.payNow')" @click="payForProposal" />
         </div>
       </div>
     </UCard>
@@ -259,7 +259,7 @@ async function declineProposal() {
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click="declineProposal" />
-          <UButton icon="i-lucide-check" :loading="acceptingProposal" :label="t('billing.packageProposalAccept')" @click="acceptProposal" />
+          <UButton icon="i-lucide-credit-card" :loading="payingProposal" :label="t('billing.payNow')" @click="payForProposal" />
         </div>
       </template>
     </UModal>
