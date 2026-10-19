@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { paddleEnabled } from '../../utils/paddle'
+import { createPaddleTransaction, paddleEnabled } from '../../utils/paddle'
 
 const bodySchema = z.object({ packageId: z.uuid() }).strict()
 
@@ -38,8 +38,16 @@ export default defineEventHandler(async (event) => {
         packageRow.credits_included, packageRow.price_cents, packageRow.currency],
     )).rows[0]
 
-    // The Paddle transaction/checkout is intentionally not created until the
-    // account credentials and price catalog are configured.
-    return { orderId: order!.id, status: 'pending', paddleCheckoutReady: false }
+    const transactionId = await createPaddleTransaction({
+      amountCents: packageRow.price_cents,
+      currency: packageRow.currency,
+      description: 'Framic content package',
+      customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
+    })
+    await client.query(
+      `UPDATE paddle_payment_orders SET paddle_transaction_id=$2,updated_at=now() WHERE id=$1`,
+      [order!.id, transactionId],
+    )
+    return { orderId: order!.id, status: 'pending', paddleCheckoutReady: true, transactionId }
   })
 })
