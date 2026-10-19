@@ -16,7 +16,7 @@ export default defineNuxtConfig({
   // These overrides make it possible to verify a production bundle without
   // touching a developer's active Nuxt dev server or its build artifacts.
   buildDir: process.env.NUXT_BUILD_DIR || '.nuxt',
-  modules: ['@nuxt/ui', '@nuxt/eslint'],
+  modules: ['@nuxt/ui', '@nuxt/eslint', '@vercel/analytics'],
   css: ['@fontsource-variable/inter', '~/assets/css/main.css'],
   devtools: { enabled: false },
   experimental: {
