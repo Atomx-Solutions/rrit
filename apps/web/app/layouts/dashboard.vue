@@ -37,6 +37,19 @@ const pendingProposals = computed(() => billingSnapshot.value?.pendingProposals 
 // icon rail, then retain the navigation width chosen by that user.
 const collapsed = useCookie('rrit-sidebar-collapsed-v2', { default: () => true })
 const sidebarOpen = ref(!collapsed.value)
+// Tooltips are useful for truncated names on desktop, but touch devices open
+// them on tap and obscure the business switcher instead of helping navigation.
+const touchInput = ref(false)
+let touchInputMedia: MediaQueryList | undefined
+function updateTouchInput() {
+  touchInput.value = !!touchInputMedia?.matches
+}
+onMounted(() => {
+  touchInputMedia = window.matchMedia('(hover: none), (pointer: coarse)')
+  updateTouchInput()
+  touchInputMedia.addEventListener('change', updateTouchInput)
+})
+onBeforeUnmount(() => touchInputMedia?.removeEventListener('change', updateTouchInput))
 // A mobile drawer closing must not overwrite the desktop preference.
 watch(sidebarOpen, (open) => {
   if (import.meta.client && !window.matchMedia('(max-width: 1023px)').matches) {
@@ -224,7 +237,7 @@ onBeforeUnmount(removeNavigationGuard)
             </template>
             <UTooltip
               :text="data.brand.name"
-              :disabled="state !== 'collapsed' && data.brand.name.length <= 12"
+              :disabled="touchInput || (state !== 'collapsed' && data.brand.name.length <= 12)"
               :content="{ side: 'bottom', align: 'start', sideOffset: 6 }"
               :ui="{ content: 'h-auto min-h-7 px-2.5 py-1.5 text-sm', text: 'font-medium' }"
             >
