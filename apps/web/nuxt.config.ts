@@ -72,6 +72,9 @@ export default defineNuxtConfig({
       // Domain data access must continue through the server API and Supabase Auth.
       supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '',
       supabaseKey: process.env.NUXT_PUBLIC_SUPABASE_KEY || process.env.SUPABASE_KEY || '',
+      paddleClientToken: process.env.NUXT_PUBLIC_PADDLE_CLIENT_TOKEN || process.env.PADDLE_CLIENT_TOKEN || '',
+      paddlePackagePriceId: process.env.NUXT_PUBLIC_PADDLE_PACKAGE_PRICE_ID || process.env.PADDLE_PACKAGE_PRICE_ID || '',
+      paddleEnvironment: process.env.NUXT_PUBLIC_PADDLE_ENV || process.env.PADDLE_ENV || 'sandbox',
     },
   },
   routeRules: {
