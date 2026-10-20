@@ -35,6 +35,7 @@ const overridden = computed(() => priceCents.value !== suggestedCents.value)
 const organizationId = computed(() => props.request?.organization_id || '')
 
 const saving = ref(false)
+const rateReady = ref(false)
 const error = ref('')
 watchError(error)
 
@@ -43,13 +44,17 @@ watchError(error)
 async function loadRate() {
   if (!organizationId.value) return
   try {
-    const settings = await $fetch<{ credit_price_cents: number }>(
-      `/api/admin/organizations/${organizationId.value}/packages`,
+    // This form only needs the platform credit rate. Do not load the whole
+    // organization's package list just to read one setting; that RPC also
+    // calculates package usage and makes the modal feel slow to open.
+    const settings = await $fetch<{ credit_pricing: { credit_price_cents: number } }>(
+      '/api/admin/plans',
     )
-    form.creditPrice = settings.credit_price_cents / 100
+    form.creditPrice = settings.credit_pricing.credit_price_cents / 100
     // Seed the agreed price immediately after loading the platform rate.
     // Without this, the input keeps its zero default until another field changes.
     form.price = Math.round(form.credits * form.creditPrice * 100) / 100
+    rateReady.value = form.creditPrice > 0
   } catch {
     // Without the rate the admin still types the agreed price by hand.
   }
@@ -85,6 +90,7 @@ watch(
   () => props.request,
   async (request) => {
     if (!request) return
+    rateReady.value = false
     form.credits = request.credits_requested || 0
     form.notes = request.message || ''
     form.creditPrice = 0
@@ -105,6 +111,7 @@ function nominalPeriod() {
 
 async function submit() {
   if (!props.request) return
+  if (!rateReady.value || priceCents.value <= 0) return
   if (!organizationId.value) {
     error.value = t('admin.requests.convertNeedsOrganization')
     return
@@ -129,11 +136,7 @@ async function submit() {
         notes: form.notes.trim() || null,
       },
     })
-    // The client accepts the draft from Billing; this only sends the proposal.
-    await $fetch(`/api/admin/package-requests/${props.request.id}`, {
-      method: 'PATCH',
-      body: { status: 'proposal_sent', organizationId: organizationId.value },
-    })
+    // The package endpoint also marks the linked request as proposal_sent.
     toast.add({ title: t('admin.requests.convertSaved'), color: 'success' })
     emit('done')
   } catch (problem) {
@@ -205,7 +208,7 @@ async function submit() {
           <UTextarea v-model="form.notes" :rows="3" :maxlength="2000" class="w-full" />
         </UFormField>
         <p class="text-xs text-muted">{{ t('admin.requests.creditJoinsPackage') }}</p>
-        <UButton type="submit" block :loading="saving" :disabled="!organizationId">
+        <UButton type="submit" block :loading="saving || !rateReady" :disabled="!organizationId || !rateReady || priceCents <= 0">
           {{ t('admin.requests.convertSubmit') }}
         </UButton>
       </UForm>

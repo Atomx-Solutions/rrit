@@ -3,7 +3,8 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 
 const { t } = useI18n()
 const runtimeConfig = useRuntimeConfig()
-type PaddleApi = { Initialize: (options: { token: string }) => void; Environment: { set: (environment: 'sandbox' | 'production') => void }; Checkout: { open: (options: { transactionId: string; settings?: { showAddDiscounts: boolean } }) => void } }
+type PaddleEvent = { name?: string }
+type PaddleApi = { Initialize: (options: { token: string; eventCallback?: (event: PaddleEvent) => void }) => void; Environment: { set: (environment: 'sandbox' | 'production') => void }; Checkout: { open: (options: { transactionId: string; settings?: { showAddDiscounts: boolean } }) => void } }
 declare global { interface Window { Paddle?: PaddleApi } }
 useHead({ script: [{ src: 'https://cdn.paddle.com/paddle/v2/paddle.js', defer: true }] })
 const paddleReady = ref(false)
@@ -11,7 +12,18 @@ function initializePaddle() {
   const token = String(runtimeConfig.public.paddleClientToken || '')
   if (!token || !window.Paddle || paddleReady.value) return
   if (runtimeConfig.public.paddleEnvironment === 'sandbox') window.Paddle.Environment.set('sandbox')
-  window.Paddle.Initialize({ token })
+  window.Paddle.Initialize({
+    token,
+    eventCallback: (event) => {
+      if (event.name === 'checkout.completed') {
+        // The payment is already approved by Paddle. Hide the stale offer
+        // immediately; the package, quotas and credits are refreshed while
+        // the webhook finishes in the background.
+        paidProposalId.value = packageProposal.value?.id ?? null
+        void refreshAfterPayment()
+      }
+    },
+  })
   paddleReady.value = true
 }
 onMounted(() => {
@@ -28,7 +40,7 @@ const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: '
 const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
 
-const { data: usage, error: usageError } = await useFetch('/api/usage', { lazy: true, key: 'usage' })
+const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { lazy: true, key: 'usage' })
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { lazy: true, key: 'billing-subscription-currency-v2' })
 const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { lazy: true, key: 'billing-details' })
 const { data: platformPricing } = await useFetch<{ videoPriceCents: number }>('/api/package-requests', { lazy: true, key: 'package-pricing' })
@@ -68,11 +80,15 @@ watch(pendingRequest, (asked) => {
   pendingRequest.value = null
 })
 const offerOpen = ref(false)
+const paidProposalId = ref<string | null>(null)
 const creditsRequested = ref(500)
 const creditMessage = ref('')
 const sendingCreditRequest = ref(false)
 const payingProposal = ref(false)
 const decliningProposal = ref(false)
+const preparedProposalId = ref<string | null>(null)
+const preparedTransactionId = ref<string | null>(null)
+let prepareProposalPromise: Promise<string> | null = null
 let offerCloseResolve: (() => void) | null = null
 function waitForOfferClose() {
   if (!offerOpen.value) return Promise.resolve()
@@ -92,7 +108,18 @@ watch(usageError, (value) => {
 }, { immediate: true })
 
 const customPackage = computed(() => billing.value?.customPackage || null)
-const packageProposal = computed(() => billing.value?.packageProposal || null)
+const serverPackageProposal = computed(() => billing.value?.packageProposal || null)
+const packageProposal = computed(() => {
+  const proposal = serverPackageProposal.value
+  return proposal && proposal.id !== paidProposalId.value ? proposal : null
+})
+watch(serverPackageProposal, (proposal) => {
+  if (!proposal || proposal.id !== paidProposalId.value) paidProposalId.value = null
+  if (!proposal || proposal.id !== preparedProposalId.value) {
+    preparedProposalId.value = null
+    preparedTransactionId.value = null
+  }
+}, { immediate: true })
 // The offer names only what it actually carries, so a video offer never reads
 // as a credit top-up and a post package never claims videos it does not have.
 const proposalSummary = computed(() => {
@@ -125,9 +152,9 @@ const videoEstimate = computed(() => videosRequested.value * videoPrice.value)
 async function sendVideoRequest() {
   if (sendingVideoRequest.value || videosRequested.value < 1) return
   sendingVideoRequest.value = true
+  videoRequestOpen.value = false
   try {
     await $fetch('/api/billing/package-request', { method: 'POST', body: { postsRequested: 0, creditsRequested: 0, videosRequested: videosRequested.value } })
-    videoRequestOpen.value = false
     showSuccess(t('billing.videoRequestSent'))
   } catch (error) {
     showError((error as { data?: { message?: string } }).data?.message || t('billing.videoRequestFailed'))
@@ -136,6 +163,7 @@ async function sendVideoRequest() {
 async function sendCreditRequest() {
   if (sendingCreditRequest.value || creditsRequested.value < 1) return
   sendingCreditRequest.value = true
+  creditRequestOpen.value = false
   try {
     await $fetch('/api/billing/package-request', {
       method: 'POST',
@@ -145,7 +173,6 @@ async function sendCreditRequest() {
         ...(creditMessage.value.trim() ? { message: creditMessage.value.trim() } : {}),
       },
     })
-    creditRequestOpen.value = false
     creditMessage.value = ''
     showSuccess(t('billing.creditRequestSent'))
   } catch (error) {
@@ -169,12 +196,28 @@ watch(billing, (value) => {
 }, { immediate: true })
 async function refreshLiveProposal() {
   if (document.visibilityState !== 'visible') return
-  await Promise.all([refreshBilling(), refreshCreditBalance()])
+  await Promise.all([refreshBilling(), refreshCreditBalance(), refreshUsage()])
   const proposal = billing.value?.packageProposal
   const proposalId = proposal ? `${proposal.name}:${proposal.startsAt}:${proposal.endsAt}` : null
   if (proposalSnapshotReady && proposalId && proposalId !== previousProposalId)
     showSuccess(t('billing.packageProposalNotification'))
   previousProposalId = proposalId
+}
+let paymentRefreshTimer: ReturnType<typeof setInterval> | undefined
+async function refreshAfterPayment() {
+  if (paymentRefreshTimer) clearInterval(paymentRefreshTimer)
+  await refreshLiveProposal()
+  let attempts = 0
+  paymentRefreshTimer = setInterval(() => {
+    attempts += 1
+    void refreshLiveProposal()
+    // Keep polling until the webhook removes the paid proposal. The offer is
+    // already hidden optimistically, so this does not block the customer.
+    if (!serverPackageProposal.value || attempts >= 20) {
+      if (paymentRefreshTimer) clearInterval(paymentRefreshTimer)
+      paymentRefreshTimer = undefined
+    }
+  }, 500)
 }
 onMounted(() => {
   packageRefreshTimer = setInterval(() => { void refreshLiveProposal() }, 5000)
@@ -182,6 +225,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   if (packageRefreshTimer) clearInterval(packageRefreshTimer)
+  if (paymentRefreshTimer) clearInterval(paymentRefreshTimer)
   window.removeEventListener('focus', refreshLiveProposal)
 })
 
@@ -197,6 +241,32 @@ function usageValue(key: string, value: number) {
   }
   return new Intl.NumberFormat('sq-AL').format(value)
 }
+function usageLimit(item: { key: string; limit: number }) {
+  // The billing snapshot and the usage snapshot can finish at slightly
+  // different times. Prefer the freshly refreshed active package for its
+  // package quotas so the UI cannot show the new package card beside an old
+  // progress-bar limit.
+  if (item.key === 'posts_per_month' && customPackage.value?.postsIncluded != null)
+    return customPackage.value.postsIncluded
+  if (item.key === 'videos_per_month' && customPackage.value?.videosIncluded != null)
+    return customPackage.value.videosIncluded
+  return item.limit
+}
+function usagePercentage(item: { key: string; current: number; limit: number }) {
+  const limit = usageLimit(item)
+  if (limit <= 0) return 0
+  return Math.min(100, Math.round((item.current / limit) * 100))
+}
+function usageState(item: { key: string; current: number; limit: number }) {
+  const limit = usageLimit(item)
+  if (limit > 0 && item.current >= limit) return 'exhausted'
+  if (limit > 0 && item.current / limit >= 0.8) return 'warning'
+  return 'normal'
+}
+const postsRemaining = computed(() => {
+  if (!postsUsage.value) return 0
+  return Math.max(0, usageLimit(postsUsage.value) - postsUsage.value.current)
+})
 const usageLabels: Record<string, string> = {
   posts_per_month: 'billing.usagePosts', videos_per_month: 'billing.usageVideos', ai_requests_per_day: 'billing.usageAi',
   media_storage_bytes: 'billing.usageStorage', social_accounts: 'billing.usageSocial', members: 'billing.usageMembers',
@@ -222,12 +292,12 @@ async function payForProposal() {
   offerOpen.value = false
   payingProposal.value = true
   try {
-      const [result] = await Promise.all([
-        $fetch<{ transactionId: string }>('/api/billing/package-payment', { method: 'POST', body: { packageId: packageProposal.value.id } }),
-        offerClosed,
-      ])
+      const transactionId = preparedProposalId.value === packageProposal.value.id && preparedTransactionId.value
+        ? preparedTransactionId.value
+        : await prepareProposalPayment()
+      await offerClosed
       if (!paddleReady.value || !window.Paddle) throw new Error('PADDLE_CHECKOUT_UNAVAILABLE')
-      window.Paddle.Checkout.open({ transactionId: result.transactionId, settings: { showAddDiscounts: true } })
+      window.Paddle.Checkout.open({ transactionId, settings: { showAddDiscounts: true } })
   } catch (error) {
     const data = (error as { data?: { data?: { code?: string }; code?: string } }).data
     showError((data?.data?.code || data?.code) === 'PADDLE_NOT_CONFIGURED'
@@ -236,6 +306,24 @@ async function payForProposal() {
   } finally {
     payingProposal.value = false
   }
+}
+async function prepareProposalPayment() {
+  const proposal = packageProposal.value
+  if (!proposal) throw new Error('PACKAGE_PROPOSAL_UNAVAILABLE')
+  if (preparedProposalId.value === proposal.id && preparedTransactionId.value)
+    return preparedTransactionId.value
+  if (prepareProposalPromise) return prepareProposalPromise
+  prepareProposalPromise = $fetch<{ transactionId: string }>('/api/billing/package-payment', {
+    method: 'POST',
+    body: { packageId: proposal.id },
+  }).then((result) => {
+    preparedProposalId.value = proposal.id
+    preparedTransactionId.value = result.transactionId
+    return result.transactionId
+  }).finally(() => {
+    prepareProposalPromise = null
+  })
+  return prepareProposalPromise
 }
 async function declineProposal() {
   decliningProposal.value = true
@@ -256,14 +344,6 @@ async function declineProposal() {
     :description="t('billing.description')"
     :toolbar-border="false"
   >
-    <UAlert
-      color="neutral"
-      variant="subtle"
-      icon="i-lucide-info"
-      :title="t('billing.activationByTeam')"
-      :description="t('billing.activationByTeamDescription')"
-    />
-
     <UCard v-if="packageProposal" color="primary" variant="subtle" :ui="{ body: 'p-4 sm:p-5' }" class="cursor-pointer transition-shadow hover:shadow-md" @click="offerOpen = true">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="space-y-1">
@@ -273,7 +353,7 @@ async function declineProposal() {
         </div>
         <div class="flex gap-2">
           <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click.stop="declineProposal" />
-          <UButton icon="i-lucide-credit-card" :loading="payingProposal" :label="t('billing.payNow')" @click.stop="payForProposal" />
+          <UButton icon="i-lucide-credit-card" :loading="payingProposal" :label="t('billing.payNow')" @mouseenter="prepareProposalPayment" @focus="prepareProposalPayment" @click.stop="payForProposal" />
         </div>
       </div>
     </UCard>
@@ -455,11 +535,11 @@ async function declineProposal() {
 
     <template v-if="usage">
       <UCard as="section" :ui="{ body: 'p-4' }">
-        <div class="mb-5"><h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2><p class="text-sm text-muted mt-1">{{ t('billing.currentUsageDescription') }}</p><p v-if="postsUsage" class="text-sm font-medium mt-2">{{ t('billing.postsRemaining', { count: usageValue('posts_per_month', postsUsage.remaining) }) }}</p></div>
+        <div class="mb-5"><h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2><p class="text-sm text-muted mt-1">{{ t('billing.currentUsageDescription') }}</p><p v-if="postsUsage" class="text-sm font-medium mt-2">{{ t('billing.postsRemaining', { count: usageValue('posts_per_month', postsRemaining) }) }}</p></div>
         <div class="grid gap-5 sm:grid-cols-2">
           <div v-for="item in usage.usage" :key="item.key" class="space-y-2">
-            <div class="flex items-center justify-between gap-3 text-sm"><span>{{ t(usageLabels[item.key] || item.key) }}</span><span class="tabular-nums text-muted">{{ usageValue(item.key, item.current) }} / {{ usageValue(item.key, item.limit) }}</span></div>
-            <UProgress :model-value="item.percentage" :color="item.state === 'exhausted' ? 'error' : item.state === 'warning' ? 'warning' : 'primary'" />
+            <div class="flex items-center justify-between gap-3 text-sm"><span>{{ t(usageLabels[item.key] || item.key) }}</span><span class="tabular-nums text-muted">{{ usageValue(item.key, item.current) }} / {{ usageValue(item.key, usageLimit(item)) }}</span></div>
+            <UProgress :model-value="usagePercentage(item)" :color="usageState(item) === 'exhausted' ? 'error' : usageState(item) === 'warning' ? 'warning' : 'primary'" />
           </div>
         </div>
       </UCard>

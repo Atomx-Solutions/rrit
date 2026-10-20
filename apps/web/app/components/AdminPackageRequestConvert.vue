@@ -22,7 +22,7 @@ const { data: platformSettings } = await useFetch<{
   custom_package_video_price_cents: number
 }>('/api/admin/settings', {
   lazy: true,
-  key: 'admin-package-request-currency',
+  key: 'admin-package-request-settings',
 })
 const currency = computed(() => platformSettings.value?.package_currency || 'CHF')
 
@@ -151,9 +151,16 @@ watch(
 const saving = ref(false)
 const error = ref('')
 watchError(error)
+const pricingReady = computed(() => {
+  const settings = platformSettings.value
+  return !!settings
+    && settings.custom_package_post_price_cents > 0
+    && settings.custom_package_video_price_cents > 0
+})
 
 async function submit() {
   if (!props.request) return
+  if (!pricingReady.value || Math.round(form.priceEuro * 100) <= 0) return
   if (!form.organizationId) {
     error.value = t('admin.requests.convertNeedsOrganization')
     return
@@ -179,11 +186,7 @@ async function submit() {
         notes: form.notes.trim() || null,
       },
     })
-    // The client accepts the draft from Billing; this only sends the proposal.
-    await $fetch(`/api/admin/package-requests/${props.request.id}`, {
-      method: 'PATCH',
-      body: { status: 'proposal_sent', organizationId: form.organizationId },
-    })
+    // The package endpoint also marks the linked request as proposal_sent.
     toast.add({ title: t('admin.requests.convertSaved'), color: 'success' })
     emit('done')
   } catch (problem) {
@@ -298,7 +301,7 @@ async function copyInvitationLink() {
         <UFormField name="notes" :label="t('admin.packages.notes')">
           <UTextarea v-model="form.notes" :rows="2" :maxlength="2000" class="w-full" />
         </UFormField>
-        <UButton type="submit" :loading="saving" :label="t('admin.requests.sendProposal')" block />
+        <UButton type="submit" :loading="saving || !pricingReady" :disabled="!pricingReady || Math.round(form.priceEuro * 100) <= 0" :label="t('admin.requests.sendProposal')" block />
       </UForm>
     </template>
   </UModal>

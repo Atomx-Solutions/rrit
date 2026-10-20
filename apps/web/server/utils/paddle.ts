@@ -44,6 +44,12 @@ export async function createPaddleTransaction(input: {
   quantity?: number
   adjustableQuantity?: boolean
   unitAmountCents?: number
+  lineItems?: Array<{
+    quantity: number
+    unitAmountCents: number
+    name: string
+    description: string
+  }>
   customData: Record<string, string>
 }) {
   const apiKey = paddleApiKey()
@@ -90,26 +96,29 @@ export async function createPaddleTransaction(input: {
     body: JSON.stringify({
       collection_mode: 'automatic',
       currency_code: input.currency,
-      items: [{
+      items: (input.lineItems?.length ? input.lineItems : [{
         quantity: input.quantity ?? 1,
+        unitAmountCents: input.unitAmountCents ?? input.amountCents,
+        name: input.name,
+        description: input.description,
+      }]).map((line) => ({
+        quantity: line.quantity,
         price: {
-          description: input.description,
+          description: line.description,
           name: input.recurring ? 'Monthly' : 'One-time',
-          product: { name: input.name, description: input.description, tax_category: taxCategory },
-          // A package is one negotiated bundle. Quantity must not duplicate the
-          // whole bundle; changing included videos/posts requires a new offer.
+          product: { name: line.name, description: line.description, tax_category: taxCategory },
           quantity: {
-            minimum: input.adjustableQuantity ? 1 : (input.quantity ?? 1),
-            maximum: input.adjustableQuantity ? 100000 : (input.quantity ?? 1),
+            minimum: input.adjustableQuantity ? 1 : line.quantity,
+            maximum: input.adjustableQuantity ? 100000 : line.quantity,
           },
           billing_cycle: input.recurring ? { interval: 'month', frequency: 1 } : null,
           tax_mode: 'account_setting',
           unit_price: {
-            amount: String(input.unitAmountCents ?? input.amountCents),
+            amount: String(line.unitAmountCents),
             currency_code: input.currency,
           },
         },
-      }],
+      })),
       custom_data: input.customData,
     }),
   })
