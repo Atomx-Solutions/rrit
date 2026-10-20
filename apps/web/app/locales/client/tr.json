@@ -100,6 +100,8 @@
   "settings.contactAddress": "Bu sizin iletişim adresinizdir. Hesap giriş e-postanız değişmez.",
   "settings.languageRegion": "Dil ve bölge",
   "settings.language": "Dil",
+  "settings.contentLanguage": "Hedef kitle / içerik dili",
+  "settings.contentLanguageDescription": "Strateji, açıklamalar ve görsel ya da videolardaki metnin dilini belirler.",
   "settings.timezone": "Saat dilimi",
   "settings.currency": "Para birimi",
   "settings.workspaceManagement": "Çalışma alanı yönetimi",

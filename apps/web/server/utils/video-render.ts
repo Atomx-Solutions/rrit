@@ -122,7 +122,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     const plan = buildVideoCreativePlan({
       brief: post.video,
       brand: workspace.brand,
-      locale: workspace.preferences.locale,
+      locale: workspace.preferences.contentLocale || workspace.preferences.locale,
       durationSeconds: post.video.durationSeconds,
     })
     const prompt = buildVideoExecutionBrief({
@@ -184,7 +184,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     return {
       business,
       brandName: workspace.brand.name,
-      locale: workspace.preferences.locale,
+      locale: workspace.preferences.contentLocale || workspace.preferences.locale,
       channel: post.channel,
       caption: post.caption,
       verifiedFacts,

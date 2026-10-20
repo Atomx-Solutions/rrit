@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
-import { DEFAULT_TIMEZONE, type Post } from '../../shared/schemas/workspace'
+import { contentLocaleForPreferences, DEFAULT_TIMEZONE, type Post } from '../../shared/schemas/workspace'
 import { factIsUsable, sameFactContent, type BrandFact } from '../../shared/schemas/business-brain'
 import { dayInZone } from '../../shared/utils/calendar'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
@@ -175,7 +175,7 @@ export async function localPostChecks(
       // Review the delivered motion, never the pending poster result.
       quality = post.video.qualityContentVersion === postContentVersion(post) ? post.video.quality || null : null
     } else if (row?.state?.brand) {
-      const language = (row.state.preferences?.locale === 'en-US' ? 'en' : 'sq') as 'en' | 'sq'
+      const language = contentLocaleForPreferences(row.state.preferences)
       const review = await db.query(
         "SELECT result FROM monthly_ai_runs WHERE business_id=$1 AND plan_id=$2 AND stage_key=$3 AND status='completed' AND actual_cost_micro_eur<=reserved_cost_micro_eur",
         [businessId, provenance.planId, qualityReviewKey(post, postFingerprint(post), row.state.brand, useDay, language)],

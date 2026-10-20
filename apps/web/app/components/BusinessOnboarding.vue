@@ -55,6 +55,7 @@ const {
   // The language the person is already reading is the one they chose; a new
   // workspace's stored default must not contradict the screen.
   locale: activeLocale.value,
+  contentLocale: data.value.preferences.contentLocale || activeLocale.value,
 })
 watchError(localError, 'warning')
 watch(
@@ -129,6 +130,7 @@ async function next() {
               facts: form.facts,
               timezone: form.timezone,
               locale: form.locale,
+              contentLocale: form.contentLocale,
             },
             retry: 0,
           }),
@@ -148,6 +150,7 @@ async function next() {
           Object.assign(d.preferences, {
             timezone: form.timezone,
             locale: form.locale,
+            contentLocale: form.contentLocale,
           })
           d.onboarding = 1
         }))

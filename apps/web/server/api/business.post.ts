@@ -27,6 +27,7 @@ const schema = z.object({
     .default([]),
   timezone: ianaTimezoneSchema.default(DEFAULT_TIMEZONE),
   locale: z.enum(APP_LOCALES).default('de-CH'),
+  contentLocale: z.enum(APP_LOCALES).optional(),
 })
 /**
  * Organization slugs are unique across the platform, while business names are
@@ -80,6 +81,7 @@ export default defineEventHandler(async (event) => {
   Object.assign(state.preferences, {
     timezone: parsed.data.timezone,
     locale: parsed.data.locale,
+    contentLocale: parsed.data.contentLocale || parsed.data.locale,
   })
   state.onboarding = 1
   const { posts: _posts, assets: _assets, ...profile } = state

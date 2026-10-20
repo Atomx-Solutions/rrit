@@ -10,6 +10,7 @@ import {
 } from '../../shared/schemas/monthly-plan'
 import {
   permittedEventCategories,
+  contentLocaleForPreferences,
   postSchema,
   videoDurationSeconds,
   videoFormat,
@@ -1394,7 +1395,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     // ledger transaction, even though the dedicated worker has a narrowly
     // scoped cross-tenant RLS policy for queue discovery.
     tenant: { userId: plan.owner_id, organizationId: plan.business_id },
-    language: (workspace.preferences.locale === 'en-US' ? 'en' : 'sq') as 'en' | 'sq',
+    language: contentLocaleForPreferences(workspace.preferences),
   }
   // Runs only when the brand's monthly style snapshot is stale (PRC-04).
   const analyzePageStyle = async (evidence: PageStyleEvidence) => {
@@ -1881,6 +1882,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         break
       }
       const imagePrompt = monthlyImagePrompt({
+        language: common.language,
         brand: plan.evidence.brand,
         slot,
         creative: content.creative,

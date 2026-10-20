@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import type { Post, Workspace } from '../../shared/schemas/workspace'
+import type { AppLocaleValue, Post, Workspace } from '../../shared/schemas/workspace'
 import { factContent } from '../../shared/schemas/business-brain'
 import { qualitySchema } from '../../shared/schemas/monthly-plan'
 import { evidenceHash } from './monthly-planner-domain'
@@ -32,7 +32,7 @@ export function qualityReviewKey(
   fingerprint: string,
   brand: Workspace['brand'],
   day: string,
-  language: 'sq' | 'en' = 'sq',
+  language: AppLocaleValue = 'sq-XK',
 ) {
   return `review:${post.id}:${post.contentVersion || 1}:${fingerprint}:${qualityBrandHash(brand)}:${day}:${language}`
 }

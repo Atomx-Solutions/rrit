@@ -24,11 +24,13 @@ const initialPreferences: {
   email: string
   timezone: string
   locale: AppLocale
+  contentLocale: AppLocale
   currency: 'EUR' | 'CHF'
 } = {
   // The workspace schema already reads the former 'de-DE' locale as 'de-CH',
   // so the stored language and time zone are shown exactly as saved.
   ...data.value.preferences,
+  contentLocale: data.value.preferences.contentLocale || data.value.preferences.locale,
 }
 const { form, clear, recovered, localError } = useDraft(`${base.value}:preferences`, initialPreferences)
 watch(
@@ -58,6 +60,7 @@ const schema = z.object({
     }
   }, t('settings.timezoneInvalid')),
   locale: z.enum(APP_LOCALES),
+  contentLocale: z.enum(APP_LOCALES),
   currency: z.enum(['CHF', 'EUR']),
 })
 async function save() {
@@ -163,6 +166,23 @@ async function saveAndLeave() {
            <UFormField :label="t('settings.language')" name="locale" class="field"
             ><USelect
               v-model="form.locale"
+              class="w-72 max-w-full"
+              :items="[
+                { label: t('settings.albanianKosovo'), value: 'sq-XK' },
+                { label: t('settings.englishUnitedStates'), value: 'en-US' },
+                { label: t('settings.germanSwitzerland'), value: 'de-CH' },
+                { label: t('settings.italianSwitzerland'), value: 'it-CH' },
+                { label: t('settings.frenchSwitzerland'), value: 'fr-CH' },
+                { label: t('settings.turkishTurkey'), value: 'tr-TR' },
+              ]"
+            /></UFormField
+          ><UFormField
+            :label="t('settings.contentLanguage')"
+            :description="t('settings.contentLanguageDescription')"
+            name="contentLocale"
+            class="field"
+            ><USelect
+              v-model="form.contentLocale"
               class="w-72 max-w-full"
               :items="[
                 { label: t('settings.albanianKosovo'), value: 'sq-XK' },

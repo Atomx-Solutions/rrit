@@ -507,6 +507,16 @@ function imagePromptInput() {
   }
 }
 describe('AI creative generation', () => {
+  it('keeps Turkish approved copy in Turkish when rendering text into an image', () => {
+    const prompt = monthlyImagePrompt({
+      ...imagePromptInput(),
+      language: 'tr-TR',
+    })
+
+    expect(prompt).toContain('correct Turkish spelling and diacritics')
+    expect(prompt).not.toContain('correct Albanian diacritics')
+  })
+
   it('builds full AI art direction and platform-specific edit instructions', () => {
     const creative = {
       headline: 'Darka fillon këtu',
@@ -537,7 +547,7 @@ describe('AI creative generation', () => {
     expect(monthly).toContain('giant expressive typographic gesture')
     expect(monthly).toContain('clean contemporary sans-serif')
     expect(monthly).toContain('8-point spacing rhythm')
-    expect(monthly).toContain('correct Albanian diacritics')
+    expect(monthly).toContain('correct Albanian spelling and diacritics')
 
     const edited = postImageEditPrompt({
       brand: {

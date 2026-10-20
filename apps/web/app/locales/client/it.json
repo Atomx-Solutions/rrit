@@ -100,6 +100,8 @@
   "settings.contactAddress": "Questo è il tuo indirizzo di contatto. L’e-mail di accesso resta invariata.",
   "settings.languageRegion": "Lingua e regione",
   "settings.language": "Lingua",
+  "settings.contentLanguage": "Lingua del pubblico / contenuti",
+  "settings.contentLanguageDescription": "Definisce la lingua di strategia, didascalie e testo in immagini e video.",
   "settings.timezone": "Fuso orario",
   "settings.currency": "Valuta",
   "settings.workspaceManagement": "Gestione dello spazio di lavoro",
