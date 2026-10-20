@@ -35,7 +35,9 @@ export default defineEventHandler(async (event) => {
       ? packageRow.videos_included
       : packageRow.videos_included === 0 && packageRow.posts_included > 0 && packageRow.credits_included === 0
         ? packageRow.posts_included
-        : 1
+        : packageRow.posts_included === 0 && packageRow.videos_included === 0 && packageRow.credits_included > 0
+          ? packageRow.credits_included
+          : 1
     const invoiceLineQuantity = invoiceQuantity > 1 && packageRow.price_cents % invoiceQuantity === 0
       ? invoiceQuantity
       : 1
