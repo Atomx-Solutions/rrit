@@ -31,6 +31,15 @@ export default defineEventHandler(async (event) => {
       [business.id],
     )
     const isAddOn = activePackage.rowCount !== 0
+    const invoiceQuantity = packageRow.posts_included === 0 && packageRow.videos_included > 0 && packageRow.credits_included === 0
+      ? packageRow.videos_included
+      : packageRow.videos_included === 0 && packageRow.posts_included > 0 && packageRow.credits_included === 0
+        ? packageRow.posts_included
+        : 1
+    const invoiceLineQuantity = invoiceQuantity > 1 && packageRow.price_cents % invoiceQuantity === 0
+      ? invoiceQuantity
+      : 1
+    const invoiceUnitAmount = packageRow.price_cents / invoiceLineQuantity
 
     const existing = await client.query<{ id: string }>(
       `SELECT id FROM paddle_payment_orders WHERE package_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1`,
@@ -55,6 +64,8 @@ export default defineEventHandler(async (event) => {
         packageRow.credits_included && `${packageRow.credits_included} credits`,
       ].filter(Boolean).join(' + ')}`,
       recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
+      quantity: invoiceLineQuantity,
+      unitAmountCents: invoiceUnitAmount,
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })
     await client.query(

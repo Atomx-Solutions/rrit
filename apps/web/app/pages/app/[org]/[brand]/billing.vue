@@ -6,6 +6,24 @@ const runtimeConfig = useRuntimeConfig()
 type PaddleApi = { Initialize: (options: { token: string }) => void; Environment: { set: (environment: 'sandbox' | 'production') => void }; Checkout: { open: (options: { transactionId: string; settings?: { showAddDiscounts: boolean } }) => void } }
 declare global { interface Window { Paddle?: PaddleApi } }
 useHead({ script: [{ src: 'https://cdn.paddle.com/paddle/v2/paddle.js', defer: true }] })
+const paddleReady = ref(false)
+function initializePaddle() {
+  const token = String(runtimeConfig.public.paddleClientToken || '')
+  if (!token || !window.Paddle || paddleReady.value) return
+  if (runtimeConfig.public.paddleEnvironment === 'sandbox') window.Paddle.Environment.set('sandbox')
+  window.Paddle.Initialize({ token })
+  paddleReady.value = true
+}
+onMounted(() => {
+  initializePaddle()
+  if (!paddleReady.value) {
+    const timer = window.setInterval(() => {
+      initializePaddle()
+      if (paddleReady.value) window.clearInterval(timer)
+    }, 100)
+    window.setTimeout(() => window.clearInterval(timer), 10000)
+  }
+})
 const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'CHF' }).format(value)
 const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
@@ -189,10 +207,7 @@ async function payForProposal() {
   payingProposal.value = true
   try {
       const result = await $fetch<{ transactionId: string }>('/api/billing/package-payment', { method: 'POST', body: { packageId: packageProposal.value.id } })
-      const token = String(runtimeConfig.public.paddleClientToken || '')
-      if (!token || !window.Paddle) throw new Error('PADDLE_CHECKOUT_UNAVAILABLE')
-      if (runtimeConfig.public.paddleEnvironment === 'sandbox') window.Paddle.Environment.set('sandbox')
-      window.Paddle.Initialize({ token })
+      if (!paddleReady.value || !window.Paddle) throw new Error('PADDLE_CHECKOUT_UNAVAILABLE')
       window.Paddle.Checkout.open({ transactionId: result.transactionId, settings: { showAddDiscounts: true } })
   } catch (error) {
     const data = (error as { data?: { data?: { code?: string }; code?: string } }).data
