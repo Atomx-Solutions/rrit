@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { paddleEnabled } from '../../utils/paddle'
+import { createPaddleTransaction, paddleEnabled } from '../../utils/paddle'
 
 const bodySchema = z.object({ packageId: z.uuid() }).strict()
 
@@ -26,6 +26,12 @@ export default defineEventHandler(async (event) => {
     if (!packageRow) throw createError({ statusCode: 404, message: 'server.PACKAGE_NOT_FOUND' })
     if (packageRow.price_cents <= 0) throw createError({ statusCode: 422, message: 'server.PACKAGE_PRICE_INVALID' })
 
+    const activePackage = await client.query<{ id: string }>(
+      `SELECT id FROM custom_packages WHERE organization_id=$1 AND status='active' LIMIT 1`,
+      [business.id],
+    )
+    const isAddOn = activePackage.rowCount !== 0
+
     const existing = await client.query<{ id: string }>(
       `SELECT id FROM paddle_payment_orders WHERE package_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1`,
       [packageRow.id],
@@ -33,13 +39,28 @@ export default defineEventHandler(async (event) => {
     const order = existing.rows[0] || (await client.query<{ id: string }>(
       `INSERT INTO paddle_payment_orders
         (organization_id,package_id,purpose,posts_included,videos_included,credits_included,amount_cents,currency)
-       VALUES($1,$2,'parent_package',$3,$4,$5,$6,$7) RETURNING id`,
+       VALUES($1,$2,$8,$3,$4,$5,$6,$7) RETURNING id`,
       [business.id, packageRow.id, packageRow.posts_included, packageRow.videos_included,
-        packageRow.credits_included, packageRow.price_cents, packageRow.currency],
+        packageRow.credits_included, packageRow.price_cents, packageRow.currency,
+        isAddOn ? 'add_on' : 'parent_package'],
     )).rows[0]
 
-    // The Paddle transaction/checkout is intentionally not created until the
-    // account credentials and price catalog are configured.
-    return { orderId: order!.id, status: 'pending', paddleCheckoutReady: false }
+    const transactionId = await createPaddleTransaction({
+      amountCents: packageRow.price_cents,
+      currency: packageRow.currency,
+      description: `Framic purchase: ${packageRow.posts_included} posts, ${packageRow.videos_included} videos, ${packageRow.credits_included} credits`,
+      name: `Framic — ${[
+        packageRow.posts_included && `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`,
+        packageRow.videos_included && `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`,
+        packageRow.credits_included && `${packageRow.credits_included} credits`,
+      ].filter(Boolean).join(' + ')}`,
+      recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
+      customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
+    })
+    await client.query(
+      `UPDATE paddle_payment_orders SET paddle_transaction_id=$2,updated_at=now() WHERE id=$1`,
+      [order!.id, transactionId],
+    )
+    return { orderId: order!.id, status: 'pending', paddleCheckoutReady: true, transactionId }
   })
 })

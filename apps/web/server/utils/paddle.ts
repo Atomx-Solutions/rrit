@@ -15,6 +15,98 @@ export function paddleWebhookSecret() {
   return process.env.PADDLE_WEBHOOK_SECRET?.trim() || null
 }
 
+export function paddleApiKey() {
+  return process.env.PADDLE_API_KEY?.trim() || null
+}
+
+export function paddleApiBaseUrl() {
+  return (process.env.PADDLE_ENV || 'sandbox') === 'production'
+    ? 'https://api.paddle.com'
+    : 'https://sandbox-api.paddle.com'
+}
+
+export function paddleProductId() {
+  return process.env.PADDLE_PRODUCT_ID?.trim() || null
+}
+
+export function paddlePackagePriceId() {
+  return process.env.PADDLE_PACKAGE_PRICE_ID?.trim() || null
+}
+
+export async function createPaddleTransaction(input: {
+  amountCents: number
+  currency: string
+  description: string
+  name: string
+  recurring: boolean
+  customData: Record<string, string>
+}) {
+  const apiKey = paddleApiKey()
+  if (!apiKey) throw new Error('PADDLE_API_KEY is not configured')
+  let productId = paddleProductId()
+  // A price ID is commonly configured while setting up Paddle. Inline prices
+  // require the parent product ID, so resolve it instead of sending `pri_...`
+  // as `product_id` (which Paddle rejects).
+  const configuredPriceId = paddlePackagePriceId()
+  if (!productId || productId.startsWith('pri_')) {
+    const priceId = productId?.startsWith('pri_') ? productId : configuredPriceId
+    if (priceId) {
+      const priceResponse = await fetch(`${paddleApiBaseUrl()}/prices/${encodeURIComponent(priceId)}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+      const pricePayload = await priceResponse.json().catch(() => null) as {
+        data?: { product_id?: string }
+      } | null
+      productId = pricePayload?.data?.product_id || null
+    }
+  }
+  if (!productId || !/^pro_[a-z\d]{26}$/.test(productId))
+    throw new Error('PADDLE_PRODUCT_ID must be a Paddle product ID (pro_...) or a valid PADDLE_PACKAGE_PRICE_ID must be configured')
+  // An inline price with product_id still displays the catalog product name.
+  // Carry its tax category into a transaction-specific product instead.
+  const productResponse = await fetch(`${paddleApiBaseUrl()}/products/${encodeURIComponent(productId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+  const productPayload = await productResponse.json().catch(() => null) as {
+    data?: { tax_category?: string }
+  } | null
+  const taxCategory = productPayload?.data?.tax_category
+  if (!productResponse.ok || !taxCategory)
+    throw new Error(`Could not resolve Paddle product tax category (${productResponse.status})`)
+  const response = await fetch(`${paddleApiBaseUrl()}/transactions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      collection_mode: 'automatic',
+      currency_code: input.currency,
+      items: [{
+        quantity: 1,
+        price: {
+          description: input.description,
+          name: input.recurring ? 'Monthly' : 'One-time',
+          product: { name: input.name, description: input.description, tax_category: taxCategory },
+          billing_cycle: input.recurring ? { interval: 'month', frequency: 1 } : null,
+          tax_mode: 'account_setting',
+          unit_price: { amount: String(input.amountCents), currency_code: input.currency },
+        },
+      }],
+      custom_data: input.customData,
+    }),
+  })
+  const payload = await response.json().catch(() => null) as {
+    data?: { id?: string }
+    error?: { detail?: string; errors?: Array<{ field?: string; message?: string }> }
+  } | null
+  if (!response.ok || !payload?.data?.id) {
+    const fields = payload?.error?.errors
+      ?.map(item => [item.field, item.message].filter(Boolean).join(': '))
+      .filter(Boolean)
+      .join('; ')
+    throw new Error(fields || payload?.error?.detail || `Paddle transaction failed (${response.status})`)
+  }
+  return payload.data.id
+}
+
 /** Verifies Paddle's ts:h1 signature against the raw request body. */
 export function verifyPaddleSignature(rawBody: string, signature: string, secret: string) {
   const parts = Object.fromEntries(signature.split(';').map((part) => {

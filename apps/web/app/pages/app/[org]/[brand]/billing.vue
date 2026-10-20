@@ -2,6 +2,10 @@
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 
 const { t } = useI18n()
+const runtimeConfig = useRuntimeConfig()
+type PaddleApi = { Initialize: (options: { token: string }) => void; Environment: { set: (environment: 'sandbox' | 'production') => void }; Checkout: { open: (options: { transactionId: string; settings?: { showAddDiscounts: boolean } }) => void } }
+declare global { interface Window { Paddle?: PaddleApi } }
+useHead({ script: [{ src: 'https://cdn.paddle.com/paddle/v2/paddle.js', defer: true }] })
 const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'CHF' }).format(value)
 const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
@@ -136,7 +140,7 @@ watch(billing, (value) => {
 }, { immediate: true })
 async function refreshLiveProposal() {
   if (document.visibilityState !== 'visible') return
-  await refreshBilling()
+  await Promise.all([refreshBilling(), refreshCreditBalance()])
   const proposal = billing.value?.packageProposal
   const proposalId = proposal ? `${proposal.name}:${proposal.startsAt}:${proposal.endsAt}` : null
   if (proposalSnapshotReady && proposalId && proposalId !== previousProposalId)
@@ -184,8 +188,12 @@ async function payForProposal() {
   if (!packageProposal.value || payingProposal.value) return
   payingProposal.value = true
   try {
-    await $fetch('/api/billing/package-payment', { method: 'POST', body: { packageId: packageProposal.value.id } })
-    showSuccess(t('billing.paymentPending'))
+      const result = await $fetch<{ transactionId: string }>('/api/billing/package-payment', { method: 'POST', body: { packageId: packageProposal.value.id } })
+      const token = String(runtimeConfig.public.paddleClientToken || '')
+      if (!token || !window.Paddle) throw new Error('PADDLE_CHECKOUT_UNAVAILABLE')
+      if (runtimeConfig.public.paddleEnvironment === 'sandbox') window.Paddle.Environment.set('sandbox')
+      window.Paddle.Initialize({ token })
+      window.Paddle.Checkout.open({ transactionId: result.transactionId, settings: { showAddDiscounts: true } })
   } catch (error) {
     const data = (error as { data?: { data?: { code?: string }; code?: string } }).data
     showError((data?.data?.code || data?.code) === 'PADDLE_NOT_CONFIGURED'
