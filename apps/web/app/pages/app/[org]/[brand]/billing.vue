@@ -6,6 +6,24 @@ const runtimeConfig = useRuntimeConfig()
 type PaddleApi = { Initialize: (options: { token: string }) => void; Environment: { set: (environment: 'sandbox' | 'production') => void }; Checkout: { open: (options: { transactionId: string; settings?: { showAddDiscounts: boolean } }) => void } }
 declare global { interface Window { Paddle?: PaddleApi } }
 useHead({ script: [{ src: 'https://cdn.paddle.com/paddle/v2/paddle.js', defer: true }] })
+const paddleReady = ref(false)
+function initializePaddle() {
+  const token = String(runtimeConfig.public.paddleClientToken || '')
+  if (!token || !window.Paddle || paddleReady.value) return
+  if (runtimeConfig.public.paddleEnvironment === 'sandbox') window.Paddle.Environment.set('sandbox')
+  window.Paddle.Initialize({ token })
+  paddleReady.value = true
+}
+onMounted(() => {
+  initializePaddle()
+  if (!paddleReady.value) {
+    const timer = window.setInterval(() => {
+      initializePaddle()
+      if (paddleReady.value) window.clearInterval(timer)
+    }, 100)
+    window.setTimeout(() => window.clearInterval(timer), 10000)
+  }
+})
 const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'CHF' }).format(value)
 const { showError, showSuccess, onFormError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
@@ -55,6 +73,17 @@ const creditMessage = ref('')
 const sendingCreditRequest = ref(false)
 const payingProposal = ref(false)
 const decliningProposal = ref(false)
+let offerCloseResolve: (() => void) | null = null
+function waitForOfferClose() {
+  if (!offerOpen.value) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    offerCloseResolve = resolve
+  })
+}
+function onOfferAfterLeave() {
+  offerCloseResolve?.()
+  offerCloseResolve = null
+}
 watch(() => billingDetailsData.value?.details, (details) => {
   if (details) Object.assign(detailsForm, details)
 }, { immediate: true })
@@ -186,13 +215,18 @@ async function saveDetails() {
 }
 async function payForProposal() {
   if (!packageProposal.value || payingProposal.value) return
+  // Close the app's offer dialog before opening Paddle. Keeping two modal
+  // focus traps mounted makes the Paddle iframe lose focus until the user
+  // clicks outside it.
+  const offerClosed = waitForOfferClose()
+  offerOpen.value = false
   payingProposal.value = true
   try {
-      const result = await $fetch<{ transactionId: string }>('/api/billing/package-payment', { method: 'POST', body: { packageId: packageProposal.value.id } })
-      const token = String(runtimeConfig.public.paddleClientToken || '')
-      if (!token || !window.Paddle) throw new Error('PADDLE_CHECKOUT_UNAVAILABLE')
-      if (runtimeConfig.public.paddleEnvironment === 'sandbox') window.Paddle.Environment.set('sandbox')
-      window.Paddle.Initialize({ token })
+      const [result] = await Promise.all([
+        $fetch<{ transactionId: string }>('/api/billing/package-payment', { method: 'POST', body: { packageId: packageProposal.value.id } }),
+        offerClosed,
+      ])
+      if (!paddleReady.value || !window.Paddle) throw new Error('PADDLE_CHECKOUT_UNAVAILABLE')
       window.Paddle.Checkout.open({ transactionId: result.transactionId, settings: { showAddDiscounts: true } })
   } catch (error) {
     const data = (error as { data?: { data?: { code?: string }; code?: string } }).data
@@ -238,13 +272,13 @@ async function declineProposal() {
           <p class="text-xs text-muted">{{ proposalSummary }}</p>
         </div>
         <div class="flex gap-2">
-          <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click="declineProposal" />
-          <UButton icon="i-lucide-credit-card" :loading="payingProposal" :label="t('billing.payNow')" @click="payForProposal" />
+          <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click.stop="declineProposal" />
+          <UButton icon="i-lucide-credit-card" :loading="payingProposal" :label="t('billing.payNow')" @click.stop="payForProposal" />
         </div>
       </div>
     </UCard>
 
-    <UModal v-model:open="offerOpen" :title="t('billing.packageProposalTitle')">
+    <UModal v-model:open="offerOpen" :title="t('billing.packageProposalTitle')" @after:leave="onOfferAfterLeave">
       <template #body>
         <div v-if="packageProposal" class="space-y-5">
           <div class="rounded-xl bg-primary/5 p-4">
