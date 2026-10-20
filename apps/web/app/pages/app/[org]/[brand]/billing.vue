@@ -3,7 +3,7 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 
 const { t } = useI18n()
 const runtimeConfig = useRuntimeConfig()
-type PaddleApi = { Initialize: (options: { token: string }) => void; Environment: { set: (environment: 'sandbox' | 'production') => void }; Checkout: { open: (options: { transactionId: string }) => void } }
+type PaddleApi = { Initialize: (options: { token: string }) => void; Environment: { set: (environment: 'sandbox' | 'production') => void }; Checkout: { open: (options: { transactionId: string; settings?: { showAddDiscounts: boolean } }) => void } }
 declare global { interface Window { Paddle?: PaddleApi } }
 useHead({ script: [{ src: 'https://cdn.paddle.com/paddle/v2/paddle.js', defer: true }] })
 const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'CHF' }).format(value)
@@ -193,7 +193,7 @@ async function payForProposal() {
       if (!token || !window.Paddle) throw new Error('PADDLE_CHECKOUT_UNAVAILABLE')
       if (runtimeConfig.public.paddleEnvironment === 'sandbox') window.Paddle.Environment.set('sandbox')
       window.Paddle.Initialize({ token })
-      window.Paddle.Checkout.open({ transactionId: result.transactionId })
+      window.Paddle.Checkout.open({ transactionId: result.transactionId, settings: { showAddDiscounts: true } })
   } catch (error) {
     const data = (error as { data?: { data?: { code?: string }; code?: string } }).data
     showError((data?.data?.code || data?.code) === 'PADDLE_NOT_CONFIGURED'
