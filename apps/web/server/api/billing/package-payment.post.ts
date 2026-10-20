@@ -47,6 +47,9 @@ export default defineEventHandler(async (event) => {
     const adjustableVideos = packageRow.posts_included === 0
       && packageRow.videos_included > 0
       && packageRow.credits_included === 0
+    const adjustablePosts = packageRow.posts_included > 0
+      && packageRow.videos_included === 0
+      && packageRow.credits_included === 0
     const invoiceUnitAmount = packageRow.price_cents / invoiceLineQuantity
 
     const existing = await client.query<{ id: string }>(
@@ -67,7 +70,7 @@ export default defineEventHandler(async (event) => {
       currency: packageRow.currency,
       description: `Framic purchase: ${packageRow.posts_included} posts, ${packageRow.videos_included} videos, ${packageRow.credits_included} credits`,
       name: `Framic — ${[
-        packageRow.posts_included && `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`,
+        packageRow.posts_included && (adjustablePosts ? 'posts' : `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`),
         packageRow.videos_included && (adjustableVideos ? 'videos' : `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`),
         packageRow.credits_included && (packageRow.posts_included || packageRow.videos_included)
           ? `${packageRow.credits_included} credits`
@@ -75,7 +78,7 @@ export default defineEventHandler(async (event) => {
       ].filter(Boolean).join(' + ')}`,
       recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
       quantity: invoiceLineQuantity,
-      adjustableQuantity: adjustableCredits || adjustableVideos,
+      adjustableQuantity: adjustableCredits || adjustableVideos || adjustablePosts,
       unitAmountCents: invoiceUnitAmount,
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })

@@ -75,6 +75,29 @@ export default defineEventHandler(async (event) => {
       )
       await client.query(
         `UPDATE custom_packages AS package
+            SET posts_included=$2, updated_at=now()
+           FROM paddle_payment_orders AS payment
+          WHERE payment.id=$1
+            AND payment.package_id=package.id
+            AND payment.posts_included>0 AND payment.videos_included=0
+            AND payment.credits_included=0
+            AND payment.status='pending'`,
+        [data.custom_data.orderId, data.items?.[0]?.quantity || 1],
+      )
+      await client.query(
+        `UPDATE package_requests AS request
+            SET posts_requested=$2, updated_at=now()
+           FROM paddle_payment_orders AS payment
+           JOIN custom_packages AS package ON package.id=payment.package_id
+          WHERE payment.id=$1
+            AND package.package_request_id=request.id
+            AND payment.posts_included>0 AND payment.videos_included=0
+            AND payment.credits_included=0
+            AND payment.status='pending'`,
+        [data.custom_data.orderId, data.items?.[0]?.quantity || 1],
+      )
+      await client.query(
+        `UPDATE custom_packages AS package
             SET videos_included=$2, updated_at=now()
            FROM paddle_payment_orders AS payment
           WHERE payment.id=$1
