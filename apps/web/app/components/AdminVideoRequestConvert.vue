@@ -18,7 +18,7 @@ const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
 const { data: currencySettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
   lazy: true,
-  key: 'admin-package-request-currency',
+  key: 'admin-package-request-settings',
 })
 // Offers are written in the central admin currency (Admin → Settings).
 const currency = computed(() => currencySettings.value?.package_currency || 'CHF')
@@ -137,12 +137,14 @@ watch(
 
 // The platform rate is only the starting point; it is per organization from here.
 async function loadRate() {
+  rateReady.value = false
   if (!form.organizationId) return
   try {
-    const settings = await $fetch<{ video_price_cents: number }>(
-      `/api/admin/organizations/${form.organizationId}/packages`,
+    const settings = await $fetch<{ custom_package_video_price_cents: number }>(
+      '/api/admin/settings',
     )
-    form.videoPriceEuro = settings.video_price_cents / 100
+    form.videoPriceEuro = settings.custom_package_video_price_cents / 100
+    rateReady.value = form.videoPriceEuro > 0
   } catch {
     // Without the rate the admin still types the agreed price by hand.
   }
@@ -150,11 +152,13 @@ async function loadRate() {
 watch(() => form.organizationId, loadRate)
 
 const saving = ref(false)
+const rateReady = ref(false)
 const error = ref('')
 watchError(error)
 
 async function submit() {
   if (!props.request) return
+  if (!rateReady.value || priceCents.value <= 0) return
   if (!form.organizationId) {
     error.value = t('admin.requests.convertNeedsOrganization')
     return
@@ -177,11 +181,7 @@ async function submit() {
         notes: form.notes.trim() || null,
       },
     })
-    // The client accepts the draft from Billing; this only sends the proposal.
-    await $fetch(`/api/admin/package-requests/${props.request.id}`, {
-      method: 'PATCH',
-      body: { status: 'proposal_sent', organizationId: form.organizationId },
-    })
+    // The package endpoint also marks the linked request as proposal_sent.
     toast.add({ title: t('admin.requests.convertSaved'), color: 'success' })
     emit('done')
   } catch (problem) {
@@ -273,7 +273,7 @@ async function submit() {
         <UFormField name="notes" :label="t('admin.packages.notes')">
           <UTextarea v-model="form.notes" :rows="2" :maxlength="2000" class="w-full" />
         </UFormField>
-        <UButton type="submit" :loading="saving" :label="t('admin.requests.sendProposal')" block />
+        <UButton type="submit" :loading="saving || !rateReady" :disabled="!rateReady || priceCents <= 0" :label="t('admin.requests.sendProposal')" block />
       </UForm>
     </template>
   </UModal>

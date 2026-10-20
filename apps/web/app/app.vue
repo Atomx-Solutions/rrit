@@ -17,6 +17,6 @@ const locale = computed(() => {
   <UApp
     :locale="locale"
     :toaster="{ label: t('nav.notifications'), position: 'bottom-right', duration: 7000 }"
-    ><NuxtLoadingIndicator color="var(--rrit-color-primary-strong)" /><NuxtLayout><NuxtPage /></NuxtLayout
+    ><NuxtLoadingIndicator color="var(--rrit-color-primary-strong)" /><NuxtLayout><NuxtPage keepalive /></NuxtLayout
   ></UApp>
 </template>

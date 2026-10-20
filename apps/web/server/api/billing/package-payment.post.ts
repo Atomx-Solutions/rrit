@@ -16,9 +16,10 @@ export default defineEventHandler(async (event) => {
   return withBusinessTransaction(user.id, async (client, business) => {
     const result = await client.query<{
       id: string; organization_id: string; posts_included: number; videos_included: number
-      credits_included: number; price_cents: number; currency: string
+      credits_included: number; price_cents: number; currency: string; post_price_cents: number; video_price_cents: number
     }>(
-      `SELECT id,organization_id,posts_included,videos_included,credits_included,price_cents,currency
+      `SELECT id,organization_id,posts_included,videos_included,credits_included,price_cents,currency,
+              post_price_cents,video_price_cents
          FROM custom_packages WHERE id=$1 AND organization_id=$2 AND status='draft'`,
       [body.data.packageId, business.id],
     )
@@ -51,6 +52,20 @@ export default defineEventHandler(async (event) => {
       && packageRow.videos_included === 0
       && packageRow.credits_included === 0
     const invoiceUnitAmount = packageRow.price_cents / invoiceLineQuantity
+    const lineItems = [
+      packageRow.posts_included > 0 ? {
+        quantity: packageRow.posts_included,
+        unitAmountCents: packageRow.post_price_cents,
+        name: `Framic — ${packageRow.posts_included === 1 ? '1 post' : `${packageRow.posts_included} posts`}`,
+        description: 'Framic posts',
+      } : null,
+      packageRow.videos_included > 0 ? {
+        quantity: packageRow.videos_included,
+        unitAmountCents: packageRow.video_price_cents,
+        name: `Framic — ${packageRow.videos_included === 1 ? '1 video' : `${packageRow.videos_included} videos`}`,
+        description: 'Framic videos',
+      } : null,
+    ].filter((item): item is { quantity: number; unitAmountCents: number; name: string; description: string } => !!item)
 
     const existing = await client.query<{ id: string }>(
       `SELECT id FROM paddle_payment_orders WHERE package_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1`,
@@ -80,6 +95,7 @@ export default defineEventHandler(async (event) => {
       quantity: invoiceLineQuantity,
       adjustableQuantity: adjustableCredits || adjustableVideos || adjustablePosts,
       unitAmountCents: invoiceUnitAmount,
+      lineItems: lineItems.length > 0 ? lineItems : undefined,
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })
     await client.query(

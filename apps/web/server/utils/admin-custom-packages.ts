@@ -19,7 +19,9 @@ export const customPackageCreateSchema = z
     credits_included: z.number().int().min(0).max(10_000_000).optional(),
     post_price_cents: z.number().int().min(1).max(1_000_000).optional(),
     video_price_cents: z.number().int().min(0).max(1_000_000).optional(),
-    price_cents: cents.optional(),
+    // A proposal must never be sent with a zero total. The UI also waits for
+    // pricing settings, but this protects the API from stale or crafted input.
+    price_cents: z.number().int().min(1).max(100_000_000).optional(),
     starts_at: isoDate,
     ends_at: isoDate,
     status: customPackageStatusSchema,

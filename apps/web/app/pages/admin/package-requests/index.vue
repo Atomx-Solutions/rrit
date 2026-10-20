@@ -11,9 +11,13 @@ useSeoMeta({
 })
 // Lead conversion totals are package prices, so they use the central
 // superadmin currency rather than formatMoney's legacy EUR default.
-const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
+const { data: platformSettings } = await useFetch<{
+  package_currency: 'CHF' | 'EUR'
+  custom_package_post_price_cents: number
+  custom_package_video_price_cents: number
+}>('/api/admin/settings', {
   lazy: true,
-  key: 'admin-package-request-currency-summary',
+  key: 'admin-package-request-settings',
 })
 const packageCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
 // The server converts every won lead from its own currency already.
@@ -89,6 +93,7 @@ watch(
 )
 
 let liveRefreshTimer: ReturnType<typeof setInterval> | undefined
+let summaryRefreshTick = 0
 let inboxSnapshotReady = false
 let previousOpenCount = 0
 watch(data, (value) => {
@@ -100,7 +105,14 @@ watch(data, (value) => {
 async function refreshLiveInbox() {
   if (document.visibilityState !== 'visible') return
   if (status.value === 'pending' || conversionStatus.value === 'pending') return
-  await Promise.all([refresh(), refreshConversion()])
+  await refresh()
+  // The request list is the time-sensitive part. Conversion statistics are
+  // heavier and do not need to be recalculated on every inbox poll.
+  summaryRefreshTick += 1
+  if (summaryRefreshTick >= 5) {
+    summaryRefreshTick = 0
+    await refreshConversion()
+  }
   const openCount = data.value?.open_count || 0
   if (inboxSnapshotReady && openCount > previousOpenCount) {
     toast.add({
@@ -112,7 +124,7 @@ async function refreshLiveInbox() {
   previousOpenCount = openCount
 }
 onMounted(() => {
-  liveRefreshTimer = setInterval(() => { void refreshLiveInbox() }, 5000)
+  liveRefreshTimer = setInterval(() => { void refreshLiveInbox() }, 2000)
   window.addEventListener('focus', refreshLiveInbox)
 })
 onBeforeUnmount(() => {

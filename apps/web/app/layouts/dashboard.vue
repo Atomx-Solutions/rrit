@@ -72,6 +72,9 @@ function item(n: (typeof navigation)[number]): NavigationMenuItem {
     label: t(n.label),
     icon: n.icon,
     to: `${base.value}/${n.path}`,
+    // Start loading the next workspace page as soon as the navigation item is
+    // hovered/focused, so the click only performs the data request.
+    prefetch: true,
     active: route.path.includes(`/${n.path}`),
     tooltip: { text: t(n.label) },
     // How many posts there are, matching the count the content list shows. A
