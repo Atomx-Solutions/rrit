@@ -90,7 +90,7 @@ export async function createPaddleTransaction(input: {
       collection_mode: 'automatic',
       currency_code: input.currency,
       items: [{
-        quantity: 1,
+        quantity: input.quantity ?? 1,
         price: {
           description: input.description,
           name: input.recurring ? 'Monthly' : 'One-time',
