@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { postSchema } from '../../../../shared/schemas/workspace'
+import { contentLocaleForPreferences, postSchema } from '../../../../shared/schemas/workspace'
 import { normalizeGeneratedCreative } from '../../../utils/image-processing'
 import { monthlyImageCall, postImageEditPrompt } from '../../../utils/monthly-ai'
 import { loadBrandLogo } from '../../../utils/brand-assets'
@@ -81,6 +81,7 @@ export default defineEventHandler(async (event) => {
         rationale: snapshot.post.aiProvenance!.rationale,
       },
       instruction: input.data.instruction,
+      language: contentLocaleForPreferences(snapshot.workspace.preferences),
       logoAvailable: Boolean(snapshot.brandLogo),
       video: Boolean(snapshot.post.video),
     })

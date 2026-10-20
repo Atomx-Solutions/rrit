@@ -100,6 +100,8 @@
   "settings.contactAddress": "Kjo është adresa e kontaktit. Emaili i hyrjes në llogari mbetet i pandryshuar.",
   "settings.languageRegion": "Gjuha dhe rajoni",
   "settings.language": "Gjuha",
+  "settings.contentLanguage": "Gjuha e audiencës / përmbajtjes",
+  "settings.contentLanguageDescription": "Përcakton gjuhën e strategjisë, captions dhe tekstit në imazhe e video.",
   "settings.timezone": "Zona kohore",
   "settings.currency": "Monedha",
   "settings.workspaceManagement": "Menaxhimi i hapësirës",

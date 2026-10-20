@@ -172,6 +172,29 @@ export const APP_LOCALES = ['sq-XK', 'en-US', 'de-CH', 'it-CH', 'fr-CH', 'tr-TR'
 
 export type AppLocaleValue = (typeof APP_LOCALES)[number]
 
+/**
+ * The language in which a business wants customers to receive its marketing
+ * content. This is intentionally independent from the workspace UI locale.
+ */
+export function contentLanguageForLocale(locale: AppLocaleValue): string {
+  return {
+    'sq-XK': 'Albanian',
+    'en-US': 'English',
+    'de-CH': 'German',
+    'it-CH': 'Italian',
+    'fr-CH': 'French',
+    'tr-TR': 'Turkish',
+  }[locale]
+}
+
+/** Resolves legacy workspaces to their saved locale until an owner chooses a content language. */
+export function contentLocaleForPreferences(preferences: {
+  locale: AppLocaleValue
+  contentLocale?: AppLocaleValue
+}): AppLocaleValue {
+  return preferences.contentLocale || preferences.locale
+}
+
 const SWISS_GERMAN_LOCALE: AppLocaleValue = 'de-CH'
 // Workspaces saved before the Swiss German rollout still hold the old German
 // locale. Reading one must not fail, so it is normalised here rather than
@@ -236,6 +259,10 @@ export const workspaceSchema = z.object({
     email: z.string(),
     timezone: z.string(),
     locale: appLocaleSchema,
+    // Optional so workspaces saved before content-language support continue
+    // using their saved locale until the owner chooses a dedicated audience
+    // language in Preferences.
+    contentLocale: appLocaleSchema.optional(),
     currency: z.enum(['CHF', 'EUR']).default('CHF'),
   }),
   onboarding: z.number().min(0).max(4),

@@ -30,6 +30,7 @@ import {
   aiProviderWebSearch,
   providerCostMicroEur,
 } from './ai-provider'
+import { contentLanguageForLocale, type AppLocaleValue } from '../../shared/schemas/workspace'
 
 function integer(name: string, max = Number.MAX_SAFE_INTEGER) {
   const value = Number(process.env[name])
@@ -510,7 +511,7 @@ const monthlyInstructionAddenda: Partial<Record<keyof typeof monthlyInstructions
   planning:
     'When previous-page examples are supplied, return a dynamic styleProfile inside the editorial plan. Derive its palette, contrast, typography, hierarchy, density, spacing, photography, composition, brandElements, tone and doNotUse values from the connected page examples and the current application brand controls; never invent a generic preset. Every slot must use that profile as a constraint while remaining materially distinct from all previousPosts and from the other slots in first glance, composition and fine details.',
   research:
-    'Format the Albanian research as concise Markdown with these clear sections: Përmbledhja ekzekutive, Tregu dhe audienca, Sjellja në Instagram, Sjellja në Facebook, Mundësitë e përmbajtjes, Hipotezat e orarit, and Boshllëqet në të dhëna. Use short paragraphs and bullets. Keep citations attached to the exact claims they support.',
+    'Format the research as concise Markdown with these clear sections: executive summary, market and audience, Instagram behavior, Facebook behavior, content opportunities, timing hypotheses, and evidence gaps. Translate every section heading into the requested language. Use short paragraphs and bullets. Keep citations attached to the exact claims they support.',
   content:
     'Every contact-sheet image is rights-confirmed original media uploaded to this business gallery. You must always choose one valid non-empty assetId exactly from contactSheet; never refuse to select a photo because venue identity is visually unclear. If visible signage or logo text conflicts with verified brand facts, require it to be removed, cleaned or kept outside the crop during AI editing. The image model will professionally clean and art-direct the chosen real photo into the complete 4:5 design, so never replace the photo with a plain color background. If previousPosts or previousPageStyle are supplied, do not reuse the same first-glance structure, subject crop, headline placement, visual focal point, background treatment or fine detail pattern from earlier posts. Preserve the page identity while making this post materially distinct.',
   quality:
@@ -578,17 +579,15 @@ export async function monthlyProviderCall(
     maxOutput: number
     images?: string[]
     tenant?: TenantContext
-    language?: 'sq' | 'en'
+    language?: AppLocaleValue
   },
 ) {
   const config = monthlyAiConfig()
   if (args.tenant && args.tenant.organizationId !== args.businessId)
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
-  const language = args.language === 'en' ? 'en' : 'sq'
-  const localizedLanguageInstruction =
-    language === 'en'
-      ? 'All research, strategy, copy and quality explanations must be written in English.'
-      : 'All research, strategy, copy and quality explanations must be written in Albanian.'
+  const language = args.language || 'sq-XK'
+  const languageName = contentLanguageForLocale(language)
+  const localizedLanguageInstruction = `All research, strategy, copy and quality explanations must be written in ${languageName}.`
   const hasPreviousPageStyle =
     typeof args.input === 'object' &&
     args.input !== null &&
@@ -606,7 +605,7 @@ export async function monthlyProviderCall(
       : ''
   const typographyAndDesignInstruction =
     args.capability === 'content' || args.capability === 'quality'
-      ? 'Modern SMM design contract: use a clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans, no more than two weights, with exact copy and correct Albanian diacritics. Prioritize one focal subject, a clear three-level hierarchy, an 8-point spacing rhythm, consistent alignment, generous whitespace, strong mobile contrast and safe margins. Reject decorative or mixed fonts, fake text, arbitrary stickers, random shapes, noisy gradients, excessive shadows, cluttered layouts and design choices that feel unrelated to the actual business, industry, audience or photograph.'
+      ? `Modern SMM design contract: use a clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans, no more than two weights, with exact copy and correct ${languageName} spelling and diacritics. Prioritize one focal subject, a clear three-level hierarchy, an 8-point spacing rhythm, consistent alignment, generous whitespace, strong mobile contrast and safe margins. Reject decorative or mixed fonts, fake text, arbitrary stickers, random shapes, noisy gradients, excessive shadows, cluttered layouts and design choices that feel unrelated to the actual business, industry, audience or photograph.`
       : ''
   const instructions = [
     localizedLanguageInstruction,
@@ -623,11 +622,12 @@ export async function monthlyProviderCall(
   ]
     .filter(Boolean)
     .join('\n')
-    .replace(/Write in Albanian in the verified brand voice/g, `Write in ${language === 'en' ? 'English' : 'Albanian'} in the verified brand voice`)
-    .replace(/Write in Albanian\./g, `Write in ${language === 'en' ? 'English' : 'Albanian'}.`)
-    .replace(/Albanian copywriter/g, `${language === 'en' ? 'English' : 'Albanian'} copywriter`)
-    .replace(/Format the Albanian research/g, `Format the ${language === 'en' ? 'English' : 'Albanian'} research`)
-    .replace(/in Albanian that the user can use/g, `in ${language === 'en' ? 'English' : 'Albanian'} that the user can use`)
+    .replace(/Write in Albanian in the verified brand voice/g, `Write in ${languageName} in the verified brand voice`)
+    .replace(/Write in Albanian\./g, `Write in ${languageName}.`)
+    .replace(/Albanian copywriter/g, `${languageName} copywriter`)
+    .replace(/Format the Albanian research/g, `Format the ${languageName} research`)
+    .replace(/in Albanian that the user can use/g, `in ${languageName} that the user can use`)
+    .replace(/reasons in Albanian that the user can use/g, `reasons in ${languageName} that the user can use`)
     .replace(
       /There is no universal best posting time: if account-level activity data is absent, label every timing choice as a testable hypothesis instead of inventing certainty\./g,
       'Use only observed timingEvidence timestamps. If no timingEvidence exists, report that no observed timing data is available and do not recommend an optimal hour.',
@@ -1383,6 +1383,7 @@ const imageResponseSchema = z.object({
 export function monthlyImagePrompt(input: {
   brand: { name: string; industry: string; audience: string; color?: string }
   creative: Creative
+  language?: AppLocaleValue
   slot: {
     channel: 'Instagram' | 'Facebook' | 'TikTok'
     // A video slot's still is the first frame of the video, so what the frame
@@ -1411,6 +1412,7 @@ export function monthlyImagePrompt(input: {
   guardrails?: string[]
 }) {
   const { brand, slot, previousPageStyle, revisionFeedback = [], guardrails = [] } = input
+  const languageName = contentLanguageForLocale(input.language || 'sq-XK')
   const geometry = feedCreativeGeometry()
   const platformDirection =
     slot.deliverable === 'video'
@@ -1419,7 +1421,7 @@ export function monthlyImagePrompt(input: {
         ? 'For Instagram, make the focal idea readable in the first glance: use a strong subject, mobile-first hierarchy, controlled depth and an editorial 4:5 feed composition worth saving. The result must still feel like authentic premium photography, not an ad-template collage.'
         : 'For Facebook, make the story and business context understandable in the first glance: use an accessible type scale, recognizable subject and a natural 4:5 feed composition worth sharing. Avoid engagement bait and an over-designed ad-template appearance.'
   const modernSmmDesignInstruction =
-    'Act as a senior commercial photographer, art director and typographic designer. Apply a disciplined modern SMM design system: one dominant focal subject, one clear reading path, a strong 3-level hierarchy, an 8-point spacing rhythm, generous breathing room, consistent alignment and a purposeful crop. Use one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans (or the closest legible equivalent), with no more than two weights; never use decorative, script, condensed, novelty or mixed unrelated fonts. Render only the exact approved copy, with correct Albanian diacritics and no extra words, fake glyphs or pseudo-text. Keep type large enough for a phone, inside safe margins, away from faces and the product, with strong accessible contrast and no text touching the edges. Use brand color as a deliberate accent, not an automatic full-canvas overlay. Prefer restraint, whitespace and hierarchy over stickers, badges, random shapes, heavy shadows, gradients, emojis or decorative clutter. Every visual choice must feel native to this exact business, industry, audience, location and real photograph; never introduce unrelated stock props, generic lifestyle scenes or a design trend that conflicts with the brand.'
+    `Act as a senior commercial photographer, art director and typographic designer. Apply a disciplined modern SMM design system: one dominant focal subject, one clear reading path, a strong 3-level hierarchy, an 8-point spacing rhythm, generous breathing room, consistent alignment and a purposeful crop. Use one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans (or the closest legible equivalent), with no more than two weights; never use decorative, script, condensed, novelty or mixed unrelated fonts. Render only the exact approved copy, with correct ${languageName} spelling and diacritics and no extra words, fake glyphs or pseudo-text. Keep type large enough for a phone, inside safe margins, away from faces and the product, with strong accessible contrast and no text touching the edges. Use brand color as a deliberate accent, not an automatic full-canvas overlay. Prefer restraint, whitespace and hierarchy over stickers, badges, random shapes, heavy shadows, gradients, emojis or decorative clutter. Every visual choice must feel native to this exact business, industry, audience, location and real photograph; never introduce unrelated stock props, generic lifestyle scenes or a design trend that conflicts with the brand.`
   return [
     'Edit the supplied customer-owned photograph into one complete, original, premium 4:5 social-media post. You are solely responsible for the final visual design; no application template or hard-coded layout will be added afterward. The approved logo, if available, is the only deterministic post-processing element and will be placed dynamically in a clear region.',
     `Business: ${brand.name}. Industry: ${brand.industry}. Audience: ${brand.audience}.`,
@@ -1453,7 +1455,7 @@ export function monthlyImagePrompt(input: {
     input.logoAvailable
       ? `Render only this approved copy, spelled exactly as supplied: eyebrow "${input.creative.eyebrow}"; headline "${input.creative.headline}"; call to action "${input.creative.cta}". Do not abbreviate, translate, replace or invent words. Do not render the business name separately; the approved logo is the only business identity mark and will be added by the application.`
       : `Render only this approved copy, spelled exactly as supplied: eyebrow "${input.creative.eyebrow}"; headline "${input.creative.headline}"; call to action "${input.creative.cta}"; business name "${brand.name}". Do not abbreviate, translate, replace or invent words.`,
-    'Copy fit: render the approved words only, complete and unabbreviated, with correct Albanian diacritics, and never translate, respell, shorten, hyphenate away, partly render or substitute a word. Add nothing else that reads as information: no extra labels, captions, documents, prices, offers, discounts, badges, ribbons, dates, statistics, slogans, hashtags, handles, addresses, phone numbers or watermarks. Set the copy in one coherent sans-serif family with at most two weights, keep the levels as one concise hierarchy, and hold type clear of faces, plates, product detail and the logo area. If the call to action cannot be set completely, legibly and safely inside the safe region, leave it out of the image rather than clipping, cramming or rewording it; the caption still carries it in full. No call to action is better than a cut or invented one.',
+    `Copy fit: render the approved words only, complete and unabbreviated, with correct ${languageName} spelling and diacritics, and never translate, respell, shorten, hyphenate away, partly render or substitute a word. Add nothing else that reads as information: no extra labels, captions, documents, prices, offers, discounts, badges, ribbons, dates, statistics, slogans, hashtags, handles, addresses, phone numbers or watermarks. Set the copy in one coherent sans-serif family with at most two weights, keep the levels as one concise hierarchy, and hold type clear of faces, plates, product detail and the logo area. If the call to action cannot be set completely, legibly and safely inside the safe region, leave it out of the image rather than clipping, cramming or rewording it; the caption still carries it in full. No call to action is better than a cut or invented one.`,
     ...(guardrails.length
       ? [
           `Absolute restrictions set by this business. They are prohibitions, not preferences, and they override every other instruction here including the art direction and the page style. Apply each one to whatever it constrains in this image, and if one cannot be satisfied, leave the affected element out rather than working around it: ${guardrails.map((rule, index) => `(${index + 1}) ${rule}`).join(' ')}`,
@@ -1488,6 +1490,7 @@ export function postImageEditPrompt(input: {
     rationale: string
   }
   instruction: string
+  language?: AppLocaleValue
   logoAvailable?: boolean
   // True when this still is the first frame of a video rather than a feed post.
   // What the still has to do follows from the deliverable, not from the channel:
@@ -1495,6 +1498,7 @@ export function postImageEditPrompt(input: {
   video?: boolean
 }) {
   const { brand, post, instruction } = input
+  const languageName = contentLanguageForLocale(input.language || 'sq-XK')
   const geometry = feedCreativeGeometry()
   const platformDirection = input.video
     ? 'Optimize as the opening frame of a vertical video: one unmistakable focal subject, a hook legible at a glance on a full-screen phone, and depth the later motion can move through.'
@@ -1502,7 +1506,7 @@ export function postImageEditPrompt(input: {
       ? 'Optimize for an Instagram feed: an immediate visual hook, premium mobile-first hierarchy, strong focal subject and an authentic editorial 4:5 result worth saving.'
       : 'Optimize for a Facebook feed: an instantly understandable story, accessible hierarchy, strong contextual subject and a natural 4:5 result worth sharing without engagement bait.'
   const modernSmmDesignInstruction =
-    'Redesign as a senior commercial art director and typographic designer: use one dominant focal subject, one clear reading path, a disciplined 3-level hierarchy, an 8-point spacing rhythm, generous whitespace, consistent alignment and an intentional crop. Use one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans (or the closest legible equivalent), no more than two weights, and never decorative, script, condensed or mixed unrelated fonts. Render only the exact approved copy with correct Albanian diacritics; no extra words, fake glyphs or pseudo-text. Keep type phone-readable, inside safe margins, away from faces and product details, with strong accessible contrast. Use brand color as a deliberate accent, not an automatic full-canvas overlay. Remove arbitrary stickers, badges, emojis, random shapes, heavy shadows, noisy gradients and generic template decoration. Keep every decision inside the actual business, industry, audience, location and source photograph context.'
+    `Redesign as a senior commercial art director and typographic designer: use one dominant focal subject, one clear reading path, a disciplined 3-level hierarchy, an 8-point spacing rhythm, generous whitespace, consistent alignment and an intentional crop. Use one clean contemporary sans-serif in the spirit of Inter, Manrope or DM Sans (or the closest legible equivalent), no more than two weights, and never decorative, script, condensed or mixed unrelated fonts. Render only the exact approved copy with correct ${languageName} spelling and diacritics; no extra words, fake glyphs or pseudo-text. Keep type phone-readable, inside safe margins, away from faces and product details, with strong accessible contrast. Use brand color as a deliberate accent, not an automatic full-canvas overlay. Remove arbitrary stickers, badges, emojis, random shapes, heavy shadows, noisy gradients and generic template decoration. Keep every decision inside the actual business, industry, audience, location and source photograph context.`
   return [
     'Edit the supplied current post image into a new finished social-media creative. This is an image edit, not a request to pick a static layout preset.',
     `Authorized user edit: ${JSON.stringify(instruction)}.`,

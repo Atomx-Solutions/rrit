@@ -37,7 +37,7 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
         : source.rows[0].bytes!,
       caption: post.caption,
       brandName: workspace.brand.name,
-      locale: workspace.preferences.locale,
+      locale: workspace.preferences.contentLocale || workspace.preferences.locale,
       verifiedFacts: workspace.brand.facts.filter((fact) => factIds.has(fact.id)).map((fact) => fact.text),
       targetChannel: post.channel,
     }
