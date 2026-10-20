@@ -44,6 +44,9 @@ export default defineEventHandler(async (event) => {
     const adjustableCredits = packageRow.posts_included === 0
       && packageRow.videos_included === 0
       && packageRow.credits_included > 0
+    const adjustableVideos = packageRow.posts_included === 0
+      && packageRow.videos_included > 0
+      && packageRow.credits_included === 0
     const invoiceUnitAmount = packageRow.price_cents / invoiceLineQuantity
 
     const existing = await client.query<{ id: string }>(
@@ -65,14 +68,14 @@ export default defineEventHandler(async (event) => {
       description: `Framic purchase: ${packageRow.posts_included} posts, ${packageRow.videos_included} videos, ${packageRow.credits_included} credits`,
       name: `Framic — ${[
         packageRow.posts_included && `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`,
-        packageRow.videos_included && `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`,
+        packageRow.videos_included && (adjustableVideos ? 'videos' : `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`),
         packageRow.credits_included && (packageRow.posts_included || packageRow.videos_included)
           ? `${packageRow.credits_included} credits`
           : packageRow.credits_included ? 'credits' : '',
       ].filter(Boolean).join(' + ')}`,
       recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
       quantity: invoiceLineQuantity,
-      adjustableQuantity: adjustableCredits,
+      adjustableQuantity: adjustableCredits || adjustableVideos,
       unitAmountCents: invoiceUnitAmount,
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })
