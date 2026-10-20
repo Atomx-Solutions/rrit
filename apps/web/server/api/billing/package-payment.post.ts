@@ -26,6 +26,12 @@ export default defineEventHandler(async (event) => {
     if (!packageRow) throw createError({ statusCode: 404, message: 'server.PACKAGE_NOT_FOUND' })
     if (packageRow.price_cents <= 0) throw createError({ statusCode: 422, message: 'server.PACKAGE_PRICE_INVALID' })
 
+    const activePackage = await client.query<{ id: string }>(
+      `SELECT id FROM custom_packages WHERE organization_id=$1 AND status='active' LIMIT 1`,
+      [business.id],
+    )
+    const isAddOn = activePackage.rowCount !== 0
+
     const existing = await client.query<{ id: string }>(
       `SELECT id FROM paddle_payment_orders WHERE package_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1`,
       [packageRow.id],
@@ -33,9 +39,10 @@ export default defineEventHandler(async (event) => {
     const order = existing.rows[0] || (await client.query<{ id: string }>(
       `INSERT INTO paddle_payment_orders
         (organization_id,package_id,purpose,posts_included,videos_included,credits_included,amount_cents,currency)
-       VALUES($1,$2,'parent_package',$3,$4,$5,$6,$7) RETURNING id`,
+       VALUES($1,$2,$8,$3,$4,$5,$6,$7) RETURNING id`,
       [business.id, packageRow.id, packageRow.posts_included, packageRow.videos_included,
-        packageRow.credits_included, packageRow.price_cents, packageRow.currency],
+        packageRow.credits_included, packageRow.price_cents, packageRow.currency,
+        isAddOn ? 'add_on' : 'parent_package'],
     )).rows[0]
 
     const transactionId = await createPaddleTransaction({
@@ -45,7 +52,7 @@ export default defineEventHandler(async (event) => {
       name: packageRow.posts_included || packageRow.videos_included
         ? 'Framic content package'
         : 'Framic additional credits',
-      recurring: packageRow.posts_included > 0 || packageRow.videos_included > 0,
+      recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })
     await client.query(

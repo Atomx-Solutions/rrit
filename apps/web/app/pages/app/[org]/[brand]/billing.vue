@@ -140,7 +140,7 @@ watch(billing, (value) => {
 }, { immediate: true })
 async function refreshLiveProposal() {
   if (document.visibilityState !== 'visible') return
-  await refreshBilling()
+  await Promise.all([refreshBilling(), refreshCreditBalance()])
   const proposal = billing.value?.packageProposal
   const proposalId = proposal ? `${proposal.name}:${proposal.startsAt}:${proposal.endsAt}` : null
   if (proposalSnapshotReady && proposalId && proposalId !== previousProposalId)
