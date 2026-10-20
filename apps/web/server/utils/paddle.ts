@@ -42,6 +42,7 @@ export async function createPaddleTransaction(input: {
   name: string
   recurring: boolean
   quantity?: number
+  adjustableQuantity?: boolean
   unitAmountCents?: number
   customData: Record<string, string>
 }) {
@@ -98,8 +99,8 @@ export async function createPaddleTransaction(input: {
           // A package is one negotiated bundle. Quantity must not duplicate the
           // whole bundle; changing included videos/posts requires a new offer.
           quantity: {
-            minimum: input.quantity ?? 1,
-            maximum: input.quantity ?? 1,
+            minimum: input.adjustableQuantity ? 1 : (input.quantity ?? 1),
+            maximum: input.adjustableQuantity ? 100000 : (input.quantity ?? 1),
           },
           billing_cycle: input.recurring ? { interval: 'month', frequency: 1 } : null,
           tax_mode: 'account_setting',

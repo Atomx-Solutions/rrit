@@ -41,6 +41,9 @@ export default defineEventHandler(async (event) => {
     const invoiceLineQuantity = invoiceQuantity > 1 && packageRow.price_cents % invoiceQuantity === 0
       ? invoiceQuantity
       : 1
+    const adjustableCredits = packageRow.posts_included === 0
+      && packageRow.videos_included === 0
+      && packageRow.credits_included > 0
     const invoiceUnitAmount = packageRow.price_cents / invoiceLineQuantity
 
     const existing = await client.query<{ id: string }>(
@@ -67,6 +70,7 @@ export default defineEventHandler(async (event) => {
       ].filter(Boolean).join(' + ')}`,
       recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
       quantity: invoiceLineQuantity,
+      adjustableQuantity: adjustableCredits,
       unitAmountCents: invoiceUnitAmount,
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })

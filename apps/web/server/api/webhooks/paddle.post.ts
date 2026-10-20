@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
     id?: string
     status?: string
     custom_data?: { orderId?: string }
+    items?: Array<{ quantity?: number }>
   }
 
   const client = await database().connect()
@@ -43,6 +44,14 @@ export default defineEventHandler(async (event) => {
     if (payload.event_type === 'transaction.paid' || payload.event_type === 'transaction.completed') {
       if (!data.id || !data.custom_data?.orderId)
         throw createError({ statusCode: 400, message: 'server.PADDLE_PAYMENT_REFERENCE_INVALID' })
+      await client.query(
+        `UPDATE paddle_payment_orders
+            SET credits_included=$2, updated_at=now()
+          WHERE id=$1 AND status='pending'
+            AND posts_included=0 AND videos_included=0
+            AND $2 >= 1`,
+        [data.custom_data.orderId, data.items?.[0]?.quantity || 1],
+      )
       await client.query(
         `SELECT app.process_paddle_payment($1,$2,$3)`,
         [data.custom_data.orderId, data.id, payload.event_id],
