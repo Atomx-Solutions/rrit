@@ -66,7 +66,9 @@ export default defineEventHandler(async (event) => {
       name: `Framic — ${[
         packageRow.posts_included && `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`,
         packageRow.videos_included && `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`,
-        packageRow.credits_included && `${packageRow.credits_included} credits`,
+        packageRow.credits_included && (packageRow.posts_included || packageRow.videos_included)
+          ? `${packageRow.credits_included} credits`
+          : packageRow.credits_included ? 'credits' : '',
       ].filter(Boolean).join(' + ')}`,
       recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
       quantity: invoiceLineQuantity,
