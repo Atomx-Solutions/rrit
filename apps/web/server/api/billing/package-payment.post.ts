@@ -48,10 +48,12 @@ export default defineEventHandler(async (event) => {
     const transactionId = await createPaddleTransaction({
       amountCents: packageRow.price_cents,
       currency: packageRow.currency,
-      description: 'Framic content package',
-      name: packageRow.posts_included || packageRow.videos_included
-        ? 'Framic content package'
-        : 'Framic additional credits',
+      description: `Framic purchase: ${packageRow.posts_included} posts, ${packageRow.videos_included} videos, ${packageRow.credits_included} credits`,
+      name: `Framic — ${[
+        packageRow.posts_included && `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`,
+        packageRow.videos_included && `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`,
+        packageRow.credits_included && `${packageRow.credits_included} credits`,
+      ].filter(Boolean).join(' + ')}`,
       recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })

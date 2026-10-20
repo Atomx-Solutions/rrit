@@ -62,6 +62,17 @@ export async function createPaddleTransaction(input: {
   }
   if (!productId || !/^pro_[a-z\d]{26}$/.test(productId))
     throw new Error('PADDLE_PRODUCT_ID must be a Paddle product ID (pro_...) or a valid PADDLE_PACKAGE_PRICE_ID must be configured')
+  // An inline price with product_id still displays the catalog product name.
+  // Carry its tax category into a transaction-specific product instead.
+  const productResponse = await fetch(`${paddleApiBaseUrl()}/products/${encodeURIComponent(productId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+  const productPayload = await productResponse.json().catch(() => null) as {
+    data?: { tax_category?: string }
+  } | null
+  const taxCategory = productPayload?.data?.tax_category
+  if (!productResponse.ok || !taxCategory)
+    throw new Error(`Could not resolve Paddle product tax category (${productResponse.status})`)
   const response = await fetch(`${paddleApiBaseUrl()}/transactions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -71,9 +82,9 @@ export async function createPaddleTransaction(input: {
       items: [{
         quantity: 1,
         price: {
-          product_id: productId,
           description: input.description,
-          name: input.name,
+          name: input.recurring ? 'Monthly' : 'One-time',
+          product: { name: input.name, description: input.description, tax_category: taxCategory },
           billing_cycle: input.recurring ? { interval: 'month', frequency: 1 } : null,
           tax_mode: 'account_setting',
           unit_price: { amount: String(input.amountCents), currency_code: input.currency },
