@@ -166,10 +166,12 @@ async function publishNow() {
       return
     }
     if (form.channel === 'TikTok') {
-      await $fetch(`/api/posts/${post.value.id}/tiktok-upload`, { method: 'POST', body: {}, retry: 0 })
+      const sent = await $fetch(`/api/posts/${post.value.id}/tiktok-upload`, { method: 'POST', body: {}, retry: 0 })
       publishOpen.value = false
       await initLive()
-      notify(t('tiktok.uploadSucceeded'))
+      // A photo TikTok will not take from this app yet stays ready for the
+      // business to post by hand; it is said so, never reported as sent.
+      notify(t(sent.mode === 'manual' ? 'tiktok.photoManual' : post.value.video ? 'tiktok.uploadSucceeded' : 'tiktok.photoSent'))
     } else {
       await $fetch(`/api/posts/${post.value.id}/publish`, {
         method: 'POST',
@@ -787,6 +789,15 @@ onBeforeUnmount(() => {
           <p v-if="form.channel !== 'TikTok'" class="small muted">
             {{ t('content.approvalCalendarNote') }}
           </p>
+          <UAlert
+            v-if="form.channel === 'TikTok' && post?.tiktokDelivery?.mode === 'manual'"
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-hand"
+            :title="t('tiktok.manualReady')"
+            :description="t('tiktok.photoManual')"
+            :actions="[{ label: t('tiktok.downloadPhoto'), icon: 'i-lucide-download', href: form.image, download: '', target: '_blank' }]"
+          />
         </UCard>
       </div>
       <aside class="stack lg:sticky lg:top-6">

@@ -89,6 +89,14 @@ export const postSchema = z.object({
   campaignId: z.string().optional(),
   providerPostId: z.string().optional(),
   publishedAt: z.string().optional(),
+  // How the post was last handed to TikTok: sent to the account holder's
+  // inbox as a draft, or left ready for manual publishing because TikTok would
+  // not take it from this app (the reason is TikTok's own error code).
+  tiktokDelivery: z.object({
+    mode: z.enum(['draft', 'manual']),
+    reason: z.string().max(80).optional(),
+    at: z.iso.datetime(),
+  }).optional(),
   // The motion brief for a post whose deliverable is a video. Which channel it
   // reaches is the post's own `channel`, so nothing here names a platform.
   video: z.object({
