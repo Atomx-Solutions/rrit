@@ -57,15 +57,31 @@ export type StoryboardShot = z.infer<typeof storyboardShotSchema>
 // show. A concept that needs them cannot be made from one photograph.
 const unseenSides = /\b360\b|full (?:orbit|circle|turn|rotation|spin)|orbit(?:s|ing)? (?:around|the)|circl(?:e|es|ing) (?:around|the)|spin(?:s|ning)? around|(?:rear|back|underside|interior|inside) (?:view|side|of the)|behind the (?:car|vehicle|subject|product)/i
 
+// How long a video may be and the shot lengths the configured motion model
+// renders; both come from configuration and the model, never from here.
+export type StoryboardLimits = {
+  durations: number[]
+  minSeconds: number
+  maxSeconds: number
+}
+
+export function storyboardSeconds(storyboard: Storyboard) {
+  return storyboard.shots.reduce((sum, shot) => sum + shot.durationSeconds, 0)
+}
+
 /**
  * Everything wrong with a storyboard beyond its schema, worded so it can be
  * handed back to the director as a correction. Empty means it can be made.
  */
-export function storyboardProblems(storyboard: Storyboard, totalSeconds: number) {
+export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLimits) {
   const problems: string[] = []
-  const total = storyboard.shots.reduce((sum, shot) => sum + shot.durationSeconds, 0)
-  if (total !== totalSeconds)
-    problems.push(`The shots must last ${totalSeconds} seconds together; they last ${total}.`)
+  const total = storyboardSeconds(storyboard)
+  if (total < limits.minSeconds || total > limits.maxSeconds)
+    problems.push(`The shots must last between ${limits.minSeconds} and ${limits.maxSeconds} seconds together; they last ${total}.`)
+  storyboard.shots.forEach((shot, index) => {
+    if (limits.durations.length && !limits.durations.includes(shot.durationSeconds))
+      problems.push(`Shot ${index + 1} lasts ${shot.durationSeconds} seconds; each shot must last one of ${limits.durations.join(', ')} seconds.`)
+  })
   const last = storyboard.shots.at(-1)
   if (last && !last.endsOnPhotograph)
     problems.push('The final shot must end on the real photograph, so the video closes on the true subject.')

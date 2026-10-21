@@ -554,11 +554,11 @@ export async function videoKeyframes(
     .jpeg({ quality: 94, mozjpeg: true })
     .toBuffer()
   const [first, last] = await Promise.all([frame(from), frame(to)])
-  // A subject that moves ends somewhere the photograph never showed, so its
-  // motion is pinned at the start only; the result is checked afterwards.
+  // Even a subject that moves is brought back to the photograph at the end,
+  // so the video always closes on the true subject.
   return {
     first,
-    last: shot.action === 'subject_moves' ? undefined : last,
+    last,
     canvas,
     still: { image: await sharp(wide).jpeg({ quality: 95 }).toBuffer(), from, to },
   }

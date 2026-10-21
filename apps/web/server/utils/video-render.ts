@@ -10,13 +10,14 @@ import {
   reserveCredits,
   videoRenderCredits,
 } from './credits'
-import { aiVideoCanvas, aiVideoConfigured, aiVideoPromptLimit, generateAiVideo } from './ai-video-provider'
+import { aiVideoCanvas, aiVideoCapabilities, aiVideoConfigured, aiVideoPromptLimit, generateAiVideo } from './ai-video-provider'
 import { buildVideoEndCard, buildVideoOverlayLayers, padFrameToCanvas, videoKeyframes } from './image-processing'
 import { buildVideoCreativePlan } from './video-plan'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
-import { directVideo } from './video-director'
-import { buildStoryboardExecutionBrief, buildVideoExecutionBrief } from './video-execution-brief'
-import { composeBrandedVideo, extractVideoFrames, renderStillMotion, VIDEO_END_CARD_SECONDS } from './video-compose'
+import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
+import { buildVideoExecutionBrief } from './video-execution-brief'
+import { composeBrandedVideo, extractVideoFrames, joinClips, VIDEO_END_CARD_SECONDS, videoDuration } from './video-compose'
+import { closestDuration, generateStoryboardShots, ShotSubjectChanged } from './video-shots'
 import { reviewVideoQuality, verifyVideoSubject } from './video-subject-check'
 import { brainForSlot, plannerBrainOf } from './monthly-planner-domain'
 import { editorialPlanSchema, researchSchema } from '../../shared/schemas/monthly-plan'
@@ -255,10 +256,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
       shot: plan.shot,
       // Brand first, then the headline, then the supporting line and button,
       // spread across the first part of the motion.
-      overlays: overlay.layers.map((image, index) => ({
-        image,
-        start: [0.05, 0.15, 0.4][index]! * post.video!.durationSeconds,
-      })),
+      // Placed in time once the shots are known.
+      overlayImages: overlay.layers,
     }
   }).catch(async (error) => {
     await withBusinessTransaction(userId, (client, business) =>
@@ -295,72 +294,81 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // from the fitted photograph. Without a valid storyboard the strategy's
     // own shot direction is rendered as before.
     failureReason = 'direction_failed'
+    const capabilities = await aiVideoCapabilities()
     const direction = await directVideo({
       photograph: snapshot.fitted,
       channel: snapshot.channel,
-      totalSeconds: snapshot.durationSeconds,
+      limits: videoLengthLimits(capabilities.durations),
       locale: snapshot.locale,
       ...snapshot.director,
     })
     failureReason = 'render_failed'
     const storyboard = direction.storyboard
     if (!storyboard) console.warn('The video director gave no valid storyboard; rendering the strategy shot', { postId })
-    const prompt = storyboard
-      ? buildStoryboardExecutionBrief({ storyboard, guardrails: snapshot.director.guardrails, maxLength: aiVideoPromptLimit() })
-      : snapshot.prompt
-    // A storyboard opens and closes on the photograph's whole view, so both
-    // keyframes are the photograph itself and the director's camera does the
-    // rest.
-    const keyframes = await videoKeyframes(
-      snapshot.fitted,
-      snapshot.canvas,
-      storyboard ? { ...snapshot.shot, camera: 'static', action: 'ambient' } : snapshot.shot,
-    )
-    // Only the camera moves: the clip is rendered from the photograph itself,
-    // so no provider is paid and the subject cannot change. Anything that
-    // adds life to the scene, and every directed storyboard, goes to the
-    // motion model. The model paints its own closest ratio; the keyframes are
-    // padded out to it whole and the composer crops the clip back.
-    const provider = snapshot.shot.action === 'camera_only' && !storyboard ? undefined : await aiVideoCanvas(keyframes.canvas)
-    const providerFirst = provider ? await padFrameToCanvas(keyframes.first, provider.canvas) : keyframes.first
-    const generated = !provider
-      ? {
-          bytes: await renderStillMotion({
-            image: keyframes.still.image,
-            from: keyframes.still.from,
-            to: keyframes.still.to,
-            canvas: keyframes.canvas,
-            seconds: snapshot.durationSeconds,
-          }),
-          costUsd: 0,
-        }
-      : await generateAiVideo({
-          image: providerFirst,
-          lastFrame: keyframes.last && await padFrameToCanvas(keyframes.last, provider.canvas),
-          prompt,
-          durationSeconds: snapshot.durationSeconds,
+    // Every video is made by the configured motion model; nothing is animated
+    // locally. The model paints its own closest ratio around the channel
+    // canvas, and the composer crops the clip back to it.
+    const provider = await aiVideoCanvas(snapshot.canvas)
+    let motion: Buffer
+    let generationCostUsd: number | null
+    let shotStarts: number[]
+    try {
+      if (storyboard) {
+        const shots = await generateStoryboardShots({
+          storyboard,
+          fitted: snapshot.fitted,
+          provider,
+          lastFrameSupported: capabilities.lastFrame,
+          guardrails: snapshot.director.guardrails,
+          maxLength: aiVideoPromptLimit(),
+        })
+        const crossfade = videoCrossfadeSeconds()
+        motion = await joinClips(shots.clips, provider.canvas, crossfade)
+        generationCostUsd = shots.costUsd
+        shotStarts = storyboard.shots.reduce<number[]>((starts, _shot, index) => {
+          starts.push(index ? starts[index - 1]! + storyboard.shots[index - 1]!.durationSeconds - crossfade : 0)
+          return starts
+        }, [])
+      } else {
+        // The strategy's own shot, pinned to the photograph at both ends.
+        const keyframes = await videoKeyframes(snapshot.fitted, snapshot.canvas, snapshot.shot)
+        const first = await padFrameToCanvas(keyframes.first, provider.canvas)
+        const generated = await generateAiVideo({
+          image: first,
+          lastFrame: await padFrameToCanvas(keyframes.last, provider.canvas),
+          prompt: snapshot.prompt,
+          durationSeconds: closestDuration(snapshot.durationSeconds, capabilities.durations),
           canvas: provider.canvas,
           aspectRatio: provider.aspectRatio,
         })
-    if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
-    // A provider that reports no cost leaves the reservation as the charge.
-    const costUsd = generated.costUsd === null ? null : generated.costUsd + fitCostUsd + direction.costUsd
-    // A generated clip can drift between its keyframes, even when both are
-    // the photograph, so it is held against the photograph before anything is
-    // delivered.
-    if (provider) {
-      // Held against the exact frame the model was given, padding included,
-      // so the padding itself never reads as a change of subject.
-      const check = await verifyVideoSubject({
-        photograph: providerFirst,
-        frames: await extractVideoFrames(generated.bytes, [0.3, 0.6, 0.95]),
-      })
-      if (!check.sameSubject) {
-        console.warn('A generated video changed its subject and was not delivered', { postId, reason: check.reason })
-        failureReason = 'subject_changed'
-        throw createError({ statusCode: 422, message: 'server.VIDEO_SUBJECT_CHANGED' })
+        if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
+        // Held against the exact frame the model was given, padding included,
+        // so the padding itself never reads as a change of subject.
+        const check = await verifyVideoSubject({ photograph: first, frames: await extractVideoFrames(generated.bytes, [0.3, 0.6, 0.95]) })
+        if (!check.sameSubject) throw new ShotSubjectChanged(1, check.reason)
+        motion = generated.bytes
+        generationCostUsd = generated.costUsd
+        shotStarts = [0]
       }
+    } catch (error) {
+      if (!(error instanceof ShotSubjectChanged)) throw error
+      console.warn('A generated video changed its subject and was not delivered', { postId, shot: error.shot, reason: error.reason })
+      failureReason = 'subject_changed'
+      throw createError({ statusCode: 422, message: 'server.VIDEO_SUBJECT_CHANGED' })
     }
+    // A provider that reports no cost leaves the reservation as the charge.
+    const costUsd = generationCostUsd === null ? null : generationCostUsd + fitCostUsd + direction.costUsd
+    const motionSeconds = await videoDuration(motion)
+    // The brand and headline arrive in the opening shot; the call to action
+    // arrives with the final shot, or a little into a single one.
+    const finalStart = shotStarts.at(-1) || 0
+    const overlayStarts = shotStarts.length > 1
+      ? [0.2, 0.7, finalStart + 0.4]
+      : [0.05, 0.15, 0.4].map((share) => share * motionSeconds)
+    const overlays = snapshot.overlayImages.map((image, index) => ({
+      image,
+      start: Math.min(overlayStarts[Math.min(index, overlayStarts.length - 1)]!, Math.max(0, motionSeconds - 1)),
+    }))
     // Compose before upload. The provider MP4 is an in-memory intermediate;
     // only the branded MP4 becomes the ready render's canonical storage path.
     const { width: endCardWidth, height: endCardHeight } = snapshot.canvas
@@ -374,10 +382,10 @@ export async function renderVideoForPost(userId: string, postId: string) {
         })
       : undefined
     const bytes = await composeBrandedVideo({
-      motion: generated.bytes,
+      motion,
       endCard: endCardImage,
       target: { width: endCardWidth, height: endCardHeight },
-      overlays: snapshot.overlays,
+      overlays,
     })
     failureReason = 'quality_review_failed'
     const quality = await reviewVideoQuality({
@@ -433,7 +441,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
         })
       await client.query(
         "UPDATE video_renders SET status='ready',storage_path=$1,size_bytes=$2,duration_seconds=$3,composed=true,completed_at=now() WHERE id=$4 AND business_id=$5",
-        [path, bytes.length, snapshot.durationSeconds + (endCardImage ? VIDEO_END_CARD_SECONDS : 0), snapshot.renderId, business.id],
+        [path, bytes.length, Math.round(motionSeconds + (endCardImage ? VIDEO_END_CARD_SECONDS : 0)), snapshot.renderId, business.id],
       )
       // Retain the deterministic card for provenance and future recomposition.
       // Gallery and publishing use the composed MP4 at video_renders.storage_path.

@@ -178,41 +178,48 @@ const subjectMotion: Record<Storyboard['shots'][number]['subject']['motion'], st
 }
 
 /**
- * The motion prompt for a storyboard from the creative director. Each shot is
- * written as a cinematographer's brief; until shots are generated one by one
- * they run as consecutive beats of one continuous take, with no cut, opening
- * on the photograph and closing on it.
+ * The motion prompt for one shot of a storyboard from the creative director,
+ * written as a cinematographer's brief. Each shot is generated on its own, so
+ * the prompt says where it starts and ends: on the photograph, where the
+ * previous shot ended, or on a view the director invents for an arrival.
  */
-export function buildStoryboardExecutionBrief(input: {
+export function buildShotExecutionBrief(input: {
   storyboard: Storyboard
+  index: number
+  // What the shot is pinned to.
+  start: 'photograph' | 'previous_shot' | 'free'
+  endsOnPhotograph: boolean
   guardrails?: string[]
   maxLength?: number
 }) {
-  const { storyboard } = input
-  const total = storyboard.shots.reduce((sum, shot) => sum + shot.durationSeconds, 0)
+  const { storyboard, index } = input
+  const shot = storyboard.shots[index]!
   const guardrails = (input.guardrails || []).map(rule => rule.trim()).filter(Boolean)
+  const opening = input.start === 'photograph'
+    ? 'It starts exactly on the supplied first frame, a real photograph.'
+    : input.start === 'previous_shot'
+      ? 'It starts exactly on the supplied first frame, the last frame of the previous shot, and continues its motion without a jump.'
+      : 'It opens on the scene this shot describes, before the subject is in its photographed place.'
+  const closing = input.endsOnPhotograph
+    ? 'It ends exactly on the supplied last frame, the real photograph.'
+    : ''
   const build = (detail: number) => {
     const clip = (value: string) => value.length > detail ? `${value.slice(0, detail).trimEnd()}…` : value
-    let elapsed = 0
-    const shots = storyboard.shots.flatMap((shot, index) => {
-      const start = elapsed
-      elapsed += shot.durationSeconds
-      return [
-        `${time(start)}-${time(elapsed)} (beat ${index + 1}): ${clip(shot.purpose)}`,
-        `Camera: ${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject no more than ${shot.camera.rotationDegrees} degrees.`,
-        `Light and atmosphere: ${clip(shot.atmosphere)}`,
-        `Effects: ${clip(shot.effects)}`,
-        `Subject: ${subjectMotion[shot.subject.motion]} ${clip(shot.subject.description)}`,
-      ]
-    })
     return [
-      `Create one continuous ${total}-second video that starts exactly on the supplied first frame and ends exactly on the supplied last frame. Both are the same real photograph; flow from beat to beat without a cut.`,
+      `Create one continuous ${shot.durationSeconds}-second shot, shot ${index + 1} of ${storyboard.shots.length} of one video. ${opening} ${closing}`.trim(),
       'CONCEPT',
       clip(storyboard.concept),
+      'THIS SHOT',
+      clip(shot.purpose),
       'SUBJECT',
       ...subjectRules,
-      'BEATS',
-      ...shots,
+      `${subjectMotion[shot.subject.motion]} ${clip(shot.subject.description)}`,
+      'CAMERA',
+      `${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject no more than ${shot.camera.rotationDegrees} degrees.`,
+      'LIGHT AND ATMOSPHERE',
+      clip(shot.atmosphere),
+      'EFFECTS',
+      clip(shot.effects),
       'AVOID',
       'No cuts, scene changes, invented people or objects, subject distortion, flicker, watermarks, padding, letterboxing or black bars. Fill the prepared frame edge to edge.',
       'Do not generate typography, marketing copy, business name, logos, new signage or an end-card; Framic adds exact branding and text later.',

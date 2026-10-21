@@ -7,6 +7,7 @@ import {
   storyboardProblems,
   storyboardSchema,
   type Storyboard,
+  type StoryboardLimits,
 } from '../../shared/schemas/storyboard'
 import {
   aiProviderConfiguration,
@@ -16,11 +17,31 @@ import {
 } from './ai-provider'
 import { parseMonthlyProviderResponse, responseText } from './monthly-ai'
 
+function seconds(variable: string, fallback: number) {
+  const value = Number(process.env[variable])
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+// How long a video may be (VIDEO_MIN_SECONDS / VIDEO_MAX_SECONDS) and the
+// shot lengths the configured motion model renders.
+export function videoLengthLimits(durations: number[]): StoryboardLimits {
+  return {
+    durations,
+    minSeconds: seconds('VIDEO_MIN_SECONDS', 6),
+    maxSeconds: seconds('VIDEO_MAX_SECONDS', 12),
+  }
+}
+
+// How long one shot blends into the next (VIDEO_CROSSFADE_SECONDS).
+export function videoCrossfadeSeconds() {
+  return seconds('VIDEO_CROSSFADE_SECONDS', 0.5)
+}
+
 export type DirectorInput = {
   // The photograph already fitted to the channel canvas; the video starts here.
   photograph: Buffer
   channel: PublishingChannel
-  totalSeconds: number
+  limits: StoryboardLimits
   locale: AppLocaleValue
   brand: { name: string; industry: string; audience: string; voice?: string }
   guardrails?: string[]
@@ -41,7 +62,11 @@ export type DirectorInput = {
  * the concept, the shots and every camera choice are the model's to invent for
  * this post.
  */
-export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'totalSeconds' | 'locale'>) {
+export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'limits' | 'locale'>) {
+  const { limits } = input
+  const lengths = limits.durations.length
+    ? `Each shot lasts exactly one of ${limits.durations.join(', ')} seconds, the lengths the motion model renders.`
+    : 'Give each shot a whole number of seconds.'
   const canvas = channelCanvas(input.channel)
   const covered = channelUiInsets(input.channel)
   const coveredSides = (['top', 'right', 'bottom', 'left'] as const)
@@ -49,7 +74,7 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'tot
     .map((side) => `the ${side} ${Math.round(covered[side] * 100)}%`)
   return [
     'Act as a senior creative director and cinematographer for short commercial social videos. Invent one original video concept for this exact business, post and photograph, as a storyboard the motion model will shoot.',
-    `The video is for ${input.channel}, on a ${ratioLabel(canvas)} canvas, ${input.totalSeconds} seconds long in total, in 1 to ${maxStoryboardShots} shots whose durations add up to exactly ${input.totalSeconds} seconds.${coveredSides.length ? ` ${input.channel} covers ${coveredSides.join(', ')} of the frame with its interface, so nothing important happens there.` : ''}`,
+    `The video is for ${input.channel}, on a ${ratioLabel(canvas)} canvas, between ${limits.minSeconds} and ${limits.maxSeconds} seconds long in total, in 1 to ${maxStoryboardShots} shots. ${lengths} Two shots usually serve best; use one when a single move says everything, and three only when the concept truly needs three beats, because every shot is generated and joined separately.${coveredSides.length ? ` ${input.channel} covers ${coveredSides.join(', ')} of the frame with its interface, so nothing important happens there.` : ''}`,
     'Everything is made from the single supplied photograph. You are free with everything around the subject: the environment, light, time of day, weather, sky, atmosphere, particles, reflections and effects; how the subject arrives in its photographed place (for example descending from the sky and landing, rolling in out of light or fog); and the camera, including drone flights, push-ins, rises, reveals, tracking and small turns.',
     `You are not free with the subject itself. It must stay exactly the subject in the photograph: the same model, colour, shape, logo, wheels and details. Show only the side of it the photograph shows: the camera may turn around it by at most ${maxStoryboardRotationDegrees} degrees in a shot, never orbit it, never 360 degrees, never show its back, underside or interior. Set rotationDegrees honestly and showsOnlyPhotographedSides to true only when that holds.`,
     'The final shot must end on the real photograph (endsOnPhotograph=true), so the video closes on the true subject. Mark each shot that opens on the photograph\'s own view with opensOnPhotograph=true.',
@@ -65,7 +90,7 @@ function payload(input: DirectorInput, corrections: string[]) {
     restrictions: input.guardrails || [],
     post: input.post,
     channel: input.channel,
-    totalSeconds: input.totalSeconds,
+    videoLength: input.limits,
     ...(corrections.length ? { correctionsFromYourLastStoryboard: corrections } : {}),
   }
 }
@@ -124,7 +149,7 @@ export async function directVideo(input: DirectorInput, attempts = 2): Promise<D
         corrections = parsed.error.issues.slice(0, 5).map((issue) => `${issue.path.join('.')}: ${issue.message}`)
         continue
       }
-      corrections = storyboardProblems(parsed.data, input.totalSeconds)
+      corrections = storyboardProblems(parsed.data, input.limits)
       if (!corrections.length) return { storyboard: parsed.data, costUsd }
     } catch (error) {
       console.warn('The video director could not answer', { error: error instanceof Error ? error.message : 'unknown' })

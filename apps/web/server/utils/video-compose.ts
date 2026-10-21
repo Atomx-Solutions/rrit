@@ -25,44 +25,73 @@ async function probe(path: string): Promise<VideoInfo> {
   return { width, height, duration }
 }
 
-type StillView = { x: number; y: number; width: number; height: number }
+/** How long a clip runs, in seconds. */
+export async function videoDuration(video: Buffer) {
+  const directory = await mkdtemp(join(tmpdir(), 'rrit-probe-'))
+  try {
+    const path = join(directory, 'clip.mp4')
+    await writeFile(path, video)
+    return (await probe(path)).duration
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+}
 
 /**
- * A camera move over a still photograph, rendered locally.
- *
- * When only the camera moves, nothing in the frame needs generating: the clip
- * eases from one rectangle of the image to another, so every frame is the
- * photograph itself and no model can change the subject. The image is
- * upscaled first so the sub-pixel steps of a slow move do not judder.
+ * The very last frame of a clip at the given size, so the next shot can start
+ * exactly where this one ended.
  */
-export async function renderStillMotion(input: {
-  image: Buffer
-  from: StillView
-  to: StillView
-  canvas: { width: number; height: number }
-  seconds: number
-}): Promise<Buffer> {
-  const directory = await mkdtemp(join(tmpdir(), 'rrit-still-'))
+export async function extractLastFrame(video: Buffer, size: { width: number; height: number }) {
+  const directory = await mkdtemp(join(tmpdir(), 'rrit-last-'))
   try {
-    const imagePath = join(directory, 'still.jpg')
-    const outputPath = join(directory, 'motion.mp4')
-    await writeFile(imagePath, input.image)
-    const fps = 30
-    const frames = Math.round(input.seconds * fps)
-    const scale = 4
-    const { width, height } = input.canvas
-    // Smoothstep easing from the first rectangle to the last.
-    const p = `(on/${Math.max(1, frames - 1)})`
-    const ease = `(${p}*${p}*(3-2*${p}))`
-    const lerp = (a: number, b: number) => `(${a * scale}+(${(b - a) * scale})*${ease})`
-    const viewWidth = lerp(input.from.width, input.to.width)
+    const videoPath = join(directory, 'clip.mp4')
+    const framePath = join(directory, 'last.jpg')
+    await writeFile(videoPath, video)
     await run(process.env.FFMPEG_PATH || 'ffmpeg', [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
-      '-loop', '1', '-i', imagePath,
-      '-vf', `scale=iw*${scale}:ih*${scale}:flags=lanczos,`
-        + `zoompan=z='iw/${viewWidth}':x='${lerp(input.from.x, input.to.x)}':y='${lerp(input.from.y, input.to.y)}':d=${frames}:s=${width}x${height}:fps=${fps},`
-        + 'setsar=1,format=yuv420p',
-      '-frames:v', String(frames), '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '16',
+      '-sseof', '-0.1', '-i', videoPath, '-update', '1', '-q:v', '2',
+      '-vf', `scale=${size.width}:${size.height}:force_original_aspect_ratio=increase,crop=${size.width}:${size.height},setsar=1`,
+      framePath,
+    ], { timeout: 30_000, maxBuffer: 1024 * 1024 })
+    return await readFile(framePath)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Joins the shots of a video into one clip, each blending into the next over
+ * `crossfadeSeconds`. Every shot is brought to the same size and frame rate
+ * first, without stretching, so shots a model returned at slightly different
+ * sizes still join cleanly.
+ */
+export async function joinClips(clips: Buffer[], size: { width: number; height: number }, crossfadeSeconds: number) {
+  if (clips.length === 1) return clips[0]!
+  const directory = await mkdtemp(join(tmpdir(), 'rrit-join-'))
+  try {
+    const paths = clips.map((_, index) => join(directory, `shot-${index}.mp4`))
+    await Promise.all(clips.map((clip, index) => writeFile(paths[index]!, clip)))
+    const durations = (await Promise.all(paths.map(probe))).map((info) => info.duration)
+    const fade = Math.max(0, Math.min(crossfadeSeconds, ...durations.map((value) => value / 2)))
+    const normalized = paths
+      .map((_, index) => `[${index}:v]fps=30,scale=${size.width}:${size.height}:force_original_aspect_ratio=increase,crop=${size.width}:${size.height},setsar=1,format=yuv420p,settb=AVTB[s${index}];`)
+      .join('')
+    let elapsed = durations[0]!
+    let previous = 's0'
+    const joins = durations.slice(1).map((duration, index) => {
+      const offset = elapsed - fade
+      elapsed += duration - fade
+      const label = `j${index + 1}`
+      const step = `[${previous}][s${index + 1}]xfade=transition=fade:duration=${fade}:offset=${offset.toFixed(3)}[${label}];`
+      previous = label
+      return step
+    }).join('')
+    const outputPath = join(directory, 'joined.mp4')
+    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+      ...paths.flatMap((path) => ['-i', path]),
+      '-filter_complex', `${normalized}${joins}[${previous}]null[out]`,
+      '-map', '[out]', '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '16',
       '-pix_fmt', 'yuv420p', outputPath,
     ], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 })
     return await readFile(outputPath)

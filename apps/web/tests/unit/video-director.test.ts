@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { directorInstructions, directVideo } from '../../server/utils/video-director'
-import { buildStoryboardExecutionBrief } from '../../server/utils/video-execution-brief'
+import { buildShotExecutionBrief } from '../../server/utils/video-execution-brief'
 import { storyboardProblems, storyboardSchema, type Storyboard } from '../../shared/schemas/storyboard'
+
+// What a model like Veo publishes, with the configured 6 to 12 second video.
+const limits = { durations: [4, 6, 8], minSeconds: 6, maxSeconds: 12 }
 
 vi.mock('../../server/utils/ai-provider', () => ({
   aiProviderConfiguration: () => ({ name: 'openai', responsesUrl: 'https://example.test/responses', headers: {} }),
@@ -23,7 +26,7 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
     shots: [
       {
         purpose: 'The arrival: the car lowers into its photographed place.',
-        durationSeconds: 3,
+        durationSeconds: 4,
         camera: { move: 'Low drone hold tilting down as the car descends.', lens: '24mm wide', speed: 'slow', ease: 'ease-out on landing', rotationDegrees: 0 },
         atmosphere: 'Storm clouds clearing to golden light.',
         effects: 'Dust lifting at touchdown.',
@@ -34,7 +37,7 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
       },
       {
         purpose: 'The reveal: the camera arcs a little and rises.',
-        durationSeconds: 3,
+        durationSeconds: 8,
         camera: { move: 'Gentle 30 degree arc combined with a rise.', lens: '35mm', speed: 'measured', ease: 'ease-in-out', rotationDegrees: 30 },
         atmosphere: 'Golden hour, wet asphalt reflections.',
         effects: 'Light sliding along the bodywork.',
@@ -63,7 +66,7 @@ function answer(value: unknown, cost = 0.002) {
 const input = {
   photograph: Buffer.from('photo'),
   channel: 'TikTok' as const,
-  totalSeconds: 6,
+  limits,
   locale: 'sq-XK' as const,
   brand: { name: 'Hamza Rent a Car', industry: 'Car rental', audience: 'Travellers' },
   post: { title: 'Range Rover', caption: 'Rezervo', hook: 'Udhëtimi fillon', cta: 'Rezervo sot' },
@@ -72,7 +75,7 @@ const input = {
 describe('storyboard rules', () => {
   it('accepts a valid one-photograph storyboard', () => {
     expect(storyboardSchema.parse(storyboard())).toBeTruthy()
-    expect(storyboardProblems(storyboard(), 6)).toEqual([])
+    expect(storyboardProblems(storyboard(), limits)).toEqual([])
   })
 
   it('rejects a turn of more than 45 degrees in the schema', () => {
@@ -84,27 +87,38 @@ describe('storyboard rules', () => {
   it('rejects a 360 orbit, a hidden side and a video that does not end on the photograph', () => {
     const orbit = storyboard()
     orbit.shots[1]!.camera.move = 'A full 360 orbit around the car.'
-    expect(storyboardProblems(orbit, 6).join(' ')).toContain('Shot 2')
+    expect(storyboardProblems(orbit, limits).join(' ')).toContain('Shot 2')
     const back = storyboard()
     back.shots[0]!.purpose = 'Show the rear view of the car.'
-    expect(storyboardProblems(back, 6).join(' ')).toContain('Shot 1')
+    expect(storyboardProblems(back, limits).join(' ')).toContain('Shot 1')
     const unconfirmed = storyboard()
     unconfirmed.shots[0]!.showsOnlyPhotographedSides = false
-    expect(storyboardProblems(unconfirmed, 6)).toHaveLength(1)
+    expect(storyboardProblems(unconfirmed, limits)).toHaveLength(1)
     const open = storyboard()
     open.shots[1]!.endsOnPhotograph = false
-    expect(storyboardProblems(open, 6).join(' ')).toContain('final shot')
+    expect(storyboardProblems(open, limits).join(' ')).toContain('final shot')
   })
 
-  it('requires the shots to fill the video exactly', () => {
-    expect(storyboardProblems(storyboard(), 8).join(' ')).toContain('8 seconds')
+  it('keeps the video inside the configured length', () => {
+    expect(storyboardProblems(storyboard(), { ...limits, maxSeconds: 10 }).join(' ')).toContain('between 6 and 10 seconds')
+  })
+
+  it('allows only shot lengths the configured model renders', () => {
+    const odd = storyboard()
+    odd.shots[0]!.durationSeconds = 5
+    odd.shots[1]!.durationSeconds = 7
+    expect(storyboardProblems(odd, limits).join(' ')).toContain('one of 4, 6, 8 seconds')
+    // Another model publishing other lengths changes the rule, not the code.
+    expect(storyboardProblems(odd, { ...limits, durations: [5, 7] })).toEqual([])
   })
 })
 
 describe('the creative director', () => {
   it('states the one-photograph rules and the channel, but no scene of its own', () => {
     const brief = directorInstructions(input)
-    expect(brief).toContain('TikTok, on a 9:16 canvas, 6 seconds')
+    expect(brief).toContain('TikTok, on a 9:16 canvas, between 6 and 12 seconds')
+    expect(brief).toContain('one of 4, 6, 8 seconds')
+    expect(brief).toContain('Two shots usually serve best')
     expect(brief).toContain('at most 45 degrees')
     expect(brief).toContain('never 360 degrees')
     expect(brief).toContain('Albanian')
@@ -140,22 +154,28 @@ describe('the creative director', () => {
   })
 })
 
-describe('the cinematic motion prompt', () => {
-  it('briefs every beat like a cinematographer and keeps the subject rules', () => {
-    const brief = buildStoryboardExecutionBrief({ storyboard: storyboard(), guardrails: ['No speed claims.'] })
-    expect(brief).toContain('6-second video')
-    expect(brief).toContain('0s-3s (beat 1)')
-    expect(brief).toContain('3s-6s (beat 2)')
-    expect(brief).toContain('Lens: 24mm wide')
-    expect(brief).toContain('Ease: ease-out on landing')
+describe('the cinematic shot prompt', () => {
+  it('briefs one shot like a cinematographer and keeps the subject rules', () => {
+    const brief = buildShotExecutionBrief({ storyboard: storyboard(), index: 1, start: 'previous_shot', endsOnPhotograph: true, guardrails: ['No speed claims.'] })
+    expect(brief).toContain('8-second shot, shot 2 of 2')
+    expect(brief).toContain('the last frame of the previous shot')
+    expect(brief).toContain('ends exactly on the supplied last frame, the real photograph')
+    expect(brief).toContain('Lens: 35mm')
+    expect(brief).toContain('Ease: ease-in-out')
     expect(brief).toContain('no more than 30 degrees')
     expect(brief).toContain('Keep the subject identical in every frame')
     expect(brief).toContain('No speed claims.')
   })
 
+  it('lets an arrival open away from the photograph', () => {
+    const brief = buildShotExecutionBrief({ storyboard: storyboard(), index: 0, start: 'free', endsOnPhotograph: true })
+    expect(brief).toContain('before the subject is in its photographed place')
+    expect(brief).not.toContain('starts exactly on the supplied first frame')
+  })
+
   it('shortens the director prose, never the rules, to fit a prompt limit', () => {
-    const full = buildStoryboardExecutionBrief({ storyboard: storyboard() })
-    const short = buildStoryboardExecutionBrief({ storyboard: storyboard(), maxLength: full.length - 40 })
+    const full = buildShotExecutionBrief({ storyboard: storyboard(), index: 0, start: 'photograph', endsOnPhotograph: false })
+    const short = buildShotExecutionBrief({ storyboard: storyboard(), index: 0, start: 'photograph', endsOnPhotograph: false, maxLength: full.length - 40 })
     expect(short.length).toBeLessThanOrEqual(full.length - 40)
     expect(short).toContain('Show only what the photograph shows.')
   })

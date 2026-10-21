@@ -43,7 +43,9 @@ export function aiVideoConfigured() {
 // future provider only means adding another adapter — the rest of the
 // pipeline keeps speaking this type.
 export type VideoProviderRequest = {
-  firstFrame: Buffer
+  // Where the motion starts. Left out for a shot that opens away from the
+  // photograph and only has to arrive at it.
+  firstFrame?: Buffer
   // Where the motion must end. Sent only to a model that accepts a closing
   // frame; it pins the subject at both ends so the model cannot redraw it.
   lastFrame?: Buffer
@@ -62,6 +64,23 @@ type OpenRouterVideoModel = {
   supported_resolutions?: string[]
   supported_aspect_ratios?: string[]
   supported_frame_images?: string[]
+  supported_durations?: number[]
+}
+
+/**
+ * What the configured model (OPENROUTER_VIDEO_MODEL) can do, as OpenRouter
+ * publishes it: the shot lengths it renders and the frames it can be pinned
+ * to. Nothing here is assumed about a particular model.
+ */
+export async function aiVideoCapabilities() {
+  const provider = config()
+  const model = provider ? await configuredModel(provider) : undefined
+  return {
+    model: provider?.model,
+    durations: [...new Set(model?.supported_durations || [])].filter((value) => Number.isInteger(value) && value > 0).sort((a, b) => a - b),
+    firstFrame: !model?.supported_frame_images || model.supported_frame_images.includes('first_frame'),
+    lastFrame: !!model?.supported_frame_images?.includes('last_frame'),
+  }
 }
 let modelCatalogue: Promise<OpenRouterVideoModel[]> | undefined
 
@@ -125,7 +144,7 @@ async function openrouterAdapter(request: VideoProviderRequest): Promise<VideoPr
       resolution: providerResolution(resolutionCap(request.resolution), model?.supported_resolutions || []),
       generate_audio: false,
       frame_images: [
-        frame(request.firstFrame, 'first_frame'),
+        ...(request.firstFrame ? [frame(request.firstFrame, 'first_frame')] : []),
         ...(request.lastFrame && model?.supported_frame_images?.includes('last_frame')
           ? [frame(request.lastFrame, 'last_frame')]
           : []),
@@ -196,7 +215,7 @@ export function providerCanvasFor(target: Canvas, supported: string[]) {
 // the renderer blind to which provider is in use so a future adapter is a
 // one-file addition. `canvas` and `aspectRatio` come from aiVideoCanvas.
 export async function generateAiVideo(input: {
-  image: Buffer
+  image?: Buffer
   lastFrame?: Buffer
   prompt: string
   durationSeconds: number
