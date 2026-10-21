@@ -280,7 +280,9 @@ export async function localPostChecks(
             // Informs only: publishing brings the file to the canvas itself.
             advisory: true,
             passed: !!render?.width && matchesChannelCanvas(post.channel, { width: render.width, height: render.height }),
-            message: 'server.VIDEO_CHANNEL_FORMAT_MISMATCH',
+            message: render?.width && matchesChannelCanvas(post.channel, { width: render.width, height: render.height })
+              ? 'validation.deliveredFormatConfirmed'
+              : 'server.VIDEO_CHANNEL_FORMAT_MISMATCH',
             params: { channel: post.channel, format: channelFormat(post.channel) },
           },
         ]
@@ -290,7 +292,9 @@ export async function localPostChecks(
               key: 'channel_canvas',
               advisory: true,
               passed: !!asset?.width && matchesChannelCanvas(post.channel, { width: asset.width, height: asset.height }),
-              message: 'server.IMAGE_CHANNEL_FORMAT_MISMATCH',
+              message: asset?.width && matchesChannelCanvas(post.channel, { width: asset.width, height: asset.height })
+                ? 'validation.deliveredFormatConfirmed'
+                : 'server.IMAGE_CHANNEL_FORMAT_MISMATCH',
               params: { channel: post.channel, format: channelFormat(post.channel) },
             },
           ]

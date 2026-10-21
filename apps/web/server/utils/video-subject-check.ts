@@ -7,7 +7,7 @@ import {
   aiProviderModel,
   aiProviderStructuredRouting,
 } from './ai-provider'
-import { channelFrame, parseMonthlyProviderResponse, responseText } from './monthly-ai'
+import { channelFrame, parseMonthlyProviderResponse, REVIEW_MAX_OUTPUT_TOKENS, responseText } from './monthly-ai'
 import { qualitySchema } from '../../shared/schemas/monthly-plan'
 import type { Storyboard } from '../../shared/schemas/storyboard'
 import { normalizeQualityReview } from './post-quality-domain'
@@ -44,7 +44,7 @@ export async function verifyVideoSubject(input: { photograph: Buffer; frames: Bu
         store: false,
         instructions:
           'The first image is a real photograph. The other images are frames from a video generated from it. Decide whether every frame shows the very same primary subject as the photograph: for a vehicle the same make, model, generation, body style, colour and wheel design; for a product the same product. Camera angle, distance, lighting and position may differ. Answer sameSubject=false if any frame shows a different or altered subject, or if the subject has been replaced. Give a short reason in English.',
-        max_output_tokens: 300,
+        max_output_tokens: REVIEW_MAX_OUTPUT_TOKENS,
         input: [{
           role: 'user',
           content: [
@@ -107,7 +107,7 @@ export async function reviewVideoQuality(input: {
       model: aiProviderModel('AI_PLANNER_MODEL'),
       store: false,
     instructions: `Review the finished ${ratioLabel(channelCanvas(input.targetChannel))} social video for ${input.targetChannel} shown as chronological frames against the original business photograph and the supplied verified facts. The target platform is ${input.targetChannel}; treat Instagram, Facebook and TikTok as equally supported video targets. Evaluate the caption, visible subjects, motion continuity, overlays, legibility, brand fit, source fidelity, end card, and platform fit for ${input.targetChannel}. For TikTok, check full-screen composition, first-frame clarity, text kept clear of the interface zones and native short-form presentation. For Instagram and Facebook, check the feed video presentation, first-frame clarity, safe text placement and legibility. Platform fit and subjective visual weaknesses must produce WARN only. Do not assume motion between sampled frames is proven. Set factuality=false only for invented products, people, venue features, offers, unsupported claims or a source photograph mismatch. Give specific, actionable reasons in ${contentLanguageForLocale(input.locale)}. Use WARN for subjective weaknesses and BLOCK only for factual or source-evidence failures.${videoReviewAddenda(context)} Return the required structured quality result.`,
-      max_output_tokens: 1200,
+      max_output_tokens: REVIEW_MAX_OUTPUT_TOKENS,
       input: [{
         role: 'user',
         content: [

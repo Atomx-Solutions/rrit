@@ -729,6 +729,10 @@ export async function buildVideoOverlayLayers(input: {
   subline?: string
   cta?: string
   zone: 'top' | 'bottom'
+  // Where the subject spans vertically, as shares of the height from the top.
+  // The text then takes the free side with more room and is sized to fit
+  // there, so it never covers the subject.
+  avoid?: { top: number; bottom: number }
   primaryColor?: string
   onPrimary?: string
   fontFamily?: string
@@ -783,7 +787,7 @@ export async function buildVideoOverlayLayers(input: {
   const eyebrow = input.eyebrow?.trim().toLocaleUpperCase() || ''
   const sublineSize = Math.round(width * 0.052)
   // A headline that already fills three lines carries the message alone.
-  const sublineLines = input.subline?.trim() && headlineLines.length < 3
+  let sublineLines = input.subline?.trim() && headlineLines.length < 3
     ? wrap(input.subline.trim(), sublineSize, 0.52).slice(0, 2)
     : []
   // A call to action reads as a button only while it is button-sized.
@@ -794,7 +798,7 @@ export async function buildVideoOverlayLayers(input: {
 
   const gap = Math.round(height * 0.02)
   const ruleHeight = Math.max(4, Math.round(brandSize * 0.18))
-  const headlineStep = Math.round(headlineSize * 1.02)
+  let headlineStep = Math.round(headlineSize * 1.02)
   const sublineStep = Math.round(sublineSize * 1.25)
   // Every row's height in reading order, so the block can be placed from
   // either edge of the safe area with the same arithmetic.
@@ -807,15 +811,32 @@ export async function buildVideoOverlayLayers(input: {
       .toBuffer()
     : undefined
   const brandHeight = brandMark ? (await sharp(brandMark).metadata()).height || brandSize : brandSize
-  const rows = [
+  const measure = () => [
     brandHeight, gap, ruleHeight, gap,
     ...(eyebrow ? [eyebrowSize, gap] : []),
     headlineLines.length * headlineStep, gap,
     ...(sublineLines.length ? [sublineLines.length * sublineStep, gap] : []),
     cta ? ctaHeight : 0,
-  ]
-  const blockHeight = rows.reduce((total, value) => total + value, 0)
-  let y = input.zone === 'top' ? safeTop : safeBottom - blockHeight
+  ].reduce((total, value) => total + value, 0)
+  let blockHeight = measure()
+  // With the subject's band known, the text goes to the free side with more
+  // room, and the headline steps down until the whole block fits there. The
+  // copy itself is never cut; at the smallest size it keeps the room it needs.
+  let zone = input.zone
+  if (input.avoid) {
+    const above = Math.round(height * input.avoid.top) - safeTop - gap
+    const below = safeBottom - Math.round(height * input.avoid.bottom) - gap
+    zone = above >= below ? 'top' : 'bottom'
+    const room = Math.max(above, below)
+    while (blockHeight > room && headlineSize > 40) {
+      headlineSize -= 4
+      headlineLines = wrap(headlineText, headlineSize, 0.62)
+      headlineStep = Math.round(headlineSize * 1.02)
+      sublineLines = headlineLines.length < 3 ? sublineLines : []
+      blockHeight = measure()
+    }
+  }
+  let y = zone === 'top' ? safeTop : safeBottom - blockHeight
   const top = y
   const brandTop = y
   const brandY = (y += brandHeight)
@@ -832,9 +853,9 @@ export async function buildVideoOverlayLayers(input: {
   // A soft scrim behind the type keeps it legible on any photograph without
   // boxing the motion in.
   const reach = Math.round(height * 0.12)
-  const scrimStart = input.zone === 'top' ? 0 : Math.max(0, top - reach)
-  const scrimEnd = input.zone === 'top' ? Math.min(height, top + blockHeight + reach) : height
-  const scrim = input.zone === 'top'
+  const scrimStart = zone === 'top' ? 0 : Math.max(0, top - reach)
+  const scrimEnd = zone === 'top' ? Math.min(height, top + blockHeight + reach) : height
+  const scrim = zone === 'top'
     ? '<stop offset="0" stop-color="#000" stop-opacity="0.66"/><stop offset="0.7" stop-color="#000" stop-opacity="0.38"/><stop offset="1" stop-color="#000" stop-opacity="0"/>'
     : '<stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="0.3" stop-color="#000" stop-opacity="0.38"/><stop offset="1" stop-color="#000" stop-opacity="0.66"/>'
   const layer = (body: string) => sharp(Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>

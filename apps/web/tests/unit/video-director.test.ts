@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { directorInstructions, directVideo } from '../../server/utils/video-director'
 import { buildShotExecutionBrief } from '../../server/utils/video-execution-brief'
-import { storyboardProblems, storyboardSchema, type Storyboard } from '../../shared/schemas/storyboard'
+import { storyboardProblems, storyboardSchema, storyboardShape, type Storyboard } from '../../shared/schemas/storyboard'
 
 // What a model like Veo publishes, with the configured 6 to 12 second video.
 const limits = { durations: [4, 6, 8], minSeconds: 6, maxSeconds: 12 }
@@ -23,10 +23,12 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
     rationale: 'A dramatic arrival fits a premium rental launch.',
     cta: 'Rezervo sot',
     caption: 'Makina jote e radhës të pret. Rezervo sot.',
+    subjectFrame: { top: 0.4, bottom: 0.85 },
     shots: [
       {
         purpose: 'The arrival: the car lowers into its photographed place.',
         durationSeconds: 4,
+        shotSize: 'wide',
         camera: { move: 'Low drone hold tilting down as the car descends.', lens: '24mm wide', speed: 'slow', ease: 'ease-out on landing', rotationDegrees: 0 },
         atmosphere: 'Storm clouds clearing to golden light.',
         effects: 'Dust lifting at touchdown.',
@@ -38,6 +40,7 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
       {
         purpose: 'The reveal: the camera arcs a little and rises.',
         durationSeconds: 8,
+        shotSize: 'medium',
         camera: { move: 'Gentle 30 degree arc combined with a rise.', lens: '35mm', speed: 'measured', ease: 'ease-in-out', rotationDegrees: 30 },
         atmosphere: 'Golden hour, wet asphalt reflections.',
         effects: 'Light sliding along the bodywork.',
@@ -99,8 +102,30 @@ describe('storyboard rules', () => {
     expect(storyboardProblems(open, limits).join(' ')).toContain('final shot')
   })
 
-  it('keeps the video inside the configured length', () => {
-    expect(storyboardProblems(storyboard(), { ...limits, maxSeconds: 10 }).join(' ')).toContain('between 6 and 10 seconds')
+  it('fills the whole configured length', () => {
+    expect(storyboardProblems(storyboard(), { ...limits, maxSeconds: 10 }).join(' ')).toContain('must last 10 seconds together')
+    const short = storyboard()
+    short.shots[0]!.durationSeconds = 4
+    short.shots[1]!.durationSeconds = 4
+    expect(storyboardProblems(short, limits).join(' ')).toContain('must last 12 seconds together')
+  })
+
+  it('gives consecutive scenes their own framing', () => {
+    const repeated = storyboard()
+    repeated.shots[1]!.shotSize = 'wide'
+    expect(storyboardProblems(repeated, limits).join(' ')).toContain('same wide framing as shot 1')
+    // A storyboard stored before framing existed still reads without a problem.
+    const stored = storyboard({ subjectFrame: undefined })
+    stored.shots.forEach((shot) => { delete shot.shotSize })
+    expect(storyboardProblems(stored, limits)).toEqual([])
+  })
+
+  it('tells every video in separate shots when the length holds them', () => {
+    const single = storyboard({ shots: [storyboard().shots[1]!] })
+    expect(storyboardProblems(single, limits).join(' ')).toContain('in 2 to 3 separate shots')
+    expect(storyboardShape(limits)).toEqual({ minShots: 2, maxShots: 3, totalSeconds: 12 })
+    // A length that holds only one shot still allows one.
+    expect(storyboardShape({ ...limits, maxSeconds: 6 })).toEqual({ minShots: 1, maxShots: 1, totalSeconds: 6 })
   })
 
   it('allows only shot lengths the configured model renders', () => {
@@ -116,9 +141,9 @@ describe('storyboard rules', () => {
 describe('the creative director', () => {
   it('states the one-photograph rules and the channel, but no scene of its own', () => {
     const brief = directorInstructions(input)
-    expect(brief).toContain('TikTok, on a 9:16 canvas, between 6 and 12 seconds')
+    expect(brief).toContain('TikTok, on a 9:16 canvas. Its shots last 12 seconds together')
     expect(brief).toContain('one of 4, 6, 8 seconds')
-    expect(brief).toContain('Two shots usually serve best')
+    expect(brief).toContain('told in 2 to 3 separate shots')
     expect(brief).toContain('at most 45 degrees')
     expect(brief).toContain('never 360 degrees')
     expect(brief).toContain('Albanian')

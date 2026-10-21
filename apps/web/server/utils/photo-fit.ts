@@ -13,7 +13,7 @@ import {
   aiProviderStructuredRouting,
 } from './ai-provider'
 import { providerCreativeCanvas } from './monthly-planner-domain'
-import { parseMonthlyProviderResponse, responseText } from './monthly-ai'
+import { parseMonthlyProviderResponse, REVIEW_MAX_OUTPUT_TOKENS, responseText } from './monthly-ai'
 
 /**
  * Fitting a business photograph to the canvas of the channel it is for.
@@ -291,7 +291,7 @@ export async function reviewExtension(original: Buffer, extended: Buffer) {
         store: false,
         instructions:
           'The first image is a real photograph. The second is the same photograph extended to a new canvas by an image model. Answer natural=true only if the second reads as one real photograph: no visible line or change of texture where the original ends, the same light direction, colour and perspective throughout, nothing duplicated or mirrored, and no added person, vehicle, product, sign, text or logo. Give a short reason in English.',
-        max_output_tokens: 300,
+        max_output_tokens: REVIEW_MAX_OUTPUT_TOKENS,
         input: [{ role: 'user', content: [{ type: 'input_text', text: 'Original, then extended.' }, image(original), image(extended)] }],
         ...aiProviderStructuredRouting(provider.name),
         text: {

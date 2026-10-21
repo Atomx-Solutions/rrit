@@ -1761,6 +1761,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     let creative: Buffer | undefined
     // How a video slot's photograph was fitted to its channel canvas.
     let videoPosterFit: PhotoFitMode | undefined
+    let videoPosterFitReasons: string[] = []
     let imageGeneration: Awaited<ReturnType<typeof monthlyImageCall>> | undefined
     let quality: ReturnType<typeof qualitySchema.parse> | undefined
     const revisionFeedback: string[] = []
@@ -1888,6 +1889,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         )
         creative = fitted.bytes
         videoPosterFit = fitted.mode
+        videoPosterFitReasons = fitted.reasons
+        if (fitted.mode === 'crop_fallback' && fitted.reasons.length)
+          console.warn('A photograph could not be extended and was cropped instead', { planId: plan.id, reasons: fitted.reasons })
         imageGeneration = undefined
         quality = normalizeQualityReview(
           qualitySchema.parse({
@@ -2240,7 +2244,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
               JSON.stringify({
                 ...provenance,
                 ...(slot.deliverable === 'video'
-                  ? { source: 'video-first-frame', sourceAssetId: content.assetId, channel: slot.channel, fit: videoPosterFit }
+                  ? { source: 'video-first-frame', sourceAssetId: content.assetId, channel: slot.channel, fit: videoPosterFit, ...(videoPosterFitReasons.length ? { fitReasons: videoPosterFitReasons.map((reason) => reason.slice(0, 200)) } : {}) }
                   : {}),
                 checksum: evidenceHash(creative.toString('base64')),
               }),

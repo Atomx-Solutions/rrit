@@ -689,6 +689,20 @@ export function validateEditorialPlan(
     platformHistory: 0,
   }
   if (plan.slots.length !== count) throw new PlannerFailure('INVALID_SLOT_COUNT')
+  // A surplus video slot is demoted before anything else is checked, so the
+  // photo, channel and split checks below judge the static post it becomes:
+  // its selected photograph is a post photograph, and with one platform asked
+  // for it takes that platform instead of the video channel the model chose.
+  let videosKept = 0
+  for (const slot of plan.slots) {
+    if (slot.deliverable !== 'video') continue
+    if (videosKept < videoSlots) {
+      videosKept += 1
+      continue
+    }
+    slot.deliverable = 'static_post'
+    slot.channel = soleChannel(channelCounts) || slot.channel
+  }
   for (const [index, slot] of plan.slots.entries()) {
     const key = `${slot.day}:${slot.time}:${slot.channel}`
     const date = `${month}-${String(slot.day).padStart(2, '0')}T${slot.time}`
@@ -834,12 +848,6 @@ export function validateEditorialPlan(
   // discarding a batch the business already paid for would cost it more than the
   // flag is worth. A demoted slot simply reaches the business as the static post
   // it already is, which is why nothing extra has to be reported.
-  let videosKept = 0
-  for (const slot of plan.slots) {
-    if (slot.deliverable !== 'video') continue
-    if (videosKept < videoSlots) videosKept += 1
-    else slot.deliverable = 'static_post'
-  }
   if (videosKept < videoSlots)
     throw new PlannerFailure('UNGROUNDED_PLAN', [
       `Planifiko saktësisht ${videoSlots} slote si deliverable video, me fotografi të vetat; të tjerat si static_post.`,

@@ -460,7 +460,7 @@
   "admin.packages.delete": "Fshi",
   "admin.packages.deleteTitle": "Fshi paketën",
   "admin.packages.deleteWarning": "A je i sigurt që dëshiron ta fshish përgjithmonë këtë paketë? Ky veprim nuk mund të zhbëhet.",
-  "admin.packages.deleteFor": "Fshi paketën {name}",
+  "admin.packages.deleteFor": "Fshi paketën {{name}}",
   "admin.packages.deleted": "Paketa u fshi.",
   "admin.packages.deleteFailed": "Paketa nuk u fshi.",
   "admin.packages.editFor": "Redakto {{name}}",

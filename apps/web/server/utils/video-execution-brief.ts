@@ -215,7 +215,7 @@ export function buildShotExecutionBrief(input: {
       ...subjectRules,
       `${subjectMotion[shot.subject.motion]} ${clip(shot.subject.description)}`,
       'CAMERA',
-      `${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject no more than ${shot.camera.rotationDegrees} degrees.`,
+      `${shot.shotSize ? `A ${shot.shotSize} shot. ` : ''}${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject no more than ${shot.camera.rotationDegrees} degrees.`,
       'LIGHT AND ATMOSPHERE',
       clip(shot.atmosphere),
       'EFFECTS',

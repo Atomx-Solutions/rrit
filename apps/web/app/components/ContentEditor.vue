@@ -47,6 +47,12 @@ const {
 )
 const savedId = ref(props.id)
 const post = computed(() => data.value.posts.find((p) => p.id === savedId.value))
+// The video review's findings are shown once, in the approval check, together
+// with the way to act on them.
+const videoFindingsShown = computed(() => {
+  const video = post.value?.video
+  return video?.status === 'ready' && !!video.quality && video.quality.decision !== 'PASS' && video.quality.reasons.length > 0
+})
 const selectableAssets = computed(() => {
   const assets = data.value.assets.filter((asset) => asset.rights)
   if (!post.value) return assets
@@ -644,18 +650,8 @@ onBeforeUnmount(() => {
             :description="t('video.subjectWarning', { detail: post.video.subjectWarning.detail })"
             :actions="[{ label: t('video.editWithAi'), icon: 'i-lucide-wand-sparkles', onClick: () => { videoEditOpen = true } }]"
           />
-          <!-- What the video review found, like the review of a post's still. -->
           <UAlert
-            v-if="post?.video?.status === 'ready' && post.video.quality && post.video.quality.decision !== 'PASS' && post.video.quality.reasons.length"
-            :color="post.video.quality.decision === 'BLOCK' ? 'error' : 'warning'"
-            variant="subtle"
-            icon="i-lucide-clipboard-check"
-            :title="t('video.qualityFindingsTitle')"
-            :description="post.video.quality.reasons.join(' ')"
-            :actions="[{ label: t('video.editWithAi'), icon: 'i-lucide-wand-sparkles', onClick: () => { videoEditOpen = true } }]"
-          />
-          <UAlert
-            v-else-if="post?.video?.status === 'ready' && !post.video.quality"
+            v-if="post?.video?.status === 'ready' && !post.video.quality"
             color="neutral"
             variant="subtle"
             icon="i-lucide-hourglass"
@@ -792,7 +788,8 @@ onBeforeUnmount(() => {
                   ? t('coverage.technicalPassed')
                   : t('coverage.manualReview')
             "
-            :description="policyDescription(post?.policyReason)"
+            :description="videoFindingsShown ? post?.video?.quality?.reasons.join(' ') : policyDescription(post?.policyReason)"
+            :actions="videoFindingsShown ? [{ label: t('video.editWithAi'), icon: 'i-lucide-wand-sparkles', onClick: () => { videoEditOpen = true } }] : undefined"
           /><ULink :to="`${base}/brand`" class="text-primary small"
             >{{ t('content.businessFacts') }}</ULink
           >

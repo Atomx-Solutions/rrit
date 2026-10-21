@@ -249,6 +249,21 @@ describe('monthly evidence and provider boundaries', () => {
     ])
     expect(() => plannerEvidence(workspace, now, '2026-09')).toThrow('BUSINESS_CONTEXT_REQUIRED')
   })
+  it('turns an unrequested video slot into the requested post before checking its photo', () => {
+    const workspace = createDemo()
+    const selectedId = randomUUID()
+    workspace.assets[0]!.id = selectedId
+    const evidence = plannerEvidence(workspace, now, '2026-09', {
+      mode: 'selected',
+      selectedAssetIds: [selectedId],
+    })
+    const research = researchFromResponse(researchFixture(), now)
+    const plan: z.infer<typeof editorialPlanSchema> = editorialFixture()
+    // One Instagram post was asked for; the model planned a TikTok video.
+    Object.assign(plan.slots[0]!, { requiredAssetId: selectedId, deliverable: 'video', channel: 'TikTok' })
+    const validated = validateEditorialPlan(plan, evidence, research, '2026-09', 1, undefined, [], { Instagram: 1 }, 0)
+    expect(validated.slots[0]).toMatchObject({ deliverable: 'static_post', channel: 'Instagram', requiredAssetId: selectedId })
+  })
   it('captures user-selected photos and requires the strategy to assign each one once', () => {
     const workspace = createDemo()
     const selectedId = randomUUID()

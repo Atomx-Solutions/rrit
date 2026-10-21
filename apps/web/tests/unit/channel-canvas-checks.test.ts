@@ -147,6 +147,30 @@ describe('channel interface zones', () => {
     }
   })
 
+  it('sets video type in the free space beside the subject, never over it', async () => {
+    const canvas = channelCanvas('Facebook')
+    // A car filling the lower two thirds leaves room only above it.
+    const avoid = { top: 0.42, bottom: 0.95 }
+    const overlay = await buildVideoOverlayLayers({
+      businessName: 'Hamza Rent a Car',
+      headline: 'Sot ndryshon ora e nisjes suaj',
+      cta: 'Dërgoni orën lokale',
+      zone: 'bottom',
+      avoid,
+      target: canvas,
+    })
+    expect(overlay.extent.bottom).toBeLessThanOrEqual(canvas.height * avoid.top)
+    // A subject high in the frame sends the type below it instead.
+    const low = await buildVideoOverlayLayers({
+      businessName: 'Hamza Rent a Car',
+      headline: 'Sot ndryshon ora',
+      zone: 'top',
+      avoid: { top: 0.1, bottom: 0.45 },
+      target: canvas,
+    })
+    expect(low.extent.top).toBeGreaterThanOrEqual(canvas.height * 0.45)
+  })
+
   it('keeps video type inside the area TikTok leaves visible', async () => {
     const canvas = channelCanvas('TikTok')
     const covered = channelUiInsets('TikTok')

@@ -7,7 +7,6 @@ import {
   consumeReservedCredits,
   creditBalanceSnapshot,
   creditPricing,
-  creditsForCost,
   releaseReservedCredits,
   reserveCredits,
   videoRenderCredits,
@@ -19,6 +18,7 @@ import { approvedVideoCopy, videoPostEvidence } from './video-quality'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
 import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
 import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
+import { directedTakes, videoChargeCredits } from './video-takes'
 import { storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
 import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, joinClips, VIDEO_END_CARD_SECONDS, videoDuration } from './video-compose'
@@ -172,7 +172,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // so it falls back to the brief's hook and call to action.
     const creative = post.aiProvenance?.creative
     const overlayZone = plan.shot.textZone === 'bottom' ? 'bottom' as const : 'top' as const
-    const overlay = await buildVideoOverlayLayers({
+    const overlayInput = {
       businessName: workspace.brand.name,
       eyebrow: creative?.eyebrow,
       headline: creative?.headline || post.video.hook,
@@ -187,7 +187,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
       logo: logoBytes || undefined,
       target: canvas,
       covered: channelUiInsets(post.channel),
-    })
+    }
+    const overlay = await buildVideoOverlayLayers(overlayInput)
     return {
       business,
       brandName: workspace.brand.name,
@@ -225,7 +226,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
           cta: post.video.cta,
           intent: post.video.intent,
           purpose: post.video.purpose,
-          assetDirection: post.video.assetDirection,
         },
         userInstruction: post.video.editInstruction,
       },
@@ -240,6 +240,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       // spread across the first part of the motion.
       // Placed in time once the shots are known.
       overlayImages: overlay.layers,
+      overlayInput,
     }
   }).catch(async (error) => {
     await withBusinessTransaction(userId, (client, business) =>
@@ -327,7 +328,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // locally. The model paints its own closest ratio around the channel
     // canvas, and the composer crops the clip back to it.
     const provider = await aiVideoCanvas(snapshot.canvas)
-    let directionCostUsd = 0
     let generationCostUsd: number | null = 0
     const addCost = (value: number | null) => {
       generationCostUsd = generationCostUsd === null || value === null ? null : generationCostUsd + value
@@ -389,46 +389,41 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // once more. The second take is always delivered: if it changed the
     // subject too, the video carries a warning for the business to review,
     // and they can direct a new take themselves with Edit video with AI.
-    let storyboard: Storyboard | null = null
-    let result: Awaited<ReturnType<typeof take>> | undefined
-    let previousAttempt: { storyboard: Storyboard | null; problem: string } | undefined
-    for (let attempt = 0; attempt < 2 && !result; attempt++) {
-      failureReason = 'direction_failed'
-      const direction = await directVideo({
-        photograph: snapshot.fitted,
-        channel: snapshot.channel,
-        limits,
-        locale: snapshot.locale,
-        ...snapshot.director,
-        ...(previousAttempt ? { previousAttempt } : {}),
-      })
-      directionCostUsd += direction.costUsd
-      failureReason = 'render_failed'
-      storyboard = direction.storyboard
-      if (!storyboard) console.warn('The video director gave no valid storyboard; rendering the strategy shot', { postId, attempt })
-      const takeSeconds = storyboard ? storyboardSeconds(storyboard) : closestDuration(snapshot.durationSeconds, capabilities.durations)
-      failureReason = 'credits_insufficient'
-      await reserveFor(takeSeconds, attempt)
-      failureReason = 'render_failed'
-      // The first take may be retried only when a second one could be paid
-      // for too; otherwise it is the take delivered, with any warning.
-      const retryAffordable = !pricing
-        || affordableVideoSeconds(pricing.spendable + snapshot.videoCredits, pricing.rates) >= plannedSeconds + takeSeconds
-      const lastTake = attempt > 0 || !retryAffordable
-      try {
-        result = await take(
-          storyboard,
-          previousAttempt ? snapshot.calmPrompt : snapshot.prompt,
-          previousAttempt ? snapshot.calmShot : snapshot.shot,
-          lastTake ? 'record' : 'stop',
-        )
-      } catch (error) {
-        if (!(error instanceof ShotSubjectChanged)) throw error
-        console.warn('A generated take changed its subject', { postId, attempt, shot: error.shot, reason: error.reason })
-        previousAttempt = { storyboard, problem: `Shot ${error.shot}: ${error.reason}` }
-      }
-    }
-    if (!result) throw new Error('No take was made')
+    const takes = await directedTakes({
+      direct: async (previousAttempt) => {
+        failureReason = 'direction_failed'
+        const direction = await directVideo({
+          photograph: snapshot.fitted!,
+          channel: snapshot.channel,
+          limits,
+          locale: snapshot.locale,
+          ...snapshot.director,
+          ...(previousAttempt ? { previousAttempt } : {}),
+        })
+        failureReason = 'render_failed'
+        if (!direction.storyboard) console.warn('The video director gave no valid storyboard; rendering the strategy shot', { postId })
+        return direction
+      },
+      seconds: (planned) => planned ? storyboardSeconds(planned) : closestDuration(snapshot.durationSeconds, capabilities.durations),
+      reserve: async (seconds, attempt) => {
+        failureReason = 'credits_insufficient'
+        await reserveFor(seconds, attempt)
+        failureReason = 'render_failed'
+      },
+      retryAffordable: (planned, next) => !pricing
+        || affordableVideoSeconds(pricing.spendable + snapshot.videoCredits, pricing.rates) >= planned + next,
+      take: (planned, calmer, mode) => take(
+        planned,
+        calmer ? snapshot.calmPrompt : snapshot.prompt,
+        calmer ? snapshot.calmShot : snapshot.shot,
+        mode,
+      ),
+    })
+    const { result, storyboard, directionCostUsd } = takes
+    // The director located the subject in the photograph, so the text is set
+    // again in the free space beside it instead of over it.
+    if (storyboard?.subjectFrame)
+      snapshot.overlayImages = (await buildVideoOverlayLayers({ ...snapshot.overlayInput, avoid: storyboard.subjectFrame })).layers
     const { motion, shotStarts } = result
     const subjectWarning = result.subjectChanges.length
       ? result.subjectChanges.map((change) => `Shot ${change.shot}: ${change.reason}`).join(' ').slice(0, 400)
@@ -514,11 +509,12 @@ export async function renderVideoForPost(userId: string, postId: string) {
       // Charged on what it actually cost. A provider that reports no cost
       // leaves the reservation as the charge, because guessing lower would give
       // the generation away and guessing higher would overcharge.
-      const usdMicroEur = Number(process.env.AI_USD_MICRO_EUR)
-      const totalUsd = costUsd === null ? null : costUsd + reviewCostUsd
-      const charged = totalUsd !== null && totalUsd > 0 && Number.isFinite(usdMicroEur) && usdMicroEur > 0
-        ? await creditsForCost(client, Math.max(1, Math.ceil(totalUsd * usdMicroEur)))
-        : reservedCredits
+      const charged = videoChargeCredits({
+        costUsd: costUsd === null ? null : costUsd + reviewCostUsd,
+        reservedCredits,
+        usdMicroEur: usdMicroEurRate(),
+        providerCostPerCreditMicroEur: (await creditPricing(client)).providerCostPerCreditMicroEur,
+      })
       await consumeReservedCredits(client, {
         organizationId: business.id,
         credits: charged,

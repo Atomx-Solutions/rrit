@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { publishingChannels } from './channel-format'
+import { ctaMaxLength } from './storyboard'
 
 export const monthSchema = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/)
 export const researchSourceSchema = z.object({
@@ -210,7 +211,7 @@ export type LogoZone = z.infer<typeof logoZoneSchema>
 export const creativeSchema = z.object({
   headline: z.string().trim().min(3).max(64),
   eyebrow: z.string().trim().min(2).max(48),
-  cta: z.string().trim().min(2).max(32),
+  cta: z.string().trim().min(2).max(ctaMaxLength),
   // Describes the model's unique composition; it never selects a coded preset.
   layout: z.string().trim().min(1).max(600),
   // Required of the model, because provider structured output rejects a
