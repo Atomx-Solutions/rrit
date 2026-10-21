@@ -67,7 +67,7 @@ describe('invitation input', () => {
     const parsed = invitationCreateSchema.safeParse(valid)
     expect(parsed.success).toBe(true)
     expect(parsed.success && parsed.data.role).toBe('owner')
-    expect(parsed.success && parsed.data.expires_days).toBe(7)
+    expect(parsed.success && parsed.data.expires_minutes).toBe(60)
     expect(parsed.success && parsed.data.profile).toEqual({})
   })
 
@@ -75,8 +75,10 @@ describe('invitation input', () => {
     [{ ...valid, email: 'not-an-email' }],
     [{ ...valid, slug: 'Not A Slug' }],
     [{ ...valid, name: 'x' }],
-    [{ ...valid, expires_days: 0 }],
-    [{ ...valid, expires_days: 31 }],
+    [{ ...valid, expires_minutes: 0 }],
+    [{ ...valid, expires_minutes: 1441 }],
+    // The window is set in minutes now; the old day field is not accepted.
+    [{ ...valid, expires_days: 7 }],
     [{ ...valid, role: 'superadmin' }],
     [{ ...valid, package_request_id: 'not-a-uuid' }],
     // A token hash supplied by the caller would let a client choose its own link.
@@ -87,8 +89,8 @@ describe('invitation input', () => {
 
   it('keeps the resend window inside the same bounds', () => {
     expect(invitationResendSchema.safeParse({}).success).toBe(true)
-    expect(invitationResendSchema.safeParse({ expires_days: 30 }).success).toBe(true)
-    expect(invitationResendSchema.safeParse({ expires_days: 31 }).success).toBe(false)
+    expect(invitationResendSchema.safeParse({ expires_minutes: 1440 }).success).toBe(true)
+    expect(invitationResendSchema.safeParse({ expires_minutes: 1441 }).success).toBe(false)
   })
 })
 

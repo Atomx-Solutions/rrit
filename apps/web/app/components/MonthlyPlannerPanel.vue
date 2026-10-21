@@ -89,23 +89,21 @@ const plan = computed(() => planner.value?.plan)
 // reserve a static photo post before the customer chooses its quantity.
 const selectedQuantity = ref(0)
 const selectedVideoQuantity = ref(0)
-// Which platforms this request is for. Both selected is the absence of a
-// restriction, which is how the planner behaved before the choice existed.
-type PlannerChannel = 'Instagram' | 'Facebook'
+// Which platforms this request is for. Posts and videos reach the same three,
+// each on its own channel's canvas.
+type PlannerChannel = 'Instagram' | 'Facebook' | 'TikTok'
 const channelOptions: { value: PlannerChannel; label: string; icon: string }[] = [
   { value: 'Instagram', label: 'Instagram', icon: 'i-lucide-instagram' },
   { value: 'Facebook', label: 'Facebook', icon: 'i-lucide-facebook' },
-]
-const channelSplit = reactive<Record<PlannerChannel, number>>({ Instagram: 0, Facebook: 0 })
-type VideoChannel = PlannerChannel | 'TikTok'
-const videoChannelOptions: { value: VideoChannel; label: string; icon: string }[] = [
-  ...channelOptions,
   { value: 'TikTok', label: 'TikTok', icon: 'i-lucide-clapperboard' },
 ]
+const channelSplit = reactive<Record<PlannerChannel, number>>({ Instagram: 0, Facebook: 0, TikTok: 0 })
+type VideoChannel = PlannerChannel
+const videoChannelOptions = channelOptions
 const videoChannelSplit = reactive<Record<VideoChannel, number>>({ Instagram: 0, Facebook: 0, TikTok: 0 })
 const requestOpen = ref(false)
 const requestAction = ref<'prepare' | 'generate'>('prepare')
-const splitAssigned = computed(() => channelSplit.Instagram + channelSplit.Facebook)
+const splitAssigned = computed(() => Object.values(channelSplit).reduce((sum, count) => sum + count, 0))
 // A single post is a choice between platforms, not an allocation across them.
 const singlePost = computed(() => selectedQuantity.value === 1)
 const splitComplete = computed(() => splitAssigned.value === selectedQuantity.value)
@@ -130,42 +128,42 @@ function openRequest(action: 'prepare' | 'generate') {
   const half = Math.floor(selectedQuantity.value / 2)
   channelSplit.Instagram = selectedQuantity.value - half
   channelSplit.Facebook = half
+  channelSplit.TikTok = 0
   videoChannelSplit.Instagram = selectedVideoQuantity.value
   videoChannelSplit.Facebook = 0
   videoChannelSplit.TikTok = 0
   requestOpen.value = true
 }
-function chooseSingleChannel(channel: PlannerChannel) {
-  channelSplit.Instagram = channel === 'Instagram' ? 1 : 0
-  channelSplit.Facebook = channel === 'Facebook' ? 1 : 0
+function chooseSingle(split: Record<PlannerChannel, number>, channel: PlannerChannel) {
+  for (const option of channelOptions) split[option.value] = option.value === channel ? 1 : 0
 }
-function setChannelCount(channel: PlannerChannel, value: number) {
-  const other: PlannerChannel = channel === 'Instagram' ? 'Facebook' : 'Instagram'
-  const next = Math.max(0, Math.min(value, selectedQuantity.value))
-  channelSplit[channel] = next
-  // Keep the pair consistent with the number of posts being requested, so the
-  // customer adjusts one side rather than solving for both.
-  channelSplit[other] = selectedQuantity.value - next
-}
-function chooseSingleVideoChannel(channel: VideoChannel) {
-  for (const option of videoChannelOptions) videoChannelSplit[option.value] = option.value === channel ? 1 : 0
-}
-function setVideoChannelCount(channel: VideoChannel, value: number) {
-  const next = Math.max(0, Math.min(value, selectedVideoQuantity.value))
-  videoChannelSplit[channel] = next
-  let excess = videoSplitAssigned.value - selectedVideoQuantity.value
-  for (const option of videoChannelOptions) {
+// Keeps a split consistent with the number being requested, so the customer
+// adjusts one platform rather than solving for all of them.
+function setCount(split: Record<PlannerChannel, number>, total: number, channel: PlannerChannel, value: number) {
+  const assigned = () => Object.values(split).reduce((sum, count) => sum + count, 0)
+  split[channel] = Math.max(0, Math.min(value, total))
+  let excess = assigned() - total
+  for (const option of channelOptions) {
     if (option.value === channel || excess <= 0) continue
-    const removed = Math.min(excess, videoChannelSplit[option.value])
-    videoChannelSplit[option.value] -= removed
+    const removed = Math.min(excess, split[option.value])
+    split[option.value] -= removed
     excess -= removed
   }
-  let missing = selectedVideoQuantity.value - videoSplitAssigned.value
-  for (const option of videoChannelOptions) {
-    if (option.value === channel || missing <= 0) continue
-    videoChannelSplit[option.value] += missing
-    missing = 0
-  }
+  const missing = total - assigned()
+  const receiver = channelOptions.find((option) => option.value !== channel)
+  if (missing > 0 && receiver) split[receiver.value] += missing
+}
+function chooseSingleChannel(channel: PlannerChannel) {
+  chooseSingle(channelSplit, channel)
+}
+function setChannelCount(channel: PlannerChannel, value: number) {
+  setCount(channelSplit, selectedQuantity.value, channel, value)
+}
+function chooseSingleVideoChannel(channel: VideoChannel) {
+  chooseSingle(videoChannelSplit, channel)
+}
+function setVideoChannelCount(channel: VideoChannel, value: number) {
+  setCount(videoChannelSplit, selectedVideoQuantity.value, channel, value)
 }
 // Platforms with no posts are left out entirely: zero is the absence of a
 // request for that platform, not a request for none.
@@ -1231,7 +1229,7 @@ onBeforeUnmount(() => clearInterval(timer))
     >
       <template #body>
         <h3 v-if="selectedVideoQuantity" class="mb-3 text-sm font-semibold text-highlighted">{{ t('monthly.postPlatforms') }}</h3>
-        <div v-if="singlePost" class="grid grid-cols-2 gap-3">
+        <div v-if="singlePost" class="grid grid-cols-3 gap-3">
           <UButton
             v-for="option in channelOptions"
             :key="option.value"
@@ -1243,11 +1241,12 @@ onBeforeUnmount(() => clearInterval(timer))
             class="h-auto flex-col gap-3 py-6"
             @click="chooseSingleChannel(option.value)"
           >
-            <UIcon :name="option.icon" class="size-12" />
+            <TikTokMark v-if="option.value === 'TikTok'" class="size-12" />
+            <UIcon v-else :name="option.icon" class="size-12" />
             <span class="text-sm font-semibold">{{ option.label }}</span>
           </UButton>
         </div>
-        <div v-else class="grid grid-cols-2 gap-3">
+        <div v-else class="grid grid-cols-3 gap-3">
           <UCard
             v-for="option in channelOptions"
             :key="option.value"
@@ -1255,13 +1254,14 @@ onBeforeUnmount(() => clearInterval(timer))
             :class="channelSplit[option.value] > 0 ? 'ring-1 ring-primary' : ''"
           >
             <div class="flex flex-col items-center gap-3 text-center">
-              <UIcon :name="option.icon" class="size-8" />
+              <TikTokMark v-if="option.value === 'TikTok'" class="size-8" />
+              <UIcon v-else :name="option.icon" class="size-8" />
               <span class="text-sm font-semibold text-highlighted">{{ option.label }}</span>
               <LiveInputNumber
                 :model-value="channelSplit[option.value]"
                 :min="0"
                 :max="selectedQuantity"
-                class="w-28"
+                class="w-24"
                 :aria-label="t('monthly.postsForChannel', { channel: option.label })"
                 @update:model-value="setChannelCount(option.value, Number($event))"
               />

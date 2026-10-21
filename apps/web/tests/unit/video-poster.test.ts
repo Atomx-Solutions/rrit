@@ -1,21 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
 import { prepareVideoFirstFrame } from '../../server/utils/image-processing'
-import { postSchema, videoFormat } from '../../shared/schemas/workspace'
+import { postSchema } from '../../shared/schemas/workspace'
+import { channelCanvas, channelFormat } from '../../shared/schemas/channel-format'
 
-const [posterWidth, posterHeight] = videoFormat.split('x').map(Number) as [number, number]
+const videoFormat = channelFormat('TikTok')
 
 describe('video poster derivation', () => {
-  it('derives the poster from the owned source photo at the exact video dimensions', async () => {
+  it.each(['Instagram', 'Facebook', 'TikTok'] as const)('derives the %s poster at the video dimensions of that channel', async (channel) => {
+    const { width: posterWidth, height: posterHeight } = channelCanvas(channel)
     const landscape = await sharp({
       create: { width: 1920, height: 1080, channels: 3, background: '#bb3344' },
     })
       .jpeg()
       .toBuffer()
-    const poster = await prepareVideoFirstFrame(landscape, {
-      width: posterWidth,
-      height: posterHeight,
-    })
+    const poster = await prepareVideoFirstFrame(landscape, channelCanvas(channel))
     const meta = await sharp(poster).metadata()
     expect(meta.width).toBe(posterWidth)
     expect(meta.height).toBe(posterHeight)

@@ -7,6 +7,7 @@ import {
   storedShotDirectionSchema,
 } from './monthly-plan'
 import { brandFactSchema } from './business-brain'
+import { publishingChannels, videoFormats } from './channel-format'
 
 const researchSourceSchema = z
   .url()
@@ -59,12 +60,8 @@ export function permittedEventCategories(events: EventResearch | undefined) {
   return eventResearchCategoryKeys.filter((key) => events.categories[key])
 }
 
-// The shape of every vertical video this application renders. It is one canvas
-// and one length, defined once: the motion brief carries them to the provider
-// call, so neither the brief endpoint nor the monthly planner restates them.
-// The canvas is shared by every channel a video can reach, because Instagram
-// Reels, Facebook video and TikTok all want the same full-screen 9:16 frame.
-export const videoFormat = '1080x1920' as const
+// A video's canvas is its channel's canvas (see channel-format), carried in
+// the motion brief so the provider call never restates it.
 // Six seconds of generated motion: the provider is paid per second, the
 // designed overlay carries the message, and the branded end-card adds its own
 // seconds after it. The schema below still accepts the wider range a future
@@ -75,7 +72,7 @@ export const postSchema = z.object({
   title: z.string().min(3).max(120),
   caption: z.string().max(2200),
   status: z.enum(['draft', 'review', 'approved', 'scheduled', 'published', 'failed']),
-  channel: z.enum(['Instagram', 'Facebook', 'TikTok']),
+  channel: z.enum(publishingChannels),
   format: z.enum(['static', 'carousel']),
   image: z.string(),
   pillar: z.string(),
@@ -116,7 +113,7 @@ export const postSchema = z.object({
     // at render time without reading the editorial plan again.
     shot: storedShotDirectionSchema.optional(),
     durationSeconds: z.number().int().min(6).max(30),
-    format: z.literal(videoFormat),
+    format: z.enum(videoFormats),
     strategyVersion: z.number().int().positive().optional(),
     // Deterministic branded end-card asset rendered after the mp4. Optional
     // so legacy videos (and video posts that fail end-card generation) still

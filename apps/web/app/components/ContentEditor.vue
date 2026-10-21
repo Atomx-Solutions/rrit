@@ -519,7 +519,7 @@ onBeforeUnmount(() => {
               ><USelect
                 v-model="form.channel"
                 :disabled="!editable"
-                :items="post?.video ? ['Instagram', 'Facebook', 'TikTok'] : ['Instagram', 'Facebook']" /></UFormField
+                :items="['Instagram', 'Facebook', 'TikTok']" /></UFormField
             ><UFormField :label="t('content.postTopic')" name="pillar" class="field"
               ><USelect
                 v-model="form.pillar"

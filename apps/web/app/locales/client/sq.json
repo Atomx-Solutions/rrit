@@ -1328,7 +1328,7 @@
   "video.sourceHint": "Përdoret vetëm fotografia origjinale e ngarkuar. Logoja jote shtohet veçmas kur është në dispozicion.",
   "video.readyHint": "Videoja është gati. Kontrolloje para se ta planifikosh ose ta dërgosh.",
   "video.previewTitle": "Parapamja e videos",
-  "video.previewDescription": "Video vertikale 9:16. Për TikTok, muzikën e zgjedh në TikTok.",
+  "video.previewDescription": "Video në formatin e kanalit: 4:5 për Instagram dhe Facebook, 9:16 për TikTok. Për TikTok, muzikën e zgjedh në TikTok.",
   "video.include": "Sa video?",
   "video.includeHint": "Një video për çdo postim.",
   "video.remaining": "{{count}} video të mbetura në paketën tënde",

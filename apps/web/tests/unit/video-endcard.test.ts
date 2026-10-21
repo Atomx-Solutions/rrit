@@ -1,18 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
 import { buildVideoEndCard } from '../../server/utils/image-processing'
+import { channelCanvas } from '../../shared/schemas/channel-format'
+
+const target = channelCanvas('TikTok')
 
 describe('buildVideoEndCard', () => {
-  it('composes a 1080x1920 JPEG end-card by default', async () => {
-    const bytes = await buildVideoEndCard({
-      businessName: 'Hamza Rent a Car',
-      cta: 'Rezervo sot',
-      primaryColor: '#163d6b',
-    })
-    const meta = await sharp(bytes).metadata()
-    expect(meta.width).toBe(1080)
-    expect(meta.height).toBe(1920)
-    expect(meta.format).toBe('jpeg')
+  it('composes the end-card on each channel canvas', async () => {
+    for (const [channel, height] of [['TikTok', 1920], ['Instagram', 1350], ['Facebook', 1350]] as const) {
+      const bytes = await buildVideoEndCard({
+        businessName: 'Hamza Rent a Car',
+        cta: 'Rezervo sot',
+        primaryColor: '#163d6b',
+        target: channelCanvas(channel),
+      })
+      const meta = await sharp(bytes).metadata()
+      expect(meta.width).toBe(1080)
+      expect(meta.height).toBe(height)
+      expect(meta.format).toBe('jpeg')
+    }
   })
   it('respects an explicit target canvas', async () => {
     const bytes = await buildVideoEndCard({
@@ -29,6 +35,7 @@ describe('buildVideoEndCard', () => {
       businessName: 'X',
       cta: 'Y',
       primaryColor: '#ff0000',
+      target,
     })
     // Sample the top-left pixel; the end-card paints a solid primary colour
     // behind everything, so the corner is the brand red.
@@ -48,11 +55,13 @@ describe('buildVideoEndCard', () => {
       businessName: 'DARK',
       cta: 'cta',
       primaryColor: '#000000',
+      target,
     })
     const light = await buildVideoEndCard({
       businessName: 'LIGHT',
       cta: 'cta',
       primaryColor: '#ffffff',
+      target,
     })
     const darkSample = await sharp(dark)
       .extract({ left: 540, top: 1180, width: 1, height: 1 })
@@ -73,6 +82,7 @@ describe('buildVideoEndCard', () => {
     const bytes = await buildVideoEndCard({
       businessName: 'Pa logo',
       cta: 'Veprim',
+      target,
     })
     const meta = await sharp(bytes).metadata()
     expect(meta.width).toBe(1080)
@@ -81,9 +91,9 @@ describe('buildVideoEndCard', () => {
   it('renders changes at the end of long approved copy instead of truncating them', async () => {
     const prefix = 'Book your next visit with our team for a comfortable and carefully prepared experience '
     const businessName = 'A very long business name with many words and a distinct ending Alpha'
-    const first = await buildVideoEndCard({ businessName, cta: `${prefix}Alpha` })
-    const changedCta = await buildVideoEndCard({ businessName, cta: `${prefix}Beta` })
-    const changedName = await buildVideoEndCard({ businessName: businessName.replace('Alpha', 'Beta'), cta: `${prefix}Alpha` })
+    const first = await buildVideoEndCard({ businessName, cta: `${prefix}Alpha`, target })
+    const changedCta = await buildVideoEndCard({ businessName, cta: `${prefix}Beta`, target })
+    const changedName = await buildVideoEndCard({ businessName: businessName.replace('Alpha', 'Beta'), cta: `${prefix}Alpha`, target })
     expect(first.equals(changedCta)).toBe(false)
     expect(first.equals(changedName)).toBe(false)
   })

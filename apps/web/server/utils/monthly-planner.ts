@@ -13,8 +13,8 @@ import {
   contentLocaleForPreferences,
   postSchema,
   videoDurationSeconds,
-  videoFormat,
 } from '../../shared/schemas/workspace'
+import { channelCanvas, channelFormat } from '../../shared/schemas/channel-format'
 import {
   emptyPlannerBrain,
   factIsUsable,
@@ -1859,18 +1859,14 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         creative: { ...parsedContent.data.creative, layout: slot.visualLayout },
       }
       original = assets.find((asset) => asset.id === selectedAssetId)!
-      // A video slot's gallery poster is the prepared 9:16 opening frame of
-      // the mp4 that is about to be rendered, not a separately AI-generated
-      // 4:5 creative. The expensive planner image call, its creative
+      // A video slot's gallery poster is the prepared opening frame of the
+      // mp4 that is about to be rendered, on the channel's canvas, not a
+      // separately AI-generated creative. The expensive planner image call, its creative
       // normalization and the still-image quality review are skipped for video
       // deliverables. The finished MP4 receives its own frame-based review.
       if (slot.deliverable === 'video') {
-        const [posterWidth, posterHeight] = videoFormat.split('x').map(Number)
         creative = await plannerStep('content.video_poster', () =>
-          prepareVideoFirstFrame(original!.bytes, {
-            width: posterWidth!,
-            height: posterHeight!,
-          }),
+          prepareVideoFirstFrame(original!.bytes, channelCanvas(slot.channel)),
         )
         imageGeneration = undefined
         quality = normalizeQualityReview(
@@ -1915,6 +1911,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           `${plan.completed_count}:${previousPageStyle.revision}`,
         ),
         prompt: imagePrompt,
+        channel: slot.channel,
         reference: original.bytes,
         styleReferences: previousPageStyle.contactSheet
           ? [
@@ -1932,6 +1929,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       // selected clear region; it does not apply a coded layout template.
       creative = await normalizeGeneratedCreative(
         imageGeneration.bytes,
+        channelCanvas(slot.channel),
         brandLogo?.bytes,
         content.creative.logoZone,
       )
@@ -2183,7 +2181,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
                     // builder itself.
                     ...(slot.shot ? { shot: slot.shot } : {}),
                     durationSeconds: videoDurationSeconds,
-                    format: videoFormat,
+                    format: channelFormat(slot.channel),
                     createdAt: new Date().toISOString(),
                   },
                 }
@@ -2196,16 +2194,14 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             aiProvenance: provenance,
           }),
         )
-        // A static-post creative is 1080x1350 (4:5). A video poster is the
-        // 9:16 opening frame, same dimensions as the mp4 that is about to be
-        // rendered, so the gallery thumbnail matches what the viewer sees
-        // when they open the video. The `video-poster` tag keeps the poster
+        // A static-post creative and a video poster are both on the slot
+        // channel's canvas, the poster at the same dimensions as the mp4 that
+        // is about to be rendered, so the gallery thumbnail matches what the
+        // viewer sees when they open the video. The `video-poster` tag keeps the poster
         // out of flows that look for `monthly-creative` static posts and the
         // non-null creative_provenance (set below) keeps it out of the
         // owned-source photo picker that filters creative_provenance IS NULL.
-        const [posterWidth, posterHeight] = slot.deliverable === 'video'
-          ? videoFormat.split('x').map(Number)
-          : [1080, 1350]
+        const { width: posterWidth, height: posterHeight } = channelCanvas(slot.channel)
         await plannerStep('content.persist.asset_insert', () =>
           client.query(
             "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,storage_path,size_bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',NULL,$5,$6,$8,$9,$7)",

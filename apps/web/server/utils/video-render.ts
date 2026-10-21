@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { PoolClient } from 'pg'
-import { contentLocaleForPreferences, postSchema } from '../../shared/schemas/workspace'
-import { audienceLanguageFromResearch } from './audience-language'
+import { postSchema } from '../../shared/schemas/workspace'
+import { channelCanvas, channelFormat } from '../../shared/schemas/channel-format'
 import { assetStorageFolder, downloadAsset, removeAsset, uploadBinaryAsset } from './asset-storage'
 import {
   consumeReservedCredits,
@@ -10,8 +10,8 @@ import {
   reserveCredits,
   videoRenderCredits,
 } from './credits'
-import { aiVideoConfigured, aiVideoPromptLimit, generateAiVideo } from './ai-video-provider'
-import { buildVideoEndCard, buildVideoOverlayLayers, videoKeyframes } from './image-processing'
+import { aiVideoCanvas, aiVideoConfigured, aiVideoPromptLimit, generateAiVideo } from './ai-video-provider'
+import { buildVideoEndCard, buildVideoOverlayLayers, padFrameToCanvas, videoKeyframes } from './image-processing'
 import { buildVideoCreativePlan } from './video-plan'
 import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, renderStillMotion, VIDEO_END_CARD_SECONDS } from './video-compose'
@@ -42,6 +42,10 @@ export async function renderVideoForPost(userId: string, postId: string) {
     const post = postRow && postSchema.parse(postRow.payload)
     if (!post?.video?.sourceAssetIds.length)
       throw createError({ statusCode: 409, message: 'server.VIDEO_BRIEF_REQUIRED' })
+    // Every new render is made on the post's channel canvas. A brief stored
+    // before canvases followed the channel still names 1080x1920; it is read
+    // as it is and only this render, once ready, records the channel's format.
+    const canvas = channelCanvas(post.channel)
 
     const provenance = post.aiProvenance
     let verifiedFacts: string[] = []
@@ -106,7 +110,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
         postId,
         JSON.stringify(post.video.sourceAssetIds),
         post.video.logoAssetId || null,
-        ...post.video.format.split('x').map(Number),
+        canvas.width,
+        canvas.height,
         post.video.durationSeconds,
       ],
     )
@@ -171,7 +176,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // strategy kept clear. A video prepared by hand has no generated creative,
     // so it falls back to the brief's hook and call to action.
     const creative = post.aiProvenance?.creative
-    const [canvasWidth, canvasHeight] = post.video.format.split('x').map(Number)
     const overlayZone = plan.shot.textZone === 'bottom' ? 'bottom' as const : 'top' as const
     const overlay = await buildVideoOverlayLayers({
       businessName: workspace.brand.name,
@@ -186,7 +190,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       weightHook: endCardInput.weightHook,
       weightCta: endCardInput.weightCta,
       logo: logoBytes || undefined,
-      target: { width: canvasWidth!, height: canvasHeight! },
+      target: canvas,
     })
     return {
       business,
@@ -203,7 +207,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
       videoCredits,
       prompt,
       durationSeconds: post.video.durationSeconds,
-      format: post.video.format,
+      canvas,
+      format: channelFormat(post.channel),
       endCardInput,
       shot: plan.shot,
       // Brand first, then the headline, then the supporting line and button,
@@ -232,14 +237,16 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // source does not come back letterboxed with black bars. Both ends of the
     // motion are cut from that one photograph, so the subject stays the
     // subject that was photographed.
-    const [targetWidth, targetHeight] = snapshot.format.split('x').map(Number)
-    if (!targetWidth || !targetHeight) throw new Error('Invalid video canvas')
-    const keyframes = await videoKeyframes(snapshot.source, { width: targetWidth, height: targetHeight }, snapshot.shot)
+    const keyframes = await videoKeyframes(snapshot.source, snapshot.canvas, snapshot.shot)
     // Only the camera moves: the clip is rendered from the photograph itself,
     // so no provider is paid and the subject cannot change. Anything that
     // adds life to the scene goes to the motion model, on the landscape canvas
-    // the keyframes were cut for when the photograph is landscape.
-    const generated = snapshot.shot.action === 'camera_only'
+    // the keyframes were cut for when the photograph is landscape. The model
+    // paints its own closest ratio; the keyframes are padded out to it whole
+    // and the composer crops the clip back to the keyframes' canvas.
+    const provider = snapshot.shot.action === 'camera_only' ? undefined : await aiVideoCanvas(keyframes.canvas)
+    const providerFirst = provider ? await padFrameToCanvas(keyframes.first, provider.canvas) : keyframes.first
+    const generated = !provider
       ? {
           bytes: await renderStillMotion({
             image: keyframes.still.image,
@@ -251,11 +258,12 @@ export async function renderVideoForPost(userId: string, postId: string) {
           costUsd: 0,
         }
       : await generateAiVideo({
-          image: keyframes.first,
-          lastFrame: keyframes.last,
+          image: providerFirst,
+          lastFrame: keyframes.last && await padFrameToCanvas(keyframes.last, provider.canvas),
           prompt: snapshot.prompt,
           durationSeconds: snapshot.durationSeconds,
-          format: `${keyframes.canvas.width}x${keyframes.canvas.height}`,
+          canvas: provider.canvas,
+          aspectRatio: provider.aspectRatio,
         })
     if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
     const { costUsd } = generated
@@ -263,8 +271,10 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // the photograph, so it is held against the photograph before anything is
     // delivered.
     if (snapshot.shot.action !== 'camera_only') {
+      // Held against the exact frame the model was given, padding included,
+      // so the padding itself never reads as a change of subject.
       const check = await verifyVideoSubject({
-        photograph: keyframes.first,
+        photograph: providerFirst,
         frames: await extractVideoFrames(generated.bytes, [0.3, 0.6, 0.95]),
       })
       if (!check.sameSubject) {
@@ -275,9 +285,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
     }
     // Compose before upload. The provider MP4 is an in-memory intermediate;
     // only the branded MP4 becomes the ready render's canonical storage path.
-    const [endCardWidth, endCardHeight] = snapshot.format.split('x').map(Number)
+    const { width: endCardWidth, height: endCardHeight } = snapshot.canvas
     const endCardAssetId = randomUUID()
-    if (!endCardWidth || !endCardHeight) throw new Error('Invalid video canvas')
     failureReason = 'composition_failed'
     // The strategy decides whether this video closes on the branded card.
     const endCardImage = snapshot.shot.endCard
@@ -371,6 +380,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
         if ((currentPost.contentVersion ?? 1) !== snapshot.contentVersion)
           throw createError({ statusCode: 409, message: 'server.POST_CHANGED_DURING_VALIDATION' })
         currentPost.video.status = 'ready'
+        currentPost.video.format = snapshot.format
         currentPost.video.quality = quality
         currentPost.video.qualityContentVersion = snapshot.contentVersion
         currentPost.policy = quality.factuality ? 'warn' : 'block'

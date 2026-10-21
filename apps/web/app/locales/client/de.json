@@ -1328,7 +1328,7 @@
   "video.sourceHint": "Es wird nur das ursprünglich hochgeladene Foto verwendet. Dein Logo wird separat hinzugefügt, sofern vorhanden.",
   "video.readyHint": "Das Video ist fertig. Sieh es dir an, bevor du es planst oder sendest.",
   "video.previewTitle": "Videovorschau",
-  "video.previewDescription": "Vertikales Video im Format 9:16. Für TikTok wird die Musik in TikTok ausgewählt.",
+  "video.previewDescription": "Video im Format des Kanals: 4:5 für Instagram und Facebook, 9:16 für TikTok. Für TikTok wird die Musik in TikTok ausgewählt.",
   "video.include": "Wie viele Videos?",
   "video.includeHint": "Ein Video pro ausgewähltem Beitrag.",
   "video.remaining": "Noch {{count}} Videos in deinem Paket",

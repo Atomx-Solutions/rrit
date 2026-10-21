@@ -1328,7 +1328,7 @@
   "video.sourceHint": "Yalnızca yüklenen orijinal fotoğraf kullanılır. Logonuz varsa ayrıca eklenir.",
   "video.readyHint": "Video hazır. Zamanlamadan veya göndermeden önce inceleyin.",
   "video.previewTitle": "Video önizleme",
-  "video.previewDescription": "Dikey 9:16 video. TikTok için müzik TikTok’ta seçilir.",
+  "video.previewDescription": "Kanal formatında video: Instagram ve Facebook için 4:5, TikTok için 9:16. TikTok için müzik TikTok’ta seçilir.",
   "video.include": "Kaç video?",
   "video.includeHint": "Seçilen her gönderi için bir video.",
   "video.remaining": "Paketinizde kalan {{count}} video",

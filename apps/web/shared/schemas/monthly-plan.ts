@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { publishingChannels } from './channel-format'
 
 export const monthSchema = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/)
 export const researchSourceSchema = z.object({
@@ -115,10 +116,8 @@ export const storedShotDirectionSchema = shotDirectionSchema.extend({
 export const slotBriefSchema = z.object({
   day: z.number().int().min(1).max(31),
   time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-  // A video reaches whichever of these three the brief chose. TikTok appears
-  // here only because a video can go there; a static feed post cannot, which
-  // the planner enforces rather than the enum.
-  channel: z.enum(['Facebook', 'Instagram', 'TikTok']),
+  // The one channel this slot is for. Its canvas follows from it.
+  channel: z.enum(publishingChannels),
   topic: z.string().min(5).max(200),
   pillar: z.string().min(2).max(80),
   intent: contentIntentSchema,

@@ -16,7 +16,7 @@ import {
   normalizedVideoChannelCounts,
   soleChannel,
   channelCountsTotal,
-  feedCreativeGeometry,
+  creativeGeometry,
   PlannerFailure,
   plannerIdentityChanged,
 } from '../../server/utils/monthly-planner-domain'
@@ -311,6 +311,47 @@ describe('monthly evidence and provider boundaries', () => {
     const normalized = normalizeEditorialPlanResponse(plan, evidence, research, 2, '2026-09', { Instagram: 1 })
     expect(normalized.slots.map((slot) => slot.channel)).toEqual(['Instagram', 'TikTok'])
   })
+  it('plans static TikTok posts in the split the business asked for', () => {
+    const evidence = plannerEvidence(createDemo(), now)
+    const research = researchFromResponse(researchFixture(), now)
+    const post = editorialFixture().slots[0]!
+    const plan = {
+      ...editorialFixture(),
+      slots: [
+        { ...post, channel: 'Instagram', deliverable: 'static_post' },
+        {
+          ...post,
+          day: 16,
+          channel: 'TikTok',
+          deliverable: 'static_post',
+          topic: 'A vertical look at the ritual',
+          hook: 'The ritual, top to bottom',
+          intent: 'inspire',
+          algorithmGoal: 'shares',
+          visualLayout: 'A tall full-screen crop following the cup from steam to saucer.',
+        },
+      ],
+    }
+    const split = { Instagram: 1, TikTok: 1 }
+    const normalized = normalizeEditorialPlanResponse(plan, evidence, research, 2, '2026-09', split)
+    const validated = validateEditorialPlan(normalized, evidence, research, '2026-09', 2, undefined, [], split)
+    expect(validated.slots.map((slot) => [slot.channel, slot.deliverable])).toEqual([
+      ['Instagram', 'static_post'],
+      ['TikTok', 'static_post'],
+    ])
+    // A plan that moves the TikTok post elsewhere breaks the requested split.
+    const moved = { ...plan, slots: [plan.slots[0]!, { ...plan.slots[1]!, channel: 'Facebook' }] }
+    expect(() => validateEditorialPlan(moved, evidence, research, '2026-09', 2, undefined, [], split)).toThrow(
+      'UNGROUNDED_PLAN',
+    )
+  })
+  it('applies a TikTok-only split to every static slot', () => {
+    const evidence = plannerEvidence(createDemo(), now)
+    const research = researchFromResponse(researchFixture(), now)
+    const normalized = normalizeEditorialPlanResponse(editorialFixture(), evidence, research, 1, '2026-09', { TikTok: 1 })
+    expect(normalized.slots[0]!.channel).toBe('TikTok')
+    expect(soleChannel({ TikTok: 1 })).toBe('TikTok')
+  })
   it('fails closed when provider configuration is incomplete', () => {
     vi.stubEnv('AI_MONTHLY_PLANNER_ENABLED', 'true')
     vi.stubEnv('OPENAI_API_KEY', '')
@@ -559,7 +600,7 @@ function imagePromptInput() {
       layout: 'A close detail of the plated main course, anchored low on the left.',
     },
     slot: {
-      channel: 'Instagram' as const,
+      channel: 'Instagram' as 'Instagram' | 'Facebook' | 'TikTok',
       topic: 'Darka',
       intent: 'inspiration',
       hook: 'Atmosferë e ngrohtë',
@@ -606,7 +647,7 @@ describe('AI creative generation', () => {
     expect(monthly).toContain(creative.headline)
     expect(monthly).toContain('no application template or hard-coded layout')
     expect(monthly).toContain('You are solely responsible for the final visual design')
-    expect(monthly).toContain('centre-crops it to the final Instagram/Facebook feed image')
+    expect(monthly).toContain('centre-crops it to the final Instagram image at exactly 1080x1350 (4:5)')
     expect(monthly).toContain('malformed hands or faces')
     expect(monthly).toContain('giant expressive typographic gesture')
     expect(monthly).toContain('clean contemporary sans-serif')
@@ -639,8 +680,25 @@ describe('AI creative generation', () => {
     expect(edited).toContain('no more than two weights')
   })
 
+  it('paints and crops each channel to its own canvas', () => {
+    expect(creativeGeometry('Instagram')).toMatchObject({ finalPixels: '1080x1350', finalRatio: '4:5', providerRatio: '3:4' })
+    expect(creativeGeometry('Facebook')).toMatchObject({ finalPixels: '1080x1350', finalRatio: '4:5', providerRatio: '3:4' })
+    // TikTok is painted at its own 9:16, so nothing is cropped away.
+    expect(creativeGeometry('TikTok')).toMatchObject({
+      finalPixels: '1080x1920',
+      finalRatio: '9:16',
+      providerRatio: '9:16',
+      discardedWidthPerSide: '0%',
+      discardedHeightPerSide: '0%',
+    })
+    const tiktok = monthlyImagePrompt({ ...imagePromptInput(), slot: { ...imagePromptInput().slot, channel: 'TikTok' } })
+    expect(tiktok).toContain('final TikTok image at exactly 1080x1920 (9:16)')
+    expect(tiktok).toContain('full-screen vertical 9:16 photo post')
+    expect(tiktok).not.toContain('4:5')
+  })
+
   it('states a crop contract derived from the real output canvas', () => {
-    const geometry = feedCreativeGeometry()
+    const geometry = creativeGeometry('Instagram')
     const prompt = monthlyImagePrompt(imagePromptInput())
 
     // The centre crop from a taller provider canvas removes height only, so a
@@ -739,12 +797,35 @@ describe('AI creative generation', () => {
       .toBuffer()
     const sheet = await assetContactSheet([{ id: randomUUID(), bytes: photo }])
     expect(await sharp(sheet).metadata()).toMatchObject({ width: 1000, height: 230 })
-    const normalized = await normalizeGeneratedCreative(photo)
-    expect(await sharp(normalized).metadata()).toMatchObject({
-      width: 1080,
-      height: 1350,
-      format: 'jpeg',
-    })
+    for (const [canvas, expected] of [
+      [{ width: 1080, height: 1350 }, { width: 1080, height: 1350 }],
+      [{ width: 1080, height: 1920 }, { width: 1080, height: 1920 }],
+    ] as const) {
+      const normalized = await normalizeGeneratedCreative(photo, canvas)
+      expect(await sharp(normalized).metadata()).toMatchObject({ ...expected, format: 'jpeg' })
+    }
+  })
+
+  it('crops a provider image to the channel canvas without stretching it', async () => {
+    // A 3:4 canvas with a centred 200px circle. Cropping to 4:5 or 9:16 must
+    // keep the circle round: a stretch would make it an ellipse.
+    const side = 200
+    const circle = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="768" height="1024"><rect width="768" height="1024" fill="#ffffff"/><circle cx="384" cy="512" r="${side / 2}" fill="#000000"/></svg>`,
+    )
+    const provider = await sharp(circle).jpeg().toBuffer()
+    for (const canvas of [{ width: 1080, height: 1350 }, { width: 1080, height: 1920 }]) {
+      const normalized = await normalizeGeneratedCreative(provider, canvas)
+      const { data, info } = await sharp(normalized).greyscale().raw().toBuffer({ resolveWithObject: true })
+      const dark = (x: number, y: number) => data[y * info.width + x]! < 128
+      const midY = Math.round(info.height / 2)
+      const midX = Math.round(info.width / 2)
+      let horizontal = 0
+      let vertical = 0
+      for (let x = 0; x < info.width; x++) if (dark(x, midY)) horizontal++
+      for (let y = 0; y < info.height; y++) if (dark(midX, y)) vertical++
+      expect(Math.abs(horizontal - vertical)).toBeLessThanOrEqual(4)
+    }
   })
 
   it('removes a connected light logo background but keeps the logo artwork', async () => {
@@ -1003,8 +1084,8 @@ ${JSON.stringify({ occasions })}
 })
 
 describe('requested platforms', () => {
-  it('offers exactly the two platforms a post can be planned for', () => {
-    expect([...plannerChannels].sort()).toEqual(['Facebook', 'Instagram'])
+  it('offers all three platforms for posts as well as videos', () => {
+    expect([...plannerChannels].sort()).toEqual(['Facebook', 'Instagram', 'TikTok'])
   })
 
   it('keeps a split that accounts for every requested post', () => {

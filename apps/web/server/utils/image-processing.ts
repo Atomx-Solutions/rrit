@@ -1,5 +1,6 @@
 import sharp, { type OverlayOptions } from 'sharp'
-import { PlannerFailure, feedCreativeCanvas } from './monthly-planner-domain'
+import { PlannerFailure } from './monthly-planner-domain'
+import type { Canvas } from '../../shared/schemas/channel-format'
 
 function escapeXml(value: string) {
   return value.replace(
@@ -299,10 +300,9 @@ export async function removeLogoBackground(input: Buffer) {
 // the logo itself. Headline type set beside the logo is what makes a placement
 // look wrong, and a region limited to the logo's own box never sees it.
 const LOGO_CLEARANCE = 88
-// Fine enough for set type to register as edges; the former 108x135 averaged a
-// headline away into flat sky.
+// Fine enough for set type to register as edges; the former 108px width
+// averaged a headline away into flat sky. The height follows the canvas.
 const PLACEMENT_ANALYSIS_WIDTH = 216
-const PLACEMENT_ANALYSIS_HEIGHT = 270
 
 /**
  * The corner the composing model left free, when it said which one. Scoring is
@@ -312,9 +312,13 @@ const PLACEMENT_ANALYSIS_HEIGHT = 270
 export type LogoZone = 'auto' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
 export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: LogoZone) {
+  const imageMeta = await sharp(image).metadata()
+  const width = imageMeta.width || 0
+  const height = imageMeta.height || 0
+  const analysisHeight = Math.max(1, Math.round(PLACEMENT_ANALYSIS_WIDTH * height / Math.max(1, width)))
   const [imageAnalysis, logoAnalysis] = await Promise.all([
     sharp(image)
-      .resize(PLACEMENT_ANALYSIS_WIDTH, PLACEMENT_ANALYSIS_HEIGHT, { fit: 'fill' })
+      .resize(PLACEMENT_ANALYSIS_WIDTH, analysisHeight, { fit: 'fill' })
       .grayscale()
       .raw()
       .toBuffer({ resolveWithObject: true }),
@@ -333,8 +337,6 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
   if (!visibleLogoPixels) return { left: 48, top: 48 }
   logoLuminance /= visibleLogoPixels
 
-  const width = feedCreativeCanvas.width
-  const height = feedCreativeCanvas.height
   const logoMetadata = await sharp(logo).metadata()
   const logoWidth = logoMetadata.width || 0
   const logoHeight = logoMetadata.height || 0
@@ -418,13 +420,14 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
 
 // Technical output normalization. A supplied approved logo is the only optional
 // deterministic brand element added after generation; no logo means no overlay.
-export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer, logoZone?: LogoZone) {
+export async function normalizeGeneratedCreative(image: Buffer, canvas: Canvas, logo?: Buffer, logoZone?: LogoZone) {
   const normalized = sharp(image, { limitInputPixels: 24000000 })
     .rotate()
-    // The image prompt reserves a centered 4:5 safe region inside providers that
-    // only expose a native 3:4 portrait canvas. A deterministic centre crop keeps
-    // that contract; attention-based cropping could unexpectedly move typography.
-    .resize(feedCreativeCanvas.width, feedCreativeCanvas.height, {
+    // The image prompt reserves a centered safe region of the channel's canvas
+    // inside the provider's closest portrait ratio. A deterministic centre crop
+    // keeps that contract; attention-based cropping could move typography.
+    // `cover` scales uniformly, so the picture is cropped, never stretched.
+    .resize(canvas.width, canvas.height, {
       fit: 'cover',
       position: 'centre',
     })
@@ -578,9 +581,37 @@ export async function videoKeyframes(
 }
 
 /**
+ * A delivered frame placed whole and untouched in the centre of a larger
+ * provider canvas, with a blurred, darkened stretch of itself filling the
+ * rest. The provider paints its own ratio; the composer centre-crops the clip
+ * back to the frame, so the padding is never delivered and no pixel of the
+ * frame is cut or distorted to fit the provider.
+ */
+export async function padFrameToCanvas(frame: Buffer, canvas: Canvas) {
+  const meta = await sharp(frame).metadata()
+  const width = meta.width || 0
+  const height = meta.height || 0
+  if (width === canvas.width && height === canvas.height) return frame
+  if (width > canvas.width || height > canvas.height) throw new Error('Frame is larger than the provider canvas')
+  const fill = await sharp(frame)
+    .resize(canvas.width, canvas.height, { fit: 'cover', position: 'centre' })
+    .blur(Math.max(8, Math.round(canvas.width / 40)))
+    .modulate({ brightness: 0.78 })
+    .toBuffer()
+  return sharp(fill)
+    .composite([{
+      input: frame,
+      left: Math.round((canvas.width - width) / 2),
+      top: Math.round((canvas.height - height) / 2),
+    }])
+    .jpeg({ quality: 94, mozjpeg: true })
+    .toBuffer()
+}
+
+/**
  * Deterministic branded end-card for a video post.
  *
- * Composes a 9:16 image (default 1080x1920) with the brand's primary colour as
+ * Composes an image on the video's own canvas with the brand's primary colour as
  * the background, the approved logo centred in the upper third when present,
  * the business name as a headline and the approved CTA as a secondary line.
  * No AI call. Reuses existing sharp + logo infrastructure.
@@ -599,10 +630,9 @@ export async function buildVideoEndCard(input: {
   weightHook?: number
   weightCta?: number
   logo?: Buffer
-  target?: { width: number; height: number }
+  target: Canvas
 }) {
-  const width = input.target?.width ?? 1080
-  const height = input.target?.height ?? 1920
+  const { width, height } = input.target
   const primary = sanitizeHex(input.primaryColor) || '#0F172A'
   const onPrimary = sanitizeHex(input.onPrimary) || readableOn(primary)
   const fontStack = (input.fontFamily?.trim() || 'Inter')
