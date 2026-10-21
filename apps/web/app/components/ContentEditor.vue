@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Post } from '~~/shared/schemas/workspace'
+import { publishingChannels } from '~~/shared/schemas/channel-format'
 import { zonedToIso } from '~~/shared/utils/format'
 const props = defineProps<{ id?: string }>()
 const { data, base, commit, transition, notify, conflict, initLive, syncing } = useWorkspace()
@@ -519,7 +520,7 @@ onBeforeUnmount(() => {
               ><USelect
                 v-model="form.channel"
                 :disabled="!editable"
-                :items="['Instagram', 'Facebook', 'TikTok']" /></UFormField
+                :items="[...publishingChannels]" /></UFormField
             ><UFormField :label="t('content.postTopic')" name="pillar" class="field"
               ><USelect
                 v-model="form.pillar"

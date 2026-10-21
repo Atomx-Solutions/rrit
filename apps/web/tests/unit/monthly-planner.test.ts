@@ -797,11 +797,12 @@ describe('AI creative generation', () => {
       .toBuffer()
     const sheet = await assetContactSheet([{ id: randomUUID(), bytes: photo }])
     expect(await sharp(sheet).metadata()).toMatchObject({ width: 1000, height: 230 })
-    for (const [canvas, expected] of [
-      [{ width: 1080, height: 1350 }, { width: 1080, height: 1350 }],
-      [{ width: 1080, height: 1920 }, { width: 1080, height: 1920 }],
+    for (const [channel, expected] of [
+      ['Instagram', { width: 1080, height: 1350 }],
+      ['Facebook', { width: 1080, height: 1350 }],
+      ['TikTok', { width: 1080, height: 1920 }],
     ] as const) {
-      const normalized = await normalizeGeneratedCreative(photo, canvas)
+      const normalized = await normalizeGeneratedCreative(photo, channel)
       expect(await sharp(normalized).metadata()).toMatchObject({ ...expected, format: 'jpeg' })
     }
   })
@@ -814,8 +815,8 @@ describe('AI creative generation', () => {
       `<svg xmlns="http://www.w3.org/2000/svg" width="768" height="1024"><rect width="768" height="1024" fill="#ffffff"/><circle cx="384" cy="512" r="${side / 2}" fill="#000000"/></svg>`,
     )
     const provider = await sharp(circle).jpeg().toBuffer()
-    for (const canvas of [{ width: 1080, height: 1350 }, { width: 1080, height: 1920 }]) {
-      const normalized = await normalizeGeneratedCreative(provider, canvas)
+    for (const channel of ['Instagram', 'TikTok'] as const) {
+      const normalized = await normalizeGeneratedCreative(provider, channel)
       const { data, info } = await sharp(normalized).greyscale().raw().toBuffer({ resolveWithObject: true })
       const dark = (x: number, y: number) => data[y * info.width + x]! < 128
       const midY = Math.round(info.height / 2)

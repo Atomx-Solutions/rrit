@@ -10,6 +10,7 @@ import {
 } from './monthly-planner-domain'
 import {
   channelCanvas,
+  channelUiInsets,
   publishingChannels,
   ratioLabel,
   type PublishingChannel,
@@ -518,6 +519,34 @@ export const monthlyInstructions = {
 // pipeline enforced before videos existed. `videoDeliverable` replaces it only when
 // the payload carries the business's own `videoDeliverables` permission, so a
 // business that never granted it is never told that motion is an option.
+// What a reviewer needs to know about the canvas a slot is shown on.
+export function channelFrame(channel: PublishingChannel) {
+  const canvas = channelCanvas(channel)
+  const covered = channelUiInsets(channel)
+  const percent = (value: number) => `${Math.round(value * 100)}%`
+  return {
+    pixels: `${canvas.width}x${canvas.height}`,
+    ratio: ratioLabel(canvas),
+    coveredByInterface: {
+      top: percent(covered.top),
+      right: percent(covered.right),
+      bottom: percent(covered.bottom),
+      left: percent(covered.left),
+    },
+  }
+}
+
+// The image-prompt sentence for the parts of a channel's canvas its own
+// interface covers; empty for a channel that covers none.
+export function coveredZonesInstruction(channel: PublishingChannel) {
+  const covered = channelUiInsets(channel)
+  const sides = (['top', 'right', 'bottom', 'left'] as const)
+    .filter((side) => covered[side] > 0)
+    .map((side) => `the ${side} ${Math.round(covered[side] * 100)}%`)
+  if (!sides.length) return ''
+  return ` ${channel} covers ${sides.join(', ')} of the final canvas with its own interface, so keep every letter, the call to action, faces, the defining edges of the subject and the reserved logo area out of those zones.`
+}
+
 // Each channel's canvas, stated once for the prompts, e.g. "Instagram 4:5".
 const channelCanvasSummary = publishingChannels
   .map((channel) => `${channel} ${ratioLabel(channelCanvas(channel))}`)
@@ -549,7 +578,7 @@ const monthlyInstructionAddenda: Partial<Record<keyof typeof monthlyInstructions
   content:
     'Every contact-sheet image is rights-confirmed original media uploaded to this business gallery. You must always choose one valid non-empty assetId exactly from contactSheet; never refuse to select a photo because venue identity is visually unclear. If visible signage or logo text conflicts with verified brand facts, require it to be removed, cleaned or kept outside the crop during AI editing. The image model will professionally clean and art-direct the chosen real photo into the complete design on the canvas of the slot channel, so never replace the photo with a plain color background. If previousPosts or previousPageStyle are supplied, do not reuse the same first-glance structure, subject crop, headline placement, visual focal point, background treatment or fine detail pattern from earlier posts. Preserve the page identity while making this post materially distinct.',
   quality:
-    'The original photograph was deliberately uploaded to this business gallery by its owner and its usage rights were explicitly confirmed. Treat it as authorized first-party business media: missing visible signage is not a factuality failure and is never, by itself, a reason to BLOCK. Do still BLOCK material invention or replacement of products, people, furniture, architecture, signage or venue geometry. When the design remains faithful but needs subjective refinement, use WARN so it can reach human review. When previous-page style references are supplied, set styleConsistency=false and add concise styleReasons when the finished photo materially leaves the page scope in palette, contrast, typography, density, spacing, crop, lighting, photographic treatment or recurring brand elements. Set visualDistinctness=false and add concise distinctnessReasons if the first glance or fine details materially repeat an earlier post. Style mismatch and repetition are WARN findings, not factuality BLOCKs.',
+    'The original photograph was deliberately uploaded to this business gallery by its owner and its usage rights were explicitly confirmed. Treat it as authorized first-party business media: missing visible signage is not a factuality failure and is never, by itself, a reason to BLOCK. Do still BLOCK material invention or replacement of products, people, furniture, architecture, signage or venue geometry. When the design remains faithful but needs subjective refinement, use WARN so it can reach human review. When previous-page style references are supplied, set styleConsistency=false and add concise styleReasons when the finished photo materially leaves the page scope in palette, contrast, typography, density, spacing, crop, lighting, photographic treatment or recurring brand elements. Set visualDistinctness=false and add concise distinctnessReasons if the first glance or fine details materially repeat an earlier post. Style mismatch and repetition are WARN findings, not factuality BLOCKs. channelFrame gives the final canvas of the slot channel and, in coveredByInterface, the share of each side that the interface of the channel covers when it shows the post. Set visualQuality=false with a concise reason when the finished image is not in channelFrame.ratio, or when the logo, the headline or the call to action sits inside a covered zone.',
 }
 
 // Business Brain is the business's own declaration of who it serves, how it
@@ -1460,7 +1489,7 @@ export function monthlyImagePrompt(input: {
     slot.deliverable === 'video'
       ? `This frame opens a ${slot.channel} video on its ${ratio} canvas, so make the focal subject unmistakable at a glance, keep the hook legible on a phone at normal viewing distance, and leave real depth for the later motion to move through. Compose it as a ${ratio} still, but never as a busy feed collage.`
       : slot.channel === 'TikTok'
-        ? `For TikTok, compose a full-screen vertical ${ratio} photo post: one strong subject that reads instantly on a phone held upright, generous vertical breathing room, and type kept clear of the bottom area where TikTok overlays the caption and of the right edge where its action buttons sit. It must feel like authentic premium photography, not an ad-template collage.`
+        ? `For TikTok, compose a full-screen vertical ${ratio} photo post: one strong subject that reads instantly on a phone held upright and generous vertical breathing room.${coveredZonesInstruction(slot.channel)} It must feel like authentic premium photography, not an ad-template collage.`
         : slot.channel === 'Instagram'
           ? `For Instagram, make the focal idea readable in the first glance: use a strong subject, mobile-first hierarchy, controlled depth and an editorial ${ratio} feed composition worth saving. The result must still feel like authentic premium photography, not an ad-template collage.`
           : `For Facebook, make the story and business context understandable in the first glance: use an accessible type scale, recognizable subject and a natural ${ratio} feed composition worth sharing. Avoid engagement bait and an over-designed ad-template appearance.`
@@ -1548,7 +1577,7 @@ export function postImageEditPrompt(input: {
   const platformDirection = input.video
     ? `Optimize as the opening frame of a ${post.channel} video on its ${ratio} canvas: one unmistakable focal subject, a hook legible at a glance on a phone, and depth the later motion can move through.`
     : post.channel === 'TikTok'
-      ? `Optimize for a full-screen TikTok photo post: an upright ${ratio} composition with one instantly readable subject, and type kept clear of the bottom caption area and the right-edge action buttons.`
+      ? `Optimize for a full-screen TikTok photo post: an upright ${ratio} composition with one instantly readable subject.${coveredZonesInstruction(post.channel)}`
       : post.channel === 'Instagram'
         ? `Optimize for an Instagram feed: an immediate visual hook, premium mobile-first hierarchy, strong focal subject and an authentic editorial ${ratio} result worth saving.`
         : `Optimize for a Facebook feed: an instantly understandable story, accessible hierarchy, strong contextual subject and a natural ${ratio} result worth sharing without engagement bait.`

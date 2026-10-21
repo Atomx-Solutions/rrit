@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { publishingChannels, type PublishingChannel } from '~~/shared/schemas/channel-format'
 const props = defineProps<{ month: string }>()
 const { t } = useI18n()
 const { data: workspace, base, initLive, syncing } = useWorkspace()
@@ -91,16 +92,18 @@ const selectedQuantity = ref(0)
 const selectedVideoQuantity = ref(0)
 // Which platforms this request is for. Posts and videos reach the same three,
 // each on its own channel's canvas.
-type PlannerChannel = 'Instagram' | 'Facebook' | 'TikTok'
-const channelOptions: { value: PlannerChannel; label: string; icon: string }[] = [
-  { value: 'Instagram', label: 'Instagram', icon: 'i-lucide-instagram' },
-  { value: 'Facebook', label: 'Facebook', icon: 'i-lucide-facebook' },
-  { value: 'TikTok', label: 'TikTok', icon: 'i-lucide-clapperboard' },
-]
-const channelSplit = reactive<Record<PlannerChannel, number>>({ Instagram: 0, Facebook: 0, TikTok: 0 })
+type PlannerChannel = PublishingChannel
+const channelOptions = publishingChannels.map((channel) => ({
+  value: channel,
+  label: channel,
+  icon: channelIcon(channel),
+}))
+const emptySplit = () =>
+  Object.fromEntries(publishingChannels.map((channel) => [channel, 0])) as Record<PlannerChannel, number>
+const channelSplit = reactive(emptySplit())
 type VideoChannel = PlannerChannel
 const videoChannelOptions = channelOptions
-const videoChannelSplit = reactive<Record<VideoChannel, number>>({ Instagram: 0, Facebook: 0, TikTok: 0 })
+const videoChannelSplit = reactive(emptySplit())
 const requestOpen = ref(false)
 const requestAction = ref<'prepare' | 'generate'>('prepare')
 const splitAssigned = computed(() => Object.values(channelSplit).reduce((sum, count) => sum + count, 0))
@@ -126,12 +129,11 @@ function openRequest(action: 'prepare' | 'generate') {
   // Start from everything on Instagram for one post, and an even split
   // otherwise, so the common case needs no arithmetic from the customer.
   const half = Math.floor(selectedQuantity.value / 2)
-  channelSplit.Instagram = selectedQuantity.value - half
-  channelSplit.Facebook = half
-  channelSplit.TikTok = 0
-  videoChannelSplit.Instagram = selectedVideoQuantity.value
-  videoChannelSplit.Facebook = 0
-  videoChannelSplit.TikTok = 0
+  Object.assign(channelSplit, emptySplit(), {
+    Instagram: selectedQuantity.value - half,
+    Facebook: half,
+  })
+  Object.assign(videoChannelSplit, emptySplit(), { Instagram: selectedVideoQuantity.value })
   requestOpen.value = true
 }
 function chooseSingle(split: Record<PlannerChannel, number>, channel: PlannerChannel) {

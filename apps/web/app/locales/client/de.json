@@ -2132,6 +2132,8 @@
   "server.PHOTO_READABLE_SIZE_REQUIRED": "Das Foto muss lesbar und innerhalb des Größenlimits sein.",
   "server.PHOTO_UNREADABLE": "Das Foto kann nicht gelesen werden. Lade ein gültiges JPG hoch, mindestens 100 × 100 Pixel und bis zu 2 MB.",
   "server.VIDEO_REQUIRED_FOR_PUBLISHING": "Generiere das Video, bevor du es zur Veröffentlichung planst.",
+  "server.VIDEO_CHANNEL_FORMAT_MISMATCH": "Das Video hat nicht das {channel}-Format ({format}). Generiere das Video vor der Veröffentlichung neu.",
+  "server.IMAGE_CHANNEL_FORMAT_MISMATCH": "Das Bild hat nicht das {channel}-Format ({format}). Generiere das Bild vor der Veröffentlichung neu.",
   "server.POST_LIMITS_NOT_CONFIGURED": "Die Beitragslimits sind nicht konfiguriert.",
   "server.INSTAGRAM_RATE_LIMIT": "Das Instagram-Veröffentlichungslimit erlaubt gerade keine neue Veröffentlichung.",
   "server.LOGO_UNREADABLE": "Das Logo kann nicht gelesen werden. Lade ein gültiges PNG, JPG oder WebP hoch, mindestens 100 × 100 Pixel und bis zu 2 MB.",

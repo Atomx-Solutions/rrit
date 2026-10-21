@@ -60,6 +60,7 @@ import {
   monthlyAiConfigured,
   monthlyAutomaticStageKey,
   invalidateMonthlyGenerationRun,
+  channelFrame,
   monthlyImageCall,
   monthlyImagePrompt,
   monthlyProviderCall,
@@ -1929,7 +1930,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       // selected clear region; it does not apply a coded layout template.
       creative = await normalizeGeneratedCreative(
         imageGeneration.bytes,
-        channelCanvas(slot.channel),
+        slot.channel,
         brandLogo?.bytes,
         content.creative.logoZone,
       )
@@ -1949,6 +1950,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           // content stage was given, so it receives the identical projection.
           businessBrain: slotBrain,
           slot,
+          channelFrame: channelFrame(slot.channel),
           content,
           previousPosts: earlier.rows,
           previousGeneratedPostCount: previousGeneratedAssets.length,

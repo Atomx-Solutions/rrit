@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
+import { channelFormat, matchesChannelCanvas } from '../../shared/schemas/channel-format'
 import { contentLocaleForPreferences, DEFAULT_TIMEZONE, type Post } from '../../shared/schemas/workspace'
 import { factIsUsable, sameFactContent, type BrandFact } from '../../shared/schemas/business-brain'
 import { dayInZone } from '../../shared/utils/calendar'
@@ -125,7 +126,7 @@ export async function localPostChecks(
   const render = post.video
     ? (
         await db.query(
-          'SELECT status,storage_path,composed FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
+          'SELECT status,storage_path,composed,width,height FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
           [post.id, businessId],
         )
       ).rows[0]
@@ -254,11 +255,36 @@ export async function localPostChecks(
           },
         ]
       : []),
+    // What reaches the channel must be on the channel's canvas. A video is
+    // judged by its render; a generated creative by the image the application
+    // produced for that channel. A photo the business uploaded by hand is
+    // judged by the platform limits below instead, since it was never made for
+    // one canvas.
+    ...(post.video
+      ? [
+          {
+            key: 'channel_canvas',
+            passed: !!render?.width && matchesChannelCanvas(post.channel, { width: render.width, height: render.height }),
+            message: 'server.VIDEO_CHANNEL_FORMAT_MISMATCH',
+            params: { channel: post.channel, format: channelFormat(post.channel) },
+          },
+        ]
+      : post.aiProvenance
+        ? [
+            {
+              key: 'channel_canvas',
+              passed: !!asset?.width && matchesChannelCanvas(post.channel, { width: asset.width, height: asset.height }),
+              message: 'server.IMAGE_CHANNEL_FORMAT_MISMATCH',
+              params: { channel: post.channel, format: channelFormat(post.channel) },
+            },
+          ]
+        : []),
     {
       key: 'instagram_size',
       passed:
-        // A video post publishes its 9:16 render, so the 4:5 still it was
-        // composed from is not what Instagram has to accept.
+        // A video post publishes its render, checked against the channel
+        // canvas above, so the still it was composed from is not what
+        // Instagram has to accept.
         post.channel !== 'Instagram' ||
         !!post.video ||
         (!!asset &&

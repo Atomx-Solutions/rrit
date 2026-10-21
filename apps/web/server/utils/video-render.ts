@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { PoolClient } from 'pg'
 import { postSchema } from '../../shared/schemas/workspace'
-import { channelCanvas, channelFormat } from '../../shared/schemas/channel-format'
+import { channelCanvas, channelFormat, channelUiInsets } from '../../shared/schemas/channel-format'
 import { assetStorageFolder, downloadAsset, removeAsset, uploadBinaryAsset } from './asset-storage'
 import {
   consumeReservedCredits,
@@ -191,6 +191,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       weightCta: endCardInput.weightCta,
       logo: logoBytes || undefined,
       target: canvas,
+      covered: channelUiInsets(post.channel),
     })
     return {
       business,

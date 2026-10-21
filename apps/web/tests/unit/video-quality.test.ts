@@ -34,6 +34,7 @@ describe('reviewVideoQuality', () => {
       brandName: 'Brand',
       locale: 'en-US',
       verifiedFacts: ['Verified fact'],
+      targetChannel: 'Instagram',
     })
 
     expect(quality.decision).toBe('WARN')

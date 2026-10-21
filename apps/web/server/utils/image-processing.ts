@@ -1,6 +1,12 @@
 import sharp, { type OverlayOptions } from 'sharp'
 import { PlannerFailure } from './monthly-planner-domain'
-import type { Canvas } from '../../shared/schemas/channel-format'
+import {
+  channelCanvas,
+  channelUiInsets,
+  type Canvas,
+  type CanvasInsets,
+  type PublishingChannel,
+} from '../../shared/schemas/channel-format'
 
 function escapeXml(value: string) {
   return value.replace(
@@ -311,7 +317,13 @@ const PLACEMENT_ANALYSIS_WIDTH = 216
  */
 export type LogoZone = 'auto' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
-export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: LogoZone) {
+export async function chooseLogoPlacement(
+  image: Buffer,
+  logo: Buffer,
+  zone?: LogoZone,
+  // Where the channel's own interface covers the image; the logo never goes there.
+  covered: CanvasInsets = { top: 0, right: 0, bottom: 0, left: 0 },
+) {
   const imageMeta = await sharp(image).metadata()
   const width = imageMeta.width || 0
   const height = imageMeta.height || 0
@@ -346,13 +358,17 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
     marginX,
     Math.round((width - logoWidth) / 2),
     width - logoWidth - 56,
-  ])].filter((left) => left >= marginX && left + logoWidth <= width - marginX)
+  ])].filter((left) =>
+    left >= Math.max(marginX, Math.ceil(width * covered.left)) &&
+    left + logoWidth <= width - Math.max(marginX, Math.ceil(width * covered.right)))
   const verticalPositions = [...new Set([
     marginY,
     140,
     height - logoHeight - 140,
     height - logoHeight - marginY,
-  ])].filter((top) => top >= marginY && top + logoHeight <= height - marginY)
+  ])].filter((top) =>
+    top >= Math.max(marginY, Math.ceil(height * covered.top)) &&
+    top + logoHeight <= height - Math.max(marginY, Math.ceil(height * covered.bottom)))
 
   // The named corner is a preference, not a rule. A model that says it left the
   // bottom free and then sets its copy block there would otherwise push the
@@ -365,7 +381,11 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
     return zone === `${onTop ? 'top' : 'bottom'}-${onLeft ? 'left' : 'right'}`
   }
 
-  let best = { left: marginX, top: marginY, score: Number.POSITIVE_INFINITY }
+  let best = {
+    left: horizontalPositions[0] ?? marginX,
+    top: verticalPositions[0] ?? marginY,
+    score: Number.POSITIVE_INFINITY,
+  }
   for (const top of verticalPositions) {
     for (const left of horizontalPositions) {
       const startX = Math.max(
@@ -420,7 +440,13 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
 
 // Technical output normalization. A supplied approved logo is the only optional
 // deterministic brand element added after generation; no logo means no overlay.
-export async function normalizeGeneratedCreative(image: Buffer, canvas: Canvas, logo?: Buffer, logoZone?: LogoZone) {
+export async function normalizeGeneratedCreative(
+  image: Buffer,
+  channel: PublishingChannel,
+  logo?: Buffer,
+  logoZone?: LogoZone,
+) {
+  const canvas = channelCanvas(channel)
   const normalized = sharp(image, { limitInputPixels: 24000000 })
     .rotate()
     // The image prompt reserves a centered safe region of the channel's canvas
@@ -447,7 +473,7 @@ export async function normalizeGeneratedCreative(image: Buffer, canvas: Canvas, 
     const logoHeight = logoMetadata.height || 0
     if (logoWidth && logoHeight) {
       const base = await normalized.png().toBuffer()
-      const placement = await chooseLogoPlacement(base, resizedLogo, logoZone)
+      const placement = await chooseLogoPlacement(base, resizedLogo, logoZone, channelUiInsets(channel))
       result = await sharp(base)
         .composite([{ input: resizedLogo, left: placement.left, top: placement.top }])
         .jpeg({ quality: 94, mozjpeg: true })
@@ -729,19 +755,23 @@ export async function buildVideoOverlayLayers(input: {
   // The approved logo, shown in place of the business name when there is one.
   logo?: Buffer
   target: { width: number; height: number }
+  // Where the channel's own interface covers the video, beyond the general
+  // header and footer bands below.
+  covered?: CanvasInsets
 }) {
   const { width, height } = input.target
+  const covered = input.covered || { top: 0, right: 0, bottom: 0, left: 0 }
   const primary = sanitizeHex(input.primaryColor) || '#0F172A'
   const onPrimary = sanitizeHex(input.onPrimary) || readableOn(primary)
   const font = `${(input.fontFamily?.trim() || 'Inter').replace(/["<>]/g, '')}, 'Helvetica Neue', Arial, sans-serif`
   const weightHook = clampWeight(input.weightHook, 800)
   const weightCta = clampWeight(input.weightCta, 600)
-  const margin = Math.round(width * 0.075)
-  const textWidth = width - margin * 2
+  const margin = Math.round(Math.max(width * 0.075, width * covered.left))
+  const textWidth = width - margin - Math.round(Math.max(width * 0.075, width * covered.right))
   // The platforms draw their own header across the top and their caption,
   // actions and progress bar across the bottom, so the type stays between.
-  const safeTop = Math.round(height * 0.11)
-  const safeBottom = Math.round(height * 0.78)
+  const safeTop = Math.round(height * Math.max(0.11, covered.top))
+  const safeBottom = Math.round(height * Math.min(0.78, 1 - covered.bottom))
 
   const wrap = (value: string, size: number, widthFactor: number) => {
     const maxChars = Math.max(6, Math.floor(textWidth / (size * widthFactor)))

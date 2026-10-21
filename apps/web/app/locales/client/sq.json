@@ -2133,6 +2133,8 @@
   "server.PHOTO_READABLE_SIZE_REQUIRED": "Fotografia duhet të jetë e lexueshme dhe brenda kufirit të madhësisë.",
   "server.PHOTO_UNREADABLE": "Fotografia nuk mund të lexohet. Ngarko një JPG të vlefshëm, të paktën 100 × 100 pikselë dhe deri në 2 MB.",
   "server.VIDEO_REQUIRED_FOR_PUBLISHING": "Gjeneroje videon para se ta planifikosh për publikim.",
+  "server.VIDEO_CHANNEL_FORMAT_MISMATCH": "Videoja nuk është në formatin e {channel} ({format}). Rigjeneroje videon para publikimit.",
+  "server.IMAGE_CHANNEL_FORMAT_MISMATCH": "Imazhi nuk është në formatin e {channel} ({format}). Rigjeneroje imazhin para publikimit.",
   "server.POST_LIMITS_NOT_CONFIGURED": "Kufijtë e postimeve nuk janë konfiguruar.",
   "server.INSTAGRAM_RATE_LIMIT": "Kufiri i publikimeve në Instagram nuk lejon një publikim të ri tani.",
   "server.LOGO_UNREADABLE": "Logoja nuk mund të lexohet. Ngarko PNG, JPG ose WebP të vlefshëm, të paktën 100 × 100 pikselë dhe deri në 2 MB.",

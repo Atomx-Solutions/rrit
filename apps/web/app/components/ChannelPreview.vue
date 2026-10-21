@@ -1,12 +1,20 @@
 <script setup lang="ts">
+import { channelCanvas, type PublishingChannel } from '~~/shared/schemas/channel-format'
+
 const { t } = useI18n()
-defineProps<{
-  channel: 'Instagram' | 'Facebook' | 'TikTok'
+const props = defineProps<{
+  channel: PublishingChannel
   name: string
   image: string
   caption: string
   videoUrl?: string | null
 }>()
+// The frame the channel shows. Media in another shape is letterboxed inside
+// it rather than cropped, so a file of the wrong size is visible as such.
+const frame = computed(() => {
+  const { width, height } = channelCanvas(props.channel)
+  return { aspectRatio: `${width} / ${height}` }
+})
 </script>
 <template>
   <UCard
@@ -17,7 +25,8 @@ defineProps<{
   >
     <div
       v-if="channel === 'TikTok'"
-      class="relative aspect-[9/16] overflow-hidden rounded-2xl bg-black text-white"
+      class="relative overflow-hidden rounded-2xl bg-black text-white"
+      :style="frame"
     >
       <video
         v-if="videoUrl"
@@ -116,14 +125,16 @@ defineProps<{
         controls
         playsinline
         preload="metadata"
-        class="w-full bg-black"
+        class="w-full bg-black object-contain"
+        :style="frame"
       />
       <MediaImage
         v-else-if="image"
         :src="image"
         :alt="t('preview.selectedPhoto')"
-        fit="natural"
+        fit="contain"
         class="w-full"
+        :style="frame"
       />
       <DashboardEmpty
         v-else

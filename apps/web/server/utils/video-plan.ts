@@ -23,7 +23,7 @@ export type VideoCreativePlan = {
 }
 
 // A video brief that was persisted before shot direction existed falls back on
-// a composition that reads well on a 9:16 phone with a centred subject and the
+// a composition that reads well on any channel canvas with a centred subject and the
 // text zone along the bottom. The defaults are chosen so a legacy brief never
 // produces a broken plan, not to be aesthetically opinionated.
 const DEFAULT_SHOT: ShotDirection = {

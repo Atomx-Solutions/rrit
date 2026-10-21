@@ -14,6 +14,24 @@ const channelCanvases = {
   TikTok: { width: 1080, height: 1920 },
 } as const satisfies Record<PublishingChannel, Canvas>
 
+// The parts of the canvas a channel's own interface covers when it shows the
+// post, as a share of each side. Nothing the business must be seen (logo,
+// headline, call to action) may sit there. TikTok lays its account name and
+// caption along the bottom, its like/comment/share column down the right edge
+// and its tabs across the top; the feeds of Instagram and Facebook cover none
+// of the image.
+export type CanvasInsets = { top: number; right: number; bottom: number; left: number }
+const noInsets: CanvasInsets = { top: 0, right: 0, bottom: 0, left: 0 }
+const channelUiInsetsByChannel = {
+  Instagram: noInsets,
+  Facebook: noInsets,
+  TikTok: { top: 0.07, right: 0.13, bottom: 0.25, left: 0 },
+} as const satisfies Record<PublishingChannel, CanvasInsets>
+
+export function channelUiInsets(channel: PublishingChannel): CanvasInsets {
+  return channelUiInsetsByChannel[channel]
+}
+
 // Every "<width>x<height>" a stored video brief may carry. Videos rendered
 // before canvases followed the channel are all 1080x1920, which TikTok still
 // uses, so every stored brief keeps parsing.

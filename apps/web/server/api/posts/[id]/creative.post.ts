@@ -111,7 +111,7 @@ export default defineEventHandler(async (event) => {
         })
         return {
           generated,
-          bytes: await normalizeGeneratedCreative(generated.bytes, channelCanvas(snapshot.post.channel), snapshot.brandLogo?.bytes),
+          bytes: await normalizeGeneratedCreative(generated.bytes, snapshot.post.channel, snapshot.brandLogo?.bytes),
         }
       } finally {
         snapshot.brandLogo?.bytes.fill(0)
