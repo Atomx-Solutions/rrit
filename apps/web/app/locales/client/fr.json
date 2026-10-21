@@ -2094,6 +2094,7 @@
   "server.USERS_LIST_LOAD_FAILED": "Impossible de charger la liste des utilisateurs.",
   "server.VIDEO_FORMAT_INVALID": "Le format de la vidéo n’est pas valide.",
   "server.VIDEO_SUBJECT_CHANGED": "L’IA a modifié le sujet photographié même lors d’un second essai plus calme : la vidéo n’a pas été enregistrée ni facturée. Réessayez ou choisissez une autre photo.",
+  "server.VIDEO_CREDITS_INSUFFICIENT": "Les crédits ne suffisent même pas pour la vidéo la plus courte. Rechargez vos crédits et réessayez ; rien n’a été facturé.",
   "server.VIDEO_EDIT_INSTRUCTION_REQUIRED": "Décrivez en quelques mots la vidéo souhaitée.",
   "server.VIDEO_GENERATION_TIMEOUT": "La génération de la vidéo a expiré.",
   "server.VIDEO_DOWNLOAD_FAILED": "Impossible de télécharger la vidéo générée.",

@@ -116,6 +116,15 @@ describe('fitting a photograph to its channel', () => {
     expect(outpaint).toHaveBeenCalledTimes(1)
   })
 
+  it('charges what the extension review cost too', async () => {
+    const scene = await solid(1080, 1920, '#4a7a4a')
+    const fit = await fitPhotoToChannel(await solid(1920, 1080, '#4a7a4a'), 'TikTok', {
+      outpaint: async () => ({ bytes: scene, costUsd: 0.04 }),
+      review: async () => ({ natural: true, reason: 'ok', costUsd: 0.003 }),
+    })
+    expect(fit.costUsd).toBeCloseTo(0.043)
+  })
+
   it('tries once more after a rejected extension, then crops instead', async () => {
     const canvas = channelCanvas('Instagram')
     const scene = await solid(canvas.width, canvas.height, '#4a7a4a')

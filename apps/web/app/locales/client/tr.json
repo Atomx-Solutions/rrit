@@ -2094,6 +2094,7 @@
   "server.USERS_LIST_LOAD_FAILED": "Kullanıcı listesi yüklenemedi.",
   "server.VIDEO_FORMAT_INVALID": "Video biçimi geçerli değil.",
   "server.VIDEO_SUBJECT_CHANGED": "Yapay zekâ, daha sakin ikinci denemede de fotoğraftaki nesneyi değiştirdi; bu yüzden video kaydedilmedi ve ücretlendirilmedi. Tekrar deneyin veya başka bir fotoğraf seçin.",
+  "server.VIDEO_CREDITS_INSUFFICIENT": "Krediler en kısa video için bile yetmiyor. Kredi yükleyip tekrar deneyin; ücret alınmadı.",
   "server.VIDEO_EDIT_INSTRUCTION_REQUIRED": "Videoyu nasıl istediğinizi birkaç kelimeyle yazın.",
   "server.VIDEO_GENERATION_TIMEOUT": "Video oluşturma zaman aşımına uğradı.",
   "server.VIDEO_DOWNLOAD_FAILED": "Oluşturulan video indirilemedi.",

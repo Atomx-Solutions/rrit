@@ -64,10 +64,12 @@ export async function verifyVideoSubject(input: { photograph: Buffer; frames: Bu
         },
       }),
     })
-    if (!response.ok) return { sameSubject: false, reason: `check_unavailable:${response.status}` }
-    return subjectCheckSchema.parse(JSON.parse(responseText(parseMonthlyProviderResponse(await response.json()))))
+    if (!response.ok) return { sameSubject: false, reason: `check_unavailable:${response.status}`, costUsd: 0 }
+    const raw = parseMonthlyProviderResponse(await response.json())
+    // What the check itself cost, charged with the video.
+    return { ...subjectCheckSchema.parse(JSON.parse(responseText(raw))), costUsd: raw.usage.cost ?? 0 }
   } catch (error) {
-    return { sameSubject: false, reason: `check_unavailable:${error instanceof Error ? error.message : 'unknown'}` }
+    return { sameSubject: false, reason: `check_unavailable:${error instanceof Error ? error.message : 'unknown'}`, costUsd: 0 }
   }
 }
 

@@ -119,7 +119,8 @@ describe('generating a storyboard shot by shot', () => {
     await expect(result).rejects.toBeInstanceOf(ShotSubjectChanged)
     await expect(result).rejects.toMatchObject({ shot: 2, reason: 'different wheels' })
     expect(deps.generate).toHaveBeenCalledTimes(2)
-    expect(deps.onCost).toHaveBeenCalledTimes(2)
+    // Two shots and two subject checks were paid for.
+    expect(deps.onCost).toHaveBeenCalledTimes(4)
   })
 
   it('on the delivered take, keeps every shot and reports which changed the subject', async () => {
@@ -134,6 +135,13 @@ describe('generating a storyboard shot by shot', () => {
     }, deps)
     expect(result.clips).toHaveLength(2)
     expect(result.subjectChanges).toEqual([{ shot: 1, reason: 'different grille' }])
+  })
+
+  it('reports what each shot and each subject check cost', async () => {
+    const deps = { ...fakes(), onCost: vi.fn() }
+    deps.verify.mockResolvedValue({ sameSubject: true, reason: 'same', costUsd: 0.002 } as never)
+    await generateStoryboardShots({ storyboard: board([shot(6), shot(6)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
+    expect(deps.onCost.mock.calls.map((call) => call[0])).toEqual([0.4, 0.002, 0.4, 0.002])
   })
 
   it('reports an unknown cost when any shot reports none', async () => {

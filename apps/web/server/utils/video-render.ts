@@ -5,6 +5,8 @@ import { channelCanvas, channelFormat, channelUiInsets } from '../../shared/sche
 import { assetStorageFolder, downloadAsset, removeAsset, uploadBinaryAsset } from './asset-storage'
 import {
   consumeReservedCredits,
+  creditBalanceSnapshot,
+  creditPricing,
   creditsForCost,
   releaseReservedCredits,
   reserveCredits,
@@ -16,7 +18,8 @@ import { buildVideoCreativePlan } from './video-plan'
 import { approvedVideoCopy, videoPostEvidence } from './video-quality'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
 import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
-import type { Storyboard } from '../../shared/schemas/storyboard'
+import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
+import { storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
 import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, joinClips, VIDEO_END_CARD_SECONDS, videoDuration } from './video-compose'
 import { closestDuration, generateStoryboardShots, ShotSubjectChanged } from './video-shots'
@@ -248,6 +251,9 @@ export async function renderVideoForPost(userId: string, postId: string) {
   // Set once the file is in storage, so any later failure can take it back out
   // instead of leaving bytes behind that the allowance would keep counting.
   const uploadedPaths: string[] = []
+  // What is held for this render: the configured reservation, raised once
+  // the director has planned the video and its cost can be estimated.
+  let reservedCredits = snapshot.videoCredits
   let failureReason = 'render_failed'
   try {
     // Both ends of the motion are cut from one photograph, so the subject
@@ -272,8 +278,51 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // The AI creative director invents this video's concept and storyboard
     // from the fitted photograph. Without a valid storyboard the strategy's
     // own shot direction is rendered as before.
-    const capabilities = await aiVideoCapabilities()
-    const limits = videoLengthLimits(capabilities.durations)
+    const capabilities = await aiVideoCapabilities(snapshot.canvas)
+    let limits = videoLengthLimits(capabilities.durations)
+    // The video is planned within what the business can pay for: the model's
+    // published price per second against the credits held for this render and
+    // still free. Without a published price the configured reservation stands.
+    const usdMicroEur = usdMicroEurRate()
+    const pricing = capabilities.pricePerSecondUsd && usdMicroEur
+      ? await withBusinessTransaction(userId, async (client, business) => {
+          const credit = await creditPricing(client)
+          const balance = await creditBalanceSnapshot(client, business.id)
+          return {
+            spendable: balance.spendable,
+            rates: { pricePerSecondUsd: capabilities.pricePerSecondUsd!, usdMicroEur, providerCostPerCreditMicroEur: credit.providerCostPerCreditMicroEur },
+          }
+        })
+      : null
+    if (pricing) {
+      const seconds = affordableVideoSeconds(pricing.spendable + reservedCredits, pricing.rates)
+      const shortest = Math.min(...(capabilities.durations.length ? capabilities.durations : [limits.minSeconds]))
+      if (seconds < Math.max(limits.minSeconds, shortest)) {
+        failureReason = 'credits_insufficient'
+        throw createError({ statusCode: 402, message: 'server.VIDEO_CREDITS_INSUFFICIENT' })
+      }
+      limits = { ...limits, maxSeconds: Math.min(limits.maxSeconds, seconds) }
+    }
+    // Holds enough for every take planned so far before the next is
+    // generated; a take the business cannot pay for is never started.
+    let plannedSeconds = 0
+    const reserveFor = async (seconds: number, attempt: number) => {
+      plannedSeconds += seconds
+      seconds = plannedSeconds
+      if (!pricing) return
+      const needed = estimatedVideoCredits(seconds, pricing.rates)
+      if (needed <= reservedCredits) return
+      const extra = needed - reservedCredits
+      await withBusinessTransaction(userId, (client, business) => reserveCredits(client, {
+        organizationId: business.id,
+        credits: extra,
+        usageKind: 'generation',
+        referenceType: 'video',
+        referenceId: snapshot.renderId,
+        idempotencyKey: `video-reserve-extra:${snapshot.renderId}:${attempt}`,
+      }))
+      reservedCredits += extra
+    }
     // Every video is made by the configured motion model; nothing is animated
     // locally. The model paints its own closest ratio around the channel
     // canvas, and the composer crops the clip back to it.
@@ -326,6 +375,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       // Held against the exact frame the model was given, padding included,
       // so the padding itself never reads as a change of subject.
       const check = await verifyVideoSubject({ photograph: first, frames: await extractVideoFrames(generated.bytes, [0.3, 0.6, 0.95]) })
+      addCost(check.costUsd)
       if (!check.sameSubject && onSubjectChange === 'stop') throw new ShotSubjectChanged(1, check.reason)
       return {
         subjectChanges: check.sameSubject ? [] : [{ shot: 1, reason: check.reason }],
@@ -356,12 +406,21 @@ export async function renderVideoForPost(userId: string, postId: string) {
       failureReason = 'render_failed'
       storyboard = direction.storyboard
       if (!storyboard) console.warn('The video director gave no valid storyboard; rendering the strategy shot', { postId, attempt })
+      const takeSeconds = storyboard ? storyboardSeconds(storyboard) : closestDuration(snapshot.durationSeconds, capabilities.durations)
+      failureReason = 'credits_insufficient'
+      await reserveFor(takeSeconds, attempt)
+      failureReason = 'render_failed'
+      // The first take may be retried only when a second one could be paid
+      // for too; otherwise it is the take delivered, with any warning.
+      const retryAffordable = !pricing
+        || affordableVideoSeconds(pricing.spendable + snapshot.videoCredits, pricing.rates) >= plannedSeconds + takeSeconds
+      const lastTake = attempt > 0 || !retryAffordable
       try {
         result = await take(
           storyboard,
           previousAttempt ? snapshot.calmPrompt : snapshot.prompt,
           previousAttempt ? snapshot.calmShot : snapshot.shot,
-          attempt === 0 ? 'stop' : 'record',
+          lastTake ? 'record' : 'stop',
         )
       } catch (error) {
         if (!(error instanceof ShotSubjectChanged)) throw error
@@ -459,20 +518,20 @@ export async function renderVideoForPost(userId: string, postId: string) {
       const totalUsd = costUsd === null ? null : costUsd + reviewCostUsd
       const charged = totalUsd !== null && totalUsd > 0 && Number.isFinite(usdMicroEur) && usdMicroEur > 0
         ? await creditsForCost(client, Math.max(1, Math.ceil(totalUsd * usdMicroEur)))
-        : snapshot.videoCredits
+        : reservedCredits
       await consumeReservedCredits(client, {
         organizationId: business.id,
         credits: charged,
-        reservedCredits: snapshot.videoCredits,
+        reservedCredits,
         usageKind: 'generation',
         referenceType: 'video',
         referenceId: snapshot.renderId,
         idempotencyKey: `video-charge:${snapshot.renderId}`,
       })
-      if (snapshot.videoCredits > charged)
+      if (reservedCredits > charged)
         await releaseReservedCredits(client, {
           organizationId: business.id,
-          credits: snapshot.videoCredits - charged,
+          credits: reservedCredits - charged,
           usageKind: 'generation',
           referenceType: 'video',
           referenceId: snapshot.renderId,
@@ -541,7 +600,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     }
     await withBusinessTransaction(userId, async (client, business) => {
       // Nothing was delivered, so the whole reservation goes back.
-      await releaseReservedCredits(client, { organizationId: business.id, credits: snapshot.videoCredits, usageKind: 'generation', referenceType: 'video', referenceId: snapshot.renderId, idempotencyKey: `video-release:${snapshot.renderId}` })
+      await releaseReservedCredits(client, { organizationId: business.id, credits: reservedCredits, usageKind: 'generation', referenceType: 'video', referenceId: snapshot.renderId, idempotencyKey: `video-release:${snapshot.renderId}` })
       await client.query(
         "UPDATE video_renders SET status='failed',failure_reason=$1,completed_at=now() WHERE id=$2 AND business_id=$3",
         [failureReason, snapshot.renderId, business.id],

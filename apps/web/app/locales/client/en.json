@@ -2095,6 +2095,7 @@
   "server.USERS_LIST_LOAD_FAILED": "The user list could not be loaded.",
   "server.VIDEO_FORMAT_INVALID": "The video format is not valid.",
   "server.VIDEO_SUBJECT_CHANGED": "The AI changed the photographed subject even on a second, calmer attempt, so the video was not saved and not charged. Try again or choose another photo.",
+  "server.VIDEO_CREDITS_INSUFFICIENT": "There are not enough credits even for the shortest video. Top up credits and try again; nothing was charged.",
   "server.VIDEO_EDIT_INSTRUCTION_REQUIRED": "Write at least a few words about how you want the video.",
   "server.VIDEO_GENERATION_TIMEOUT": "Video generation timed out.",
   "server.VIDEO_DOWNLOAD_FAILED": "The generated video could not be downloaded.",

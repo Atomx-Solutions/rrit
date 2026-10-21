@@ -2094,6 +2094,7 @@
   "server.USERS_LIST_LOAD_FAILED": "Impossibile caricare l’elenco degli utenti.",
   "server.VIDEO_FORMAT_INVALID": "Il formato del video non è valido.",
   "server.VIDEO_SUBJECT_CHANGED": "L’IA ha modificato il soggetto fotografato anche in un secondo tentativo più calmo, quindi il video non è stato salvato né addebitato. Riprova o scegli un’altra foto.",
+  "server.VIDEO_CREDITS_INSUFFICIENT": "I crediti non bastano nemmeno per il video più breve. Ricarica i crediti e riprova; non è stato addebitato nulla.",
   "server.VIDEO_EDIT_INSTRUCTION_REQUIRED": "Descrivi in poche parole come vuoi il video.",
   "server.VIDEO_GENERATION_TIMEOUT": "La generazione del video è scaduta.",
   "server.VIDEO_DOWNLOAD_FAILED": "Impossibile scaricare il video generato.",

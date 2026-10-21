@@ -96,6 +96,7 @@ export async function generateStoryboardShots(input: {
     costUsd = costUsd === null || generated.costUsd === null ? null : costUsd + generated.costUsd
     deps.onCost(generated.costUsd)
     const check = await deps.verify({ photograph, frames: await deps.framesOf(generated.bytes, [0.3, 0.6, 0.95]) })
+    deps.onCost(check.costUsd ?? 0)
     if (!check.sameSubject) {
       if (input.onSubjectChange !== 'record') throw new ShotSubjectChanged(index + 1, check.reason)
       subjectChanges.push({ shot: index + 1, reason: check.reason })

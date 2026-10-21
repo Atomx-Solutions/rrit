@@ -304,17 +304,19 @@ export async function reviewExtension(original: Buffer, extended: Buffer) {
         },
       }),
     })
-    if (!response.ok) return { natural: false, reason: `review_unavailable:${response.status}` }
-    return extensionReviewSchema.parse(JSON.parse(responseText(parseMonthlyProviderResponse(await response.json()))))
+    if (!response.ok) return { natural: false, reason: `review_unavailable:${response.status}`, costUsd: 0 }
+    const raw = parseMonthlyProviderResponse(await response.json())
+    // What the review itself cost, charged with the fit.
+    return { ...extensionReviewSchema.parse(JSON.parse(responseText(raw))), costUsd: raw.usage.cost ?? 0 }
   } catch (error) {
-    return { natural: false, reason: `review_unavailable:${error instanceof Error ? error.message : 'unknown'}` }
+    return { natural: false, reason: `review_unavailable:${error instanceof Error ? error.message : 'unknown'}`, costUsd: 0 }
   }
 }
 
 export type PhotoFitDependencies = {
   // Paints the guide; returns the painting and what it cost, if known.
   outpaint: (guide: Buffer, prompt: string, attempt: number) => Promise<{ bytes: Buffer; costUsd?: number | null }>
-  review?: (original: Buffer, extended: Buffer) => Promise<{ natural: boolean; reason: string }>
+  review?: (original: Buffer, extended: Buffer) => Promise<{ natural: boolean; reason: string; costUsd?: number }>
   attempts?: number
   thresholds?: PhotoFitThresholds
 }
@@ -353,6 +355,7 @@ export async function fitPhotoToChannel(image: Buffer, channel: PublishingChanne
         continue
       }
       const review = dependencies.review ? await dependencies.review(image, extended) : { natural: true, reason: '' }
+      costUsd += ('costUsd' in review && review.costUsd) || 0
       if (!review.natural) {
         reasons.push(`review:${review.reason}`)
         continue

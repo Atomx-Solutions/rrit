@@ -2095,6 +2095,7 @@
   "server.USERS_LIST_LOAD_FAILED": "Lista e përdoruesve nuk u ngarkua.",
   "server.VIDEO_FORMAT_INVALID": "Formati i videos nuk është i vlefshëm.",
   "server.VIDEO_SUBJECT_CHANGED": "AI ndryshoi subjektin e fotos edhe pas një prove të dytë me koncept më të qetë, prandaj videoja nuk u ruajt dhe nuk u faturua. Provo sërish ose zgjidh një foto tjetër.",
+  "server.VIDEO_CREDITS_INSUFFICIENT": "Kreditet nuk mjaftojnë as për videon më të shkurtër. Mbush kreditet dhe provo sërish; asgjë nuk u faturua.",
   "server.VIDEO_EDIT_INSTRUCTION_REQUIRED": "Shkruaj të paktën disa fjalë se si e do videon.",
   "server.VIDEO_GENERATION_TIMEOUT": "Gjenerimi i videos arriti kufirin kohor.",
   "server.VIDEO_DOWNLOAD_FAILED": "Videoja nga OpenRouter nuk u shkarkua.",

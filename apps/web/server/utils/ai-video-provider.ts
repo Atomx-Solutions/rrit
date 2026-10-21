@@ -65,6 +65,31 @@ type OpenRouterVideoModel = {
   supported_aspect_ratios?: string[]
   supported_frame_images?: string[]
   supported_durations?: number[]
+  pricing_skus?: Record<string, string>
+}
+
+/**
+ * What one second of video costs in USD at a resolution, read from the price
+ * list OpenRouter publishes for the model. Videos are made without audio, so
+ * the silent price is preferred; a price in cents is converted. A model priced
+ * some other way (per token, for instance) has no per-second price here and
+ * the caller falls back on the configured reservation.
+ */
+export function pricePerSecondUsd(skus: Record<string, string> | undefined, resolution: string): number | null {
+  const prices = Object.entries(skus || {}).flatMap(([key, value]) => {
+    const amount = Number(value)
+    if (!Number.isFinite(amount) || amount <= 0 || !/second/.test(key)) return []
+    if (/reference|video_input|continuation|image/.test(key)) return []
+    return [{ key, usd: key.startsWith('cents_per') ? amount / 100 : amount }]
+  })
+  const silent = prices.filter((price) => price.key.includes('without_audio'))
+  const pool = silent.length ? silent : prices.filter((price) => !price.key.includes('with_audio'))
+  const candidates = pool.length ? pool : prices
+  const sized = /_(\d+p|\dk)$/i
+  const exact = candidates.find((price) => price.key.toLowerCase().endsWith(`_${resolution.toLowerCase()}`))
+  const general = candidates.find((price) => !sized.test(price.key))
+  const chosen = exact || general
+  return chosen ? chosen.usd : null
 }
 
 /**
@@ -72,11 +97,17 @@ type OpenRouterVideoModel = {
  * publishes it: the shot lengths it renders and the frames it can be pinned
  * to. Nothing here is assumed about a particular model.
  */
-export async function aiVideoCapabilities() {
+export async function aiVideoCapabilities(canvas?: { width: number; height: number }) {
   const provider = config()
   const model = provider ? await configuredModel(provider) : undefined
+  // The resolution actually asked of the model for this canvas, the same
+  // one the adapter sends, so the price matches the call.
+  const resolution = canvas
+    ? providerResolution(resolutionCap(`${Math.min(canvas.width, canvas.height)}p`), model?.supported_resolutions || [])
+    : undefined
   return {
     model: provider?.model,
+    pricePerSecondUsd: resolution ? pricePerSecondUsd(model?.pricing_skus, resolution) : null,
     durations: [...new Set(model?.supported_durations || [])].filter((value) => Number.isInteger(value) && value > 0).sort((a, b) => a - b),
     firstFrame: !model?.supported_frame_images || model.supported_frame_images.includes('first_frame'),
     lastFrame: !!model?.supported_frame_images?.includes('last_frame'),
