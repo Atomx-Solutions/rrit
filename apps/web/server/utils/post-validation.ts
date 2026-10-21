@@ -255,6 +255,19 @@ export async function localPostChecks(
           },
         ]
       : []),
+    // A video the subject check doubted is delivered for the business to
+    // judge, so it is a warning to read before publishing, not a veto.
+    ...(post.video?.subjectWarning
+      ? [
+          {
+            key: 'video_subject',
+            advisory: true,
+            passed: false,
+            message: 'video.subjectWarningCheck',
+            params: { detail: post.video.subjectWarning.detail },
+          },
+        ]
+      : []),
     // What reaches the channel must be on the channel's canvas. A video is
     // judged by its render; a generated creative by the image the application
     // produced for that channel. A photo the business uploaded by hand is

@@ -112,13 +112,28 @@ describe('generating a storyboard shot by shot', () => {
     expect(retry.image).toBeInstanceOf(Buffer)
   })
 
-  it('stops at the first shot that changes the subject', async () => {
-    const deps = fakes()
+  it('stops at the first shot that changes the subject, having reported what it paid', async () => {
+    const deps = { ...fakes(), onCost: vi.fn() }
     deps.verify.mockResolvedValueOnce({ sameSubject: true, reason: 'same' }).mockResolvedValueOnce({ sameSubject: false, reason: 'different wheels' })
     const result = generateStoryboardShots({ storyboard: board([shot(4), shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
     await expect(result).rejects.toBeInstanceOf(ShotSubjectChanged)
     await expect(result).rejects.toMatchObject({ shot: 2, reason: 'different wheels' })
     expect(deps.generate).toHaveBeenCalledTimes(2)
+    expect(deps.onCost).toHaveBeenCalledTimes(2)
+  })
+
+  it('on the delivered take, keeps every shot and reports which changed the subject', async () => {
+    const deps = fakes()
+    deps.verify.mockResolvedValueOnce({ sameSubject: false, reason: 'different grille' })
+    const result = await generateStoryboardShots({
+      storyboard: board([shot(6), shot(6)]),
+      fitted: await photo(),
+      provider,
+      lastFrameSupported: true,
+      onSubjectChange: 'record',
+    }, deps)
+    expect(result.clips).toHaveLength(2)
+    expect(result.subjectChanges).toEqual([{ shot: 1, reason: 'different grille' }])
   })
 
   it('reports an unknown cost when any shot reports none', async () => {

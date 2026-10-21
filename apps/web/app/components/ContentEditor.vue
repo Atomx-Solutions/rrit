@@ -252,6 +252,30 @@ async function renderVideo() {
     videoBusy.value = false
   }
 }
+// Edit video with AI: the business's own direction for the next take.
+const videoEditOpen = ref(false)
+const videoInstruction = ref('')
+async function editVideoWithAi() {
+  if (!post.value || videoBusy.value || videoInstruction.value.trim().length < 5) return
+  videoBusy.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/posts/${post.value.id}/video-edit`, {
+      method: 'POST',
+      body: { instruction: videoInstruction.value.trim() },
+      retry: 0,
+    })
+    videoEditOpen.value = false
+    videoInstruction.value = ''
+    await initLive()
+    await refreshVideo()
+    notify(t('video.ready'))
+  } catch (problem) {
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
+  } finally {
+    videoBusy.value = false
+  }
+}
 async function sendVideoToTikTok() {
   if (!post.value || videoBusy.value) return
   videoBusy.value = true
@@ -595,11 +619,57 @@ onBeforeUnmount(() => {
                 icon="i-lucide-eye"
                 @click="videoPreviewOpen = true"
               >{{ t('video.preview') }}</UButton>
+              <UButton
+                v-if="post?.video && ['ready', 'failed'].includes(post.video.status)"
+                size="sm"
+                variant="outline"
+                color="neutral"
+                icon="i-lucide-wand-sparkles"
+                :disabled="dirty || syncing || !editable || videoBusy"
+                @click="videoEditOpen = true"
+              >{{ t('video.editWithAi') }}</UButton>
             </div>
           </div>
           <p v-if="post?.video" class="text-sm text-muted">
             {{ videoRender?.status === 'ready' ? t('video.readyHint') : t('video.sourceHint') }}
           </p>
+          <!-- A video the subject check doubted is kept for the business to
+               judge; the check's own words say what it saw. -->
+          <UAlert
+            v-if="post?.video?.status === 'ready' && post.video.subjectWarning"
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-triangle-alert"
+            :title="t('video.subjectWarningTitle')"
+            :description="t('video.subjectWarning', { detail: post.video.subjectWarning.detail })"
+            :actions="[{ label: t('video.editWithAi'), icon: 'i-lucide-wand-sparkles', onClick: () => { videoEditOpen = true } }]"
+          />
+          <!-- What the video review found, like the review of a post's still. -->
+          <UAlert
+            v-if="post?.video?.status === 'ready' && post.video.quality && post.video.quality.decision !== 'PASS' && post.video.quality.reasons.length"
+            :color="post.video.quality.decision === 'BLOCK' ? 'error' : 'warning'"
+            variant="subtle"
+            icon="i-lucide-clipboard-check"
+            :title="t('video.qualityFindingsTitle')"
+            :description="post.video.quality.reasons.join(' ')"
+            :actions="[{ label: t('video.editWithAi'), icon: 'i-lucide-wand-sparkles', onClick: () => { videoEditOpen = true } }]"
+          />
+          <UAlert
+            v-else-if="post?.video?.status === 'ready' && !post.video.quality"
+            color="neutral"
+            variant="subtle"
+            icon="i-lucide-hourglass"
+            :title="t('video.qualityPendingTitle')"
+            :description="t('video.qualityPending')"
+          />
+          <UAlert
+            v-if="post?.video?.status === 'failed'"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-circle-alert"
+            :title="t('video.failedTitle')"
+            :description="t('video.failedGeneric')"
+          />
           <div
             v-if="form.image"
             class="shrink-0"
@@ -870,6 +940,31 @@ onBeforeUnmount(() => {
             fit="contain"
             class="size-full !bg-transparent"
           />
+        </div>
+      </template>
+    </UModal>
+    <UModal
+      v-model:open="videoEditOpen"
+      :title="t('video.editTitle')"
+      :description="t('video.editDescription')"
+      :ui="{ content: 'sm:max-w-lg' }"
+    >
+      <template #body>
+        <UTextarea
+          v-model="videoInstruction"
+          :placeholder="t('video.editPlaceholder')"
+          :rows="4"
+          :maxlength="600"
+          autoresize
+          class="w-full"
+        />
+        <div class="mt-4 flex justify-end">
+          <UButton
+            icon="i-lucide-wand-sparkles"
+            :loading="videoBusy"
+            :disabled="videoInstruction.trim().length < 5"
+            @click="editVideoWithAi"
+          >{{ t('video.editSubmit') }}</UButton>
         </div>
       </template>
     </UModal>

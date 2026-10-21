@@ -54,6 +54,11 @@ export type DirectorInput = {
     purpose?: string
     assetDirection?: string
   }
+  // Set when the last concept changed the subject once it was generated: the
+  // director is asked for a calmer one.
+  previousAttempt?: { storyboard: Storyboard | null; problem: string }
+  // What the business asked for in Edit video with AI, in its own words.
+  userInstruction?: string
 }
 
 /**
@@ -62,7 +67,7 @@ export type DirectorInput = {
  * the concept, the shots and every camera choice are the model's to invent for
  * this post.
  */
-export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'limits' | 'locale'>) {
+export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'limits' | 'locale' | 'previousAttempt' | 'userInstruction'>) {
   const { limits } = input
   const lengths = limits.durations.length
     ? `Each shot lasts exactly one of ${limits.durations.join(', ')} seconds, the lengths the motion model renders.`
@@ -81,6 +86,12 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
     'Write every shot as a cinematographer\'s brief: the camera move, the lens (focal length or look), the speed, the ease in and out, the light and atmosphere, the effects, and what the subject does. Be concrete and visual. No text, letters, logos or captions appear in the motion; the application sets the call to action over it.',
     `Write cta (a short call to action, at most 32 characters) and caption in ${contentLanguageForLocale(input.locale)}, in the brand voice, from the supplied post. Do not invent prices, offers, facts or claims.`,
     'Make this concept your own for this post: do not fall back on a generic slow push-in unless it is truly the best idea for this photograph.',
+    ...(input.userInstruction
+      ? ['businessRequest is what the business itself asked for in this video. Follow it ahead of your own ideas, as far as the rules above about the subject and the photograph allow; where it would break them, keep to the rules and come as close to the request as they permit.']
+      : []),
+    ...(input.previousAttempt
+      ? ['previousAttempt holds your last storyboard and how the motion model changed the subject when it shot it. Propose a calmer concept for the same post: keep the subject still in its photographed place, move the camera less and more slowly, turn it little or not at all, and let the atmosphere and light carry the energy instead.']
+      : []),
   ].join('\n')
 }
 
@@ -91,6 +102,8 @@ function payload(input: DirectorInput, corrections: string[]) {
     post: input.post,
     channel: input.channel,
     videoLength: input.limits,
+    ...(input.previousAttempt ? { previousAttempt: input.previousAttempt } : {}),
+    ...(input.userInstruction ? { businessRequest: input.userInstruction } : {}),
     ...(corrections.length ? { correctionsFromYourLastStoryboard: corrections } : {}),
   }
 }

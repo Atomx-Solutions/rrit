@@ -13,14 +13,14 @@ import {
 import { aiVideoCanvas, aiVideoCapabilities, aiVideoConfigured, aiVideoPromptLimit, generateAiVideo } from './ai-video-provider'
 import { buildVideoEndCard, buildVideoOverlayLayers, padFrameToCanvas, videoKeyframes } from './image-processing'
 import { buildVideoCreativePlan } from './video-plan'
+import { approvedVideoCopy, videoPostEvidence } from './video-quality'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
 import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
+import type { Storyboard } from '../../shared/schemas/storyboard'
 import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, joinClips, VIDEO_END_CARD_SECONDS, videoDuration } from './video-compose'
 import { closestDuration, generateStoryboardShots, ShotSubjectChanged } from './video-shots'
 import { reviewVideoQuality, verifyVideoSubject } from './video-subject-check'
-import { brainForSlot, plannerBrainOf } from './monthly-planner-domain'
-import { editorialPlanSchema, researchSchema } from '../../shared/schemas/monthly-plan'
 
 /**
  * Render a post's video and settle what it cost.
@@ -50,43 +50,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // as it is and only this render, once ready, records the channel's format.
     const canvas = channelCanvas(post.channel)
 
-    const provenance = post.aiProvenance
-    let verifiedFacts: string[] = []
-    let researchFindings = ''
-    let researchSources: string[] = provenance?.sourceUrls || []
-    let businessBrain = ''
-    let planResearch: unknown
-    if (postRow?.monthly_plan_id) {
-      const planResult = await client.query<{ evidence: unknown; research: unknown; editorial_plan: unknown; month_key: string }>(
-        "SELECT evidence,research,editorial_plan,to_char(month,'YYYY-MM') AS month_key FROM monthly_plans WHERE id=$1 AND business_id=$2",
-        [postRow.monthly_plan_id, business.id],
-      )
-      const planRow = planResult.rows[0]
-      if (planRow) {
-        planResearch = planRow.research
-        const evidence = planRow.evidence as { brand?: { facts?: Array<{ id: string; text: string; source?: string }> }; brain?: unknown } | null
-        const factIds = new Set(provenance?.factIds || [])
-        verifiedFacts = (evidence?.brand?.facts || [])
-          .filter(fact => factIds.has(fact.id))
-          .map(fact => `${fact.text}${fact.source ? ` (burimi: ${fact.source})` : ''}`)
-        const research = researchSchema.safeParse(planRow.research)
-        if (research.success) {
-          researchFindings = research.data.text
-          const allowed = new Set(researchSources)
-          researchSources = research.data.sources
-            .filter(source => !allowed.size || allowed.has(source.url))
-            .map(source => `${source.title}: ${source.url}`)
-        }
-        if (postRow.monthly_slot !== null && postRow.monthly_slot !== undefined) {
-          const editorial = editorialPlanSchema.safeParse(planRow.editorial_plan)
-          if (editorial.success) {
-            const slot = editorial.data.slots[postRow.monthly_slot]
-            const evidenceBrain = plannerBrainOf(evidence as never || {})
-            if (slot) businessBrain = JSON.stringify(brainForSlot(evidenceBrain, slot, `${planRow.month_key}-${String(slot.day).padStart(2, '0')}`))
-          }
-        }
-      }
-    }
+    const { verifiedFacts, researchFindings, researchSources, businessBrain } = await videoPostEvidence(client, business.id, post, postRow!)
 
     const asset = await client.query<{ bytes: Buffer | null; storage_path: string | null }>(
       "SELECT bytes,storage_path FROM assets WHERE id=$1 AND business_id=$2 AND rights=true AND kind='photo' AND creative_provenance IS NULL",
@@ -169,6 +133,16 @@ export async function renderVideoForPost(userId: string, postId: string) {
       guardrails: workspace.brand.guardrails,
       maxLength: aiVideoPromptLimit(),
     })
+    // The calmer take for a strategy shot that changed the subject: the
+    // camera holds and nothing in the scene moves but its light and air.
+    const calmShot = { ...plan.shot, camera: 'static' as const, action: 'ambient' as const }
+    const calmPrompt = buildVideoExecutionBrief({
+      plan: { ...plan, shot: calmShot },
+      sourceContext: { verifiedFacts },
+      durationSeconds: post.video.durationSeconds,
+      guardrails: workspace.brand.guardrails,
+      maxLength: aiVideoPromptLimit(),
+    })
     // Everything the deterministic end-card needs, resolved inside the same
     // transaction so the composition stage below never has to re-read business
     // data (and never has to decide whether to inject AI content: the end-card
@@ -218,6 +192,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
       channel: post.channel,
       caption: post.caption,
       verifiedFacts,
+      businessBrain,
+      approvedCopy: approvedVideoCopy(post),
       contentVersion: post.contentVersion ?? 1,
       renderId: renderRow.id,
       source: asset.rows[0].storage_path
@@ -248,12 +224,15 @@ export async function renderVideoForPost(userId: string, postId: string) {
           purpose: post.video.purpose,
           assetDirection: post.video.assetDirection,
         },
+        userInstruction: post.video.editInstruction,
       },
       durationSeconds: post.video.durationSeconds,
       canvas,
       format: channelFormat(post.channel),
       endCardInput,
       shot: plan.shot,
+      calmShot,
+      calmPrompt,
       // Brand first, then the headline, then the supporting line and button,
       // spread across the first part of the motion.
       // Placed in time once the shots are known.
@@ -293,71 +272,111 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // The AI creative director invents this video's concept and storyboard
     // from the fitted photograph. Without a valid storyboard the strategy's
     // own shot direction is rendered as before.
-    failureReason = 'direction_failed'
     const capabilities = await aiVideoCapabilities()
-    const direction = await directVideo({
-      photograph: snapshot.fitted,
-      channel: snapshot.channel,
-      limits: videoLengthLimits(capabilities.durations),
-      locale: snapshot.locale,
-      ...snapshot.director,
-    })
-    failureReason = 'render_failed'
-    const storyboard = direction.storyboard
-    if (!storyboard) console.warn('The video director gave no valid storyboard; rendering the strategy shot', { postId })
+    const limits = videoLengthLimits(capabilities.durations)
     // Every video is made by the configured motion model; nothing is animated
     // locally. The model paints its own closest ratio around the channel
     // canvas, and the composer crops the clip back to it.
     const provider = await aiVideoCanvas(snapshot.canvas)
-    let motion: Buffer
-    let generationCostUsd: number | null
-    let shotStarts: number[]
-    try {
+    let directionCostUsd = 0
+    let generationCostUsd: number | null = 0
+    const addCost = (value: number | null) => {
+      generationCostUsd = generationCostUsd === null || value === null ? null : generationCostUsd + value
+    }
+    // One take: a director storyboard shot by shot, or without one the
+    // strategy's own shot pinned to the photograph at both ends.
+    const take = async (
+      storyboard: Storyboard | null,
+      fallbackPrompt: string,
+      fallbackShot: typeof snapshot.shot,
+      onSubjectChange: 'stop' | 'record',
+    ) => {
       if (storyboard) {
+        const crossfade = videoCrossfadeSeconds()
         const shots = await generateStoryboardShots({
           storyboard,
-          fitted: snapshot.fitted,
+          fitted: snapshot.fitted!,
           provider,
           lastFrameSupported: capabilities.lastFrame,
           guardrails: snapshot.director.guardrails,
           maxLength: aiVideoPromptLimit(),
-        })
-        const crossfade = videoCrossfadeSeconds()
-        motion = await joinClips(shots.clips, provider.canvas, crossfade)
-        generationCostUsd = shots.costUsd
-        shotStarts = storyboard.shots.reduce<number[]>((starts, _shot, index) => {
-          starts.push(index ? starts[index - 1]! + storyboard.shots[index - 1]!.durationSeconds - crossfade : 0)
-          return starts
-        }, [])
-      } else {
-        // The strategy's own shot, pinned to the photograph at both ends.
-        const keyframes = await videoKeyframes(snapshot.fitted, snapshot.canvas, snapshot.shot)
-        const first = await padFrameToCanvas(keyframes.first, provider.canvas)
-        const generated = await generateAiVideo({
-          image: first,
-          lastFrame: await padFrameToCanvas(keyframes.last, provider.canvas),
-          prompt: snapshot.prompt,
-          durationSeconds: closestDuration(snapshot.durationSeconds, capabilities.durations),
-          canvas: provider.canvas,
-          aspectRatio: provider.aspectRatio,
-        })
-        if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
-        // Held against the exact frame the model was given, padding included,
-        // so the padding itself never reads as a change of subject.
-        const check = await verifyVideoSubject({ photograph: first, frames: await extractVideoFrames(generated.bytes, [0.3, 0.6, 0.95]) })
-        if (!check.sameSubject) throw new ShotSubjectChanged(1, check.reason)
-        motion = generated.bytes
-        generationCostUsd = generated.costUsd
-        shotStarts = [0]
+          onSubjectChange,
+        }, { onCost: addCost })
+        return {
+          subjectChanges: shots.subjectChanges,
+          motion: await joinClips(shots.clips, provider.canvas, crossfade),
+          shotStarts: storyboard.shots.reduce<number[]>((starts, _shot, index) => {
+            starts.push(index ? starts[index - 1]! + storyboard.shots[index - 1]!.durationSeconds - crossfade : 0)
+            return starts
+          }, []),
+        }
       }
-    } catch (error) {
-      if (!(error instanceof ShotSubjectChanged)) throw error
-      console.warn('A generated video changed its subject and was not delivered', { postId, shot: error.shot, reason: error.reason })
-      failureReason = 'subject_changed'
-      throw createError({ statusCode: 422, message: 'server.VIDEO_SUBJECT_CHANGED' })
+      const keyframes = await videoKeyframes(snapshot.fitted!, snapshot.canvas, fallbackShot)
+      const first = await padFrameToCanvas(keyframes.first, provider.canvas)
+      const generated = await generateAiVideo({
+        image: first,
+        lastFrame: await padFrameToCanvas(keyframes.last, provider.canvas),
+        prompt: fallbackPrompt,
+        durationSeconds: closestDuration(snapshot.durationSeconds, capabilities.durations),
+        canvas: provider.canvas,
+        aspectRatio: provider.aspectRatio,
+      })
+      if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
+      addCost(generated.costUsd)
+      // Held against the exact frame the model was given, padding included,
+      // so the padding itself never reads as a change of subject.
+      const check = await verifyVideoSubject({ photograph: first, frames: await extractVideoFrames(generated.bytes, [0.3, 0.6, 0.95]) })
+      if (!check.sameSubject && onSubjectChange === 'stop') throw new ShotSubjectChanged(1, check.reason)
+      return {
+        subjectChanges: check.sameSubject ? [] : [{ shot: 1, reason: check.reason }],
+        motion: generated.bytes,
+        shotStarts: [0],
+      }
     }
+    // The AI creative director invents this video's concept and storyboard
+    // from the fitted photograph. When a take changes the subject, the
+    // director is told how and asked for a calmer concept, and that is shot
+    // once more. The second take is always delivered: if it changed the
+    // subject too, the video carries a warning for the business to review,
+    // and they can direct a new take themselves with Edit video with AI.
+    let storyboard: Storyboard | null = null
+    let result: Awaited<ReturnType<typeof take>> | undefined
+    let previousAttempt: { storyboard: Storyboard | null; problem: string } | undefined
+    for (let attempt = 0; attempt < 2 && !result; attempt++) {
+      failureReason = 'direction_failed'
+      const direction = await directVideo({
+        photograph: snapshot.fitted,
+        channel: snapshot.channel,
+        limits,
+        locale: snapshot.locale,
+        ...snapshot.director,
+        ...(previousAttempt ? { previousAttempt } : {}),
+      })
+      directionCostUsd += direction.costUsd
+      failureReason = 'render_failed'
+      storyboard = direction.storyboard
+      if (!storyboard) console.warn('The video director gave no valid storyboard; rendering the strategy shot', { postId, attempt })
+      try {
+        result = await take(
+          storyboard,
+          previousAttempt ? snapshot.calmPrompt : snapshot.prompt,
+          previousAttempt ? snapshot.calmShot : snapshot.shot,
+          attempt === 0 ? 'stop' : 'record',
+        )
+      } catch (error) {
+        if (!(error instanceof ShotSubjectChanged)) throw error
+        console.warn('A generated take changed its subject', { postId, attempt, shot: error.shot, reason: error.reason })
+        previousAttempt = { storyboard, problem: `Shot ${error.shot}: ${error.reason}` }
+      }
+    }
+    if (!result) throw new Error('No take was made')
+    const { motion, shotStarts } = result
+    const subjectWarning = result.subjectChanges.length
+      ? result.subjectChanges.map((change) => `Shot ${change.shot}: ${change.reason}`).join(' ').slice(0, 400)
+      : undefined
+    if (subjectWarning) console.warn('A delivered video may have changed its subject', { postId, subjectWarning })
     // A provider that reports no cost leaves the reservation as the charge.
-    const costUsd = generationCostUsd === null ? null : generationCostUsd + fitCostUsd + direction.costUsd
+    const costUsd = generationCostUsd === null ? null : generationCostUsd + fitCostUsd + directionCostUsd
     const motionSeconds = await videoDuration(motion)
     // The brand and headline arrive in the opening shot; the call to action
     // arrives with the final shot, or a little into a single one.
@@ -387,16 +406,35 @@ export async function renderVideoForPost(userId: string, postId: string) {
       target: { width: endCardWidth, height: endCardHeight },
       overlays,
     })
-    failureReason = 'quality_review_failed'
-    const quality = await reviewVideoQuality({
-      photograph: snapshot.source,
-      frames: await extractVideoFrames(bytes, [0.1, 0.4, 0.7, 0.95]),
-      caption: snapshot.caption,
-      brandName: snapshot.brandName,
-      locale: snapshot.locale,
-      verifiedFacts: snapshot.verifiedFacts,
-      targetChannel: snapshot.channel,
-    })
+    // The finished video is reviewed like a post's still image: against the
+    // photograph, the verified facts, the Business Brain commitments, the
+    // business's restrictions, the approved copy, the channel frame and the
+    // concept it was shot from. A reviewer that cannot answer leaves the
+    // review pending, to run again before publishing; it never costs the
+    // business the video it has already paid for.
+    let quality: Awaited<ReturnType<typeof reviewVideoQuality>>['quality'] | null = null
+    let reviewCostUsd = 0
+    try {
+      const review = await reviewVideoQuality({
+        photograph: snapshot.source,
+        frames: await extractVideoFrames(bytes, [0.1, 0.4, 0.7, 0.95]),
+        caption: snapshot.caption,
+        brandName: snapshot.brandName,
+        locale: snapshot.locale,
+        verifiedFacts: snapshot.verifiedFacts,
+        targetChannel: snapshot.channel,
+        context: {
+          businessBrain: snapshot.businessBrain,
+          guardrails: snapshot.director.guardrails,
+          approvedCopy: snapshot.approvedCopy,
+          storyboard: storyboard || undefined,
+        },
+      })
+      quality = review.quality
+      reviewCostUsd = review.costUsd
+    } catch (error) {
+      console.warn('Video QA was unavailable; the review stays pending', { postId, error: error instanceof Error ? error.message : 'unknown' })
+    }
     const folder = assetStorageFolder(snapshot.business.slug, snapshot.business.id)
     const path = `${folder}/video-${postId}-${randomUUID()}.mp4`
     const endCardStoragePath = `${folder}/video-endcard-${postId}-${endCardAssetId}.jpg`
@@ -418,8 +456,9 @@ export async function renderVideoForPost(userId: string, postId: string) {
       // leaves the reservation as the charge, because guessing lower would give
       // the generation away and guessing higher would overcharge.
       const usdMicroEur = Number(process.env.AI_USD_MICRO_EUR)
-      const charged = costUsd !== null && costUsd > 0 && Number.isFinite(usdMicroEur) && usdMicroEur > 0
-        ? await creditsForCost(client, Math.max(1, Math.ceil(costUsd * usdMicroEur)))
+      const totalUsd = costUsd === null ? null : costUsd + reviewCostUsd
+      const charged = totalUsd !== null && totalUsd > 0 && Number.isFinite(usdMicroEur) && usdMicroEur > 0
+        ? await creditsForCost(client, Math.max(1, Math.ceil(totalUsd * usdMicroEur)))
         : snapshot.videoCredits
       await consumeReservedCredits(client, {
         organizationId: business.id,
@@ -465,13 +504,24 @@ export async function renderVideoForPost(userId: string, postId: string) {
         if ((currentPost.contentVersion ?? 1) !== snapshot.contentVersion)
           throw createError({ statusCode: 409, message: 'server.POST_CHANGED_DURING_VALIDATION' })
         currentPost.video.status = 'ready'
+        delete currentPost.video.failure
+        if (subjectWarning) currentPost.video.subjectWarning = { detail: subjectWarning, at: new Date().toISOString() }
+        else delete currentPost.video.subjectWarning
         currentPost.video.format = snapshot.format
         if (storyboard) currentPost.video.storyboard = storyboard
         else delete currentPost.video.storyboard
-        currentPost.video.quality = quality
-        currentPost.video.qualityContentVersion = snapshot.contentVersion
-        currentPost.policy = quality.factuality ? 'warn' : 'block'
-        currentPost.policyReason = quality.reasons.join(' ') || 'validation.aiQualityPassed'
+        if (quality) {
+          currentPost.video.quality = quality
+          currentPost.video.qualityContentVersion = snapshot.contentVersion
+          currentPost.policy = quality.factuality ? 'warn' : 'block'
+          currentPost.policyReason = quality.reasons.join(' ') || 'validation.aiQualityPassed'
+        } else {
+          // Pending: validation runs the review again before publishing.
+          delete currentPost.video.quality
+          delete currentPost.video.qualityContentVersion
+          currentPost.policy = 'warn'
+          currentPost.policyReason = 'server.AI_QUALITY_REVIEW_NEEDED'
+        }
         if (endCardImage) currentPost.video.endCardAssetId = endCardAssetId
         else delete currentPost.video.endCardAssetId
         await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(currentPost), postId, business.id])
@@ -496,17 +546,23 @@ export async function renderVideoForPost(userId: string, postId: string) {
         "UPDATE video_renders SET status='failed',failure_reason=$1,completed_at=now() WHERE id=$2 AND business_id=$3",
         [failureReason, snapshot.renderId, business.id],
       )
-      await markPostVideoFailed(client, business.id, postId)
+      await markPostVideoFailed(client, business.id, postId, { code: failureReason })
     })
     throw error
   }
 }
 
-async function markPostVideoFailed(client: PoolClient, businessId: string, postId: string) {
+async function markPostVideoFailed(
+  client: PoolClient,
+  businessId: string,
+  postId: string,
+  failure?: { code: string; detail?: string },
+) {
   const current = await client.query<{ payload: unknown }>('SELECT payload FROM posts WHERE id=$1 AND business_id=$2 FOR UPDATE', [postId, businessId])
   const currentPost = current.rows[0] && postSchema.parse(current.rows[0].payload)
   if (currentPost?.video) {
     currentPost.video.status = 'failed'
+    if (failure) currentPost.video.failure = { ...failure, detail: failure.detail?.slice(0, 400), at: new Date().toISOString() }
     await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(currentPost), postId, businessId])
   }
 }

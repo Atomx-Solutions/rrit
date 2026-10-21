@@ -7,8 +7,9 @@ import {
   aiProviderModel,
   aiProviderStructuredRouting,
 } from './ai-provider'
-import { parseMonthlyProviderResponse, responseText } from './monthly-ai'
+import { channelFrame, parseMonthlyProviderResponse, responseText } from './monthly-ai'
 import { qualitySchema } from '../../shared/schemas/monthly-plan'
+import type { Storyboard } from '../../shared/schemas/storyboard'
 import { normalizeQualityReview } from './post-quality-domain'
 
 const subjectCheckSchema = z.object({
@@ -79,8 +80,17 @@ export async function reviewVideoQuality(input: {
   locale: AppLocaleValue
   verifiedFacts: string[]
   targetChannel: 'Instagram' | 'Facebook' | 'TikTok'
+  // The same commitments a post's still image is reviewed against, plus the
+  // concept the video was shot from.
+  context?: {
+    businessBrain?: string
+    guardrails?: string[]
+    approvedCopy?: { eyebrow?: string; headline?: string; cta?: string }
+    storyboard?: Storyboard
+  }
 }) {
   const provider = aiProviderConfiguration()
+  const context = input.context || {}
   const image = (bytes: Buffer) => ({
     type: 'input_image',
     image_url: `data:image/jpeg;base64,${bytes.toString('base64')}`,
@@ -94,12 +104,12 @@ export async function reviewVideoQuality(input: {
     body: JSON.stringify({
       model: aiProviderModel('AI_PLANNER_MODEL'),
       store: false,
-    instructions: `Review the finished ${ratioLabel(channelCanvas(input.targetChannel))} social video for ${input.targetChannel} shown as chronological frames against the original business photograph and the supplied verified facts. The target platform is ${input.targetChannel}; treat Instagram, Facebook and TikTok as equally supported video targets. Evaluate the caption, visible subjects, motion continuity, overlays, legibility, brand fit, source fidelity, end card, and platform fit for ${input.targetChannel}. For TikTok, check full-screen composition, first-frame clarity, text kept clear of the interface zones and native short-form presentation. For Instagram and Facebook, check the feed video presentation, first-frame clarity, safe text placement and legibility. Platform fit and subjective visual weaknesses must produce WARN only. Do not assume motion between sampled frames is proven. Set factuality=false only for invented products, people, venue features, offers, unsupported claims or a source photograph mismatch. Give specific, actionable reasons in ${contentLanguageForLocale(input.locale)}. Use WARN for subjective weaknesses and BLOCK only for factual or source-evidence failures. Return the required structured quality result.`,
+    instructions: `Review the finished ${ratioLabel(channelCanvas(input.targetChannel))} social video for ${input.targetChannel} shown as chronological frames against the original business photograph and the supplied verified facts. The target platform is ${input.targetChannel}; treat Instagram, Facebook and TikTok as equally supported video targets. Evaluate the caption, visible subjects, motion continuity, overlays, legibility, brand fit, source fidelity, end card, and platform fit for ${input.targetChannel}. For TikTok, check full-screen composition, first-frame clarity, text kept clear of the interface zones and native short-form presentation. For Instagram and Facebook, check the feed video presentation, first-frame clarity, safe text placement and legibility. Platform fit and subjective visual weaknesses must produce WARN only. Do not assume motion between sampled frames is proven. Set factuality=false only for invented products, people, venue features, offers, unsupported claims or a source photograph mismatch. Give specific, actionable reasons in ${contentLanguageForLocale(input.locale)}. Use WARN for subjective weaknesses and BLOCK only for factual or source-evidence failures.${videoReviewAddenda(context)} Return the required structured quality result.`,
       max_output_tokens: 1200,
       input: [{
         role: 'user',
         content: [
-          { type: 'input_text', text: JSON.stringify({ brandName: input.brandName, targetChannel: input.targetChannel, caption: input.caption, verifiedFacts: input.verifiedFacts, imageOrder: ['Original owned photograph', 'Finished video frames in chronological order'] }) },
+          { type: 'input_text', text: JSON.stringify({ brandName: input.brandName, targetChannel: input.targetChannel, channelFrame: channelFrame(input.targetChannel), caption: input.caption, verifiedFacts: input.verifiedFacts, ...(context.businessBrain ? { businessBrain: context.businessBrain } : {}), ...(context.guardrails?.length ? { restrictions: context.guardrails } : {}), ...(context.approvedCopy ? { approvedCopy: context.approvedCopy } : {}), ...(context.storyboard ? { storyboard: context.storyboard } : {}), imageOrder: ['Original owned photograph', 'Finished video frames in chronological order'] }) },
           image(input.photograph),
           ...input.frames.map(image),
         ],
@@ -117,5 +127,32 @@ export async function reviewVideoQuality(input: {
   })
   if (!response.ok)
     throw createError({ statusCode: 503, message: 'server.VIDEO_QA_UNAVAILABLE', data: { providerStatus: response.status } })
-  return normalizeQualityReview(qualitySchema.parse(JSON.parse(responseText(parseMonthlyProviderResponse(await response.json())))))
+  const raw = parseMonthlyProviderResponse(await response.json())
+  return {
+    quality: normalizeQualityReview(qualitySchema.parse(JSON.parse(responseText(raw)))),
+    // What the review itself cost, charged with the video.
+    costUsd: raw.usage.cost ?? 0,
+  }
+}
+
+/**
+ * The parts of the review that depend on what is known about this video, in
+ * the same terms the image review uses for a post's still.
+ */
+export function videoReviewAddenda(context: NonNullable<Parameters<typeof reviewVideoQuality>[0]['context']>) {
+  return [
+    ' channelFrame gives the canvas of the channel and, in coveredByInterface, the share of each side its interface covers; set visualQuality=false with a concise reason when the logo, the headline or the call to action sits inside a covered zone.',
+    context.businessBrain
+      ? ' businessBrain carries the brand voice, the guardrails and this slot\'s assigned audience and offer; BLOCK when the video or its copy breaks a guardrail or promotes an offer it was not assigned, and WARN when it misses the voice or audience.'
+      : '',
+    context.guardrails?.length
+      ? ' restrictions are absolute prohibitions set by this business; BLOCK when the video breaks any of them.'
+      : '',
+    context.approvedCopy
+      ? ' approvedCopy is the only text the application sets over the motion; set visualQuality=false when any of it is misspelled, clipped, illegible on a phone or laid over the subject, and factuality=false when the video shows any other words that read as a claim.'
+      : '',
+    context.storyboard
+      ? ' storyboard is the concept the video was shot from; WARN with a concrete reason when the result clearly misses its concept or a shot\'s purpose, but never BLOCK for that alone.'
+      : '',
+  ].join('')
 }

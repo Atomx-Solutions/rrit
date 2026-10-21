@@ -125,6 +125,22 @@ export const postSchema = z.object({
     // videos rendered before the director existed, or when it gave no valid
     // storyboard, follow the strategy's shot direction alone.
     storyboard: storyboardSchema.optional(),
+    // Set when the delivered video may show a different subject than the
+    // photograph even after a calmer take: what the check saw. The video is
+    // kept for the business to judge, and to redirect with an AI edit.
+    subjectWarning: z.object({
+      detail: z.string().max(400),
+      at: z.iso.datetime(),
+    }).optional(),
+    // The business's own direction for the next take, from Edit video with AI.
+    editInstruction: z.string().trim().min(5).max(600).optional(),
+    // Why the last render could not be made at all (a provider or storage
+    // failure), so the business is told plainly.
+    failure: z.object({
+      code: z.string().max(60),
+      detail: z.string().max(400).optional(),
+      at: z.iso.datetime(),
+    }).optional(),
     durationSeconds: z.number().int().min(6).max(30),
     format: z.enum(videoFormats),
     strategyVersion: z.number().int().positive().optional(),

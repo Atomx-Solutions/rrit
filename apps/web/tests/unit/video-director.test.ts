@@ -125,6 +125,27 @@ describe('the creative director', () => {
     expect(brief).toContain('the bottom 25%')
   })
 
+  it('asks for a calmer concept after a take changed the subject', async () => {
+    const fetcher = vi.fn().mockResolvedValue(answer(storyboard()))
+    vi.stubGlobal('fetch', fetcher)
+    const previousAttempt = { storyboard: storyboard(), problem: 'Shot 2: the wheels changed design' }
+    expect(directorInstructions({ ...input, previousAttempt })).toContain('Propose a calmer concept')
+    expect(directorInstructions(input)).not.toContain('Propose a calmer concept')
+    await directVideo({ ...input, previousAttempt })
+    const sent = JSON.parse(JSON.parse(fetcher.mock.calls[0]![1].body).input[0].content[0].text)
+    expect(sent.previousAttempt.problem).toBe('Shot 2: the wheels changed design')
+  })
+
+  it('puts the business request from Edit video with AI ahead of its own ideas', async () => {
+    const fetcher = vi.fn().mockResolvedValue(answer(storyboard()))
+    vi.stubGlobal('fetch', fetcher)
+    const userInstruction = 'Makina të qëndrojë e palëvizur, kamera të ngrihet ngadalë.'
+    expect(directorInstructions({ ...input, userInstruction })).toContain('Follow it ahead of your own ideas')
+    await directVideo({ ...input, userInstruction })
+    const sent = JSON.parse(JSON.parse(fetcher.mock.calls[0]![1].body).input[0].content[0].text)
+    expect(sent.businessRequest).toBe(userInstruction)
+  })
+
   it('returns a valid storyboard and what it cost', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(answer(storyboard())))
     const result = await directVideo(input)

@@ -13,6 +13,9 @@ export class ShotSubjectChanged extends Error {
 }
 
 export type ShotDependencies = {
+  // Told what every generated shot cost as soon as it is paid for, so a take
+  // stopped by a changed subject is still charged for what it made.
+  onCost: (costUsd: number | null) => void
   generate: typeof generateAiVideo
   verify: typeof verifyVideoSubject
   lastFrameOf: typeof extractLastFrame
@@ -20,6 +23,7 @@ export type ShotDependencies = {
 }
 
 const defaults: ShotDependencies = {
+  onCost: () => undefined,
   generate: generateAiVideo,
   verify: verifyVideoSubject,
   lastFrameOf: extractLastFrame,
@@ -43,10 +47,15 @@ export async function generateStoryboardShots(input: {
   lastFrameSupported: boolean
   guardrails?: string[]
   maxLength?: number
+  // 'stop' ends the take at the first shot that changed the subject so a
+  // calmer take can be tried; 'record' keeps going and reports it, so the
+  // last take is always delivered for the business to judge and edit.
+  onSubjectChange?: 'stop' | 'record'
 }, dependencies: Partial<ShotDependencies> = {}) {
   const deps = { ...defaults, ...dependencies }
   const photograph = await padFrameToCanvas(input.fitted, input.provider.canvas)
   const clips: Buffer[] = []
+  const subjectChanges: { shot: number; reason: string }[] = []
   let costUsd: number | null = 0
   for (const [index, shot] of input.storyboard.shots.entries()) {
     const final = index === input.storyboard.shots.length - 1
@@ -85,11 +94,15 @@ export async function generateStoryboardShots(input: {
     }
     if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
     costUsd = costUsd === null || generated.costUsd === null ? null : costUsd + generated.costUsd
+    deps.onCost(generated.costUsd)
     const check = await deps.verify({ photograph, frames: await deps.framesOf(generated.bytes, [0.3, 0.6, 0.95]) })
-    if (!check.sameSubject) throw new ShotSubjectChanged(index + 1, check.reason)
+    if (!check.sameSubject) {
+      if (input.onSubjectChange !== 'record') throw new ShotSubjectChanged(index + 1, check.reason)
+      subjectChanges.push({ shot: index + 1, reason: check.reason })
+    }
     clips.push(generated.bytes)
   }
-  return { clips, costUsd }
+  return { clips, costUsd, subjectChanges }
 }
 
 /** The shot length the model renders that is closest to the one asked for. */

@@ -1,15 +1,76 @@
-import { postSchema } from '../../shared/schemas/workspace'
-import { contentLocaleForPreferences } from '../../shared/schemas/workspace'
-import { audienceLanguageFromResearch } from './audience-language'
+import type { PoolClient } from 'pg'
+import { postSchema, type Post } from '../../shared/schemas/workspace'
+import { editorialPlanSchema, researchSchema } from '../../shared/schemas/monthly-plan'
 import { downloadAsset } from './asset-storage'
+import { brainForSlot, plannerBrainOf } from './monthly-planner-domain'
 import { extractVideoFrames } from './video-compose'
 import { reviewVideoQuality } from './video-subject-check'
+
+/**
+ * What a video is made and reviewed against: the verified facts, research and
+ * Business Brain commitments of the monthly slot it came from, exactly as the
+ * still image of a post is. A video prepared by hand has no slot, so it has
+ * none of them.
+ */
+export async function videoPostEvidence(
+  client: PoolClient,
+  businessId: string,
+  post: Post,
+  row: { monthly_plan_id: string | null; monthly_slot: number | null },
+) {
+  const provenance = post.aiProvenance
+  let verifiedFacts: string[] = []
+  let researchFindings = ''
+  let researchSources: string[] = provenance?.sourceUrls || []
+  let businessBrain = ''
+  if (row.monthly_plan_id) {
+    const planResult = await client.query<{ evidence: unknown; research: unknown; editorial_plan: unknown; month_key: string }>(
+      "SELECT evidence,research,editorial_plan,to_char(month,'YYYY-MM') AS month_key FROM monthly_plans WHERE id=$1 AND business_id=$2",
+      [row.monthly_plan_id, businessId],
+    )
+    const planRow = planResult.rows[0]
+    if (planRow) {
+      const evidence = planRow.evidence as { brand?: { facts?: Array<{ id: string; text: string; source?: string }> }; brain?: unknown } | null
+      const factIds = new Set(provenance?.factIds || [])
+      verifiedFacts = (evidence?.brand?.facts || [])
+        .filter(fact => factIds.has(fact.id))
+        .map(fact => `${fact.text}${fact.source ? ` (burimi: ${fact.source})` : ''}`)
+      const research = researchSchema.safeParse(planRow.research)
+      if (research.success) {
+        researchFindings = research.data.text
+        const allowed = new Set(researchSources)
+        researchSources = research.data.sources
+          .filter(source => !allowed.size || allowed.has(source.url))
+          .map(source => `${source.title}: ${source.url}`)
+      }
+      if (row.monthly_slot !== null && row.monthly_slot !== undefined) {
+        const editorial = editorialPlanSchema.safeParse(planRow.editorial_plan)
+        if (editorial.success) {
+          const slot = editorial.data.slots[row.monthly_slot]
+          const evidenceBrain = plannerBrainOf(evidence as never || {})
+          if (slot) businessBrain = JSON.stringify(brainForSlot(evidenceBrain, slot, `${planRow.month_key}-${String(slot.day).padStart(2, '0')}`))
+        }
+      }
+    }
+  }
+  return { verifiedFacts, researchFindings, researchSources, businessBrain }
+}
+
+/** The approved words a post's video carries over its motion. */
+export function approvedVideoCopy(post: Post) {
+  const creative = post.aiProvenance?.creative
+  return {
+    eyebrow: creative?.eyebrow,
+    headline: creative?.headline || post.video?.hook,
+    cta: creative?.cta || post.video?.cta,
+  }
+}
 
 /** Review a ready render made before video QA was introduced, without rendering again. */
 export async function reviewExistingVideoQuality(userId: string, postId: string) {
   const snapshot = await withBusinessTransaction(userId, async (client, business) => {
-    const result = await client.query<{ payload: unknown }>(
-      'SELECT payload FROM posts WHERE id=$1 AND business_id=$2',
+    const result = await client.query<{ payload: unknown; monthly_plan_id: string | null; monthly_slot: number | null }>(
+      'SELECT payload,monthly_plan_id,monthly_slot FROM posts WHERE id=$1 AND business_id=$2',
       [postId, business.id],
     )
     const post = result.rows[0] && postSchema.parse(result.rows[0].payload)
@@ -36,7 +97,14 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
         )
       : null
     const factIds = new Set(post.aiProvenance?.factIds || [])
+    const evidence = await videoPostEvidence(client, business.id, post, result.rows[0]!)
     return {
+      context: {
+        businessBrain: evidence.businessBrain,
+        guardrails: workspace.brand.guardrails || [],
+        approvedCopy: approvedVideoCopy(post),
+        storyboard: post.video.storyboard,
+      },
       version,
       renderId: render.rows[0].id,
       videoPath: render.rows[0].storage_path,
@@ -45,17 +113,16 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
         : source.rows[0].bytes!,
       caption: post.caption,
       brandName: workspace.brand.name,
-      locale: audienceLanguageFromResearch(
-        plan?.rows[0]?.research,
-        contentLocaleForPreferences(workspace.preferences),
-      ),
-      verifiedFacts: workspace.brand.facts.filter((fact) => factIds.has(fact.id)).map((fact) => fact.text),
+      locale: workspace.preferences.contentLocale || workspace.preferences.locale,
+      verifiedFacts: evidence.verifiedFacts.length
+        ? evidence.verifiedFacts
+        : workspace.brand.facts.filter((fact) => factIds.has(fact.id)).map((fact) => fact.text),
       targetChannel: post.channel,
     }
   })
   if ('existing' in snapshot) return snapshot.existing
   const video = await downloadAsset(snapshot.videoPath, 100 * 1024 * 1024)
-  const quality = await reviewVideoQuality({
+  const { quality } = await reviewVideoQuality({
     photograph: snapshot.source,
     frames: await extractVideoFrames(video, [0.1, 0.4, 0.7, 0.95]),
     caption: snapshot.caption,
@@ -63,6 +130,7 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
     locale: snapshot.locale,
     verifiedFacts: snapshot.verifiedFacts,
     targetChannel: snapshot.targetChannel,
+    context: snapshot.context,
   })
   await withBusinessTransaction(userId, async (client, business) => {
     const result = await client.query<{ payload: unknown }>(

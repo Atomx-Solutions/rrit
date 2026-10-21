@@ -20,7 +20,7 @@ const limits = {
 }
 
 // Answers only the reads localPostChecks makes for a post without AI evidence.
-function fakeDb(media: { asset?: { width: number; height: number }; render?: { width: number; height: number } }) {
+function fakeDb(media: { asset?: { width: number; height: number }; render?: { width: number; height: number; status?: string } }) {
   return {
     query: async (sql: string) => {
       if (sql.includes('app_settings')) return { rows: [{ value: limits }] }
@@ -106,6 +106,26 @@ describe('publishing validation of the channel canvas', () => {
     })
     const check = await canvasCheck(generated, { asset })
     expect(check?.passed).toBe(passed)
+  })
+
+  it('never publishes a video whose latest render was blocked', async () => {
+    const checks = await localPostChecks(
+      post('Instagram', { video: { ...video, status: 'failed', failure: { code: 'subject_changed', detail: 'different wheels', at: '2026-10-21T10:00:00.000Z' } } }),
+      'business',
+      fakeDb({ asset: { width: 1080, height: 1350 }, render: { width: 1080, height: 1350, status: 'failed' } }),
+    )
+    expect(checks.find((check) => check.key === 'video_render')?.passed).toBe(false)
+  })
+
+  it('warns about a delivered video the subject check doubted, without blocking it', async () => {
+    const checks = await localPostChecks(
+      post('Instagram', { video: { ...video, subjectWarning: { detail: 'Shot 2: different wheels', at: '2026-10-21T10:00:00.000Z' } } }),
+      'business',
+      fakeDb({ asset: { width: 1080, height: 1350 }, render: { width: 1080, height: 1350 } }),
+    )
+    const warning = checks.find((check) => check.key === 'video_subject')
+    expect(warning).toMatchObject({ passed: false, advisory: true, params: { detail: 'Shot 2: different wheels' } })
+    expect(checks.find((check) => check.key === 'video_render')?.passed).toBe(true)
   })
 
   it('leaves a hand-uploaded photo to the platform size limits', async () => {
