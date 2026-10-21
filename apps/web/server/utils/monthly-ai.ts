@@ -486,6 +486,8 @@ export type MonthlyAutomaticStage =
   | 'planning'
   | 'content'
   | 'image'
+  // Extending a video photograph to its channel canvas, one key per attempt.
+  | 'fit'
   | 'quality'
   | 'style'
 

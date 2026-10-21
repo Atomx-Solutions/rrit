@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
-import { prepareVideoFirstFrame } from '../../server/utils/image-processing'
+import { smartCropToCanvas as prepareVideoFirstFrame } from '../../server/utils/photo-fit'
 import { postSchema } from '../../shared/schemas/workspace'
 import { channelCanvas, channelFormat } from '../../shared/schemas/channel-format'
 

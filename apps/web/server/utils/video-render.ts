@@ -13,6 +13,7 @@ import {
 import { aiVideoCanvas, aiVideoConfigured, aiVideoPromptLimit, generateAiVideo } from './ai-video-provider'
 import { buildVideoEndCard, buildVideoOverlayLayers, padFrameToCanvas, videoKeyframes } from './image-processing'
 import { buildVideoCreativePlan } from './video-plan'
+import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
 import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, renderStillMotion, VIDEO_END_CARD_SECONDS } from './video-compose'
 import { reviewVideoQuality, verifyVideoSubject } from './video-subject-check'
@@ -91,6 +92,21 @@ export async function renderVideoForPost(userId: string, postId: string) {
     )
     if (!asset.rows[0])
       throw createError({ statusCode: 409, message: 'server.ORIGINAL_PHOTO_UNAVAILABLE' })
+    // The planner already fitted this photograph to the channel canvas for
+    // the poster; that same image is what the video animates, so it is reused
+    // rather than extended (and paid for) again.
+    const posterId = /^\/api\/media\/([a-f0-9-]{36})$/i.exec(post.image)?.[1]
+    const fittedPoster = posterId
+      ? (await client.query<{ bytes: Buffer | null; storage_path: string | null }>(
+          `SELECT bytes,storage_path FROM assets
+            WHERE id=$1 AND business_id=$2 AND rights=true
+              AND creative_provenance->>'source'='video-first-frame'
+              AND creative_provenance->>'sourceAssetId'=$3
+              AND creative_provenance->>'channel'=$4
+              AND creative_provenance->>'fit' IS NOT NULL`,
+          [posterId, business.id, post.video.sourceAssetIds[0], post.channel],
+        )).rows[0]
+      : undefined
 
     const logo = post.video.logoAssetId
       ? await client.query<{ bytes: Buffer | null; storage_path: string | null }>(
@@ -205,6 +221,11 @@ export async function renderVideoForPost(userId: string, postId: string) {
       source: asset.rows[0].storage_path
         ? await downloadAsset(asset.rows[0].storage_path, 10 * 1024 * 1024)
         : asset.rows[0].bytes!,
+      fitted: fittedPoster
+        ? fittedPoster.storage_path
+          ? await downloadAsset(fittedPoster.storage_path, 10 * 1024 * 1024)
+          : fittedPoster.bytes
+        : null,
       videoCredits,
       prompt,
       durationSeconds: post.video.durationSeconds,
@@ -214,8 +235,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
       shot: plan.shot,
       // Brand first, then the headline, then the supporting line and button,
       // spread across the first part of the motion.
-      overlayExtent: overlay.extent,
-      zone: overlayZone,
       overlays: overlay.layers.map((image, index) => ({
         image,
         start: [0.05, 0.15, 0.4][index]! * post.video!.durationSeconds,
@@ -233,16 +252,29 @@ export async function renderVideoForPost(userId: string, postId: string) {
   const uploadedPaths: string[] = []
   let failureReason = 'render_failed'
   try {
-    // The source photograph may be any aspect ratio; the provider is given
-    // frames that already match the requested video canvas, so a landscape
-    // source does not come back letterboxed with black bars. Both ends of the
-    // motion are cut from that one photograph, so the subject stays the
-    // subject that was photographed.
-    const keyframes = await videoKeyframes(snapshot.source, snapshot.canvas, snapshot.shot)
+    // Both ends of the motion are cut from one photograph, so the subject
+    // stays the subject that was photographed.
+    // The photograph on the channel canvas: the planner's fitted poster when
+    // there is one, otherwise fitted here and charged with this render. A
+    // photograph far from the canvas is extended rather than cropped to a
+    // fragment, and the video never turns on its side.
+    let fitCostUsd = 0
+    if (!snapshot.fitted) {
+      failureReason = 'photo_fit_failed'
+      const fit = await fitPhotoToChannel(snapshot.source, snapshot.channel, {
+        outpaint: (guide, prompt) => requestOutpaint(guide, prompt, snapshot.channel),
+        review: reviewExtension,
+      })
+      fitCostUsd = fit.costUsd
+      if (fit.mode === 'crop_fallback' && fit.reasons.length)
+        console.warn('A photograph could not be extended and was cropped instead', { postId, reasons: fit.reasons })
+      failureReason = 'render_failed'
+      snapshot.fitted = fit.bytes
+    }
+    const keyframes = await videoKeyframes(snapshot.fitted, snapshot.canvas, snapshot.shot)
     // Only the camera moves: the clip is rendered from the photograph itself,
     // so no provider is paid and the subject cannot change. Anything that
-    // adds life to the scene goes to the motion model, on the landscape canvas
-    // the keyframes were cut for when the photograph is landscape. The model
+    // adds life to the scene goes to the motion model. The model
     // paints its own closest ratio; the keyframes are padded out to it whole
     // and the composer crops the clip back to the keyframes' canvas.
     const provider = snapshot.shot.action === 'camera_only' ? undefined : await aiVideoCanvas(keyframes.canvas)
@@ -267,7 +299,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
           aspectRatio: provider.aspectRatio,
         })
     if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
-    const { costUsd } = generated
+    // A provider that reports no cost leaves the reservation as the charge.
+    const costUsd = generated.costUsd === null ? null : generated.costUsd + fitCostUsd
     // A generated clip can drift between its keyframes, even when both are
     // the photograph, so it is held against the photograph before anything is
     // delivered.
@@ -301,7 +334,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
       endCard: endCardImage,
       target: { width: endCardWidth, height: endCardHeight },
       overlays: snapshot.overlays,
-      ...(keyframes.landscape ? { placement: { y: clearOfType(snapshot.overlayExtent, keyframes.canvas, { width: endCardWidth, height: endCardHeight }, snapshot.zone) } } : {}),
     })
     failureReason = 'quality_review_failed'
     const quality = await reviewVideoQuality({
@@ -443,19 +475,4 @@ function hookRemainder(hook: string, headline: string) {
     if (!head.startsWith(matched)) return undefined
   }
   return undefined
-}
-
-// Where a landscape clip's top edge goes in the vertical canvas: just below
-// the type when it sits on top, just above it when it sits at the bottom, so
-// the copy never covers the photographed subject.
-function clearOfType(
-  extent: { top: number; bottom: number },
-  clip: { width: number; height: number },
-  canvas: { width: number; height: number },
-  zone: 'top' | 'bottom',
-) {
-  const height = Math.round(canvas.width * clip.height / clip.width)
-  const gap = Math.round(canvas.height * 0.025)
-  const y = zone === 'top' ? extent.bottom + gap : extent.top - gap - height
-  return Math.max(0, Math.min(canvas.height - height, y))
 }

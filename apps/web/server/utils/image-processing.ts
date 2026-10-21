@@ -489,33 +489,6 @@ export async function normalizeGeneratedCreative(
 }
 
 /**
- * Prepare a source photograph to be sent to the video provider as the first
- * frame of a vertical video. The provider receives a frame that already matches
- * the requested video canvas, so it never has to invent a landscape→vertical
- * transition and never letterboxes the clip.
- *
- * Attention-based cropping keeps the salient subject in frame when it can; if
- * sharp cannot evaluate attention for this image (very small, unusual channel
- * layout, etc.), a centre crop takes over so the render never fails on a
- * preparation step.
- */
-export async function prepareVideoFirstFrame(image: Buffer, target: { width: number; height: number }) {
-  const base = sharp(image, { limitInputPixels: 24000000 }).rotate()
-  try {
-    return await base
-      .clone()
-      .resize(target.width, target.height, { fit: 'cover', position: sharp.strategy.attention })
-      .jpeg({ quality: 94, mozjpeg: true })
-      .toBuffer()
-  } catch {
-    return await base
-      .resize(target.width, target.height, { fit: 'cover', position: 'centre' })
-      .jpeg({ quality: 94, mozjpeg: true })
-      .toBuffer()
-  }
-}
-
-/**
  * The opening and closing frames a motion model travels between.
  *
  * Both are cut from the same real photograph, so the model only interpolates
@@ -525,31 +498,17 @@ export async function prepareVideoFirstFrame(image: Buffer, target: { width: num
  * side the photograph never showed. Zoom stays modest so the closer view keeps
  * the whole subject recognisable.
  *
- * A photograph much wider than the vertical canvas is not cropped to fill it:
- * a crop keeps only a fragment of the subject, and a model shown a fragment
- * invents the rest. Its motion is made on the landscape canvas instead, the
- * vertical canvas turned on its side, so the model sees the whole photograph
- * and nothing else; the composer then places that clip whole across the
- * vertical canvas over a blurred fill of itself, clear of the zone the type
- * will occupy. The model is never shown an empty area it could
- * fill with an invented subject.
+ * The photograph is expected already fitted to the canvas (see photo-fit), so
+ * the motion is always made on the channel's own canvas and never turned on
+ * its side.
  */
-const MIN_COVER_KEPT_WIDTH = 0.75
-
 export async function videoKeyframes(
   image: Buffer,
   target: { width: number; height: number },
   shot: { camera: string; pacing: string; subjectAnchor: string; textZone: string; action: string },
 ) {
   const source = sharp(image, { limitInputPixels: 24000000 }).rotate()
-  const meta = await source.clone().metadata()
-  const sourceWidth = (meta.orientation || 1) >= 5 ? meta.height || 0 : meta.width || 0
-  const sourceHeight = (meta.orientation || 1) >= 5 ? meta.width || 0 : meta.height || 0
-  const keptWidth = sourceWidth && sourceHeight
-    ? Math.min(1, (sourceHeight * target.width / target.height) / sourceWidth)
-    : 1
-  const landscape = keptWidth < MIN_COVER_KEPT_WIDTH
-  const canvas = landscape ? { width: target.height, height: target.width } : target
+  const canvas = target
   const zoom = shot.pacing === 'punchy' ? 1.18 : shot.pacing === 'calm' ? 1.08 : 1.12
   const wideWidth = Math.round(canvas.width * zoom)
   const wideHeight = Math.round(canvas.height * zoom)
@@ -601,7 +560,6 @@ export async function videoKeyframes(
     first,
     last: shot.action === 'subject_moves' ? undefined : last,
     canvas,
-    landscape,
     still: { image: await sharp(wide).jpeg({ quality: 95 }).toBuffer(), from, to },
   }
 }

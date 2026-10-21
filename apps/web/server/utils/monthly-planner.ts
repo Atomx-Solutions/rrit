@@ -15,6 +15,7 @@ import {
   videoDurationSeconds,
 } from '../../shared/schemas/workspace'
 import { channelCanvas, channelFormat } from '../../shared/schemas/channel-format'
+import { fitPhotoToChannel, reviewExtension, type PhotoFitMode } from './photo-fit'
 import {
   emptyPlannerBrain,
   factIsUsable,
@@ -39,7 +40,6 @@ import { normalizeQualityReview } from './post-quality-domain'
 import {
   assetContactSheet,
   normalizeGeneratedCreative,
-  prepareVideoFirstFrame,
 } from './image-processing'
 import {
   assetStorageFolder,
@@ -1759,6 +1759,8 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     let content: ReturnType<typeof generatedPostSchema.parse> | undefined
     let original: { id: string; bytes: Buffer } | undefined
     let creative: Buffer | undefined
+    // How a video slot's photograph was fitted to its channel canvas.
+    let videoPosterFit: PhotoFitMode | undefined
     let imageGeneration: Awaited<ReturnType<typeof monthlyImageCall>> | undefined
     let quality: ReturnType<typeof qualitySchema.parse> | undefined
     const revisionFeedback: string[] = []
@@ -1866,9 +1868,26 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       // normalization and the still-image quality review are skipped for video
       // deliverables. The finished MP4 receives its own frame-based review.
       if (slot.deliverable === 'video') {
-        creative = await plannerStep('content.video_poster', () =>
-          prepareVideoFirstFrame(original!.bytes, channelCanvas(slot.channel)),
+        // The poster is the photograph fitted to the channel canvas, the same
+        // image the render later animates, so what the gallery shows is the
+        // video's own first frame.
+        const fitted = await plannerStep('content.video_poster', () =>
+          fitPhotoToChannel(original!.bytes, slot.channel, {
+            outpaint: async (guide, prompt, attempt) => {
+              const painted = await monthlyImageCall(db, {
+                ...common,
+                stageKey: monthlyAutomaticStageKey('fit', plan.evidence_hash, `${plan.completed_count}:${attempt}`),
+                prompt,
+                channel: slot.channel,
+                reference: guide,
+              })
+              return { bytes: painted.bytes }
+            },
+            review: reviewExtension,
+          }),
         )
+        creative = fitted.bytes
+        videoPosterFit = fitted.mode
         imageGeneration = undefined
         quality = normalizeQualityReview(
           qualitySchema.parse({
@@ -2221,7 +2240,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
               JSON.stringify({
                 ...provenance,
                 ...(slot.deliverable === 'video'
-                  ? { source: 'video-first-frame', sourceAssetId: content.assetId }
+                  ? { source: 'video-first-frame', sourceAssetId: content.assetId, channel: slot.channel, fit: videoPosterFit }
                   : {}),
                 checksum: evidenceHash(creative.toString('base64')),
               }),
