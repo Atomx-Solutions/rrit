@@ -25,16 +25,50 @@ async function probe(path: string): Promise<VideoInfo> {
   return { width, height, duration }
 }
 
-/** How long a clip runs, in seconds. */
-export async function videoDuration(video: Buffer) {
+/**
+ * A finished video brought to another canvas without cutting or stretching
+ * it: the whole clip is scaled to fit and set over a blurred, darkened fill
+ * of itself. Used only when a file reaches publishing in the wrong shape.
+ */
+export async function conformVideoToCanvas(video: Buffer, size: { width: number; height: number }) {
+  const directory = await mkdtemp(join(tmpdir(), 'rrit-conform-'))
+  try {
+    const inputPath = join(directory, 'input.mp4')
+    const outputPath = join(directory, 'conformed.mp4')
+    await writeFile(inputPath, video)
+    const { width, height } = size
+    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+      '-i', inputPath,
+      '-filter_complex',
+      `[0:v]split[fill][subject];`
+        + `[fill]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=${Math.round(width / 40)}:2,eq=brightness=-0.22[blurred];`
+        + `[subject]scale=${width}:${height}:force_original_aspect_ratio=decrease[fitted];`
+        + `[blurred][fitted]overlay=x=(W-w)/2:y=(H-h)/2,setsar=1,format=yuv420p[out]`,
+      '-map', '[out]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
+      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outputPath,
+    ], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 })
+    return await readFile(outputPath)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+}
+
+/** A clip's real frame size and length, read from the file itself. */
+export async function videoInfo(video: Buffer) {
   const directory = await mkdtemp(join(tmpdir(), 'rrit-probe-'))
   try {
     const path = join(directory, 'clip.mp4')
     await writeFile(path, video)
-    return (await probe(path)).duration
+    return await probe(path)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+}
+
+/** How long a clip runs, in seconds. */
+export async function videoDuration(video: Buffer) {
+  return (await videoInfo(video)).duration
 }
 
 /**

@@ -565,6 +565,30 @@ export async function videoKeyframes(
 }
 
 /**
+ * A finished image brought to another canvas without cutting or stretching
+ * it: the whole image is scaled to fit and set over a blurred, darkened fill
+ * of itself, so its type and subject stay complete. Used only when a file
+ * reaches publishing in the wrong shape.
+ */
+export async function conformImageToCanvas(image: Buffer, canvas: Canvas) {
+  const source = sharp(image, { limitInputPixels: 24000000 }).rotate()
+  const fill = await source.clone()
+    .resize(canvas.width, canvas.height, { fit: 'cover', position: 'centre' })
+    .blur(Math.max(8, Math.round(canvas.width / 40)))
+    .modulate({ brightness: 0.78 })
+    .toBuffer()
+  const fitted = await source.resize(canvas.width, canvas.height, { fit: 'inside' }).toBuffer({ resolveWithObject: true })
+  return sharp(fill)
+    .composite([{
+      input: fitted.data,
+      left: Math.round((canvas.width - fitted.info.width) / 2),
+      top: Math.round((canvas.height - fitted.info.height) / 2),
+    }])
+    .jpeg({ quality: 90, mozjpeg: true })
+    .toBuffer()
+}
+
+/**
  * A delivered frame placed whole and untouched in the centre of a larger
  * provider canvas, with a blurred, darkened stretch of itself filling the
  * rest. The provider paints its own ratio; the composer centre-crops the clip

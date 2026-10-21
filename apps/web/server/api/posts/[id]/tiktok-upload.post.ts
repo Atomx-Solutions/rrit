@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import type { PoolClient } from 'pg'
 import { postSchema } from '../../../../shared/schemas/workspace'
-import { matchesChannelCanvas } from '../../../../shared/schemas/channel-format'
 import { downloadAsset } from '../../../utils/asset-storage'
+import { conformDeliveredMedia } from '../../../utils/delivered-media'
 import {
   decryptTikTokToken,
   TikTokPhotoNotPermitted,
@@ -46,6 +46,11 @@ export default defineEventHandler(async (event) => {
     const tiktok = connection.rows[0]
     if (!tiktok || tiktok.expires_at < new Date())
       throw createError({ statusCode: 409, message: 'server.TIKTOK_CONNECTION_REQUIRED' })
+    // The file TikTok receives, opened, measured and brought to its canvas
+    // when it is not already on it.
+    const delivered = await conformDeliveredMedia(post, business.id, user.id, client)
+    const unavailable = delivered.checks.find((check) => !check.passed)
+    if (unavailable) throw createError({ statusCode: 409, message: unavailable.message })
     if (post.video) {
       const render = await client.query<{ storage_path: string | null; status: string; composed: boolean }>(
         `SELECT r.storage_path,r.status,r.composed
@@ -60,21 +65,17 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 409, message: 'server.TIKTOK_CONNECTION_REQUIRED' })
       return { kind: 'video' as const, path: render.rows[0].storage_path, token: decryptTikTokToken(tiktok.access_token_ciphertext, business.id) }
     }
-    // A photo goes out only on the TikTok canvas it was made for.
+    // The photo goes out on the TikTok canvas: the post's own image, or the
+    // copy conformed to the canvas above.
     const assetId = /^\/api\/media\/([a-f0-9-]{36})$/i.exec(post.image)?.[1]
     const asset = assetId
-      ? (await client.query<{ width: number | null; height: number | null; rights: boolean }>(
-          'SELECT width,height,rights FROM assets WHERE id=$1 AND business_id=$2',
-          [assetId, business.id],
-        )).rows[0]
+      ? (await client.query<{ rights: boolean }>('SELECT rights FROM assets WHERE id=$1 AND business_id=$2', [assetId, business.id])).rows[0]
       : undefined
     if (!asset?.rights)
       throw createError({ statusCode: 409, message: 'server.BUSINESS_PHOTO_RIGHTS_REQUIRED' })
-    if (!asset.width || !asset.height || !matchesChannelCanvas('TikTok', { width: asset.width, height: asset.height }))
-      throw createError({ statusCode: 409, message: 'server.TIKTOK_PHOTO_FORMAT_REQUIRED' })
     return {
       kind: 'photo' as const,
-      image: post.image,
+      image: delivered.imageAssetId ? `/api/media/${delivered.imageAssetId}` : post.image,
       title: post.title,
       caption: post.caption,
       canUpload: tiktok.scopes.includes('video.upload'),
