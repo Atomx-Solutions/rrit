@@ -8,6 +8,7 @@ import {
 } from './monthly-plan'
 import { brandFactSchema } from './business-brain'
 import { publishingChannels, videoFormats } from './channel-format'
+import { storyboardSchema } from './storyboard'
 
 const researchSourceSchema = z
   .url()
@@ -120,6 +121,10 @@ export const postSchema = z.object({
     // slot so the planner's VideoCreativePlan can be rebuilt deterministically
     // at render time without reading the editorial plan again.
     shot: storedShotDirectionSchema.optional(),
+    // The AI creative director's storyboard for the last render. Optional:
+    // videos rendered before the director existed, or when it gave no valid
+    // storyboard, follow the strategy's shot direction alone.
+    storyboard: storyboardSchema.optional(),
     durationSeconds: z.number().int().min(6).max(30),
     format: z.enum(videoFormats),
     strategyVersion: z.number().int().positive().optional(),

@@ -14,7 +14,8 @@ import { aiVideoCanvas, aiVideoConfigured, aiVideoPromptLimit, generateAiVideo }
 import { buildVideoEndCard, buildVideoOverlayLayers, padFrameToCanvas, videoKeyframes } from './image-processing'
 import { buildVideoCreativePlan } from './video-plan'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
-import { buildVideoExecutionBrief } from './video-execution-brief'
+import { directVideo } from './video-director'
+import { buildStoryboardExecutionBrief, buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, renderStillMotion, VIDEO_END_CARD_SECONDS } from './video-compose'
 import { reviewVideoQuality, verifyVideoSubject } from './video-subject-check'
 import { brainForSlot, plannerBrainOf } from './monthly-planner-domain'
@@ -228,6 +229,25 @@ export async function renderVideoForPost(userId: string, postId: string) {
         : null,
       videoCredits,
       prompt,
+      // What the creative director is told about this post.
+      director: {
+        brand: {
+          name: workspace.brand.name,
+          industry: workspace.brand.industry,
+          audience: workspace.brand.audience,
+          voice: workspace.brand.voice,
+        },
+        guardrails: workspace.brand.guardrails || [],
+        post: {
+          title: post.title,
+          caption: post.caption,
+          hook: post.video.hook,
+          cta: post.video.cta,
+          intent: post.video.intent,
+          purpose: post.video.purpose,
+          assetDirection: post.video.assetDirection,
+        },
+      },
       durationSeconds: post.video.durationSeconds,
       canvas,
       format: channelFormat(post.channel),
@@ -271,13 +291,37 @@ export async function renderVideoForPost(userId: string, postId: string) {
       failureReason = 'render_failed'
       snapshot.fitted = fit.bytes
     }
-    const keyframes = await videoKeyframes(snapshot.fitted, snapshot.canvas, snapshot.shot)
+    // The AI creative director invents this video's concept and storyboard
+    // from the fitted photograph. Without a valid storyboard the strategy's
+    // own shot direction is rendered as before.
+    failureReason = 'direction_failed'
+    const direction = await directVideo({
+      photograph: snapshot.fitted,
+      channel: snapshot.channel,
+      totalSeconds: snapshot.durationSeconds,
+      locale: snapshot.locale,
+      ...snapshot.director,
+    })
+    failureReason = 'render_failed'
+    const storyboard = direction.storyboard
+    if (!storyboard) console.warn('The video director gave no valid storyboard; rendering the strategy shot', { postId })
+    const prompt = storyboard
+      ? buildStoryboardExecutionBrief({ storyboard, guardrails: snapshot.director.guardrails, maxLength: aiVideoPromptLimit() })
+      : snapshot.prompt
+    // A storyboard opens and closes on the photograph's whole view, so both
+    // keyframes are the photograph itself and the director's camera does the
+    // rest.
+    const keyframes = await videoKeyframes(
+      snapshot.fitted,
+      snapshot.canvas,
+      storyboard ? { ...snapshot.shot, camera: 'static', action: 'ambient' } : snapshot.shot,
+    )
     // Only the camera moves: the clip is rendered from the photograph itself,
     // so no provider is paid and the subject cannot change. Anything that
-    // adds life to the scene goes to the motion model. The model
-    // paints its own closest ratio; the keyframes are padded out to it whole
-    // and the composer crops the clip back to the keyframes' canvas.
-    const provider = snapshot.shot.action === 'camera_only' ? undefined : await aiVideoCanvas(keyframes.canvas)
+    // adds life to the scene, and every directed storyboard, goes to the
+    // motion model. The model paints its own closest ratio; the keyframes are
+    // padded out to it whole and the composer crops the clip back.
+    const provider = snapshot.shot.action === 'camera_only' && !storyboard ? undefined : await aiVideoCanvas(keyframes.canvas)
     const providerFirst = provider ? await padFrameToCanvas(keyframes.first, provider.canvas) : keyframes.first
     const generated = !provider
       ? {
@@ -293,18 +337,18 @@ export async function renderVideoForPost(userId: string, postId: string) {
       : await generateAiVideo({
           image: providerFirst,
           lastFrame: keyframes.last && await padFrameToCanvas(keyframes.last, provider.canvas),
-          prompt: snapshot.prompt,
+          prompt,
           durationSeconds: snapshot.durationSeconds,
           canvas: provider.canvas,
           aspectRatio: provider.aspectRatio,
         })
     if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
     // A provider that reports no cost leaves the reservation as the charge.
-    const costUsd = generated.costUsd === null ? null : generated.costUsd + fitCostUsd
+    const costUsd = generated.costUsd === null ? null : generated.costUsd + fitCostUsd + direction.costUsd
     // A generated clip can drift between its keyframes, even when both are
     // the photograph, so it is held against the photograph before anything is
     // delivered.
-    if (snapshot.shot.action !== 'camera_only') {
+    if (provider) {
       // Held against the exact frame the model was given, padding included,
       // so the padding itself never reads as a change of subject.
       const check = await verifyVideoSubject({
@@ -414,6 +458,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
           throw createError({ statusCode: 409, message: 'server.POST_CHANGED_DURING_VALIDATION' })
         currentPost.video.status = 'ready'
         currentPost.video.format = snapshot.format
+        if (storyboard) currentPost.video.storyboard = storyboard
+        else delete currentPost.video.storyboard
         currentPost.video.quality = quality
         currentPost.video.qualityContentVersion = snapshot.contentVersion
         currentPost.policy = quality.factuality ? 'warn' : 'block'

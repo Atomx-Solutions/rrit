@@ -1,4 +1,14 @@
 import type { VideoCreativePlan } from './video-plan'
+import type { Storyboard } from '../../shared/schemas/storyboard'
+
+// What every motion prompt says about the photographed subject, whoever
+// directed the video.
+const subjectRules = [
+  'Preserve the exact primary subject, people, products, existing signage and environment visible in the frames. The photograph is the visual truth.',
+  'Keep the subject identical in every frame: the same make, model, generation, body shape, colour, wheels, lights, badges, proportions and details. Never morph, replace, restyle or swap it for a similar subject.',
+  'Show only what the photograph shows. Never reveal or invent a side, angle, interior or part of the subject that is not visible in the frames.',
+  'Never draw, write or animate any letters, words, numbers, captions or titles anywhere in the video; the application sets all text afterwards.',
+]
 
 type SourceContext = {
   assetDirection?: string
@@ -89,10 +99,7 @@ export function buildVideoExecutionBrief(input: {
       ? `Create one continuous ${durationSeconds}-second video that starts exactly on the supplied first frame, a real photograph.`
       : `Create one continuous ${durationSeconds}-second video that starts exactly on the supplied first frame and ends exactly on the supplied last frame. Both are views of the same real photograph; move smoothly between them.`,
     'SUBJECT',
-    'Preserve the exact primary subject, people, products, existing signage and environment visible in the frames. The photograph is the visual truth.',
-    'Keep the subject identical in every frame: the same make, model, generation, body shape, colour, wheels, lights, badges, proportions and details. Never morph, replace, restyle or swap it for a similar subject.',
-    'Show only what the photograph shows. Never reveal or invent a side, angle, interior or part of the subject that is not visible in the frames.',
-    'Never draw, write or animate any letters, words, numbers, captions or titles anywhere in the video; the application sets all text afterwards.',
+    ...subjectRules,
   ]
   // The rules sent whole every time, with the strategy's own clauses for
   // this photograph slotted in where they belong.
@@ -162,4 +169,63 @@ export function buildVideoExecutionBrief(input: {
     break
   }
   return [...opening, ...kept, ...direction(subject, layout)].join('\n')
+}
+
+const subjectMotion: Record<Storyboard['shots'][number]['subject']['motion'], string> = {
+  still: 'The subject holds perfectly still in its photographed place.',
+  arrives: 'The subject arrives into its photographed place and settles exactly as photographed.',
+  moves_naturally: 'The subject moves only the way its kind naturally does, and remains the very same subject.',
+}
+
+/**
+ * The motion prompt for a storyboard from the creative director. Each shot is
+ * written as a cinematographer's brief; until shots are generated one by one
+ * they run as consecutive beats of one continuous take, with no cut, opening
+ * on the photograph and closing on it.
+ */
+export function buildStoryboardExecutionBrief(input: {
+  storyboard: Storyboard
+  guardrails?: string[]
+  maxLength?: number
+}) {
+  const { storyboard } = input
+  const total = storyboard.shots.reduce((sum, shot) => sum + shot.durationSeconds, 0)
+  const guardrails = (input.guardrails || []).map(rule => rule.trim()).filter(Boolean)
+  const build = (detail: number) => {
+    const clip = (value: string) => value.length > detail ? `${value.slice(0, detail).trimEnd()}…` : value
+    let elapsed = 0
+    const shots = storyboard.shots.flatMap((shot, index) => {
+      const start = elapsed
+      elapsed += shot.durationSeconds
+      return [
+        `${time(start)}-${time(elapsed)} (beat ${index + 1}): ${clip(shot.purpose)}`,
+        `Camera: ${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject no more than ${shot.camera.rotationDegrees} degrees.`,
+        `Light and atmosphere: ${clip(shot.atmosphere)}`,
+        `Effects: ${clip(shot.effects)}`,
+        `Subject: ${subjectMotion[shot.subject.motion]} ${clip(shot.subject.description)}`,
+      ]
+    })
+    return [
+      `Create one continuous ${total}-second video that starts exactly on the supplied first frame and ends exactly on the supplied last frame. Both are the same real photograph; flow from beat to beat without a cut.`,
+      'CONCEPT',
+      clip(storyboard.concept),
+      'SUBJECT',
+      ...subjectRules,
+      'BEATS',
+      ...shots,
+      'AVOID',
+      'No cuts, scene changes, invented people or objects, subject distortion, flicker, watermarks, padding, letterboxing or black bars. Fill the prepared frame edge to edge.',
+      'Do not generate typography, marketing copy, business name, logos, new signage or an end-card; Framic adds exact branding and text later.',
+      ...(guardrails.length ? [`Business restrictions take precedence over all creative direction: ${guardrails.join('; ')}`] : []),
+    ].join('\n')
+  }
+  // The rules are always sent whole; the director's prose is shortened, field
+  // by field, until the brief fits the motion model's limit.
+  let detail = 300
+  let brief = build(detail)
+  while (input.maxLength && brief.length > input.maxLength && detail > 40) {
+    detail -= 20
+    brief = build(detail)
+  }
+  return brief
 }
