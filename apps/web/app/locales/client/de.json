@@ -2202,6 +2202,7 @@
   "server.TRIAL_NOT_CONFIGURED": "Der Testzeitraum ist noch nicht konfiguriert.",
   "server.ORIGINAL_PHOTO_UNAVAILABLE": "Das Originalfoto ist nicht mehr verfügbar.",
   "server.AI_VIDEO_NOT_CONFIGURED": "Die KI-Videogenerierung ist nicht konfiguriert.",
+  "server.VIDEO_DIRECTION_FAILED": "Die KI-Regie konnte die Videoszenen nicht planen. Für das Video wurden keine Credits verbraucht; bitte versuche es erneut.",
   "server.VIDEO_BRIEF_REQUIRED": "Bereite zuerst das Video-Briefing vor.",
   "server.VIDEO_JOB_NOT_CREATED": "Der Video-Job wurde nicht erstellt.",
   "server.INSTAGRAM_HASHTAG_LIMIT": "Instagram erlaubt bis zu {{max}} Hashtags gemäß der Plattformkonfiguration.",

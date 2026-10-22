@@ -2203,6 +2203,7 @@
   "server.TRIAL_NOT_CONFIGURED": "The trial is not configured yet.",
   "server.ORIGINAL_PHOTO_UNAVAILABLE": "The original photo is no longer available.",
   "server.AI_VIDEO_NOT_CONFIGURED": "AI video generation is not configured.",
+  "server.VIDEO_DIRECTION_FAILED": "The AI director could not plan the video scenes. No credits were spent on the video; please try again.",
   "server.VIDEO_BRIEF_REQUIRED": "Prepare the video brief first.",
   "server.VIDEO_JOB_NOT_CREATED": "The video job was not created.",
   "server.INSTAGRAM_HASHTAG_LIMIT": "Instagram allows up to {{max}} hashtags per the platform configuration.",

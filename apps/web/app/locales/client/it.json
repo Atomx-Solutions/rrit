@@ -2202,6 +2202,7 @@
   "server.TRIAL_NOT_CONFIGURED": "La prova non è ancora configurata.",
   "server.ORIGINAL_PHOTO_UNAVAILABLE": "La foto originale non è più disponibile.",
   "server.AI_VIDEO_NOT_CONFIGURED": "La generazione di video IA non è configurata.",
+  "server.VIDEO_DIRECTION_FAILED": "Il regista AI non è riuscito a preparare le scene del video. Nessun credito è stato speso per il video; riprova.",
   "server.VIDEO_BRIEF_REQUIRED": "Prepara prima il brief del video.",
   "server.VIDEO_JOB_NOT_CREATED": "Il processo video non è stato creato.",
   "server.INSTAGRAM_HASHTAG_LIMIT": "Instagram consente fino a {{max}} hashtag secondo la configurazione della piattaforma.",

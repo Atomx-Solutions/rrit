@@ -2202,6 +2202,7 @@
   "server.TRIAL_NOT_CONFIGURED": "Deneme henüz yapılandırılmadı.",
   "server.ORIGINAL_PHOTO_UNAVAILABLE": "Orijinal fotoğraf artık kullanılamıyor.",
   "server.AI_VIDEO_NOT_CONFIGURED": "Yapay zekâ video oluşturma yapılandırılmamış.",
+  "server.VIDEO_DIRECTION_FAILED": "Yapay zekâ yönetmeni video sahnelerini hazırlayamadı. Video için kredi harcanmadı; lütfen tekrar deneyin.",
   "server.VIDEO_BRIEF_REQUIRED": "Önce video özetini hazırlayın.",
   "server.VIDEO_JOB_NOT_CREATED": "Video işi oluşturulmadı.",
   "server.INSTAGRAM_HASHTAG_LIMIT": "Platform yapılandırmasına göre Instagram en fazla {{max}} hashtag’e izin verir.",

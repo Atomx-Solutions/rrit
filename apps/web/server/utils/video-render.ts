@@ -11,19 +11,17 @@ import {
   reserveCredits,
   videoRenderCredits,
 } from './credits'
-import { aiVideoCanvas, aiVideoCapabilities, aiVideoConfigured, aiVideoPromptLimit, generateAiVideo } from './ai-video-provider'
-import { buildVideoEndCard, buildVideoOverlayLayers, padFrameToCanvas, videoKeyframes } from './image-processing'
-import { buildVideoCreativePlan } from './video-plan'
+import { aiVideoCanvas, aiVideoCapabilities, aiVideoConfigured, aiVideoPromptLimit } from './ai-video-provider'
+import { buildVideoEndCard, buildVideoOverlayLayers } from './image-processing'
 import { approvedVideoCopy, videoPostEvidence } from './video-quality'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
 import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
 import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
 import { directedTakes, videoChargeCredits } from './video-takes'
 import { maxVideoPhotos, storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
-import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, joinClips, VIDEO_END_CARD_SECONDS, videoDuration } from './video-compose'
-import { closestDuration, generateStoryboardShots, ShotSubjectChanged } from './video-shots'
-import { reviewVideoQuality, verifySamePhotographedSubject, verifyVideoSubject } from './video-subject-check'
+import { generateStoryboardShots } from './video-shots'
+import { reviewVideoQuality, verifySamePhotographedSubject } from './video-subject-check'
 
 /**
  * Render a post's video and settle what it cost.
@@ -53,7 +51,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // as it is and only this render, once ready, records the channel's format.
     const canvas = channelCanvas(post.channel)
 
-    const { verifiedFacts, researchFindings, researchSources, businessBrain } = await videoPostEvidence(client, business.id, post, postRow!)
+    const { verifiedFacts, businessBrain } = await videoPostEvidence(client, business.id, post, postRow!)
 
     const asset = await client.query<{ bytes: Buffer | null; storage_path: string | null }>(
       "SELECT bytes,storage_path FROM assets WHERE id=$1 AND business_id=$2 AND rights=true AND kind='photo' AND creative_provenance IS NULL",
@@ -120,43 +118,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
     await reserveCredits(client, { organizationId: business.id, credits: videoCredits, usageKind: 'generation', referenceType: 'video', referenceId: renderRow.id, idempotencyKey: `video-reserve:${renderRow.id}` })
     const logoRow = logo?.rows[0]
     const { workspace } = await loadWorkspace(client, business.id, userId)
-    const locale = audienceLanguageFromResearch(
-      planResearch,
-      contentLocaleForPreferences(workspace.preferences),
-    )
-    // The deterministic Video Creative Plan is rebuilt per render from the
-    // brief + brand + duration. No AI call; the plan is the structure the
-    // prompt and the future deterministic composition both consume.
-    const plan = buildVideoCreativePlan({
-      brief: post.video,
-      brand: workspace.brand,
-      locale,
-      durationSeconds: post.video.durationSeconds,
-    })
-    const prompt = buildVideoExecutionBrief({
-      plan,
-      sourceContext: {
-        assetDirection: post.video.assetDirection,
-        visualLayout: post.video.visualLayout,
-        verifiedFacts,
-        researchFindings,
-        researchSources,
-        businessBrain,
-      },
-      durationSeconds: post.video.durationSeconds,
-      guardrails: workspace.brand.guardrails,
-      maxLength: aiVideoPromptLimit(),
-    })
-    // The calmer take for a strategy shot that changed the subject: the
-    // camera holds and nothing in the scene moves but its light and air.
-    const calmShot = { ...plan.shot, camera: 'static' as const, action: 'ambient' as const }
-    const calmPrompt = buildVideoExecutionBrief({
-      plan: { ...plan, shot: calmShot },
-      sourceContext: { verifiedFacts },
-      durationSeconds: post.video.durationSeconds,
-      guardrails: workspace.brand.guardrails,
-      maxLength: aiVideoPromptLimit(),
-    })
     // Everything the deterministic end-card needs, resolved inside the same
     // transaction so the composition stage below never has to re-read business
     // data (and never has to decide whether to inject AI content: the end-card
@@ -182,7 +143,9 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // strategy kept clear. A video prepared by hand has no generated creative,
     // so it falls back to the brief's hook and call to action.
     const creative = post.aiProvenance?.creative
-    const overlayZone = plan.shot.textZone === 'bottom' ? 'bottom' as const : 'top' as const
+    // Where the text sits until the director has located the subject; it is
+    // set again beside the subject once the storyboard is known.
+    const overlayZone = post.video.shot?.textZone === 'bottom' ? 'bottom' as const : 'top' as const
     const overlayInput = {
       businessName: workspace.brand.name,
       eyebrow: creative?.eyebrow,
@@ -223,7 +186,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
           : fittedPoster.bytes
         : null,
       videoCredits,
-      prompt,
       // What the creative director is told about this post.
       director: {
         brand: {
@@ -247,9 +209,9 @@ export async function renderVideoForPost(userId: string, postId: string) {
       canvas,
       format: channelFormat(post.channel),
       endCardInput,
-      shot: plan.shot,
-      calmShot,
-      calmPrompt,
+      // The strategy's end-card choice, used only for a storyboard stored
+      // before the director made that call itself.
+      endCard: post.video.shot?.endCard ?? true,
       // Brand first, then the headline, then the supporting line and button,
       // spread across the first part of the motion.
       // Placed in time once the shots are known.
@@ -367,56 +329,26 @@ export async function renderVideoForPost(userId: string, postId: string) {
     const addCost = (value: number | null) => {
       generationCostUsd = generationCostUsd === null || value === null ? null : generationCostUsd + value
     }
-    // One take: a director storyboard shot by shot, or without one the
-    // strategy's own shot pinned to the photograph at both ends.
-    const take = async (
-      storyboard: Storyboard | null,
-      fallbackPrompt: string,
-      fallbackShot: typeof snapshot.shot,
-      onSubjectChange: 'stop' | 'record',
-    ) => {
-      if (storyboard) {
-        const crossfade = videoCrossfadeSeconds()
-        const shots = await generateStoryboardShots({
-          storyboard,
-          fitted: snapshot.fitted!,
-          extraFitted,
-          provider,
-          lastFrameSupported: capabilities.lastFrame,
-          guardrails: snapshot.director.guardrails,
-          maxLength: aiVideoPromptLimit(),
-          onSubjectChange,
-        }, { onCost: addCost })
-        return {
-          subjectChanges: shots.subjectChanges,
-          motion: await joinClips(shots.clips, provider.canvas, crossfade),
-          shotStarts: storyboard.shots.reduce<number[]>((starts, _shot, index) => {
-            starts.push(index ? starts[index - 1]! + storyboard.shots[index - 1]!.durationSeconds - crossfade : 0)
-            return starts
-          }, []),
-        }
-      }
-      const keyframes = await videoKeyframes(snapshot.fitted!, snapshot.canvas, fallbackShot)
-      const first = await padFrameToCanvas(keyframes.first, provider.canvas)
-      const generated = await generateAiVideo({
-        image: first,
-        lastFrame: await padFrameToCanvas(keyframes.last, provider.canvas),
-        prompt: fallbackPrompt,
-        durationSeconds: closestDuration(snapshot.durationSeconds, capabilities.durations),
-        canvas: provider.canvas,
-        aspectRatio: provider.aspectRatio,
-      })
-      if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
-      addCost(generated.costUsd)
-      // Held against the exact frame the model was given, padding included,
-      // so the padding itself never reads as a change of subject.
-      const check = await verifyVideoSubject({ photograph: first, frames: await extractVideoFrames(generated.bytes, [0.3, 0.6, 0.95]) })
-      addCost(check.costUsd)
-      if (!check.sameSubject && onSubjectChange === 'stop') throw new ShotSubjectChanged(1, check.reason)
+    // One take: the director's storyboard, shot by shot.
+    const take = async (storyboard: Storyboard, onSubjectChange: 'stop' | 'record') => {
+      const crossfade = videoCrossfadeSeconds()
+      const shots = await generateStoryboardShots({
+        storyboard,
+        fitted: snapshot.fitted!,
+        extraFitted,
+        provider,
+        lastFrameSupported: capabilities.lastFrame,
+        guardrails: snapshot.director.guardrails,
+        maxLength: aiVideoPromptLimit(),
+        onSubjectChange,
+      }, { onCost: addCost })
       return {
-        subjectChanges: check.sameSubject ? [] : [{ shot: 1, reason: check.reason }],
-        motion: generated.bytes,
-        shotStarts: [0],
+        subjectChanges: shots.subjectChanges,
+        motion: await joinClips(shots.clips, provider.canvas, crossfade),
+        shotStarts: storyboard.shots.reduce<number[]>((starts, _shot, index) => {
+          starts.push(index ? starts[index - 1]! + storyboard.shots[index - 1]!.durationSeconds - crossfade : 0)
+          return starts
+        }, []),
       }
     }
     // The AI creative director invents this video's concept and storyboard
@@ -437,11 +369,16 @@ export async function renderVideoForPost(userId: string, postId: string) {
           ...snapshot.director,
           ...(previousAttempt ? { previousAttempt } : {}),
         })
+        // Every video is directed: without a valid storyboard nothing is shot,
+        // so no motion is paid for and the held credits are released.
+        if (!direction.storyboard) {
+          console.warn('The video director gave no valid storyboard; the video was not made', { postId })
+          throw createError({ statusCode: 502, message: 'server.VIDEO_DIRECTION_FAILED' })
+        }
         failureReason = 'render_failed'
-        if (!direction.storyboard) console.warn('The video director gave no valid storyboard; rendering the strategy shot', { postId })
         return direction
       },
-      seconds: (planned) => planned ? storyboardSeconds(planned) : closestDuration(snapshot.durationSeconds, capabilities.durations),
+      seconds: (planned) => storyboardSeconds(planned!),
       reserve: async (seconds, attempt) => {
         failureReason = 'credits_insufficient'
         await reserveFor(seconds, attempt)
@@ -449,12 +386,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       },
       retryAffordable: (planned, next) => !pricing
         || affordableVideoSeconds(pricing.spendable + snapshot.videoCredits, pricing.rates) >= planned + next,
-      take: (planned, calmer, mode) => take(
-        planned,
-        calmer ? snapshot.calmPrompt : snapshot.prompt,
-        calmer ? snapshot.calmShot : snapshot.shot,
-        mode,
-      ),
+      take: (planned, _calmer, mode) => take(planned!, mode),
     })
     const { result, storyboard, directionCostUsd } = takes
     // The director located the subject in the photograph, so the text is set
@@ -485,7 +417,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     const endCardAssetId = randomUUID()
     failureReason = 'composition_failed'
     // The strategy decides whether this video closes on the branded card.
-    const endCardImage = snapshot.shot.endCard
+    const endCardImage = (storyboard?.endCard ?? snapshot.endCard)
       ? await buildVideoEndCard({
           ...snapshot.endCardInput,
           target: { width: endCardWidth, height: endCardHeight },

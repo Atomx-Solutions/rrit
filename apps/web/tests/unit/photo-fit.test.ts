@@ -11,7 +11,6 @@ import {
   seamLimit,
   seamStrength,
 } from '../../server/utils/photo-fit'
-import { videoKeyframes } from '../../server/utils/image-processing'
 import { channelCanvas } from '../../shared/schemas/channel-format'
 
 afterEach(() => vi.unstubAllEnvs())
@@ -169,13 +168,10 @@ describe('fitting a photograph to its channel', () => {
     }
   })
 
-  it('animates on the channel canvas and never turns a video on its side', async () => {
-    const shot = { camera: 'slow_push', pacing: 'measured', subjectAnchor: 'centre', textZone: 'bottom', action: 'ambient' }
+  it('gives the video a photograph on the channel canvas, never turned on its side', async () => {
     for (const channel of ['Instagram', 'TikTok'] as const) {
       const fitted = (await fitPhotoToChannel(await solid(1920, 1080, '#888888'), channel)).bytes
-      const keyframes = await videoKeyframes(fitted, channelCanvas(channel), shot)
-      expect(keyframes.canvas).toEqual(channelCanvas(channel))
-      expect(await sharp(keyframes.first).metadata()).toMatchObject(channelCanvas(channel))
+      expect(await sharp(fitted).metadata()).toMatchObject(channelCanvas(channel))
     }
   })
 })

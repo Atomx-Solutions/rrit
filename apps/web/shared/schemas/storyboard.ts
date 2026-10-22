@@ -20,6 +20,13 @@ export const minStoryboardShots = 2
  * fixes only the rules a single photograph imposes, never a scene or a move.
  */
 const shotSizeSchema = z.enum(['wide', 'medium', 'close', 'detail'])
+// What each shot does in the edit, the way a short-form ad is built: the hook
+// stops the scroll, the build shows the product, the payoff lands the idea and
+// the close settles on the main photograph for the call to action.
+const shotRoleSchema = z.enum(['hook', 'build', 'payoff', 'close'])
+// How much the camera visibly moves. Only the close may be subtle; every other
+// shot carries a real move.
+const shotMotionSchema = z.enum(['subtle', 'medium', 'strong'])
 const subjectFrameSchema = z.object({
   top: z.number().min(0).max(1),
   bottom: z.number().min(0).max(1),
@@ -37,6 +44,10 @@ export const storyboardShotSchema = z.object({
   // Which of the supplied photographs this shot is made from; 0 is the main
   // one. Optional so storyboards from one photograph read as before.
   photoIndex: z.number().int().min(0).max(maxVideoPhotos - 1).optional(),
+  // The shot's place in the edit and how strongly its camera moves; optional
+  // so storyboards stored before them still read.
+  role: shotRoleSchema.optional(),
+  motion: shotMotionSchema.optional(),
   camera: z.object({
     // The camera move as a cinematographer would brief it.
     move: z.string().trim().min(5).max(300),
@@ -72,6 +83,9 @@ export const storyboardSchema = z.object({
   // Where the subject spans vertically in the supplied photograph, as shares
   // of its height from the top. The application keeps its text off this band.
   subjectFrame: subjectFrameSchema.optional(),
+  // Whether the video ends on the branded card after the motion: the
+  // director's call for this video, not a fixture of every one.
+  endCard: z.boolean().optional(),
   // The call to action and caption set over the motion by the application.
   cta: z.string().trim().min(2).max(ctaMaxLength),
   caption: z.string().trim().min(10).max(2200),
@@ -85,14 +99,21 @@ export const directorStoryboardSchema = storyboardSchema.extend({
   shots: z.array(storyboardShotSchema.extend({
     shotSize: shotSizeSchema,
     photoIndex: z.number().int().min(0).max(maxVideoPhotos - 1),
+    role: shotRoleSchema,
+    motion: shotMotionSchema,
   })).min(1).max(maxStoryboardShots),
   subjectFrame: subjectFrameSchema,
+  endCard: z.boolean(),
 })
 export type StoryboardShot = z.infer<typeof storyboardShotSchema>
 
 // Words that describe showing a side of the subject the photograph does not
 // show. A concept that needs them cannot be made from one photograph.
 const unseenSides = /\b360\b|full (?:orbit|circle|turn|rotation|spin)|orbit(?:s|ing)? (?:around|the)|circl(?:e|es|ing) (?:around|the)|spin(?:s|ning)? around|(?:rear|back|underside|interior|inside) (?:view|side|of the)|behind the (?:car|vehicle|subject|product)/i
+
+// A camera that does not move. In a short-form edit only the close may hold
+// still; everywhere else it reads as a photograph, not a video.
+const heldCamera = /\b(?:locked(?:[- ]off)?|tripod|static|stationary|fixed|motionless|still camera|no camera (?:move|movement))\b|kyçur|palëvizsh|fiksuar|e ngrirë/i
 
 // How long a video may be and the shot lengths the configured motion model
 // renders; both come from configuration and the model, never from here.
@@ -174,6 +195,17 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
     problems.push('The final shot must be made from photograph 1, the main one, so the video closes on it.')
   if (storyboard.subjectFrame && storyboard.subjectFrame.bottom <= storyboard.subjectFrame.top)
     problems.push('subjectFrame.bottom must be below subjectFrame.top: give where the subject starts and ends in the photograph, from the top.')
+  // The edit: it opens on a hook, every shot but the close moves the camera
+  // visibly, and the opening move is not a subtle one.
+  if (storyboard.shots.length > 1 && storyboard.shots[0]!.role && storyboard.shots[0]!.role !== 'hook')
+    problems.push('Shot 1 must be the hook: the strongest, most arresting move of the video, so it stops the scroll in its first second.')
+  storyboard.shots.forEach((shot, index) => {
+    const closing = index === storyboard.shots.length - 1
+    if (!closing && (shot.motion === 'subtle' || heldCamera.test(shot.camera.move)))
+      problems.push(`Shot ${index + 1} holds the camera nearly still; give it a real, visible camera move (a dolly, slide, rise, push-through or parallax), so it reads as video rather than a photograph.`)
+    if (index === 0 && storyboard.shots.length > 1 && shot.motion && shot.motion !== 'strong')
+      problems.push('The hook must move strongly: its camera move is the most energetic of the video.')
+  })
   const last = storyboard.shots.at(-1)
   if (last && !last.endsOnPhotograph)
     problems.push('The final shot must end on the real photograph, so the video closes on the true subject.')

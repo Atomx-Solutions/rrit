@@ -24,12 +24,15 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
     cta: 'Rezervo sot',
     caption: 'Makina jote e radhës të pret. Rezervo sot.',
     subjectFrame: { top: 0.4, bottom: 0.85 },
+    endCard: true,
     shots: [
       {
         purpose: 'The arrival: the car lowers into its photographed place.',
         durationSeconds: 4,
         shotSize: 'wide',
         photoIndex: 0,
+        role: 'hook',
+        motion: 'strong',
         camera: { move: 'Low drone hold tilting down as the car descends.', lens: '24mm wide', speed: 'slow', ease: 'ease-out on landing', rotationDegrees: 0 },
         atmosphere: 'Storm clouds clearing to golden light.',
         effects: 'Dust lifting at touchdown.',
@@ -43,6 +46,8 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
         durationSeconds: 8,
         shotSize: 'medium',
         photoIndex: 0,
+        role: 'close',
+        motion: 'medium',
         camera: { move: 'Gentle 30 degree arc combined with a rise.', lens: '35mm', speed: 'measured', ease: 'ease-in-out', rotationDegrees: 30 },
         atmosphere: 'Golden hour, wet asphalt reflections.',
         effects: 'Light sliding along the bodywork.',
@@ -125,6 +130,23 @@ describe('storyboard rules', () => {
     expect(storyboardProblems(reversed, twoPhotos).join(' ')).toContain('final shot must be made from photograph 1')
     // A photograph that was not supplied cannot be used.
     expect(storyboardProblems(angles, limits).join(' ')).toContain('only 1 was supplied')
+  })
+
+  it('edits like a short-form ad: a strong hook and a real move in every shot but the close', () => {
+    const weakHook = storyboard()
+    weakHook.shots[0]!.motion = 'medium'
+    expect(storyboardProblems(weakHook, limits).join(' ')).toContain('hook must move strongly')
+    const noHook = storyboard()
+    noHook.shots[0]!.role = 'build'
+    expect(storyboardProblems(noHook, limits).join(' ')).toContain('Shot 1 must be the hook')
+    const locked = storyboard()
+    locked.shots[0]!.camera.move = 'Locked tripod frame on the car.'
+    expect(storyboardProblems(locked, limits).join(' ')).toContain('give it a real, visible camera move')
+    // The close may settle with a subtle move.
+    const settling = storyboard()
+    settling.shots[1]!.motion = 'subtle'
+    settling.shots[1]!.camera.move = 'A static hold on the photograph.'
+    expect(storyboardProblems(settling, limits)).toEqual([])
   })
 
   it('gives consecutive scenes their own framing', () => {

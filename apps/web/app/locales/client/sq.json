@@ -2203,6 +2203,7 @@
   "server.TRIAL_NOT_CONFIGURED": "Trial-i ende nuk është konfiguruar.",
   "server.ORIGINAL_PHOTO_UNAVAILABLE": "Fotoja origjinale nuk është më e disponueshme.",
   "server.AI_VIDEO_NOT_CONFIGURED": "Gjenerimi i videos me AI nuk është i konfiguruar.",
+  "server.VIDEO_DIRECTION_FAILED": "Drejtori AI nuk arriti të përgatisë skenat e videos. Nuk u harxhuan kredite për videon; provo përsëri.",
   "server.VIDEO_BRIEF_REQUIRED": "Përgatite fillimisht brief-in e videos.",
   "server.VIDEO_JOB_NOT_CREATED": "Video job nuk u krijua.",
   "server.INSTAGRAM_HASHTAG_LIMIT": "Për Instagram lejohen deri në {{max}} hashtagë sipas konfigurimit të platformës.",
