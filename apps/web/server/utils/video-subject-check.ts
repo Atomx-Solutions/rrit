@@ -73,9 +73,64 @@ export async function verifyVideoSubject(input: { photograph: Buffer; frames: Bu
   }
 }
 
+/**
+ * Whether a further photograph the business grouped with a video's main one
+ * shows the very same subject from another angle. Checked before any shot is
+ * paid for; a check that cannot run reports a mismatch, so an unverified
+ * photograph is left out rather than trusted.
+ */
+export async function verifySamePhotographedSubject(input: { main: Buffer; other: Buffer }) {
+  try {
+    const provider = aiProviderConfiguration()
+    const image = (bytes: Buffer) => ({
+      type: 'input_image',
+      image_url: `data:image/jpeg;base64,${bytes.toString('base64')}`,
+      detail: 'high',
+    })
+    const response = await fetch(provider.responsesUrl, {
+      method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(60000),
+      headers: provider.headers,
+      body: JSON.stringify({
+        model: aiProviderModel('AI_PLANNER_MODEL'),
+        store: false,
+        instructions:
+          'Both images are real photographs. Decide whether the second shows the very same primary subject as the first, photographed from another angle, distance or side: for a vehicle the same make, model, generation, body style, colour and wheel design; for a product the same product; for a place the same place. A different item of the same kind is not the same subject. Give a short reason in English.',
+        max_output_tokens: REVIEW_MAX_OUTPUT_TOKENS,
+        input: [{
+          role: 'user',
+          content: [
+            { type: 'input_text', text: 'Main photograph, then the other photograph.' },
+            image(input.main),
+            image(input.other),
+          ],
+        }],
+        ...aiProviderStructuredRouting(provider.name),
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'photograph_subject_check',
+            strict: true,
+            schema: aiProviderJsonSchema(z.toJSONSchema(subjectCheckSchema)),
+          },
+        },
+      }),
+    })
+    if (!response.ok) return { sameSubject: false, reason: `check_unavailable:${response.status}`, costUsd: 0 }
+    const raw = parseMonthlyProviderResponse(await response.json())
+    return { ...subjectCheckSchema.parse(JSON.parse(responseText(raw))), costUsd: raw.usage.cost ?? 0 }
+  } catch (error) {
+    return { sameSubject: false, reason: `check_unavailable:${error instanceof Error ? error.message : 'unknown'}`, costUsd: 0 }
+  }
+}
+
 /** Review frames from the composed MP4, including its overlays and end card. */
 export async function reviewVideoQuality(input: {
   photograph: Buffer
+  // Further photographs of the same subject the video's other scenes were
+  // made from, so their angles are judged against a real photograph too.
+  extraPhotographs?: Buffer[]
   frames: Buffer[]
   caption: string
   brandName: string
@@ -111,8 +166,9 @@ export async function reviewVideoQuality(input: {
       input: [{
         role: 'user',
         content: [
-          { type: 'input_text', text: JSON.stringify({ brandName: input.brandName, targetChannel: input.targetChannel, channelFrame: channelFrame(input.targetChannel), caption: input.caption, verifiedFacts: input.verifiedFacts, ...(context.businessBrain ? { businessBrain: context.businessBrain } : {}), ...(context.guardrails?.length ? { restrictions: context.guardrails } : {}), ...(context.approvedCopy ? { approvedCopy: context.approvedCopy } : {}), ...(context.storyboard ? { storyboard: context.storyboard } : {}), imageOrder: ['Original owned photograph', 'Finished video frames in chronological order'] }) },
+          { type: 'input_text', text: JSON.stringify({ brandName: input.brandName, targetChannel: input.targetChannel, channelFrame: channelFrame(input.targetChannel), caption: input.caption, verifiedFacts: input.verifiedFacts, ...(context.businessBrain ? { businessBrain: context.businessBrain } : {}), ...(context.guardrails?.length ? { restrictions: context.guardrails } : {}), ...(context.approvedCopy ? { approvedCopy: context.approvedCopy } : {}), ...(context.storyboard ? { storyboard: context.storyboard } : {}), imageOrder: [input.extraPhotographs?.length ? `Original owned photographs of the subject (${1 + input.extraPhotographs.length}, the main one first)` : 'Original owned photograph', 'Finished video frames in chronological order'] }) },
           image(input.photograph),
+          ...(input.extraPhotographs || []).map(image),
           ...input.frames.map(image),
         ],
       }],

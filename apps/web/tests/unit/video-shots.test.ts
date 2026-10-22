@@ -86,6 +86,27 @@ describe('generating a storyboard shot by shot', () => {
     expect(deps.verify).toHaveBeenCalledTimes(2)
   })
 
+  it('starts a shot from another photograph on that photograph and holds it against it', async () => {
+    const deps = fakes()
+    const fitted = await photo()
+    const side = await sharp({ create: { width: 1080, height: 1920, channels: 3, background: '#aa3311' } }).jpeg().toBuffer()
+    await generateStoryboardShots({
+      storyboard: board([shot(4, { photoIndex: 1 }), shot(8, { photoIndex: 0 })]),
+      fitted,
+      extraFitted: [side],
+      provider,
+      lastFrameSupported: true,
+    }, deps)
+    const [first, second] = deps.generate.mock.calls.map((call) => (call as unknown as [Record<string, Buffer>])[0])
+    // A new scene opens on its own photograph, not on the last frame before it.
+    expect(second!.image).not.toEqual(Buffer.from('previous-last-frame'))
+    expect(second!.image).toEqual(second!.lastFrame)
+    expect(first!.image).not.toEqual(second!.image)
+    const checked = deps.verify.mock.calls.map((call) => (call as unknown as [{ photograph: Buffer }])[0].photograph)
+    expect(checked[0]).toEqual(first!.image)
+    expect(checked[1]).toEqual(second!.image)
+  })
+
   it('lets an arrival open without the photograph when the model can still end on it', async () => {
     const deps = fakes()
     await generateStoryboardShots({

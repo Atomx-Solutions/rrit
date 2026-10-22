@@ -8,6 +8,8 @@ export const ctaMaxLength = 32
 // side of it; turning further would make the motion model invent the rest.
 export const maxStoryboardRotationDegrees = 45
 export const maxStoryboardShots = 3
+// A video takes at most one photograph of its subject per shot.
+export const maxVideoPhotos = maxStoryboardShots
 // A video is told in separate scenes, so it has at least this many shots
 // whenever the length allowed for it can hold them.
 export const minStoryboardShots = 2
@@ -32,6 +34,9 @@ export const storyboardShotSchema = z.object({
   // Optional only so storyboards stored before it still read; the director
   // must give it (directorStoryboardSchema).
   shotSize: shotSizeSchema.optional(),
+  // Which of the supplied photographs this shot is made from; 0 is the main
+  // one. Optional so storyboards from one photograph read as before.
+  photoIndex: z.number().int().min(0).max(maxVideoPhotos - 1).optional(),
   camera: z.object({
     // The camera move as a cinematographer would brief it.
     move: z.string().trim().min(5).max(300),
@@ -77,7 +82,10 @@ export type Storyboard = z.infer<typeof storyboardSchema>
 // and subject position included. Stored storyboards are read with the looser
 // schema above.
 export const directorStoryboardSchema = storyboardSchema.extend({
-  shots: z.array(storyboardShotSchema.extend({ shotSize: shotSizeSchema })).min(1).max(maxStoryboardShots),
+  shots: z.array(storyboardShotSchema.extend({
+    shotSize: shotSizeSchema,
+    photoIndex: z.number().int().min(0).max(maxVideoPhotos - 1),
+  })).min(1).max(maxStoryboardShots),
   subjectFrame: subjectFrameSchema,
 })
 export type StoryboardShot = z.infer<typeof storyboardShotSchema>
@@ -92,6 +100,8 @@ export type StoryboardLimits = {
   durations: number[]
   minSeconds: number
   maxSeconds: number
+  // How many photographs of the subject the video is made from; one when unset.
+  photos?: number
 }
 
 export function storyboardSeconds(storyboard: Storyboard) {
@@ -150,6 +160,18 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
     if (previous?.shotSize && previous.shotSize === shot.shotSize)
       problems.push(`Shot ${index + 1} has the same ${shot.shotSize} framing as shot ${index}; give each scene its own framing, so the video moves from one scene to the next.`)
   })
+  // With several photographs, every shot names one that exists, as many of
+  // them are used as the shots allow, and the video closes on the main one.
+  const photos = limits.photos || 1
+  const used = new Set(storyboard.shots.map((shot) => shot.photoIndex ?? 0))
+  storyboard.shots.forEach((shot, index) => {
+    if ((shot.photoIndex ?? 0) >= photos)
+      problems.push(`Shot ${index + 1} uses photograph ${(shot.photoIndex ?? 0) + 1}, but only ${photos} ${photos === 1 ? 'was' : 'were'} supplied.`)
+  })
+  if (photos > 1 && used.size < Math.min(photos, storyboard.shots.length))
+    problems.push(`Use ${Math.min(photos, storyboard.shots.length)} different photographs across the shots, so each scene shows the subject from its own angle; the storyboard uses ${used.size}.`)
+  if (photos > 1 && (storyboard.shots.at(-1)?.photoIndex ?? 0) !== 0)
+    problems.push('The final shot must be made from photograph 1, the main one, so the video closes on it.')
   if (storyboard.subjectFrame && storyboard.subjectFrame.bottom <= storyboard.subjectFrame.top)
     problems.push('subjectFrame.bottom must be below subjectFrame.top: give where the subject starts and ends in the photograph, from the top.')
   const last = storyboard.shots.at(-1)

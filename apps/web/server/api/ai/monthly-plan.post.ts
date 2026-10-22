@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { monthSchema } from '../../../shared/schemas/monthly-plan'
+import { maxVideoPhotos } from '../../../shared/schemas/storyboard'
 import {
   ensureMonthlyPlan,
   requestMonthlyPosts,
@@ -18,6 +19,9 @@ export default defineEventHandler(async (event) => {
       photoMode: z.enum(['auto', 'selected']).optional(),
       selectedAssetIds: z.array(z.uuid()).max(100).optional(),
       selectedVideoAssetIds: z.array(z.uuid()).max(100).optional(),
+      // Further photographs of the subject of a video, keyed by that video's
+      // main photograph (one of selectedVideoAssetIds).
+      videoExtraAssetIds: z.record(z.uuid(), z.array(z.uuid()).max(maxVideoPhotos - 1)).optional(),
       // Zero images is a valid request as long as at least one video is also
       // asked for; the combined-minimum rule is enforced below after the body
       // parses, so an explicit 0 keeps round-tripping without being coerced
@@ -36,7 +40,7 @@ export default defineEventHandler(async (event) => {
         TikTok: z.number().int().min(0).max(100).optional(),
       }).optional(),
     })
-    .safeParse(await boundedBody(event, 2048))
+    .safeParse(await boundedBody(event, 16384))
   if (!input.success)
     throw createError({ statusCode: 422, message: 'server.REQUEST_INVALID' })
   try {
@@ -96,16 +100,31 @@ export default defineEventHandler(async (event) => {
       // is a selection genuinely missing.
       if (photoMode === 'selected' && !selectedAssetIds.length && !selectedVideoAssetIds.length)
         throw new PlannerFailure('PHOTO_PREFERENCE_REQUIRED')
+      // Each further photograph belongs to exactly one video and is never
+      // itself the main photograph of another; an empty list is dropped.
+      const videoExtraAssetIds = Object.fromEntries(
+        Object.entries(photoMode === 'selected' ? input.data.videoExtraAssetIds || {} : {})
+          .filter(([, extras]) => extras.length),
+      )
+      const extras = Object.values(videoExtraAssetIds).flat()
+      if (
+        Object.keys(videoExtraAssetIds).some((id) => !selectedVideoAssetIds.includes(id))
+        || new Set(extras).size !== extras.length
+        || extras.some((id) => selectedVideoAssetIds.includes(id))
+      )
+        throw createError({ statusCode: 422, message: 'server.REQUEST_INVALID' })
       await client.query(
         `INSERT INTO monthly_planner_settings(
-          business_id,enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at
-        ) VALUES($1,true,$2,$3,$4,now())
+          business_id,enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,
+          preferred_video_extra_asset_ids,configured_at
+        ) VALUES($1,true,$2,$3,$4,$5,now())
         ON CONFLICT(business_id) DO UPDATE
           SET enabled=true,photo_mode=EXCLUDED.photo_mode,
               preferred_asset_ids=EXCLUDED.preferred_asset_ids,
               preferred_video_asset_ids=EXCLUDED.preferred_video_asset_ids,
+              preferred_video_extra_asset_ids=EXCLUDED.preferred_video_extra_asset_ids,
               configured_at=now(),updated_at=now()`,
-        [business.id, photoMode, selectedAssetIds, selectedVideoAssetIds],
+        [business.id, photoMode, selectedAssetIds, selectedVideoAssetIds, JSON.stringify(videoExtraAssetIds)],
       )
       return ensureMonthlyPlan(client, business.id, user.id, input.data.month, {
         requeueCancelled: true,

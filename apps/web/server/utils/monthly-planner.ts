@@ -254,7 +254,7 @@ export async function ensureMonthlyPlan(
     return prior.rows[0] as { id: string; status: string }
   const settings = await plannerStep('ensure.settings', () =>
     client.query(
-      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
       [businessId],
     ),
   )
@@ -295,6 +295,7 @@ export async function ensureMonthlyPlan(
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
+    videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
   }
   // The two selections are checked independently so the message the user sees
   // names the exact deliverable they oversubscribed, rather than a shared
@@ -400,7 +401,7 @@ export async function requestMonthlyPosts(
   if (!['idle', 'review', 'queued'].includes(prior.status))
     throw new PlannerFailure('PLAN_NOT_RESTARTABLE')
   const settings = await client.query(
-    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
     [businessId],
   )
   if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
@@ -432,6 +433,7 @@ export async function requestMonthlyPosts(
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
+    videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
   }
   // Stored preferences only constrain the kinds this batch actually asks for;
   // a video-only batch must not be rejected because the saved post photos
@@ -541,7 +543,7 @@ export async function restartMonthlyPlan(
   if (['BUDGET_ESTIMATE_EXCEEDED', 'PROVIDER_RETRY_EXHAUSTED'].includes(prior.error_code || ''))
     throw new PlannerFailure('PLAN_RECONCILIATION_REQUIRED')
   const settings = await client.query(
-    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
     [businessId],
   )
   if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
@@ -575,6 +577,7 @@ export async function restartMonthlyPlan(
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
+    videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
   }
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
@@ -660,7 +663,7 @@ export async function resetMonthlyPlan(
   await client.query(
     `UPDATE monthly_planner_settings
       SET configured_at=NULL,photo_mode='auto',preferred_asset_ids='{}',
-          preferred_video_asset_ids='{}',updated_at=now()
+          preferred_video_asset_ids='{}',preferred_video_extra_asset_ids='{}'::jsonb,updated_at=now()
       WHERE business_id=$1`,
     [businessId],
   )
@@ -2184,7 +2187,13 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
               ? {
                   video: {
                     status: 'brief_ready' as const,
-                    sourceAssetIds: [content.assetId],
+                    // The main photograph first: the video closes on it and it
+                    // is the poster. Further angles of the same subject the
+                    // business grouped with it follow, one per shot at most.
+                    sourceAssetIds: [
+                      content.assetId,
+                      ...(plan.evidence.photoSelection?.videoExtraAssetIds?.[content.assetId] || []),
+                    ],
                     ...(videoBriefLogoId ? { logoAssetId: videoBriefLogoId } : {}),
                     // The strategy's own direction for this video, carried
                     // forward in full rather than truncated into a single
@@ -2493,11 +2502,13 @@ export async function runMonthlyPlannerTick(
           : undefined
       // A customer pausing their own planner is a decision, not a fault. The
       // plan is still blocked below so the explicit resume can pick it up, but
-      // it is not worth a warning on every tick that races a pause.
-      if (stage && code !== 'PLANNER_PAUSED')
-        console.warn('Monthly planner paused the current tick at a validated stage.', {
+      // it is not worth a warning on every tick that races a pause. Every other
+      // stop is logged, with its stage when one is known, so a failure outside
+      // a named step still says what went wrong.
+      if (code !== 'PLANNER_PAUSED')
+        console.warn('Monthly planner paused the current tick.', {
           code,
-          stage,
+          stage: stage || 'unknown',
           database,
           ...(error instanceof PlannerFailure
             ? { details: error.details.slice(0, 5) }
@@ -2510,6 +2521,11 @@ export async function runMonthlyPlannerTick(
                   typeof error === 'object' && error && 'message' in error
                     ? String(error.message).slice(0, 500)
                     : 'Unknown generation failure',
+                // Where it was thrown, so a failure outside a named step can
+                // be found without a debugger.
+                at: error instanceof Error && error.stack
+                  ? error.stack.split('\n').slice(1, 4).map((line) => line.trim())
+                  : [],
               }),
         })
       // A provider-side temporary error or rate limit has no usable result,

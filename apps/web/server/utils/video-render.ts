@@ -19,11 +19,11 @@ import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit
 import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
 import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
 import { directedTakes, videoChargeCredits } from './video-takes'
-import { storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
+import { maxVideoPhotos, storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
 import { buildVideoExecutionBrief } from './video-execution-brief'
 import { composeBrandedVideo, extractVideoFrames, joinClips, VIDEO_END_CARD_SECONDS, videoDuration } from './video-compose'
 import { closestDuration, generateStoryboardShots, ShotSubjectChanged } from './video-shots'
-import { reviewVideoQuality, verifyVideoSubject } from './video-subject-check'
+import { reviewVideoQuality, verifySamePhotographedSubject, verifyVideoSubject } from './video-subject-check'
 
 /**
  * Render a post's video and settle what it cost.
@@ -61,6 +61,17 @@ export async function renderVideoForPost(userId: string, postId: string) {
     )
     if (!asset.rows[0])
       throw createError({ statusCode: 409, message: 'server.ORIGINAL_PHOTO_UNAVAILABLE' })
+    // Further angles of the subject grouped with the main photograph, under the
+    // same rule: owned originals with their rights confirmed. One no longer
+    // allowed is left out; the video can be made without it.
+    const extraIds = post.video.sourceAssetIds.slice(1, maxVideoPhotos)
+    const extraRows = extraIds.length
+      ? (await client.query<{ id: string; bytes: Buffer | null; storage_path: string | null }>(
+          "SELECT id,bytes,storage_path FROM assets WHERE id = ANY($1::uuid[]) AND business_id=$2 AND rights=true AND kind='photo' AND creative_provenance IS NULL",
+          [extraIds, business.id],
+        )).rows
+      : []
+    const extraAssets = extraIds.flatMap((id) => extraRows.filter((row) => row.id === id))
     // The planner already fitted this photograph to the channel canvas for
     // the poster; that same image is what the video animates, so it is reused
     // rather than extended (and paid for) again.
@@ -203,6 +214,9 @@ export async function renderVideoForPost(userId: string, postId: string) {
       source: asset.rows[0].storage_path
         ? await downloadAsset(asset.rows[0].storage_path, 10 * 1024 * 1024)
         : asset.rows[0].bytes!,
+      extraSources: await Promise.all(extraAssets.map((row) => row.storage_path
+        ? downloadAsset(row.storage_path, 10 * 1024 * 1024)
+        : Promise.resolve(row.bytes!))),
       fitted: fittedPoster
         ? fittedPoster.storage_path
           ? await downloadAsset(fittedPoster.storage_path, 10 * 1024 * 1024)
@@ -276,11 +290,32 @@ export async function renderVideoForPost(userId: string, postId: string) {
       failureReason = 'render_failed'
       snapshot.fitted = fit.bytes
     }
+    // Each further photograph is fitted the same way, all at once, and kept
+    // only if it shows the very same subject as the main one. What fitting and
+    // checking cost is charged whether or not a photograph is kept.
+    const extraFitted: Buffer[] = []
+    if (snapshot.extraSources.length) {
+      failureReason = 'photo_fit_failed'
+      const extras = await Promise.all(snapshot.extraSources.map(async (source) => {
+        const fit = await fitPhotoToChannel(source, snapshot.channel, {
+          outpaint: (guide, prompt) => requestOutpaint(guide, prompt, snapshot.channel),
+          review: reviewExtension,
+        })
+        const check = await verifySamePhotographedSubject({ main: snapshot.fitted!, other: fit.bytes })
+        return { fit, check }
+      }))
+      failureReason = 'render_failed'
+      for (const [index, { fit, check }] of extras.entries()) {
+        fitCostUsd += fit.costUsd + check.costUsd
+        if (check.sameSubject) extraFitted.push(fit.bytes)
+        else console.warn('A grouped photograph shows another subject and was left out of the video', { postId, photo: index + 2, reason: check.reason })
+      }
+    }
     // The AI creative director invents this video's concept and storyboard
     // from the fitted photograph. Without a valid storyboard the strategy's
     // own shot direction is rendered as before.
     const capabilities = await aiVideoCapabilities(snapshot.canvas)
-    let limits = videoLengthLimits(capabilities.durations)
+    let limits = { ...videoLengthLimits(capabilities.durations), photos: 1 + extraFitted.length }
     // The video is planned within what the business can pay for: the model's
     // published price per second against the credits held for this render and
     // still free. Without a published price the configured reservation stands.
@@ -345,6 +380,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
         const shots = await generateStoryboardShots({
           storyboard,
           fitted: snapshot.fitted!,
+          extraFitted,
           provider,
           lastFrameSupported: capabilities.lastFrame,
           guardrails: snapshot.director.guardrails,
@@ -394,6 +430,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
         failureReason = 'direction_failed'
         const direction = await directVideo({
           photograph: snapshot.fitted!,
+          extraPhotographs: extraFitted,
           channel: snapshot.channel,
           limits,
           locale: snapshot.locale,
@@ -471,6 +508,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     try {
       const review = await reviewVideoQuality({
         photograph: snapshot.source,
+        extraPhotographs: extraFitted,
         frames: await extractVideoFrames(bytes, [0.1, 0.4, 0.7, 0.95]),
         caption: snapshot.caption,
         brandName: snapshot.brandName,

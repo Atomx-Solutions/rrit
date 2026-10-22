@@ -29,6 +29,7 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
         purpose: 'The arrival: the car lowers into its photographed place.',
         durationSeconds: 4,
         shotSize: 'wide',
+        photoIndex: 0,
         camera: { move: 'Low drone hold tilting down as the car descends.', lens: '24mm wide', speed: 'slow', ease: 'ease-out on landing', rotationDegrees: 0 },
         atmosphere: 'Storm clouds clearing to golden light.',
         effects: 'Dust lifting at touchdown.',
@@ -41,6 +42,7 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
         purpose: 'The reveal: the camera arcs a little and rises.',
         durationSeconds: 8,
         shotSize: 'medium',
+        photoIndex: 0,
         camera: { move: 'Gentle 30 degree arc combined with a rise.', lens: '35mm', speed: 'measured', ease: 'ease-in-out', rotationDegrees: 30 },
         atmosphere: 'Golden hour, wet asphalt reflections.',
         effects: 'Light sliding along the bodywork.',
@@ -108,6 +110,21 @@ describe('storyboard rules', () => {
     short.shots[0]!.durationSeconds = 4
     short.shots[1]!.durationSeconds = 4
     expect(storyboardProblems(short, limits).join(' ')).toContain('must last 12 seconds together')
+  })
+
+  it('makes each scene from its own photograph and closes on the main one', () => {
+    const twoPhotos = { ...limits, photos: 2 }
+    // Both shots on the main photograph waste the second angle.
+    expect(storyboardProblems(storyboard(), twoPhotos).join(' ')).toContain('Use 2 different photographs')
+    const angles = storyboard()
+    angles.shots[0]!.photoIndex = 1
+    expect(storyboardProblems(angles, twoPhotos)).toEqual([])
+    // The video must close on the main photograph.
+    const reversed = storyboard()
+    reversed.shots[1]!.photoIndex = 1
+    expect(storyboardProblems(reversed, twoPhotos).join(' ')).toContain('final shot must be made from photograph 1')
+    // A photograph that was not supplied cannot be used.
+    expect(storyboardProblems(angles, limits).join(' ')).toContain('only 1 was supplied')
   })
 
   it('gives consecutive scenes their own framing', () => {

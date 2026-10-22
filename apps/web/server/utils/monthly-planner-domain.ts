@@ -188,6 +188,7 @@ export function plannerEvidence(
     mode: 'auto' | 'selected'
     selectedAssetIds: string[]
     selectedVideoAssetIds?: string[]
+    videoExtraAssetIds?: Record<string, string[]>
   } = {
     mode: 'auto',
     selectedAssetIds: [],
@@ -232,6 +233,16 @@ export function plannerEvidence(
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]))
+  // Further angles of a video's subject. They are not part of the plan's
+  // photograph allow-list (the strategy still assigns one main photograph per
+  // video); a further photograph that is no longer an owned original with its
+  // rights confirmed is simply left out, since the video can be made without it.
+  const videoExtraAssetIds = Object.fromEntries(
+    Object.entries(photoSelection.mode === 'selected' ? photoSelection.videoExtraAssetIds || {} : {})
+      .filter(([id]) => selectedVideoAssetIds.includes(id))
+      .map(([id, extras]) => [id, [...new Set(extras)].filter((extra) => eligibleAssetIds.has(extra) && extra !== id)])
+      .filter(([, extras]) => extras!.length),
+  ) as Record<string, string[]>
   const generationAssets =
     photoSelection.mode === 'selected'
       ? [...new Set([...selectedAssetIds, ...selectedVideoAssetIds])].map(
@@ -307,6 +318,7 @@ export function plannerEvidence(
       mode: photoSelection.mode,
       selectedAssetIds: photoSelection.mode === 'selected' ? selectedAssetIds : [],
       selectedVideoAssetIds: photoSelection.mode === 'selected' ? selectedVideoAssetIds : [],
+      ...(Object.keys(videoExtraAssetIds).length ? { videoExtraAssetIds } : {}),
     },
     videoChannelCounts,
     recentPosts: workspace.posts

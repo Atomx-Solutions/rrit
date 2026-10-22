@@ -32,16 +32,21 @@ const defaults: ShotDependencies = {
 
 /**
  * Generates every shot of a storyboard with the configured motion model, one
- * after another. The first shot starts on the fitted photograph unless the
- * director wrote an arrival; each later shot starts on the last frame of the
- * one before, so the motion carries on without a jump; a shot that ends on the
- * photograph is pinned to it as its last frame, the final shot always is.
- * Every shot is held against the photograph before the next one is made.
+ * after another. The first shot starts on its photograph unless the director
+ * wrote an arrival; a later shot from the same photograph as the one before
+ * starts on that shot's last frame, so the motion carries on without a jump,
+ * while a shot from another photograph starts on its own, as a new scene. A
+ * shot that ends on its photograph is pinned to it as its last frame, the
+ * final shot always is. Every shot is held against its own photograph before
+ * the next one is made.
  */
 export async function generateStoryboardShots(input: {
   storyboard: Storyboard
   // The photograph on the channel canvas.
   fitted: Buffer
+  // Further photographs of the same subject on the canvas; a shot's
+  // photoIndex 1 is the first of them.
+  extraFitted?: Buffer[]
   // The canvas the model paints and whether it accepts a closing frame.
   provider: { canvas: Canvas; aspectRatio: string }
   lastFrameSupported: boolean
@@ -53,18 +58,22 @@ export async function generateStoryboardShots(input: {
   onSubjectChange?: 'stop' | 'record'
 }, dependencies: Partial<ShotDependencies> = {}) {
   const deps = { ...defaults, ...dependencies }
-  const photograph = await padFrameToCanvas(input.fitted, input.provider.canvas)
+  const photographs = await Promise.all(
+    [input.fitted, ...(input.extraFitted || [])].map((image) => padFrameToCanvas(image, input.provider.canvas)),
+  )
   const clips: Buffer[] = []
   const subjectChanges: { shot: number; reason: string }[] = []
   let costUsd: number | null = 0
   for (const [index, shot] of input.storyboard.shots.entries()) {
     const final = index === input.storyboard.shots.length - 1
+    const photograph = photographs[shot.photoIndex ?? 0] || photographs[0]!
+    const sameScene = index > 0 && (input.storyboard.shots[index - 1]!.photoIndex ?? 0) === (shot.photoIndex ?? 0)
     const endsOnPhotograph = (shot.endsOnPhotograph || final) && input.lastFrameSupported
     // An arrival may open away from the photograph only when the model can
     // still be pinned to it at the end; otherwise it starts on it.
-    const start: 'photograph' | 'previous_shot' | 'free' = index > 0
+    const start: 'photograph' | 'previous_shot' | 'free' = sameScene
       ? 'previous_shot'
-      : !shot.opensOnPhotograph && endsOnPhotograph ? 'free' : 'photograph'
+      : index === 0 && !shot.opensOnPhotograph && endsOnPhotograph ? 'free' : 'photograph'
     const firstFrame = start === 'previous_shot'
       ? await deps.lastFrameOf(clips[index - 1]!, input.provider.canvas)
       : start === 'photograph' ? photograph : undefined

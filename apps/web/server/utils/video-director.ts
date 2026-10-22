@@ -42,6 +42,9 @@ export function videoCrossfadeSeconds() {
 export type DirectorInput = {
   // The photograph already fitted to the channel canvas; the video starts here.
   photograph: Buffer
+  // Further photographs of the same subject from other angles, fitted the same
+  // way. They are photographs 2 and on; limits.photos counts them all.
+  extraPhotographs?: Buffer[]
   channel: PublishingChannel
   limits: StoryboardLimits
   locale: AppLocaleValue
@@ -87,7 +90,7 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
   return [
     'Act as a senior creative director and cinematographer for short commercial social videos. Invent one original video concept for this exact business, post and photograph, as a storyboard the motion model will shoot.',
     `The video is for ${input.channel}, on a ${ratioLabel(canvas)} canvas. ${shapeRule} ${lengths}${coveredSides.length ? ` ${input.channel} covers ${coveredSides.join(', ')} of the frame with its interface, so nothing important happens there.` : ''}`,
-    'Everything is made from the single supplied photograph. You are free with everything around the subject: the environment, light, time of day, weather, sky, atmosphere, particles, reflections and effects; how the subject arrives in its photographed place (for example descending from the sky and landing, rolling in out of light or fog); and the camera, including drone flights, push-ins, rises, reveals, tracking and small turns.',
+    'Everything is made from the supplied photographs of one subject, and each shot from one of them. You are free with everything around the subject: the environment, light, time of day, weather, sky, atmosphere, particles, reflections and effects; how the subject arrives in its photographed place (for example descending from the sky and landing, rolling in out of light or fog); and the camera, including drone flights, push-ins, rises, reveals, tracking and small turns.',
     `You are not free with the subject itself. It must stay exactly the subject in the photograph: the same model, colour, shape, logo, wheels and details. Show only the side of it the photograph shows: the camera may turn around it by at most ${maxStoryboardRotationDegrees} degrees in a shot, never orbit it, never 360 degrees, never show its back, underside or interior. Set rotationDegrees honestly and showsOnlyPhotographedSides to true only when that holds.`,
     'The final shot must end on the real photograph (endsOnPhotograph=true), so the video closes on the true subject. Mark each shot that opens on the photograph\'s own view with opensOnPhotograph=true.',
     'Write every shot as a cinematographer\'s brief: the camera move, the lens (focal length or look), the speed, the ease in and out, the light and atmosphere, the effects, and what the subject does. Be concrete and visual. No text, letters, logos or captions appear in the motion; the application sets the call to action over it.',
@@ -95,6 +98,9 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
     'Set subjectFrame to where the subject spans vertically in the supplied photograph, as shares of its height from the top (0 is the top edge, 1 the bottom). The application places its headline and call to action in the free space above or below that band, so judge it honestly from the photograph.',
     `Write cta (a short call to action, at most ${ctaMaxLength} characters) and caption in ${contentLanguageForLocale(input.locale)}, in the brand voice, from the supplied post. Do not invent prices, offers, facts or claims.`,
     'Make this concept your own for this post: do not fall back on a generic slow push-in unless it is truly the best idea for this photograph.',
+    ...((limits.photos || 1) > 1
+      ? [`You are given ${limits.photos} photographs of the same subject from different angles, in order: photograph 1 is the main one, the others follow. Give every shot a photoIndex (0 for photograph 1, 1 for photograph 2, and so on): the shot starts on that photograph and shows only what it shows. Use as many different photographs as there are shots, so each scene has its own angle, and make the final shot from photograph 1 so the video closes on the main one. The one-photograph rules above apply to each shot and its own photograph. When the photographs differ in light or time of day (day, dusk, night), order the shots so the light changes in one direction towards photograph 1, and let the atmosphere of each shot carry that change, so it reads as time passing rather than as a jump.`]
+      : ['Set photoIndex to 0 in every shot: there is one photograph.']),
     ...(input.userInstruction
       ? ['businessRequest is what the business itself asked for in this video. Follow it ahead of your own ideas, as far as the rules above about the subject and the photograph allow; where it would break them, keep to the rules and come as close to the request as they permit.']
       : []),
@@ -146,7 +152,9 @@ export async function directVideo(input: DirectorInput, attempts = 2): Promise<D
             role: 'user',
             content: [
               { type: 'input_text', text: JSON.stringify(payload(input, corrections)) },
-              { type: 'input_image', image_url: `data:image/jpeg;base64,${input.photograph.toString('base64')}`, detail: 'high' },
+              ...[input.photograph, ...(input.extraPhotographs || [])].map((image) => (
+                { type: 'input_image', image_url: `data:image/jpeg;base64,${image.toString('base64')}`, detail: 'high' }
+              )),
             ],
           }],
           ...aiProviderStructuredRouting(provider.name),

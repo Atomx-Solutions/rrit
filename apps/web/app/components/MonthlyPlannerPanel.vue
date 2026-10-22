@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { publishingChannels, type PublishingChannel } from '~~/shared/schemas/channel-format'
+import { maxVideoPhotos } from '~~/shared/schemas/storyboard'
 const props = defineProps<{ month: string }>()
 const { t } = useI18n()
 const { data: workspace, base, initLive, syncing } = useWorkspace()
@@ -36,27 +37,46 @@ const photoPageCount = computed(() => Math.max(1, Math.ceil(photoTotal.value / p
 const selectedPhotoIds = ref<string[]>([
   ...(planner.value?.photoPreference?.selectedAssetIds || []),
 ].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
-// A TikTok video is a deliverable of its own, so the photograph it animates is
-// chosen apart from the ones the feed posts use. The two lists never overlap.
-const selectedVideoPhotoIds = ref<string[]>([
-  ...(planner.value?.photoPreference?.selectedVideoAssetIds || []),
-].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
+// A video is a deliverable of its own, chosen apart from the feed posts. Each
+// video is a group of photographs of one subject: the first is the main one it
+// closes on and shows as its poster, the rest are further angles, one scene
+// each, up to maxVideoPhotos. The group being filled is the active card.
+const videoGroups = ref<string[][]>(
+  (planner.value?.photoPreference?.selectedVideoAssetIds || []).map((id) => [
+    id,
+    ...(planner.value?.photoPreference?.videoExtraAssetIds?.[id] || []),
+  ]),
+)
+const activeVideo = ref(0)
+const selectedVideoPhotoIds = computed(() => videoGroups.value.filter((group) => group.length).map((group) => group[0]!))
+const videoExtraAssetIds = computed(() => Object.fromEntries(
+  videoGroups.value.filter((group) => group.length > 1).map((group) => [group[0]!, group.slice(1)]),
+))
 watch(
   originalPhotos,
   (photos) => {
     const allowed = new Set(photos.map((photo) => photo.id))
     selectedPhotoIds.value = selectedPhotoIds.value.filter((id) => allowed.has(id))
-    selectedVideoPhotoIds.value = selectedVideoPhotoIds.value.filter((id) => allowed.has(id))
+    videoGroups.value = videoGroups.value.map((group) => group.filter((id) => allowed.has(id)))
   },
   { immediate: true },
 )
+function videoCardOf(id: string) {
+  return videoGroups.value.findIndex((group) => group.includes(id))
+}
 function photoChosen(id: string, kind: 'post' | 'video') {
-  return (kind === 'video' ? selectedVideoPhotoIds : selectedPhotoIds).value.includes(id)
+  return kind === 'video' ? videoCardOf(id) >= 0 : selectedPhotoIds.value.includes(id)
 }
 function photoRoleFull(kind: 'post' | 'video') {
   return kind === 'video'
-    ? selectedVideoPhotoIds.value.length >= selectedVideoQuantity.value
+    ? activeVideo.value >= selectedVideoQuantity.value
+      || (videoGroups.value[activeVideo.value]?.length || 0) >= maxVideoPhotos
     : selectedPhotoIds.value.length >= selectedQuantity.value
+}
+// The photograph moves to the front of its card and becomes the main one.
+function makeMainVideoPhoto(card: number, id: string) {
+  videoGroups.value = videoGroups.value.map((group, index) =>
+    index === card ? [id, ...group.filter((item) => item !== id)] : group)
 }
 // The two choices are independent, so each has its own control on the tile. A
 // photograph carrying both produces a feed post and a TikTok video from the
@@ -64,7 +84,20 @@ function photoRoleFull(kind: 'post' | 'video') {
 // planner has to reject later, so a full role refuses the click while the
 // person can still act on it.
 function togglePhoto(id: string, kind: 'post' | 'video') {
-  const list = kind === 'video' ? selectedVideoPhotoIds : selectedPhotoIds
+  if (kind === 'video') {
+    const card = videoCardOf(id)
+    if (card >= 0) {
+      videoGroups.value = videoGroups.value.map((group, index) => index === card ? group.filter((item) => item !== id) : group)
+      return
+    }
+    if (photoRoleFull('video')) return
+    const groups = [...videoGroups.value]
+    while (groups.length <= activeVideo.value) groups.push([])
+    groups[activeVideo.value] = [...groups[activeVideo.value]!, id]
+    videoGroups.value = groups
+    return
+  }
+  const list = selectedPhotoIds
   if (list.value.includes(id)) {
     list.value = list.value.filter((item) => item !== id)
     return
@@ -202,8 +235,8 @@ watch(remainingPosts, (remaining) => {
 // Lowering a count leaves photos chosen that no longer have a deliverable to go
 // with, so the extras are released rather than left to fail at submission.
 watch(selectedVideoQuantity, (quantity) => {
-  if (selectedVideoPhotoIds.value.length > quantity)
-    selectedVideoPhotoIds.value = selectedVideoPhotoIds.value.slice(0, quantity)
+  if (videoGroups.value.length > quantity) videoGroups.value = videoGroups.value.slice(0, quantity)
+  if (activeVideo.value >= quantity) activeVideo.value = Math.max(0, quantity - 1)
 })
 watch(selectedQuantity, (quantity) => {
   if (selectedPhotoIds.value.length > quantity)
@@ -384,6 +417,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
               selectedVideoAssetIds:
                 photoMode.value === 'selected' ? selectedVideoPhotoIds.value : [],
+              videoExtraAssetIds: photoMode.value === 'selected' ? videoExtraAssetIds.value : {},
               quantity: selectedQuantity.value,
               channelCounts: requestedChannelCounts(),
               videoChannelCounts: requestedVideoChannelCounts(),
@@ -398,7 +432,8 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       resetOpen.value = false
       photoMode.value = 'auto'
       selectedPhotoIds.value = []
-      selectedVideoPhotoIds.value = []
+      videoGroups.value = []
+      activeVideo.value = 0
       await initLive()
     }
   } catch (problem) {
@@ -1079,6 +1114,65 @@ onBeforeUnmount(() => clearInterval(timer))
               thing being chosen. Two columns on a phone keep each tile and each
               tap target comfortable; the denser grids return with the width.
             -->
+            <!--
+              One card per video. The photographs chosen with the video button
+              join the active card; the first in a card is the main one.
+            -->
+            <div v-if="originalPhotos.length && selectedVideoQuantity > 0" class="mt-3">
+              <p class="text-xs font-semibold text-highlighted">{{ t('monthly.videoCardsTitle') }}</p>
+              <p class="mt-0.5 text-xs text-muted">{{ t('monthly.videoCardsHelp', { max: maxVideoPhotos }) }}</p>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <UButton
+                  v-for="card in selectedVideoQuantity"
+                  :key="card"
+                  type="button"
+                  color="neutral"
+                  variant="outline"
+                  class="block h-auto rounded-xl p-2.5 text-left"
+                  :class="activeVideo === card - 1 ? 'ring-2 ring-primary' : ''"
+                  :aria-pressed="activeVideo === card - 1"
+                  @click="activeVideo = card - 1"
+                >
+                  <span class="flex items-center gap-1.5 text-xs font-semibold">
+                    <UIcon name="i-lucide-clapperboard" class="size-3.5 text-primary" />
+                    {{ t('monthly.videoCardTitle', { number: card }) }}
+                  </span>
+                  <span class="mt-2 flex gap-1.5">
+                    <span
+                      v-for="(id, index) in videoGroups[card - 1] || []"
+                      :key="id"
+                      class="relative size-12 overflow-hidden rounded-lg border border-default"
+                    >
+                      <MediaImage
+                        :src="originalPhotos.find((asset) => asset.id === id)?.url || ''"
+                        :alt="originalPhotos.find((asset) => asset.id === id)?.name || ''"
+                        fit="cover"
+                        class="size-full"
+                      />
+                      <span
+                        role="button"
+                        tabindex="0"
+                        class="absolute right-0.5 top-0.5 rounded-full bg-black/60 px-1 text-[10px] leading-4"
+                        :class="index === 0 ? 'text-yellow-300' : 'text-white/70'"
+                        :title="index === 0 ? t('monthly.videoMainPhoto') : t('monthly.videoMakeMain')"
+                        :aria-label="index === 0 ? t('monthly.videoMainPhoto') : t('monthly.videoMakeMain')"
+                        @click.stop="makeMainVideoPhoto(card - 1, id)"
+                        @keydown.enter.stop="makeMainVideoPhoto(card - 1, id)"
+                      >&#9733;</span>
+                    </span>
+                    <span
+                      v-if="(videoGroups[card - 1]?.length || 0) < maxVideoPhotos"
+                      class="flex size-12 items-center justify-center rounded-lg border border-dashed border-default text-muted"
+                    >+</span>
+                  </span>
+                  <span class="mt-1.5 block text-[11px] text-muted">
+                    {{ (videoGroups[card - 1]?.length || 0) > 1
+                      ? t('monthly.videoCardScenes', { count: videoGroups[card - 1]!.length })
+                      : t('monthly.videoCardOneAngle') }}
+                  </span>
+                </UButton>
+              </div>
+            </div>
             <div
               v-if="originalPhotos.length"
               class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
@@ -1111,6 +1205,7 @@ onBeforeUnmount(() => clearInterval(timer))
                     :color="photoChosen(asset.id, kind) ? 'primary' : 'neutral'"
                     :variant="photoChosen(asset.id, kind) ? 'solid' : 'soft'"
                     :icon="kind === 'video' ? 'i-lucide-clapperboard' : 'i-lucide-image'"
+                    :label="kind === 'video' && photoChosen(asset.id, 'video') ? `V${videoCardOf(asset.id) + 1}` : undefined"
                     :aria-pressed="photoChosen(asset.id, kind)"
                     :title="kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')"
                     :aria-label="`${asset.name} — ${kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')}`"
