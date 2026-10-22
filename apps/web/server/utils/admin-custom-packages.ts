@@ -47,6 +47,9 @@ export const customPackageChangesSchema = z
     posts_included: z.number().int().min(0).max(1000).optional(),
     videos_included: z.number().int().min(0).max(1000).optional(),
     credits_included: z.number().int().min(0).max(10_000_000).optional(),
+    // Unlike credits_included (the package's total), this is an explicit
+    // increment for an already active package.
+    credit_top_up: z.number().int().min(1).max(10_000_000).optional(),
     post_price_cents: z.number().int().min(1).max(1_000_000).optional(),
     video_price_cents: z.number().int().min(0).max(1_000_000).optional(),
     price_cents: cents.optional(),

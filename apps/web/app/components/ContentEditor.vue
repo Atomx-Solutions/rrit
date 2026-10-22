@@ -540,6 +540,7 @@ onBeforeUnmount(() => {
             name="title"
             :description="t('content.postNameDescription')"
             class="field"
+            required
             ><UInput
               v-model="form.title"
               :disabled="!editable"
@@ -548,19 +549,19 @@ onBeforeUnmount(() => {
               class="w-full"
           /></UFormField>
           <div class="grid-2">
-            <UFormField :label="t('content.channel')" name="channel" class="field"
+            <UFormField :label="t('content.channel')" name="channel" class="field" required
               ><USelect
                 v-model="form.channel"
                 :disabled="!editable"
                 :items="[...publishingChannels]" /></UFormField
-            ><UFormField :label="t('content.postTopic')" name="pillar" class="field"
+            ><UFormField :label="t('content.postTopic')" name="pillar" class="field" required
               ><USelect
                 v-model="form.pillar"
                 :disabled="!editable"
                 :items="[t('strategy.intent.product'), t('strategy.intent.behind_the_scenes'), t('strategy.goal.meaningful_comments'), t('strategy.goal.profile_actions'), t('brand.offerType')]"
             /></UFormField>
           </div>
-          <UFormField :label="t('content.postText')" name="caption" class="field"
+          <UFormField :label="t('content.postText')" name="caption" class="field" required
             ><UTextarea
               v-model="form.caption"
               :disabled="!editable"
@@ -1000,7 +1001,7 @@ onBeforeUnmount(() => {
           @submit="schedulePost"
           @error="onFormError"
         >
-          <UFormField :label="t('content.dateAndTime')" name="schedule" class="field"
+          <UFormField :label="t('content.dateAndTime')" name="schedule" class="field" required
             ><UInput v-model="schedule" class="w-full" type="datetime-local" required
           /></UFormField>
           <UCheckbox

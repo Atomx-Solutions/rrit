@@ -1636,6 +1636,7 @@
   "monthly.videoCardsTitle": "Video",
   "monthly.videoCardsHelp": "Scegli una scheda, poi aggiungi fino a {{max}} foto dello stesso prodotto con il pulsante video. La prima (★) è quella principale: il video si chiude su di essa.",
   "monthly.videoCardTitle": "Video {{number}}",
+  "monthly.removeVideoCard": "Rimuovi video {{number}}",
   "monthly.videoMainPhoto": "Foto principale",
   "monthly.videoMakeMain": "Rendi principale",
   "monthly.videoCardScenes": "{{count}} foto · {{count}} scene da angolazioni diverse",

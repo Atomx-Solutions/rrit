@@ -1636,6 +1636,7 @@
   "monthly.videoCardsTitle": "Videolar",
   "monthly.videoCardsHelp": "Bir kart seçin, ardından video düğmesiyle aynı üründen en fazla {{max}} fotoğraf ekleyin. İlki (★) ana fotoğraftır: video onunla biter.",
   "monthly.videoCardTitle": "Video {{number}}",
+  "monthly.removeVideoCard": "Video {{number}} kaldır",
   "monthly.videoMainPhoto": "Ana fotoğraf",
   "monthly.videoMakeMain": "Ana yap",
   "monthly.videoCardScenes": "{{count}} fotoğraf · farklı açılardan {{count}} sahne",

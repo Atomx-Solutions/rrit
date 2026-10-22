@@ -1636,6 +1636,7 @@
   "monthly.videoCardsTitle": "Videot",
   "monthly.videoCardsHelp": "Zgjidh një kartë, pastaj shto deri në {{max}} foto të të njëjtit produkt me butonin e videos. E para (★) është kryesorja: me të mbyllet videoja.",
   "monthly.videoCardTitle": "Video {{number}}",
+  "monthly.removeVideoCard": "Hiqe videon {{number}}",
   "monthly.videoMainPhoto": "Fotoja kryesore",
   "monthly.videoMakeMain": "Bëje kryesore",
   "monthly.videoCardScenes": "{{count}} foto · {{count}} skena nga kënde të ndryshme",

@@ -50,31 +50,11 @@ export default defineEventHandler(async (event) => {
         if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
         return restartMonthlyPlan(client, business.id, user.id, input.data.month)
       }
-      // Asking an existing plan for more posts. It keeps its research and its
-      // drafts; only the newly requested slots are planned and produced.
-      if (input.data.action === 'generate') {
-        if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
-        // At least one deliverable must be requested overall; images and
-        // videos are independent, so a video-only request (quantity = 0,
-        // videoQuantity ≥ 1) is a valid shape, as is an image-only request.
-        if (!input.data.quantity && !input.data.videoQuantity)
-          throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
-        return requestMonthlyPosts(
-          client,
-          business.id,
-          user.id,
-          input.data.month,
-          input.data.quantity ?? 0,
-          input.data.channelCounts,
-          input.data.videoQuantity,
-          input.data.videoChannelCounts,
-        )
-      }
       if (input.data.action === 'reset') {
         if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
         return resetMonthlyPlan(client, business.id, user.id, input.data.month)
       }
-      if (input.data.action !== 'prepare') {
+      if (input.data.action !== 'prepare' && input.data.action !== 'generate') {
         await client.query(
           'INSERT INTO monthly_planner_settings(business_id,enabled) VALUES($1,$2) ON CONFLICT(business_id) DO UPDATE SET enabled=EXCLUDED.enabled,updated_at=now()',
           [business.id, input.data.action === 'enable'],
@@ -126,6 +106,21 @@ export default defineEventHandler(async (event) => {
               configured_at=now(),updated_at=now()`,
         [business.id, photoMode, selectedAssetIds, selectedVideoAssetIds, JSON.stringify(videoExtraAssetIds)],
       )
+      if (input.data.action === 'generate') {
+        if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
+        if (!input.data.quantity && !input.data.videoQuantity)
+          throw new PlannerFailure('QUANTITY_EXCEEDS_REMAINING')
+        return requestMonthlyPosts(
+          client,
+          business.id,
+          user.id,
+          input.data.month,
+          input.data.quantity ?? 0,
+          input.data.channelCounts,
+          input.data.videoQuantity,
+          input.data.videoChannelCounts,
+        )
+      }
       return ensureMonthlyPlan(client, business.id, user.id, input.data.month, {
         requeueCancelled: true,
         quantity: input.data.quantity,

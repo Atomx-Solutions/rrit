@@ -22,6 +22,10 @@ watch(loadError, (value) => {
 }, { immediate: true })
 const researchOpen = ref(false)
 const resetOpen = ref(false)
+// A follow-up batch gets its own photo decision. It must not inherit the
+// first batch's allow-list, otherwise a customer cannot use newer or simply
+// different owned photographs for the next post.
+const configuringMore = ref(false)
 const photoMode = ref<'auto' | 'selected'>(planner.value?.photoPreference?.mode || 'auto')
 const originalPhotos = computed(() =>
   workspace.value.assets
@@ -73,10 +77,22 @@ function photoRoleFull(kind: 'post' | 'video') {
       || (videoGroups.value[activeVideo.value]?.length || 0) >= maxVideoPhotos
     : selectedPhotoIds.value.length >= selectedQuantity.value
 }
+function configureMore() {
+  configuringMore.value = true
+  photoMode.value = 'selected'
+  selectedPhotoIds.value = []
+  videoGroups.value = []
+  activeVideo.value = 0
+}
 // The photograph moves to the front of its card and becomes the main one.
 function makeMainVideoPhoto(card: number, id: string) {
   videoGroups.value = videoGroups.value.map((group, index) =>
     index === card ? [id, ...group.filter((item) => item !== id)] : group)
+}
+function removeVideoCard(card: number) {
+  videoGroups.value = videoGroups.value.filter((_, index) => index !== card)
+  selectedVideoQuantity.value = Math.max(0, selectedVideoQuantity.value - 1)
+  activeVideo.value = Math.max(0, Math.min(activeVideo.value > card ? activeVideo.value - 1 : activeVideo.value, selectedVideoQuantity.value - 1))
 }
 // The two choices are independent, so each has its own control on the tile. A
 // photograph carrying both produces a feed post and a TikTok video from the
@@ -150,7 +166,7 @@ function openRequest(action: 'prepare' | 'generate') {
   // need a video photo. The guard fires only when the user is in `selected`
   // mode and has picked neither.
   if (
-    action === 'prepare' &&
+    (action === 'prepare' || action === 'generate') &&
     photoMode.value === 'selected' &&
     !selectedPhotoIds.value.length &&
     !selectedVideoPhotoIds.value.length
@@ -408,10 +424,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       body: {
         action,
         month: props.month,
-        ...(action === 'generate'
-          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), videoQuantity: selectedVideoQuantity.value, videoChannelCounts: requestedVideoChannelCounts() }
-          : {}),
-        ...(action === 'prepare'
+        ...(action === 'prepare' || action === 'generate'
           ? {
               photoMode: photoMode.value,
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
@@ -428,6 +441,7 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       retry: 0,
     })
     await refresh()
+    if (action === 'generate') configuringMore.value = false
     if (action === 'reset') {
       resetOpen.value = false
       photoMode.value = 'auto'
@@ -806,7 +820,7 @@ onBeforeUnmount(() => clearInterval(timer))
       />
     </div>
 
-    <div v-else-if="settled && plan" class="border-t border-default p-4">
+    <div v-else-if="settled && plan && !configuringMore" class="border-t border-default p-4">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
         <div class="flex items-start gap-3">
           <div
@@ -882,7 +896,7 @@ onBeforeUnmount(() => clearInterval(timer))
             :loading="busy"
             :disabled="selectedQuantity + selectedVideoQuantity < 1"
             icon="i-lucide-plus"
-            @click="openRequest('generate')"
+            @click="configureMore"
           >
             {{ generateMoreLabel }}
           </UButton>
@@ -890,7 +904,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
       <p v-else class="mt-3 text-sm text-muted">{{ t('monthly.quotaUsedUp') }}</p>
     </div>
-    <div v-else-if="ready && plan" class="border-t border-default p-4">
+    <div v-else-if="ready && plan && !configuringMore" class="border-t border-default p-4">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
         <div class="flex items-start gap-3">
           <div
@@ -965,7 +979,7 @@ onBeforeUnmount(() => clearInterval(timer))
             :loading="busy"
             :disabled="selectedQuantity + selectedVideoQuantity < 1"
             icon="i-lucide-plus"
-            @click="openRequest('generate')"
+            @click="configureMore"
           >
             {{ generateMoreLabel }}
           </UButton>
@@ -976,9 +990,20 @@ onBeforeUnmount(() => clearInterval(timer))
     <div v-else class="border-t border-default p-4">
       <div>
         <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('monthly.monthPhotos') }}</p>
-        <h3 class="mt-1 text-base font-semibold text-highlighted">
-          {{ t('legacy.choosePhotoQuestion') }}
-        </h3>
+        <div class="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-base font-semibold text-highlighted">{{ t('legacy.choosePhotoQuestion') }}</h3>
+          <UButton
+            v-if="configuringMore"
+            type="button"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-x"
+            @click="configuringMore = false"
+          >
+            {{ t('common.cancel') }}
+          </UButton>
+        </div>
         <p class="mt-1 max-w-2xl text-sm leading-6 text-muted">
           {{ t('legacy.originalsDescription') }}
         </p>
@@ -1122,17 +1147,29 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="text-xs font-semibold text-highlighted">{{ t('monthly.videoCardsTitle') }}</p>
               <p class="mt-0.5 text-xs text-muted">{{ t('monthly.videoCardsHelp', { max: maxVideoPhotos }) }}</p>
               <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                <UButton
+                <div
                   v-for="card in selectedVideoQuantity"
                   :key="card"
-                  type="button"
-                  color="neutral"
-                  variant="outline"
-                  class="block h-auto rounded-xl p-2.5 text-left"
+                  role="button"
+                  tabindex="0"
+                  class="relative block h-auto cursor-pointer rounded-xl border border-default p-2.5 text-left transition hover:bg-elevated/80"
                   :class="activeVideo === card - 1 ? 'ring-2 ring-primary' : ''"
                   :aria-pressed="activeVideo === card - 1"
                   @click="activeVideo = card - 1"
+                  @keydown.enter="activeVideo = card - 1"
+                  @keydown.space.prevent="activeVideo = card - 1"
                 >
+                  <UButton
+                    type="button"
+                    color="neutral"
+                    variant="ghost"
+                    size="xs"
+                    icon="i-lucide-x"
+                    class="absolute right-1.5 top-1.5"
+                    :aria-label="t('monthly.removeVideoCard', { number: card })"
+                    :title="t('monthly.removeVideoCard', { number: card })"
+                    @click.stop="removeVideoCard(card - 1)"
+                  />
                   <span class="flex items-center gap-1.5 text-xs font-semibold">
                     <UIcon name="i-lucide-clapperboard" class="size-3.5 text-primary" />
                     {{ t('monthly.videoCardTitle', { number: card }) }}
@@ -1170,7 +1207,7 @@ onBeforeUnmount(() => clearInterval(timer))
                       ? t('monthly.videoCardScenes', { count: videoGroups[card - 1]!.length })
                       : t('monthly.videoCardOneAngle') }}
                   </span>
-                </UButton>
+                </div>
               </div>
             </div>
             <div
@@ -1305,7 +1342,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="text-sm font-medium text-highlighted">{{ t('monthly.readyToPrepare') }}</p>
               <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
             </div>
-            <UButton :loading="busy" :disabled="selectedQuantity + selectedVideoQuantity < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
+            <UButton :loading="busy" :disabled="selectedQuantity + selectedVideoQuantity < 1" icon="i-lucide-calendar-plus" @click="openRequest(configuringMore ? 'generate' : 'prepare')">
               {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
             </UButton>
           </div>

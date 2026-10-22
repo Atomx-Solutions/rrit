@@ -1636,6 +1636,7 @@
   "monthly.videoCardsTitle": "Videos",
   "monthly.videoCardsHelp": "Pick a card, then add up to {{max}} photos of the same product with the video button. The first (★) is the main one: the video closes on it.",
   "monthly.videoCardTitle": "Video {{number}}",
+  "monthly.removeVideoCard": "Remove video {{number}}",
   "monthly.videoMainPhoto": "Main photo",
   "monthly.videoMakeMain": "Make main",
   "monthly.videoCardScenes": "{{count}} photos · {{count}} scenes from different angles",

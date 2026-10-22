@@ -795,6 +795,8 @@ describe('AI creative generation', () => {
     expect(monthlyInstructions.planning).toContain(
       'so general that it could be pasted onto another slot',
     )
+    expect(monthlyInstructions.planning).toContain('a graphic composition')
+    expect(monthlyInstructions.planning).toContain('symbolic roads')
     expect(monthlyInstructions.content).toContain('Treat creative.cta as image copy')
     expect(monthlyInstructions.content).toContain('carry the full detail in the caption instead')
     expect(monthlyInstructions.content).toContain('Never introduce a required document')
@@ -802,6 +804,16 @@ describe('AI creative generation', () => {
     expect(monthlyInstructions.quality).toContain(
       'You are an exacting independent creative director and fact reviewer.',
     )
+    expect(monthlyInstructions.quality).toContain('non-factual checklist-style marks')
+  })
+
+  it('allows graphic composition while preserving the real primary subject', () => {
+    const prompt = monthlyImagePrompt(imagePromptInput())
+
+    expect(prompt).toContain('When the unique visual direction explicitly calls for a graphic composition')
+    expect(prompt).toContain('torn-paper edges')
+    expect(prompt).toContain('the real primary subject may be isolated and repositioned')
+    expect(prompt).toContain('do not synthesize another vehicle, product or person')
   })
 
   it('normalizes the AI result technically without applying a design preset', async () => {

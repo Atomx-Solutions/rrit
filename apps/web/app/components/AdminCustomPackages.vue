@@ -23,7 +23,7 @@ export type AdminCustomPackage = {
 }
 
 const props = defineProps<{ organizationId: string; organizationName: string; editPackageId?: string | null }>()
-const emit = defineEmits<{ editOpened: [] }>()
+const emit = defineEmits<{ editOpened: []; changed: [] }>()
 const { t } = useI18n()
 const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
@@ -162,6 +162,7 @@ const form = reactive({
   posts_included: 20,
   videos_included: 0,
   credits_included: 0,
+  credit_top_up: 0,
   post_price_cents: 0,
   video_price_cents: 0,
   price_cents: 0,
@@ -173,8 +174,17 @@ const form = reactive({
 const suggestedCents = computed(
   () => form.posts_included * form.post_price_cents
     + form.videos_included * form.video_price_cents
-    + form.credits_included * creditPriceCents.value,
+    + (form.credits_included + form.credit_top_up) * creditPriceCents.value,
 )
+// On an existing package this field means a new top-up, not the historical
+// total. That makes entering 900 always add 900 credits to the wallet.
+const creditsInput = computed({
+  get: () => editing.value ? form.credit_top_up : form.credits_included,
+  set: (value: number) => {
+    if (editing.value) form.credit_top_up = value
+    else form.credits_included = value
+  },
+})
 const overridden = computed(() => form.price_cents !== suggestedCents.value)
 // How the suggested price adds up, one line per kind of deliverable.
 const priceLines = computed(() => [
@@ -216,6 +226,7 @@ function startCreate() {
     posts_included: 20,
     videos_included: 0,
     credits_included: 0,
+    credit_top_up: 0,
     post_price_cents: defaultPostPriceCents.value,
     video_price_cents: defaultVideoPriceCents.value,
     price_cents: 20 * defaultPostPriceCents.value,
@@ -237,6 +248,7 @@ async function startEdit(row: AdminCustomPackage) {
     posts_included: row.posts_included,
     videos_included: row.videos_included ?? 0,
     credits_included: row.credits_included ?? 0,
+    credit_top_up: 0,
     post_price_cents: converted(row.post_price_cents),
     video_price_cents: converted(row.video_price_cents ?? 0),
     price_cents: converted(row.price_cents),
@@ -259,14 +271,14 @@ watch([() => props.editPackageId, packages], ([id, rows]) => {
 // Resizing follows the suggestion only while the price has not been negotiated
 // away from it, so an agreed figure survives a change of size.
 watch(
-  () => [form.posts_included, form.post_price_cents, form.videos_included, form.video_price_cents, form.credits_included] as const,
-  ([posts, postRate, videos, videoRate, credits], [previousPosts, previousPostRate, previousVideos, previousVideoRate, previousCredits]) => {
+  () => [form.posts_included, form.post_price_cents, form.videos_included, form.video_price_cents, form.credits_included, form.credit_top_up] as const,
+  ([posts, postRate, videos, videoRate, credits, topUp], [previousPosts, previousPostRate, previousVideos, previousVideoRate, previousCredits, previousTopUp]) => {
     if (previousPosts === undefined) return
-    if (posts === previousPosts && postRate === previousPostRate && videos === previousVideos && videoRate === previousVideoRate && credits === previousCredits) return
+    if (posts === previousPosts && postRate === previousPostRate && videos === previousVideos && videoRate === previousVideoRate && credits === previousCredits && topUp === previousTopUp) return
     const previousSuggestion =
       previousPosts * previousPostRate
       + (previousVideos || 0) * previousVideoRate
-      + (previousCredits || 0) * creditPriceCents.value
+      + ((previousCredits || 0) + (previousTopUp || 0)) * creditPriceCents.value
     if (form.price_cents === previousSuggestion) form.price_cents = suggestedCents.value
   },
 )
@@ -283,7 +295,9 @@ async function submit() {
     name: form.name.trim(),
     posts_included: form.posts_included,
     videos_included: form.videos_included,
-    credits_included: form.credits_included,
+    ...(editing.value
+      ? { credit_top_up: form.credit_top_up || undefined }
+      : { credits_included: form.credits_included }),
     post_price_cents: form.post_price_cents,
     video_price_cents: form.video_price_cents,
     price_cents: form.price_cents,
@@ -307,6 +321,10 @@ async function submit() {
     creating.value = false
     editing.value = null
     await reload()
+    // The organization modal owns the credit snapshot shown on its Credits
+    // tab. Tell it about package changes so an added credit amount appears
+    // immediately, without closing or reopening the modal.
+    emit('changed')
   } catch (problem) {
     error.value = t(
       (problem as { data?: { message?: string } }).data?.message || 'admin.packages.saveFailed')
@@ -326,6 +344,7 @@ async function confirmDelete() {
     toast.add({ title: t('admin.packages.deleted'), color: 'success' })
     deleting.value = null
     await reload()
+    emit('changed')
   } catch (problem) {
     error.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.packages.deleteFailed')
   } finally {
@@ -494,8 +513,12 @@ const listUi = {
             <UFormField name="videos_included" :label="t('admin.packages.videos')" required>
               <LiveInputNumber v-model="form.videos_included" :min="0" :max="1000" class="w-full" />
             </UFormField>
-            <UFormField name="credits_included" :label="t('admin.packages.credits')">
-              <LiveInputNumber v-model="form.credits_included" :min="0" :max="1000000" :step="100" :step-snapping="false" class="w-full" />
+            <UFormField
+              name="credits_included"
+              :label="editing ? t('billing.creditTopUpQuantity') : t('admin.packages.credits')"
+              :hint="editing ? t('billing.creditTopUpDescription') : undefined"
+            >
+              <LiveInputNumber v-model="creditsInput" :min="0" :max="1000000" :step="100" :step-snapping="false" class="w-full" />
             </UFormField>
           </div>
         </section>
