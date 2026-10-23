@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { PoolClient } from 'pg'
-import { postSchema } from '../../shared/schemas/workspace'
+import { contentLocaleForPreferences, postSchema } from '../../shared/schemas/workspace'
+import { audienceLanguageFromResearch } from './audience-language'
 import { assetStorageFolder, downloadAsset, removeAsset, uploadBinaryAsset } from './asset-storage'
 import {
   consumeReservedCredits,
@@ -47,6 +48,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     let researchFindings = ''
     let researchSources: string[] = provenance?.sourceUrls || []
     let businessBrain = ''
+    let planResearch: unknown
     if (postRow?.monthly_plan_id) {
       const planResult = await client.query<{ evidence: unknown; research: unknown; editorial_plan: unknown; month_key: string }>(
         "SELECT evidence,research,editorial_plan,to_char(month,'YYYY-MM') AS month_key FROM monthly_plans WHERE id=$1 AND business_id=$2",
@@ -54,6 +56,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       )
       const planRow = planResult.rows[0]
       if (planRow) {
+        planResearch = planRow.research
         const evidence = planRow.evidence as { brand?: { facts?: Array<{ id: string; text: string; source?: string }> }; brain?: unknown } | null
         const factIds = new Set(provenance?.factIds || [])
         verifiedFacts = (evidence?.brand?.facts || [])
@@ -116,13 +119,17 @@ export async function renderVideoForPost(userId: string, postId: string) {
     await reserveCredits(client, { organizationId: business.id, credits: videoCredits, usageKind: 'generation', referenceType: 'video', referenceId: renderRow.id, idempotencyKey: `video-reserve:${renderRow.id}` })
     const logoRow = logo?.rows[0]
     const { workspace } = await loadWorkspace(client, business.id, userId)
+    const locale = audienceLanguageFromResearch(
+      planResearch,
+      contentLocaleForPreferences(workspace.preferences),
+    )
     // The deterministic Video Creative Plan is rebuilt per render from the
     // brief + brand + duration. No AI call; the plan is the structure the
     // prompt and the future deterministic composition both consume.
     const plan = buildVideoCreativePlan({
       brief: post.video,
       brand: workspace.brand,
-      locale: workspace.preferences.contentLocale || workspace.preferences.locale,
+      locale,
       durationSeconds: post.video.durationSeconds,
     })
     const prompt = buildVideoExecutionBrief({
@@ -184,7 +191,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     return {
       business,
       brandName: workspace.brand.name,
-      locale: workspace.preferences.contentLocale || workspace.preferences.locale,
+      locale,
       channel: post.channel,
       caption: post.caption,
       verifiedFacts,

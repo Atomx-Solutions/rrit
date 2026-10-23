@@ -18,6 +18,7 @@ import {
   channelCountsTotal,
   feedCreativeGeometry,
   PlannerFailure,
+  plannerIdentityChanged,
 } from '../../server/utils/monthly-planner-domain'
 import {
   monthlyAiConfigured,
@@ -29,6 +30,7 @@ import {
   monthlyImagePrompt,
   monthlyInstructions,
   monthlyAutomaticStageKey,
+  audienceLanguageResearchInstruction,
   researchOccasionsFromText,
   postImageEditPrompt,
   type ProviderResponse,
@@ -43,12 +45,30 @@ import { generatedPostSchema, editorialPlanSchema } from '../../shared/schemas/m
 import { paidAccessForPlanningMonth } from '../../server/utils/trials'
 import { aiProviderJsonSchema } from '../../server/utils/ai-provider'
 import { z } from 'zod'
+import { audienceLanguageFromResearch } from '../../server/utils/audience-language'
 
 afterEach(() => vi.unstubAllEnvs())
 describe('video platform requests', () => {
   it('keeps a single requested TikTok video separate from feed posts', () => {
     expect(normalizedVideoChannelCounts({ TikTok: 1 }, 1)).toEqual({ TikTok: 1 })
     expect(() => normalizedVideoChannelCounts({ TikTok: 1 }, 2)).toThrowError(PlannerFailure)
+  })
+})
+describe('planner identity drift', () => {
+  it('does not compare the legacy audience when Business Brain owns the audience snapshot', () => {
+    const workspace = createDemo()
+    const snapshot = { ...workspace.brand, audience: 'Të rinj në Istanbul që flasin turqisht' }
+
+    expect(plannerIdentityChanged(workspace.brand, snapshot, true)).toBe(false)
+    expect(plannerIdentityChanged(workspace.brand, snapshot, false)).toBe(true)
+  })
+})
+describe('audience-language research instruction', () => {
+  it('gives an explicit declared audience priority over the business location', () => {
+    expect(audienceLanguageResearchInstruction).toContain('declared audience is the primary source')
+    expect(audienceLanguageResearchInstruction).toContain(
+      'must not override that explicit audience declaration',
+    )
   })
 })
 const now = new Date('2026-09-09T08:00:00Z')
@@ -116,6 +136,50 @@ function editorialFixture() {
   }
 }
 describe('monthly evidence and provider boundaries', () => {
+  it('versions evidence when the audience-language decision contract changes', () => {
+    expect(plannerEvidence(createDemo(), now).generationVersion).toBe('audience-language-v2')
+  })
+
+  it('keeps the audience language decision made from the local-market research', () => {
+    const response = researchFixture()
+    const text = response.output[1]!.content![0]!.text!
+    response.output[1]!.content![0]!.text = `${text}\n\`\`\`json\n{"language":{"locale":"de-CH","audienceSummary":"Young workers and students in Zurich","rationale":"The declared audience is in Zurich and the local market is German-speaking.","confidence":0.94},"occasions":[]}\n\`\`\``
+
+    const research = researchFromResponse(response, now)
+
+    expect(research.language).toEqual({
+      locale: 'de-CH',
+      audienceSummary: 'Young workers and students in Zurich',
+      rationale: 'The declared audience is in Zurich and the local market is German-speaking.',
+      confidence: 0.94,
+    })
+  })
+  it('blocks a new plan when research cannot make one clear audience-language decision', () => {
+    expect(() => researchFromResponse(researchFixture(), now, undefined, true)).toThrow(
+      'AUDIENCE_LANGUAGE_REQUIRED',
+    )
+  })
+  it('uses the saved research decision instead of the dashboard locale for later work', () => {
+    const research = researchFromResponse(
+      {
+        ...researchFixture(),
+        output: [
+          researchFixture().output[0]!,
+          {
+            ...researchFixture().output[1]!,
+            content: [
+              {
+                ...researchFixture().output[1]!.content![0]!,
+                text: 'Observed context [1]\n```json\n{"language":{"locale":"de-CH","audienceSummary":"Zurich audience","rationale":"Zurich local market uses German.","confidence":0.94},"occasions":[]}\n```',
+              },
+            ],
+          },
+        ],
+      },
+      now,
+    )
+    expect(audienceLanguageFromResearch(research, 'sq-XK')).toBe('de-CH')
+  })
   it('uses one stable automatic billing key per monthly stage and post slot', () => {
     const evidence = 'evidence-123'
     expect(monthlyAutomaticStageKey('research', evidence)).toBe('research:evidence-123')

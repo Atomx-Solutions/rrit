@@ -11,6 +11,7 @@ import {
 } from './post-validation'
 import { monthlyProviderCall } from './monthly-ai'
 import { PlannerFailure } from './monthly-planner-domain'
+import { audienceLanguageFromResearch } from './audience-language'
 import {
   qualityBrandHash,
   qualityReviewKey,
@@ -57,6 +58,10 @@ export async function reviewPostQuality(
     if (checks.some((check) => check.key !== 'ai_quality' && !check.passed))
       throw new PlannerFailure('CONTENT_CHECKS_REQUIRED')
     const brand = result.rows[0].state.brand
+    const planResearch = await client.query<{ research: unknown }>(
+      'SELECT research FROM monthly_plans WHERE id=$1 AND business_id=$2',
+      [post.aiProvenance.planId, tenant.organizationId],
+    )
     const timezone = result.rows[0].state.preferences.timezone
     const day = qualityReviewDay(post, timezone)
     const assets = await client.query(
@@ -70,7 +75,10 @@ export async function reviewPostQuality(
       post,
       brand,
       day,
-      language: contentLocaleForPreferences(result.rows[0].state.preferences),
+      language: audienceLanguageFromResearch(
+        planResearch.rows[0]?.research,
+        contentLocaleForPreferences(result.rows[0].state.preferences),
+      ),
       original: original.bytes as Buffer,
       image: current.bytes as Buffer,
     }

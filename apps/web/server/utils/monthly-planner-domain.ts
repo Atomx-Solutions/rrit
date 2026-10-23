@@ -270,8 +270,25 @@ export function plannerEvidence(
       })),
     ],
   }
+  const declaredAudience = brainForMonth.audiences
+    .map((audience) =>
+      audience.description ? `${audience.name} — ${audience.description}` : audience.name,
+    )
+    .join('\n')
   const evidence = {
-    brand: { ...workspace.brand, facts, voice: brainForMonth.voice },
+    // This participates in the evidence hash used to scope every automatic AI
+    // run. Bumping it deliberately prevents a reset from replaying research
+    // created before the audience-language decision became mandatory.
+    generationVersion: 'audience-language-v2',
+    // Business Brain is the current declaration of who the business serves.
+    // Do not send a stale audience copied from the older profile alongside it:
+    // research would otherwise receive conflicting markets and languages.
+    brand: {
+      ...workspace.brand,
+      audience: declaredAudience || workspace.brand.audience,
+      facts,
+      voice: brainForMonth.voice,
+    },
     brain: brainForMonth,
     timezone: workspace.preferences.timezone,
     // In selected mode this is an allow-list, not merely a preference. Keeping
@@ -321,6 +338,24 @@ export function plannerVoice(brain: PlannerBrain, brand: { voice: string }) {
 /** The Business Brain a plan carries, tolerating plans snapshotted before it existed. */
 export function plannerBrainOf(evidence: { brain?: PlannerBrain }): PlannerBrain {
   return evidence.brain || emptyPlannerBrain
+}
+
+/**
+ * Checks profile fields that can invalidate a plan while it is being generated.
+ *
+ * A plan which snapshots Business Brain has already frozen its audience from
+ * that editor. Its audience must therefore be compared through the Brain
+ * commitment check, not against the legacy profile's audience field.
+ */
+export function plannerIdentityChanged(
+  current: Pick<Workspace['brand'], 'name' | 'audience' | 'industry' | 'description' | 'city' | 'color'>,
+  snapshot: Pick<Workspace['brand'], 'name' | 'audience' | 'industry' | 'description' | 'city' | 'color'>,
+  audienceComesFromBrain: boolean,
+) {
+  const fields = audienceComesFromBrain
+    ? (['name', 'industry', 'description', 'city', 'color'] as const)
+    : (['name', 'audience', 'industry', 'description', 'city', 'color'] as const)
+  return fields.some((field) => current[field] !== snapshot[field])
 }
 
 /**
@@ -834,6 +869,8 @@ export const plannerMessages: Record<string, string> = {
     'Ofruesi AI e kufizoi përkohësisht kërkesën. Provo rifillimin pas pak minutash.',
   RESEARCH_SOURCES_REQUIRED:
     'Hulumtimi nuk dha burime të verifikueshme. Muaji nuk u plotësua me të dhëna të sajuara.',
+  AUDIENCE_LANGUAGE_REQUIRED:
+    'Gjuha e audiencës nuk u kuptua qartë. Plotëso audiencën dhe tregun lokal më saktë, pastaj rifillo planin.',
   EVIDENCE_CHANGED:
     'Faktet ose të drejtat e fotografive kanë ndryshuar. Kërkohet rishikim i planit.',
   QUALITY_BLOCKED: 'Kontrolli i cilësisë kërkon rishikim për këtë postim.',

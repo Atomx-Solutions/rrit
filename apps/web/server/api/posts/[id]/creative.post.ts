@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { contentLocaleForPreferences, postSchema } from '../../../../shared/schemas/workspace'
+import { audienceLanguageFromResearch } from '../../../utils/audience-language'
 import { normalizeGeneratedCreative } from '../../../utils/image-processing'
 import { monthlyImageCall, postImageEditPrompt } from '../../../utils/monthly-ai'
 import { loadBrandLogo } from '../../../utils/brand-assets'
@@ -56,12 +57,20 @@ export default defineEventHandler(async (event) => {
       if (!source.rowCount)
         throw createError({ statusCode: 422, message: 'server.PHOTO_RIGHTS_EXPIRED' })
       const { workspace, slug } = await loadWorkspace(client, business.id, user.id)
+      const planResearch = await client.query<{ research: unknown }>(
+        'SELECT research FROM monthly_plans WHERE id=$1 AND business_id=$2',
+        [post.aiProvenance.planId, business.id],
+      )
       const brandLogo = await loadBrandLogo(client, business.id)
       return {
         businessId: business.id,
         post,
         workspace,
         workspaceSlug: slug,
+        language: audienceLanguageFromResearch(
+          planResearch.rows[0]?.research,
+          contentLocaleForPreferences(workspace.preferences),
+        ),
         sourceAssetId: sourceAssetId.data,
         sourceBytes: source.rows[0].storage_path
           ? await downloadAsset(source.rows[0].storage_path)
@@ -81,7 +90,7 @@ export default defineEventHandler(async (event) => {
         rationale: snapshot.post.aiProvenance!.rationale,
       },
       instruction: input.data.instruction,
-      language: contentLocaleForPreferences(snapshot.workspace.preferences),
+      language: snapshot.language,
       logoAvailable: Boolean(snapshot.brandLogo),
       video: Boolean(snapshot.post.video),
     })

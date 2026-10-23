@@ -76,6 +76,7 @@ import {
   normalizeEditorialPlanResponse,
   parsePersistedEditorialPlan,
   plannerBrainOf,
+  plannerIdentityChanged,
   plannerEvidence,
   packageMonthWindow,
   channelCountsTotal,
@@ -1314,16 +1315,7 @@ async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
     JSON.stringify(plan.evidence.brand.researchSources || [])
   )
     throw new PlannerFailure('EVIDENCE_CHANGED')
-  if (
-    // `voice` is excluded here: the snapshot stores the reconciled voice, which
-    // is the Business Brain version when there is one, so comparing it against
-    // the raw brand profile would report drift on every tick.
-    ['name', 'audience', 'industry', 'description', 'city', 'color'].some(
-      (key) =>
-        workspace.brand[key as keyof typeof workspace.brand] !==
-        plan.evidence.brand[key as keyof typeof plan.evidence.brand],
-    )
-  )
+  if (plannerIdentityChanged(workspace.brand, plan.evidence.brand, 'brain' in plan.evidence))
     throw new PlannerFailure('EVIDENCE_CHANGED')
   if (plannerVoice(live.brain, workspace.brand) !== plan.evidence.brand.voice)
     throw new PlannerFailure('EVIDENCE_CHANGED')
@@ -1388,6 +1380,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     if (!remainingMonthlyPosts(access.limits.posts_per_month, current))
       throw new PlannerFailure('QUOTA_EXCEEDED')
   }
+  let researchLanguage: ReturnType<typeof contentLocaleForPreferences> | undefined
   const common = {
     planId: plan.id,
     businessId: plan.business_id,
@@ -1395,7 +1388,11 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     // ledger transaction, even though the dedicated worker has a narrowly
     // scoped cross-tenant RLS policy for queue discovery.
     tenant: { userId: plan.owner_id, organizationId: plan.business_id },
-    language: contentLocaleForPreferences(workspace.preferences),
+    get language() {
+      // New plans receive this from their research snapshot. The fallback is
+      // strictly for a plan created before the snapshot existed.
+      return researchLanguage || contentLocaleForPreferences(workspace.preferences)
+    },
   }
   // Runs only when the brand's monthly style snapshot is stale (PRC-04).
   const analyzePageStyle = async (evidence: PageStyleEvidence) => {
@@ -1428,6 +1425,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       : null
     const response = await monthlyProviderCall(db, {
       ...common,
+      // Research must decide the language from audience + local market; never
+      // let a dashboard preference preselect it.
+      language: undefined,
       stageKey: monthlyAutomaticStageKey('research', plan.evidence_hash),
       capability: 'research',
       maxOutput: 6000,
@@ -1457,7 +1457,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       response,
       new Date(),
       eventWindow ? { ...eventWindow, categories: eventCategories } : undefined,
+      true,
     )
+    researchLanguage = research.language!.locale
     await db.query(
       "UPDATE monthly_plans SET research=$1,stage='planning',updated_at=now() WHERE id=$2",
       [JSON.stringify(research), plan.id],
@@ -1465,6 +1467,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     return
   }
   const research = researchSchema.parse(plan.research)
+  researchLanguage = research.language?.locale
   if (plan.stage === 'planning') {
     // Only the posts that have been asked for but not yet given a slot are
     // planned. Each batch is dated from today forward, so a slot can never sit
