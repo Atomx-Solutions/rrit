@@ -16,7 +16,8 @@ import {
 } from '../../utils/ai-provider'
 import { getBusinessBrain } from '../../utils/business-brain'
 import { getBrandBySlug } from '../../utils/brands'
-import { contentLanguageForLocale, contentLocaleForPreferences } from '../../../shared/schemas/workspace'
+import { contentLanguageForLocale } from '../../../shared/schemas/workspace'
+import { researchSchema } from '../../../shared/schemas/monthly-plan'
 import type { CachedPageStyle } from '../../utils/monthly-planner'
 const outputSchema = z.object({
   variants: z
@@ -151,7 +152,7 @@ export default defineEventHandler(async (event) => {
     client.release()
   }
   try {
-    const { workspace, brain, styleSnapshot, history } = await withBusinessTransaction(
+    const { workspace, brain, styleSnapshot, history, language } = await withBusinessTransaction(
       user.id,
       async (client, currentBusiness) => {
         if (currentBusiness.id !== business.id)
@@ -170,13 +171,22 @@ export default defineEventHandler(async (event) => {
             "SELECT sp.caption,sp.channel FROM social_posts sp WHERE sp.business_id=$1 AND EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) ORDER BY sp.published_at DESC LIMIT 8",
             [business.id],
           ),
+          language: await client.query<{ research: unknown }>(
+            `SELECT research FROM monthly_plans
+              WHERE business_id=$1 AND research IS NOT NULL
+              ORDER BY updated_at DESC LIMIT 1`,
+            [business.id],
+          ),
         }
       },
     )
     const pageStyle = styleSnapshot.rows[0]?.summary
-    const contentLanguage = contentLanguageForLocale(
-      contentLocaleForPreferences(workspace.preferences),
-    )
+    const latestResearch = language.rows[0]?.research
+      ? researchSchema.safeParse(language.rows[0].research)
+      : null
+    if (!latestResearch?.success || !latestResearch.data.language)
+      throw createError({ statusCode: 409, message: 'server.AUDIENCE_LANGUAGE_REQUIRED' })
+    const contentLanguage = contentLanguageForLocale(latestResearch.data.language.locale)
     const context = {
       business: {
         name: workspace.brand.name,

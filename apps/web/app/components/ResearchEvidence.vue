@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Research } from '~~/shared/schemas/monthly-plan'
+import { contentLanguageForLocale } from '~~/shared/schemas/workspace'
 import { readableText } from '~/utils/readable-text'
 
 const props = defineProps<{ research: Research }>()
@@ -81,10 +82,22 @@ const lines = computed<Line[]>(() => {
   }
   return result
 })
+const detectedLanguage = computed(() =>
+  props.research.language ? contentLanguageForLocale(props.research.language.locale) : null,
+)
 </script>
 
 <template>
   <div class="space-y-8">
+    <section
+      v-if="research.language"
+      class="rounded-xl border border-primary/20 bg-primary/5 p-4"
+    >
+      <p class="text-xs font-medium uppercase tracking-wide text-primary">Gjuha e audiencës</p>
+      <h3 class="mt-1 text-lg font-semibold text-highlighted">{{ detectedLanguage }}</h3>
+      <p class="mt-2 text-sm leading-6 text-toned">{{ research.language.rationale }}</p>
+      <p class="mt-2 text-xs text-muted">{{ research.language.audienceSummary }}</p>
+    </section>
     <section class="rounded-xl border border-default bg-default p-4">
       <div class="flex items-start gap-3">
         <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">

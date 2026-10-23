@@ -1973,6 +1973,7 @@
   "server.AI_REQUEST_CHANGED": "Kërkesa ndryshoi. Nise një përgatitje të re.",
   "server.AI_COST_LIMIT_REACHED": "Përgatitja me AI është ndalur përkohësisht nga kufiri i sigurisë së kostos.",
   "server.CAPTION_IDEA_REQUIRED": "Përshkruaj shkurt idenë dhe zgjidh rrjetin.",
+  "server.AUDIENCE_LANGUAGE_REQUIRED": "Gjuha e audiencës nuk është përcaktuar ende. Gjenero ose rifillo strategjinë pasi të plotësosh audiencën dhe tregun lokal.",
   "server.MONTH_INVALID": "Zgjidh një muaj të vlefshëm.",
   "server.PLAN_START_FAILED": "Përgatitja nuk u nis për shkak të një problemi të brendshëm. Asnjë plan nuk u aktivizua; provo sërish.",
   "server.RESEARCH_NOT_READY": "Hulumtimi nuk është ende i gatshëm.",

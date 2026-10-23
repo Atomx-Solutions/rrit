@@ -110,10 +110,16 @@ function editorialResponse(overrides: Record<string, unknown> = {}) {
 
 describe('Business Brain reaches monthly generation', () => {
   it('freezes the brain into the plan snapshot', () => {
-    const evidence = plannerEvidence(createDemo(), now, month, undefined, [], { brain: brainFixture() })
+    const declaredBrain = brainFixture()
+    const evidence = plannerEvidence(createDemo(), now, month, undefined, [], { brain: declaredBrain })
     const brain = plannerBrainOf(evidence)
     expect(brain.voice).toContain('Ngrohtë')
     expect(brain.audiences).toHaveLength(2)
+    expect(evidence.brand.audience).toBe(
+      declaredBrain.audiences
+        .map((item) => `${item.name} — ${item.description}`)
+        .join('\n'),
+    )
     expect(brain.guardrails.map((rule) => rule.text)).toEqual([
       'Mos përmend kurrë pije alkoolike.',
     ])

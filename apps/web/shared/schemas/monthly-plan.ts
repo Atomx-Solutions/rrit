@@ -17,6 +17,12 @@ export const researchOccasionSchema = z.object({
   relevance: z.string().trim().max(400),
   sourceUrl: researchSourceSchema.shape.url,
 })
+export const researchLanguageSchema = z.object({
+  locale: z.enum(['sq-XK', 'en-US', 'de-CH', 'it-CH', 'fr-CH', 'tr-TR']),
+  audienceSummary: z.string().trim().min(2).max(500),
+  rationale: z.string().trim().min(10).max(1000),
+  confidence: z.number().min(0).max(1),
+})
 export const researchSchema = z.object({
   text: z.string().min(1).max(30000),
   sources: z.array(researchSourceSchema).min(1).max(100),
@@ -33,6 +39,9 @@ export const researchSchema = z.object({
   // Older plans carry none, and a research run that found nothing inside the
   // window carries an empty list; both must keep parsing.
   occasions: z.array(researchOccasionSchema).max(30).default([]),
+  // Kept optional for plans created before language detection existed. New
+  // research is required to carry a decision at the planner boundary.
+  language: researchLanguageSchema.optional(),
   researchedAt: z.iso.datetime(),
 })
 export const contentIntentSchema = z.enum([
@@ -319,6 +328,7 @@ export type SlotBrief = z.infer<typeof slotBriefSchema>
 export type ShotDirection = z.infer<typeof shotDirectionSchema>
 export type Research = z.infer<typeof researchSchema>
 export type ResearchOccasion = z.infer<typeof researchOccasionSchema>
+export type ResearchLanguage = z.infer<typeof researchLanguageSchema>
 export type Creative = z.infer<typeof creativeSchema>
 export type StyleProfile = z.infer<typeof styleProfileSchema>
 export type PlannedCreativeLayout = z.infer<typeof plannedCreativeLayoutSchema>

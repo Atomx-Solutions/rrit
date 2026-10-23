@@ -1,4 +1,6 @@
 import { postSchema } from '../../shared/schemas/workspace'
+import { contentLocaleForPreferences } from '../../shared/schemas/workspace'
+import { audienceLanguageFromResearch } from './audience-language'
 import { downloadAsset } from './asset-storage'
 import { extractVideoFrames } from './video-compose'
 import { reviewVideoQuality } from './video-subject-check'
@@ -27,6 +29,12 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
     if (!render.rows[0] || !source.rows[0])
       throw createError({ statusCode: 409, message: 'server.ORIGINAL_PHOTO_UNAVAILABLE' })
     const { workspace } = await loadWorkspace(client, business.id, userId)
+    const plan = post.aiProvenance
+      ? await client.query<{ research: unknown }>(
+          'SELECT research FROM monthly_plans WHERE id=$1 AND business_id=$2',
+          [post.aiProvenance.planId, business.id],
+        )
+      : null
     const factIds = new Set(post.aiProvenance?.factIds || [])
     return {
       version,
@@ -37,7 +45,10 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
         : source.rows[0].bytes!,
       caption: post.caption,
       brandName: workspace.brand.name,
-      locale: workspace.preferences.contentLocale || workspace.preferences.locale,
+      locale: audienceLanguageFromResearch(
+        plan?.rows[0]?.research,
+        contentLocaleForPreferences(workspace.preferences),
+      ),
       verifiedFacts: workspace.brand.facts.filter((fact) => factIds.has(fact.id)).map((fact) => fact.text),
       targetChannel: post.channel,
     }

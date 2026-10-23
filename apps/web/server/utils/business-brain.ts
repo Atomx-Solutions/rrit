@@ -508,6 +508,15 @@ export async function updateBusinessBrainSettings(
     ],
   )
 
+  const submittedAudienceIds = input.audiences.flatMap((audience) =>
+    audience.id ? [audience.id] : [],
+  )
+  await client.query(
+    `UPDATE brand_audiences SET status='archived',updated_at=now()
+     WHERE brand_id=$1 AND organization_id=$2 AND status='active'
+       AND (cardinality($3::uuid[]) = 0 OR id <> ALL($3::uuid[]))`,
+    [brandId, organizationId, submittedAudienceIds],
+  )
   for (const audience of input.audiences) {
     if (audience.id) {
       const updated = await client.query(
