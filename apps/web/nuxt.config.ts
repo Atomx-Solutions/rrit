@@ -11,6 +11,14 @@ const appHost = (() => {
 const immutableAsset = 'public, max-age=31536000, immutable'
 const publicAsset = 'public, max-age=86400, stale-while-revalidate=604800'
 
+const securityHeaders = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
+  'X-Frame-Options': 'DENY',
+}
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-05',
   // These overrides make it possible to verify a production bundle without
@@ -95,15 +103,11 @@ export default defineNuxtConfig({
     '/*.webp': { headers: { 'Cache-Control': publicAsset } },
     '/*.svg': { headers: { 'Cache-Control': publicAsset } },
     '/*.png': { headers: { 'Cache-Control': publicAsset } },
-    '/**': {
-      headers: {
-        'X-Content-Type-Options': 'nosniff',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-        'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
-        'X-Frame-Options': 'DENY',
-      },
-    },
+    // The admin invoice preview frames the PDF on the same origin. On Vercel a
+    // header rule overrides what the handler sets and only the most specific
+    // matching rule applies, so this one repeats the rest of the headers.
+    '/api/admin/organizations/**': { headers: { ...securityHeaders, 'X-Frame-Options': 'SAMEORIGIN' } },
+    '/**': { headers: securityHeaders },
   },
   eslint: { config: { stylistic: false } },
 })
