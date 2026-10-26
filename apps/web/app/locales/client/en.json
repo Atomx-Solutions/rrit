@@ -1977,6 +1977,7 @@
   "server.AI_REQUEST_CHANGED": "The request changed. Start a new preparation.",
   "server.AI_COST_LIMIT_REACHED": "AI preparation is paused by the cost safety limit.",
   "server.CAPTION_IDEA_REQUIRED": "Briefly describe the idea and choose the network.",
+  "server.AUDIENCE_LANGUAGE_REQUIRED": "The audience language has not been determined yet. Generate or restart the strategy after completing the audience and local market.",
   "server.MONTH_INVALID": "Choose a valid month.",
   "server.PLAN_START_FAILED": "Preparation did not start because of an internal problem. No plan was activated; try again.",
   "server.RESEARCH_NOT_READY": "The research is not ready yet.",

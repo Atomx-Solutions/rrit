@@ -9,6 +9,7 @@ import {
 } from './monthly-planner-domain'
 import {
   researchOccasionSchema,
+  researchLanguageSchema,
   researchSchema,
   type Creative,
   type Research,
@@ -342,36 +343,53 @@ function completedRunHasUsableProviderResult(run: Record<string, unknown>) {
 // fenced JSON block at the end of the report and lifted out here: the block is
 // removed from the prose the customer reads, and every entry is held to the
 // same grounding rule as the rest of the report.
-const occasionBlockPattern = new RegExp(
+const researchBlockPattern = new RegExp(
   '\\n?```json\\s*\\n([\\s\\S]*?)\\n```\\s*$',
 )
-export function researchOccasionsFromText(
-  text: string,
-  sources: Map<string, { url: string; title: string }>,
-  window: { from: string; to: string; categories: string[] } | undefined,
-) {
-  const match = text.match(occasionBlockPattern)
-  if (!match) return { text, occasions: [] as Research['occasions'] }
+const researchOutputBlockSchema = z.object({
+  language: researchLanguageSchema.optional(),
+  occasions: researchOccasionSchema.array().max(30).default([]),
+})
+function researchOutputFromText(text: string) {
+  const match = text.match(researchBlockPattern)
+  if (!match)
+    return {
+      text,
+      occasions: [] as Research['occasions'],
+      language: undefined as Research['language'],
+    }
   const prose = text.slice(0, match.index).trimEnd()
   let payload: unknown
   try {
     payload = JSON.parse(match[1]!)
   } catch {
-    // A malformed block costs the occasions, never the paid report.
-    return { text: prose || text, occasions: [] as Research['occasions'] }
+    return {
+      text: prose || text,
+      occasions: [] as Research['occasions'],
+      language: undefined as Research['language'],
+    }
   }
-  const raw =
-    typeof payload === 'object' && payload && 'occasions' in payload
-      ? (payload as { occasions: unknown }).occasions
-      : payload
-  const parsed = researchOccasionSchema.array().safeParse(Array.isArray(raw) ? raw : [])
-  if (!parsed.success) return { text: prose || text, occasions: [] as Research['occasions'] }
+  const parsed = researchOutputBlockSchema.safeParse(payload)
+  if (!parsed.success)
+    return {
+      text: prose || text,
+      occasions: [] as Research['occasions'],
+      language: undefined as Research['language'],
+    }
+  return { text: prose || text, ...parsed.data }
+}
+export function researchOccasionsFromText(
+  text: string,
+  sources: Map<string, { url: string; title: string }>,
+  window: { from: string; to: string; categories: string[] } | undefined,
+) {
+  const output = researchOutputFromText(text)
   // The model usually echoes a source URL without the tracking parameters the
   // search returned it with, so the two are compared canonically. Matching the
   // raw strings silently dropped every occasion.
   const citedSources = new Set([...sources.keys()].map(canonicalSourceUrl))
   const seen = new Set<string>()
-  const occasions = parsed.data.filter((occasion) => {
+  const occasions = output.occasions.filter((occasion) => {
     // Outside the granted window or category, or cited to a source the search
     // never returned, it is not evidence. Dropping it is the safe direction.
     if (!window) return false
@@ -383,12 +401,13 @@ export function researchOccasionsFromText(
     seen.add(key)
     return true
   })
-  return { text: prose || text, occasions }
+  return { text: output.text, occasions }
 }
 export function researchFromResponse(
   response: ProviderResponse,
   now = new Date(),
   occasionWindow?: { from: string; to: string; categories: string[] },
+  requireLanguage = false,
 ): Research {
   const text = responseText(response)
   const sources = new Map<string, { url: string; title: string }>()
@@ -438,7 +457,9 @@ export function researchFromResponse(
   }
   if (!searched || !sources.size || !citations.length)
     throw new PlannerFailure('RESEARCH_SOURCES_REQUIRED')
+  const output = researchOutputFromText(text)
   const report = researchOccasionsFromText(text, sources, occasionWindow)
+  if (requireLanguage && !output.language) throw new PlannerFailure('AUDIENCE_LANGUAGE_REQUIRED')
   return researchSchema.parse({
     // Citation offsets index the full response text, and the JSON block only
     // ever trails the prose, so trimming it cannot move an earlier citation.
@@ -446,6 +467,7 @@ export function researchFromResponse(
     sources: [...sources.values()],
     citations: citations.filter((citation) => citation.end <= report.text.length),
     occasions: report.occasions,
+    ...(output.language ? { language: output.language } : {}),
     researchedAt: now.toISOString(),
   })
 }
@@ -533,6 +555,9 @@ const businessBrainInstruction: Partial<Record<keyof typeof monthlyInstructions,
     'businessBrain carries the brand voice, the guardrails and this slot\'s assigned audience and offer. Check the post against them: BLOCK when the copy or the image states a price, discount or condition that no supplied offer contains, when it presents an offer outside its declared window, or when it breaks any guardrail. Report each breach with the guardrail or offer it violates. A post that merely fits the audience or voice poorly is a WARN, not a BLOCK.',
 }
 
+export const audienceLanguageResearchInstruction =
+  'Before writing the report, determine one customer-content language from the declared audiences and a focused live search of the business local market. The dashboard language and the language in which the business filled its fields are not evidence. The declared audience is the primary source: when it explicitly states its target market or language, choose that language. A different physical business location or its local search results must not override that explicit audience declaration; describe it only as a target-market difference. Use local-market research to corroborate the declared audience or to decide only when the audience does not clearly state a market or language. If the audience is genuinely multilingual, equal between languages, missing a usable market signal, or you cannot determine one language with confidence, do not guess: return language as null. Write the report in the determined language when one is clear. End the entire report with exactly one fenced ```json block and nothing after it: {"language":{"locale":"sq-XK|en-US|de-CH|it-CH|fr-CH|tr-TR","audienceSummary":"","rationale":"","confidence":0.0},"occasions":[]}. The rationale must explain the audience and local-market evidence. If event research is present, include its verified occasions in that same occasions array.'
+
 // Dated occasions are a permission the business grants, with a window of its
 // own: the part of the month that is both inside the package it bought and
 // still publishable. The instruction reaches the model only when `eventResearch`
@@ -585,8 +610,9 @@ export async function monthlyProviderCall(
   const config = monthlyAiConfig()
   if (args.tenant && args.tenant.organizationId !== args.businessId)
     throw new PlannerFailure('ENTITLEMENT_REQUIRED')
-  const language = args.language || 'sq-XK'
-  const languageName = contentLanguageForLocale(language)
+  const languageName = args.language
+    ? contentLanguageForLocale(args.language)
+    : 'the language determined from the audience and local market'
   const localizedLanguageInstruction = `All research, strategy, copy and quality explanations must be written in ${languageName}.`
   const hasPreviousPageStyle =
     typeof args.input === 'object' &&
@@ -615,6 +641,7 @@ export async function monthlyProviderCall(
     monthlyInstructions[args.capability],
     monthlyInstructionAddenda[args.capability],
     businessBrainInstruction[args.capability],
+    args.capability === 'research' ? audienceLanguageResearchInstruction : '',
     args.capability === 'planning' ? batchPlanningInstruction : '',
     hasEventResearch ? eventResearchInstruction[args.capability] : '',
     (hasVideoDeliverables ? videoDeliverable : staticOnlyDeliverable)[args.capability] || '',
