@@ -225,7 +225,7 @@ onBeforeUnmount(removeNavigationGuard)
           <UDropdownMenu
             :items="businessMenu"
             :content="{ align: 'start', collisionPadding: 12 }"
-            :ui="{ content: 'w-(--reka-dropdown-menu-trigger-width) min-w-48' }"
+            :ui="{ content: 'w-72 max-w-[calc(100vw-1.5rem)]' }"
           >
             <template #item-label="{ item: menuItem }">
               <UTooltip
@@ -234,7 +234,7 @@ onBeforeUnmount(removeNavigationGuard)
                 :content="{ side: 'bottom', align: 'start', sideOffset: 6, collisionPadding: 8 }"
                 :ui="{ content: 'h-auto rounded-md border border-default bg-default px-2.5 py-1.5 text-xs font-medium text-highlighted shadow-md' }"
               >
-                <span class="block max-w-36 truncate">{{ menuItem.label }}</span>
+                <span class="block whitespace-nowrap leading-5">{{ menuItem.label }}</span>
               </UTooltip>
               <span v-else class="block truncate">{{ menuItem.label }}</span>
             </template>

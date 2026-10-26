@@ -1306,7 +1306,7 @@
   "tiktok.connected": "Bağlı",
   "tiktok.notConnected": "Bağlı değil",
   "tiktok.notConfigured": "TikTok henüz platform tarafından yapılandırılmadı.",
-  "tiktok.connect": "TikTok’u bağla",
+  "tiktok.connect": "TikTok üzerinden bağlan",
   "tiktok.send": "TikTok’a gönder",
   "tiktok.disconnect": "Bağlantıyı kes",
   "tiktok.disconnectTitle": "TikTok hesabının bağlantısı kesilsin mi?",

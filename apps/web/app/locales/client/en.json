@@ -1306,7 +1306,7 @@
   "tiktok.connected": "Connected",
   "tiktok.notConnected": "Not connected",
   "tiktok.notConfigured": "TikTok has not been configured by the platform yet.",
-  "tiktok.connect": "Connect TikTok",
+  "tiktok.connect": "Connect through TikTok",
   "tiktok.send": "Send to TikTok",
   "tiktok.disconnect": "Disconnect",
   "tiktok.disconnectTitle": "Disconnect TikTok account?",
