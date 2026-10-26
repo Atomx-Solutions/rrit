@@ -7,6 +7,9 @@ export const ctaMaxLength = 32
 // The most a camera may turn around the subject. A single photograph shows one
 // side of it; turning further would make the motion model invent the rest.
 export const maxStoryboardRotationDegrees = 45
+// With only one photograph the model has nothing but that view to go on, so
+// the camera barely turns.
+export const maxSinglePhotoRotationDegrees = 15
 export const maxStoryboardShots = 3
 // A video takes at most one photograph of its subject per shot.
 export const maxVideoPhotos = maxStoryboardShots
@@ -172,14 +175,16 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
     if (limits.durations.length && !limits.durations.includes(shot.durationSeconds))
       problems.push(`Shot ${index + 1} lasts ${shot.durationSeconds} seconds; each shot must last one of ${limits.durations.join(', ')} seconds.`)
   })
-  storyboard.shots.forEach((shot, index) => {
+  // With several photographs each scene gets its own framing. From one, a
+  // closer framing is a crop the model has to fill in, so it is not required.
+  const photos = limits.photos || 1
+  if (photos > 1) storyboard.shots.forEach((shot, index) => {
     const previous = storyboard.shots[index - 1]
     if (previous?.shotSize && previous.shotSize === shot.shotSize)
       problems.push(`Shot ${index + 1} has the same ${shot.shotSize} framing as shot ${index}; give each scene its own framing, so the video moves from one scene to the next.`)
   })
   // With several photographs, every shot names one that exists, as many of
   // them are used as the shots allow, and the video closes on the main one.
-  const photos = limits.photos || 1
   const used = new Set(storyboard.shots.map((shot) => shot.photoIndex ?? 0))
   storyboard.shots.forEach((shot, index) => {
     if ((shot.photoIndex ?? 0) >= photos)
@@ -201,6 +206,19 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
       problems.push(`Shot ${index + 1} holds the camera nearly still; give it a real, visible camera move (a dolly, slide, rise, push-through or parallax), so it reads as video rather than a photograph.`)
     if (index === 0 && storyboard.shots.length > 1 && shot.motion && shot.motion !== 'strong')
       problems.push('The hook must move strongly: its camera move is the most energetic of the video.')
+  })
+  // From one photograph every view the model paints beyond it is invented,
+  // so the moves stay ones it can make from that view alone: no arrival, no
+  // detail crop, little turn, and only the hook moves strongly.
+  if (photos === 1) storyboard.shots.forEach((shot, index) => {
+    if (shot.subject.motion === 'arrives')
+      problems.push(`Shot ${index + 1} has the subject arrive; from one photograph it must already be in its photographed place.`)
+    if (shot.shotSize === 'detail')
+      problems.push(`Shot ${index + 1} is a detail shot; from one photograph keep to wide, medium or close framing.`)
+    if (shot.camera.rotationDegrees > maxSinglePhotoRotationDegrees)
+      problems.push(`Shot ${index + 1} turns ${shot.camera.rotationDegrees} degrees; from one photograph turn at most ${maxSinglePhotoRotationDegrees}.`)
+    if (index > 0 && shot.motion === 'strong')
+      problems.push(`Shot ${index + 1} moves strongly; from one photograph only the hook does, the other shots move at medium or subtle strength.`)
   })
   const last = storyboard.shots.at(-1)
   if (last && !last.endsOnPhotograph)

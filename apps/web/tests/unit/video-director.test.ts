@@ -19,35 +19,35 @@ afterEach(() => vi.unstubAllGlobals())
 // as data; nothing like it exists in the application code.
 function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
   return {
-    concept: 'The car descends from a stormy sky, lands softly and the camera rises to reveal the city.',
-    rationale: 'A dramatic arrival fits a premium rental launch.',
+    concept: 'Evening light sweeps along the car as the camera pushes in low and then rises to reveal it whole.',
+    rationale: 'A confident, low move fits a premium rental launch.',
     cta: 'Rezervo sot',
     caption: 'Makina jote e radhës të pret. Rezervo sot.',
     subjectFrame: { top: 0.4, bottom: 0.85 },
     shots: [
       {
-        purpose: 'The arrival: the car lowers into its photographed place.',
+        purpose: 'The hook: the camera rushes in low along the car.',
         durationSeconds: 4,
         shotSize: 'wide',
         photoIndex: 0,
         role: 'hook',
         motion: 'strong',
-        camera: { move: 'Low drone hold tilting down as the car descends.', lens: '24mm wide', speed: 'slow', ease: 'ease-out on landing', rotationDegrees: 0 },
-        atmosphere: 'Storm clouds clearing to golden light.',
-        effects: 'Dust lifting at touchdown.',
-        subject: { motion: 'arrives', description: 'The car settles exactly where it stands in the photograph.' },
-        opensOnPhotograph: false,
+        camera: { move: 'Fast low push-in along the bodywork.', lens: '24mm wide', speed: 'fast', ease: 'ease-out into the next shot', rotationDegrees: 0 },
+        atmosphere: 'Evening light with a warm streak across the sky.',
+        effects: 'Light flaring along the paint.',
+        subject: { motion: 'still', description: 'The car stands exactly where it is in the photograph.' },
+        opensOnPhotograph: true,
         endsOnPhotograph: false,
         showsOnlyPhotographedSides: true,
       },
       {
-        purpose: 'The reveal: the camera arcs a little and rises.',
+        purpose: 'The reveal: the camera turns a little and rises.',
         durationSeconds: 8,
         shotSize: 'medium',
         photoIndex: 0,
         role: 'close',
         motion: 'medium',
-        camera: { move: 'Gentle 30 degree arc combined with a rise.', lens: '35mm', speed: 'measured', ease: 'ease-in-out', rotationDegrees: 30 },
+        camera: { move: 'Gentle 10 degree arc combined with a rise.', lens: '35mm', speed: 'measured', ease: 'ease-in-out', rotationDegrees: 10 },
         atmosphere: 'Golden hour, wet asphalt reflections.',
         effects: 'Light sliding along the bodywork.',
         subject: { motion: 'still', description: 'The car holds still while light moves across it.' },
@@ -58,6 +58,22 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
     ],
     ...overrides,
   }
+}
+
+// A bigger concept that only several photographs of the subject allow.
+function arrival(): Storyboard {
+  const board = storyboard({ concept: 'The car descends from a stormy sky, lands softly and the camera rises to reveal the city.' })
+  board.shots[0] = {
+    ...board.shots[0]!,
+    photoIndex: 1,
+    shotSize: 'detail',
+    camera: { ...board.shots[0]!.camera, move: 'Low drone hold tilting down as the car descends.' },
+    subject: { motion: 'arrives', description: 'The car settles exactly where it stands in the photograph.' },
+    opensOnPhotograph: false,
+  }
+  board.shots[1]!.camera.rotationDegrees = 30
+  board.shots[1]!.motion = 'strong'
+  return board
 }
 
 function answer(value: unknown, cost = 0.002) {
@@ -148,10 +164,23 @@ describe('storyboard rules', () => {
     expect(storyboardProblems(settling, limits)).toEqual([])
   })
 
-  it('gives consecutive scenes their own framing', () => {
+  it('keeps a one-photograph video to moves the model can make from that view', () => {
+    expect(storyboardProblems(arrival(), limits).join(' ')).toContain('has the subject arrive')
+    expect(storyboardProblems(arrival(), limits).join(' ')).toContain('is a detail shot')
+    expect(storyboardProblems(arrival(), limits).join(' ')).toContain('turn at most 15')
+    expect(storyboardProblems(arrival(), limits).join(' ')).toContain('Shot 2 moves strongly')
+    // Several photographs of the subject allow the bigger concept.
+    expect(storyboardProblems(arrival(), { ...limits, photos: 2 })).toEqual([])
+  })
+
+  it('gives consecutive scenes their own framing when there are several photographs', () => {
+    const twoPhotos = { ...limits, photos: 2 }
     const repeated = storyboard()
+    repeated.shots[0]!.photoIndex = 1
     repeated.shots[1]!.shotSize = 'wide'
-    expect(storyboardProblems(repeated, limits).join(' ')).toContain('same wide framing as shot 1')
+    expect(storyboardProblems(repeated, twoPhotos).join(' ')).toContain('same wide framing as shot 1')
+    // From one photograph a closer framing would be invented, so it is not required.
+    expect(storyboardProblems(storyboard({ shots: repeated.shots.map((shot) => ({ ...shot, photoIndex: 0 })) }), limits)).toEqual([])
     // A storyboard stored before framing existed still reads without a problem.
     const stored = storyboard({ subjectFrame: undefined })
     stored.shots.forEach((shot) => { delete shot.shotSize })
@@ -182,7 +211,12 @@ describe('the creative director', () => {
     expect(brief).toContain('TikTok, on a 9:16 canvas. Its shots last 12 seconds together')
     expect(brief).toContain('one of 4, 6, 8 seconds')
     expect(brief).toContain('told in 2 to 3 separate shots')
-    expect(brief).toContain('at most 45 degrees')
+    expect(brief).toContain('at most 15 degrees')
+    expect(brief).toContain('it never arrives')
+    expect(brief).not.toContain('drone flights, push-ins')
+    const several = directorInstructions({ ...input, limits: { ...limits, photos: 2 } })
+    expect(several).toContain('at most 45 degrees')
+    expect(several).toContain('descending from the sky')
     expect(brief).toContain('never 360 degrees')
     expect(brief).toContain('Albanian')
     expect(brief).toContain('the bottom 25%')
@@ -246,13 +280,13 @@ describe('the cinematic shot prompt', () => {
     expect(brief).toContain('ends exactly on the supplied last frame, the real photograph')
     expect(brief).toContain('Lens: 35mm')
     expect(brief).toContain('Ease: ease-in-out')
-    expect(brief).toContain('no more than 30 degrees')
+    expect(brief).toContain('no more than 10 degrees')
     expect(brief).toContain('Keep the subject identical in every frame')
     expect(brief).toContain('No speed claims.')
   })
 
   it('lets an arrival open away from the photograph', () => {
-    const brief = buildShotExecutionBrief({ storyboard: storyboard(), index: 0, start: 'free', endsOnPhotograph: true })
+    const brief = buildShotExecutionBrief({ storyboard: arrival(), index: 0, start: 'free', endsOnPhotograph: true })
     expect(brief).toContain('before the subject is in its photographed place')
     expect(brief).not.toContain('starts exactly on the supplied first frame')
   })
