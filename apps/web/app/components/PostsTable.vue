@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 import type { Post } from '~~/shared/schemas/workspace'
+import { channelCanvas } from '~~/shared/schemas/channel-format'
 import { formatDate } from '~~/shared/utils/format'
 const props = defineProps<{ posts: Post[] }>()
 const { base, data } = useWorkspace()
@@ -48,6 +49,32 @@ function moveViewer(offset: number) {
   viewerIndex.value = (viewerIndex.value + offset + props.posts.length) % props.posts.length
   resolveViewerVideo()
 }
+// The arrow keys move through the posts like the gallery viewer, except while
+// a video or a field has focus, where they belong to it.
+function onViewerKeydown(event: KeyboardEvent) {
+  if (!viewerOpen.value) return
+  const target = event.target as HTMLElement | null
+  if (target?.closest('video, input, textarea, [contenteditable="true"]')) return
+  if (event.key === 'ArrowLeft') moveViewer(-1)
+  if (event.key === 'ArrowRight') moveViewer(1)
+}
+// The stage keeps the post's channel shape while the next photo loads, so the
+// controls never jump and the viewer never flashes empty.
+const viewerFrame = computed(() => {
+  if (!viewerPost.value) return undefined
+  const { width, height } = channelCanvas(viewerPost.value.channel)
+  return { aspectRatio: `${width} / ${height}` }
+})
+// The photos either side are fetched ahead, so stepping to them is instant.
+watch([viewerOpen, viewerIndex], ([open]) => {
+  if (!open || !import.meta.client || !props.posts.length) return
+  for (const offset of [-1, 1]) {
+    const neighbour = props.posts[(viewerIndex.value + offset + props.posts.length) % props.posts.length]
+    if (neighbour?.image) new Image().src = neighbour.image
+  }
+})
+onMounted(() => window.addEventListener('keydown', onViewerKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 async function downloadViewerPost() {
   if (!viewerPost.value || downloading.value) return
   downloading.value = true
@@ -207,25 +234,32 @@ const columns = computed<TableColumn<Post>[]>(() => [
             class="shrink-0 rounded-full"
             icon="i-lucide-chevron-left"
             :aria-label="t('content.previousPostPhoto')"
-            @click="moveViewer(-1)"
+            @pointerdown.stop.prevent="moveViewer(-1)"
           />
+          <!-- The video starts on its own when opened; browsers only allow that
+               muted, and the controls turn the sound on. -->
           <template v-if="viewerVideoUrl">
             <video
+              :key="`video-${viewerPost.id}`"
               :src="viewerVideoUrl"
               :poster="viewerPost.image"
+              autoplay
+              muted
               controls
               playsinline
               class="h-full w-auto max-w-full rounded-xl bg-black ring-1 ring-default"
             />
           </template>
-          <MediaImage
-            v-if="!viewerVideoUrl"
-            :src="viewerPost.image"
-            :alt="viewerPost.title"
-            fit="natural"
-            :surface="false"
-            class="h-full w-auto max-w-full rounded-xl ring-1 ring-default"
-          />
+          <div v-if="!viewerVideoUrl" class="h-full max-w-full min-w-0" :style="viewerFrame">
+            <MediaImage
+              :src="viewerPost.image"
+              :alt="viewerPost.title"
+              fit="contain"
+              loading="eager"
+              :surface="false"
+              class="size-full rounded-xl"
+            />
+          </div>
           <UButton
             color="neutral"
             variant="outline"
@@ -233,7 +267,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
             class="shrink-0 rounded-full"
             icon="i-lucide-chevron-right"
             :aria-label="t('content.nextPostPhoto')"
-            @click="moveViewer(1)"
+            @pointerdown.stop.prevent="moveViewer(1)"
           />
         </div>
         <div class="flex items-center justify-between gap-3">
