@@ -12,14 +12,14 @@ import {
   videoRenderCredits,
 } from './credits'
 import { aiVideoCanvas, aiVideoCapabilities, aiVideoConfigured, aiVideoPromptLimit } from './ai-video-provider'
-import { buildVideoEndCard, buildVideoOverlayLayers } from './image-processing'
+import { buildVideoOverlayLayers } from './image-processing'
 import { approvedVideoCopy, videoPostEvidence } from './video-quality'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
 import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
 import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
 import { directedTakes, videoChargeCredits } from './video-takes'
 import { maxVideoPhotos, storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
-import { composeBrandedVideo, extractVideoFrames, joinClips, VIDEO_END_CARD_SECONDS, videoDuration } from './video-compose'
+import { composeBrandedVideo, extractVideoFrames, joinClips, videoDuration } from './video-compose'
 import { generateStoryboardShots } from './video-shots'
 import { reviewVideoQuality, verifySamePhotographedSubject } from './video-subject-check'
 
@@ -118,10 +118,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
     await reserveCredits(client, { organizationId: business.id, credits: videoCredits, usageKind: 'generation', referenceType: 'video', referenceId: renderRow.id, idempotencyKey: `video-reserve:${renderRow.id}` })
     const logoRow = logo?.rows[0]
     const { workspace } = await loadWorkspace(client, business.id, userId)
-    // Everything the deterministic end-card needs, resolved inside the same
-    // transaction so the composition stage below never has to re-read business
-    // data (and never has to decide whether to inject AI content: the end-card
-    // is purely approved copy + logo + brand colours).
+    // The approved logo, resolved inside the same transaction so the
+    // composition stage below never has to re-read business data.
     const logoBytes = logoRow
       ? (logoRow.storage_path
           ? await downloadAsset(logoRow.storage_path, 4 * 1024 * 1024)
@@ -129,16 +127,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
       : null
     if (post.video.logoAssetId && !logoBytes)
       throw createError({ statusCode: 409, message: 'server.APPROVED_LOGO_UNAVAILABLE' })
-    const endCardInput = {
-      businessName: workspace.brand.name,
-      cta: post.video.cta,
-      primaryColor: workspace.brand.palette?.primary || workspace.brand.color,
-      onPrimary: workspace.brand.palette?.onPrimary,
-      fontFamily: workspace.brand.typography?.family,
-      weightHook: workspace.brand.typography?.weightHook,
-      weightCta: workspace.brand.typography?.weightCta,
-      logo: logoBytes || undefined,
-    }
     // The post's own approved design copy, set over the motion in the zone the
     // strategy kept clear. A video prepared by hand has no generated creative,
     // so it falls back to the brief's hook and call to action.
@@ -153,11 +141,11 @@ export async function renderVideoForPost(userId: string, postId: string) {
       subline: creative ? hookRemainder(post.video.hook, creative.headline) : undefined,
       cta: creative?.cta || post.video.cta,
       zone: overlayZone,
-      primaryColor: endCardInput.primaryColor,
-      onPrimary: endCardInput.onPrimary,
-      fontFamily: endCardInput.fontFamily,
-      weightHook: endCardInput.weightHook,
-      weightCta: endCardInput.weightCta,
+      primaryColor: workspace.brand.palette?.primary || workspace.brand.color,
+      onPrimary: workspace.brand.palette?.onPrimary,
+      fontFamily: workspace.brand.typography?.family,
+      weightHook: workspace.brand.typography?.weightHook,
+      weightCta: workspace.brand.typography?.weightCta,
       logo: logoBytes || undefined,
       target: canvas,
       covered: channelUiInsets(post.channel),
@@ -208,10 +196,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
       durationSeconds: post.video.durationSeconds,
       canvas,
       format: channelFormat(post.channel),
-      endCardInput,
-      // The strategy's end-card choice, used only for a storyboard stored
-      // before the director made that call itself.
-      endCard: post.video.shot?.endCard ?? true,
       // Brand first, then the headline, then the supporting line and button,
       // spread across the first part of the motion.
       // Placed in time once the shots are known.
@@ -413,20 +397,10 @@ export async function renderVideoForPost(userId: string, postId: string) {
     }))
     // Compose before upload. The provider MP4 is an in-memory intermediate;
     // only the branded MP4 becomes the ready render's canonical storage path.
-    const { width: endCardWidth, height: endCardHeight } = snapshot.canvas
-    const endCardAssetId = randomUUID()
     failureReason = 'composition_failed'
-    // The strategy decides whether this video closes on the branded card.
-    const endCardImage = (storyboard?.endCard ?? snapshot.endCard)
-      ? await buildVideoEndCard({
-          ...snapshot.endCardInput,
-          target: { width: endCardWidth, height: endCardHeight },
-        })
-      : undefined
     const bytes = await composeBrandedVideo({
       motion,
-      endCard: endCardImage,
-      target: { width: endCardWidth, height: endCardHeight },
+      target: snapshot.canvas,
       overlays,
     })
     // The finished video is reviewed like a post's still image: against the
@@ -461,21 +435,14 @@ export async function renderVideoForPost(userId: string, postId: string) {
     }
     const folder = assetStorageFolder(snapshot.business.slug, snapshot.business.id)
     const path = `${folder}/video-${postId}-${randomUUID()}.mp4`
-    const endCardStoragePath = `${folder}/video-endcard-${postId}-${endCardAssetId}.jpg`
     failureReason = 'storage_failed'
     await uploadBinaryAsset(path, bytes, 'video/mp4')
     uploadedPaths.push(path)
-    if (endCardImage) {
-      await uploadBinaryAsset(endCardStoragePath, endCardImage, 'image/jpeg')
-      uploadedPaths.push(endCardStoragePath)
-    }
     failureReason = 'render_failed'
     await withBusinessTransaction(userId, async (client, business) => {
       // The video occupies the same storage allowance as the photos, so it is
-      // measured before the render is recorded as ready. The end-card is
-      // included in the same measurement so a business cannot exceed its
-      // media allowance by one end-card after the mp4 settles.
-      await requireQuota(business.id, 'media_storage_bytes', bytes.length + (endCardImage?.length || 0), client)
+      // measured before the render is recorded as ready.
+      await requireQuota(business.id, 'media_storage_bytes', bytes.length, client)
       // Charged on what it actually cost. A provider that reports no cost
       // leaves the reservation as the charge, because guessing lower would give
       // the generation away and guessing higher would overcharge.
@@ -505,23 +472,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
         })
       await client.query(
         "UPDATE video_renders SET status='ready',storage_path=$1,size_bytes=$2,duration_seconds=$3,composed=true,completed_at=now() WHERE id=$4 AND business_id=$5",
-        [path, bytes.length, Math.round(motionSeconds + (endCardImage ? VIDEO_END_CARD_SECONDS : 0)), snapshot.renderId, business.id],
-      )
-      // Retain the deterministic card for provenance and future recomposition.
-      // Gallery and publishing use the composed MP4 at video_renders.storage_path.
-      if (endCardImage) await client.query(
-        "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,storage_path,size_bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',NULL,$5,$6,$7,$8,$9)",
-        [
-          endCardAssetId,
-          business.id,
-          `End card · ${postId}`,
-          JSON.stringify(['video-endcard']),
-          endCardStoragePath,
-          endCardImage.length,
-          endCardWidth,
-          endCardHeight,
-          JSON.stringify({ source: 'video-end-card', postId, renderId: snapshot.renderId }),
-        ],
+        [path, bytes.length, Math.round(motionSeconds), snapshot.renderId, business.id],
       )
       const current = await client.query<{ payload: unknown }>('SELECT payload FROM posts WHERE id=$1 AND business_id=$2 FOR UPDATE', [postId, business.id])
       const currentPost = current.rows[0] && postSchema.parse(current.rows[0].payload)
@@ -547,8 +498,6 @@ export async function renderVideoForPost(userId: string, postId: string) {
           currentPost.policy = 'warn'
           currentPost.policyReason = 'server.AI_QUALITY_REVIEW_NEEDED'
         }
-        if (endCardImage) currentPost.video.endCardAssetId = endCardAssetId
-        else delete currentPost.video.endCardAssetId
         await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(currentPost), postId, business.id])
       }
     })

@@ -24,7 +24,6 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
     cta: 'Rezervo sot',
     caption: 'Makina jote e radhës të pret. Rezervo sot.',
     subjectFrame: { top: 0.4, bottom: 0.85 },
-    endCard: true,
     shots: [
       {
         purpose: 'The arrival: the car lowers into its photographed place.',

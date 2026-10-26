@@ -64,8 +64,7 @@ export function permittedEventCategories(events: EventResearch | undefined) {
 // A video's canvas is its channel's canvas (see channel-format), carried in
 // the motion brief so the provider call never restates it.
 // Six seconds of generated motion: the provider is paid per second, the
-// designed overlay carries the message, and the branded end-card adds its own
-// seconds after it. The schema below still accepts the wider range a future
+// designed overlay carries the message. The schema below still accepts the wider range a future
 // model could offer.
 export const videoDurationSeconds = 6
 export const postSchema = z.object({
@@ -144,11 +143,6 @@ export const postSchema = z.object({
     durationSeconds: z.number().int().min(6).max(30),
     format: z.enum(videoFormats),
     strategyVersion: z.number().int().positive().optional(),
-    // Deterministic branded end-card asset rendered after the mp4. Optional
-    // so legacy videos (and video posts that fail end-card generation) still
-    // parse and play. Points at an `assets` row whose `creative_provenance`
-    // flags it as a video end-card so it is excluded from source-photo pickers.
-    endCardAssetId: z.uuid().optional(),
     createdAt: z.iso.datetime(),
     quality: qualitySchema.optional(),
     qualityContentVersion: z.number().int().positive().optional(),
@@ -245,8 +239,8 @@ export const workspaceSchema = z.object({
     audience: z.string(),
     color: z.string(),
     // Optional typography and palette anchors for deterministic brand
-    // composition (end-card, overlays). Everything is optional so a workspace
-    // that never configures these still renders a reasonable end-card from
+    // composition (video overlays). Everything is optional so a workspace
+    // that never configures these still renders reasonable overlays from
     // `brand.color` + the application defaults.
     typography: z
       .object({

@@ -83,9 +83,6 @@ export const storyboardSchema = z.object({
   // Where the subject spans vertically in the supplied photograph, as shares
   // of its height from the top. The application keeps its text off this band.
   subjectFrame: subjectFrameSchema.optional(),
-  // Whether the video ends on the branded card after the motion: the
-  // director's call for this video, not a fixture of every one.
-  endCard: z.boolean().optional(),
   // The call to action and caption set over the motion by the application.
   cta: z.string().trim().min(2).max(ctaMaxLength),
   caption: z.string().trim().min(10).max(2200),
@@ -103,7 +100,6 @@ export const directorStoryboardSchema = storyboardSchema.extend({
     motion: shotMotionSchema,
   })).min(1).max(maxStoryboardShots),
   subjectFrame: subjectFrameSchema,
-  endCard: z.boolean(),
 })
 export type StoryboardShot = z.infer<typeof storyboardShotSchema>
 

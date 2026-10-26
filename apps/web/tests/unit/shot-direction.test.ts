@@ -5,10 +5,10 @@ import { shotDirectionSchema, storedShotDirectionSchema } from '../../shared/sch
 describe('the strategy shot of a video slot', () => {
   it('names no camera move: the motion is the creative director’s', () => {
     const fields = Object.keys((z.toJSONSchema(shotDirectionSchema) as { properties: object }).properties)
-    expect(fields.sort()).toEqual(['endCard', 'textZone'])
+    expect(fields.sort()).toEqual(['textZone'])
   })
 
-  it('still reads a shot stored with the old camera presets', () => {
+  it('still reads a shot stored with the old camera presets and end-card', () => {
     const stored = storedShotDirectionSchema.parse({
       camera: 'slow_push',
       pacing: 'measured',
@@ -17,7 +17,7 @@ describe('the strategy shot of a video slot', () => {
       action: 'camera_only',
       endCard: false,
     })
-    expect(stored).toEqual({ textZone: 'bottom', endCard: false })
-    expect(storedShotDirectionSchema.parse({})).toEqual({ textZone: 'top', endCard: true })
+    expect(stored).toEqual({ textZone: 'bottom' })
+    expect(storedShotDirectionSchema.parse({})).toEqual({ textZone: 'top' })
   })
 })

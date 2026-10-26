@@ -76,18 +76,15 @@ export const slotDeliverableSchema = z.enum(['static_post', 'video'])
 // What the strategy decides for a video slot. The motion itself, every camera
 // move and the edit, is the video's creative director's to invent from the
 // photographs, so nothing here names a move. The strategy keeps only where type
-// stays clear in its photograph and whether a closing branded card is wanted,
-// which the director decides again for each video.
+// stays clear in its photograph.
 export const shotTextZoneSchema = z.enum(['top', 'bottom', 'left', 'right', 'full'])
 export const shotDirectionSchema = z.object({
   textZone: shotTextZoneSchema,
-  endCard: z.boolean(),
 })
 // A shot as stored. Shots written before carried camera, pacing, anchor and
-// action fields as well; those are dropped on read.
+// action and end-card fields as well; those are dropped on read.
 export const storedShotDirectionSchema = shotDirectionSchema.extend({
   textZone: shotTextZoneSchema.default('top'),
-  endCard: z.boolean().default(true),
 })
 export const slotBriefSchema = z.object({
   day: z.number().int().min(1).max(31),
