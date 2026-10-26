@@ -63,7 +63,7 @@ onBeforeUnmount(() => {
           root: 'min-h-[52px] h-auto flex-wrap gap-y-1 px-3 py-1.5 md:py-0 md:h-[52px]',
           left: 'min-w-0 flex-1',
           title: 'text-sm font-semibold truncate',
-          right: 'gap-1.5',
+          right: 'gap-1 sm:gap-1.5',
         }"
       >
         <template v-if="mobileTitle" #title>
@@ -99,13 +99,16 @@ onBeforeUnmount(() => {
             orientation="vertical"
             class="hidden xl:block h-5 mx-1"
           />
+          <!-- On a phone search is at the top of the menu, which leaves the title room. -->
           <UDashboardSearchButton
             :collapsed="true"
             :aria-label="t('nav.searchWorkspace')"
             color="neutral"
             variant="ghost"
-            class="lg:hidden"
+            class="hidden sm:inline-flex lg:hidden"
           />
+          <!-- On a phone the balance shows only its figure, so the page title
+               keeps room; the word is still read out. -->
           <UTooltip :text="t('dashboard.aiBalance')">
             <UButton
               :to="`${base}/billing`"
@@ -113,9 +116,11 @@ onBeforeUnmount(() => {
               variant="soft"
               size="sm"
               icon="i-lucide-coins"
-              :label="credits === undefined ? `— ${t('dashboard.credits')}` : `${credits} ${t('dashboard.credits')}`"
+              :aria-label="`${credits ?? '—'} ${t('dashboard.credits')}`"
               class="tabular-nums"
-            />
+            >
+              {{ credits ?? '—' }}<span class="hidden sm:inline">&nbsp;{{ t('dashboard.credits') }}</span>
+            </UButton>
           </UTooltip>
           <UColorModeButton :aria-label="t('dashboard.changeAppearance')" color="neutral" variant="ghost" />
           <UButton
@@ -140,7 +145,10 @@ onBeforeUnmount(() => {
           ></template
         >
         <template v-if="$slots.actions" #right>
-          <div class="flex flex-wrap items-center justify-end gap-1.5 xl:hidden">
+          <!-- On a phone the page actions are compact (smaller type, icons and
+               padding) so they take less of the screen; touch keeps them tall
+               enough to tap. -->
+          <div class="page-actions flex flex-wrap items-center justify-end gap-1.5 xl:hidden">
             <slot name="actions" />
           </div>
         </template>

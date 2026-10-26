@@ -98,6 +98,11 @@ const activity = computed(() => {
   }))
 })
 
+// Each control point stays between the two days it joins, so the curve never
+// swings below an empty day or above a busy one.
+function between(value: number, a: number, b: number) {
+  return Math.min(Math.max(value, Math.min(a, b)), Math.max(a, b))
+}
 function smoothPath(points: Array<{ x: number; y: number }>) {
   if (!points.length) return ''
   let path = `M ${points[0]!.x} ${points[0]!.y}`
@@ -108,11 +113,11 @@ function smoothPath(points: Array<{ x: number; y: number }>) {
     const following = points[index + 2] || next
     const controlOne = {
       x: current.x + (next.x - previous.x) / 6,
-      y: current.y + (next.y - previous.y) / 6,
+      y: between(current.y + (next.y - previous.y) / 6, current.y, next.y),
     }
     const controlTwo = {
       x: next.x - (following.x - current.x) / 6,
-      y: next.y - (following.y - current.y) / 6,
+      y: between(next.y - (following.y - current.y) / 6, current.y, next.y),
     }
     path += ` C ${controlOne.x} ${controlOne.y}, ${controlTwo.x} ${controlTwo.y}, ${next.x} ${next.y}`
   }
@@ -131,11 +136,22 @@ const hoveredKey = ref<string | null>(null)
 const hoveredDay = computed(
   () => activity.value.find((day) => day.key === hoveredKey.value) || activityPeak.value,
 )
-// The readout sits just above its own point, kept inside the chart at the edges.
+// The readout sits just above its own point. It slides from left-anchored on
+// the first day to right-anchored on the last, with a small inset, so it stays
+// inside even a narrow phone chart.
 const hoveredStyle = computed(() => ({
-  left: `${Math.min(92, Math.max(8, hoveredDay.value.x))}%`,
+  left: `${hoveredDay.value.x}%`,
   top: `${(hoveredDay.value.y / 44) * 100}%`,
 }))
+const readoutInset = 6
+const readoutStyle = computed(() => {
+  const x = hoveredDay.value.x
+  return {
+    top: hoveredStyle.value.top,
+    left: `calc(${x}% + ${readoutInset - (2 * readoutInset * x) / 100}px)`,
+    transform: `translate(-${x}%, -150%)`,
+  }
+})
 const summaries = computed(() => [
   {
     label: t('overview.allPosts'),
@@ -259,14 +275,23 @@ const summaries = computed(() => [
               vector-effect="non-scaling-stroke"
             />
           </svg>
+          <!-- The day being read: a guide down to the axis and its point on the curve. -->
+          <div
+            class="pointer-events-none absolute inset-y-0 w-px -translate-x-1/2 border-l border-dashed border-primary/40 transition-[left] duration-200 ease-out"
+            :style="{ left: hoveredStyle.left }"
+          />
+          <div
+            class="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-4 ring-primary/25 transition-[left,top] duration-200 ease-out"
+            :style="hoveredStyle"
+          />
           <!-- One hit area per day, so every point can be read on mouse and on touch. -->
           <div class="absolute inset-0 flex">
             <UButton
               v-for="day in activity"
               :key="`hit-${day.key}`"
               color="neutral"
-              variant="ghost"
-              class="h-full min-w-0 flex-1 rounded-none p-0 transition-colors duration-200 hover:bg-primary/5 focus-visible:ring-2"
+              variant="link"
+              class="h-full min-w-0 flex-1 rounded-none p-0 pointer-coarse:min-w-0 focus-visible:ring-2 focus-visible:ring-primary/40"
               :aria-label="t('overview.activityDay', { date: day.label, count: day.value })"
               @mouseenter="hoveredKey = day.key"
               @focus="hoveredKey = day.key"
@@ -276,8 +301,8 @@ const summaries = computed(() => [
           <UBadge
             color="neutral"
             variant="solid"
-            class="pointer-events-none absolute -translate-x-1/2 -translate-y-[150%] whitespace-nowrap shadow transition-[left,top] duration-200 ease-out"
-            :style="hoveredStyle"
+            class="pointer-events-none absolute whitespace-nowrap shadow transition-[left,top,transform] duration-200 ease-out"
+            :style="readoutStyle"
             :label="t('overview.activityDay', { date: hoveredDay.label, count: hoveredDay.value })"
           />
         </div>
@@ -295,7 +320,7 @@ const summaries = computed(() => [
           }}</span>
           <ULink
             :to="`${base}/content`"
-            class="inline-flex items-center gap-1 font-medium text-highlighted hover:text-primary"
+            class="inline-flex min-h-11 items-center gap-1 font-medium text-highlighted hover:text-primary sm:min-h-0"
           >
             {{ t('overview.viewAllPosts') }}
             <UIcon name="i-lucide-arrow-right" class="size-3.5" />
@@ -341,7 +366,7 @@ const summaries = computed(() => [
           variant="link"
           color="neutral"
           size="sm"
-          class="mt-4 px-0"
+          class="mt-4 min-h-11 px-0 sm:min-h-0"
           trailing-icon="i-lucide-arrow-right"
           >{{ t('nav.calendar') }}</UButton
         >
@@ -354,7 +379,8 @@ const summaries = computed(() => [
         <p class="text-sm text-muted leading-relaxed max-w-lg">{{ tiktok?.connection?.status === 'connected' ? t('overview.tiktokConnected') : t('overview.tiktokDescription') }}</p>
         <UButton :to="`${base}/social-posts?channel=TikTok`" variant="outline" color="neutral" size="sm" class="mt-5" trailing-icon="i-lucide-arrow-right">{{ t('nav.viewPosts') }}</UButton>
       </UCard>
-      <UCard :ui="{ body: 'p-5 sm:p-6' }">
+      <!-- Two columns on a tablet leave the third card alone, so it takes both. -->
+      <UCard :ui="{ body: 'p-5 sm:p-6' }" class="md:col-span-2 xl:col-span-1">
         <div class="flex justify-between items-center gap-3 mb-4">
           <h2 class="text-sm font-semibold">{{ t('overview.metaCardTitle') }}</h2>
           <UBadge color="neutral" variant="outline" size="sm">{{
