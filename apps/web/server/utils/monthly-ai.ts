@@ -618,6 +618,26 @@ const eventResearchInstruction: Partial<Record<keyof typeof monthlyInstructions,
     'upcomingOccasions lists the dated occasions the research verified that are still ahead and not already used. Posts are produced in small batches whenever the business asks, so this batch may be the last chance to use one. When an occasion falls inside this batch\'s publishable range, give it a slot dated on the occasion itself, or one to three days before it when the idea is an announcement rather than a greeting, and cite its sourceUrl in that slot. The nearest occasion takes priority over a generic idea; at most one occasion-led slot per batch unless the batch has more slots than occasions. Never use an occasion that is not in upcomingOccasions, and never date a post after the occasion it is about: a greeting published once the day has passed is wrong, so an occasion outside the range is simply skipped. An occasion justifies the date of a post, never its hour: choose the hour under the timing rules and set timingBasis from the real timing evidence exactly as for every other slot.',
 }
 
+// The goals the business set on its brand page ride along inside the brand it
+// already sends, but a bare list gives the model no reason to act on it. The
+// instruction is added only when goals are present, and research reads them at
+// `brand` while planning reads them at `evidence.brand`.
+const brandGoalsInstruction: Partial<Record<keyof typeof monthlyInstructions, string>> = {
+  research:
+    'brand.goals lists what this business wants its social media to achieve, in its own words. Aim the market research and the content opportunities at those outcomes, and say which goal each opportunity serves. They are aims, never facts about the business or evidence about the market.',
+  planning:
+    'evidence.brand.goals lists what this business wants its social media to achieve, in its own words. Shape the monthly narrative around them: every slot must serve at least one goal, its purpose and algorithmGoal must say which one and how, and the batch should cover the goals rather than repeat one. They are aims, never facts: never state a goal in the copy as something already achieved.',
+}
+
+export function goalsInstructionFor(capability: keyof typeof monthlyInstructions, input: unknown) {
+  if (typeof input !== 'object' || input === null) return ''
+  const payload = input as { brand?: { goals?: unknown }; evidence?: { brand?: { goals?: unknown } } }
+  const goals = capability === 'planning' ? payload.evidence?.brand?.goals : payload.brand?.goals
+  return Array.isArray(goals) && goals.some((goal) => typeof goal === 'string' && goal.trim())
+    ? brandGoalsInstruction[capability] || ''
+    : ''
+}
+
 // Slots are planned in batches, on request, rather than all at once. Each batch
 // is dated from the day it is asked for, which is why a slot can never be left
 // waiting until its own date has passed.
@@ -689,7 +709,7 @@ export async function monthlyProviderCall(
     monthlyInstructions[args.capability],
     monthlyInstructionAddenda[args.capability],
     businessBrainInstruction[args.capability],
-    args.capability === 'research' ? audienceLanguageResearchInstruction : '',
+    goalsInstructionFor(args.capability, args.input),
     args.capability === 'planning' ? batchPlanningInstruction : '',
     hasEventResearch ? eventResearchInstruction[args.capability] : '',
     (hasVideoDeliverables ? videoDeliverable : staticOnlyDeliverable)[args.capability] || '',
