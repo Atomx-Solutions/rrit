@@ -124,6 +124,8 @@ function onViewerKeydown(event: KeyboardEvent) {
   if (event.key === 'ArrowLeft') moveViewer(-1)
   if (event.key === 'ArrowRight') moveViewer(1)
 }
+const viewerStrip = ref<HTMLElement | null>(null)
+useCenteredStrip(viewerStrip, viewerIndex, viewerOpen)
 onMounted(() => window.addEventListener('keydown', onViewerKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 const filterTabs = computed(() => [
@@ -486,7 +488,7 @@ async function saveMetadata() {
                a scroll container clips anything outside its padding box. The
                padding gives the ring room, the negative margin keeps the strip
                aligned with the rest. -->
-          <div class="flex gap-2 overflow-x-auto p-1 -m-1">
+          <div ref="viewerStrip" class="flex gap-2 overflow-x-auto p-1 -m-1">
             <UButton
               v-for="(asset, index) in viewerAssets"
               :key="asset.id"
