@@ -234,7 +234,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
             class="shrink-0 rounded-full"
             icon="i-lucide-chevron-left"
             :aria-label="t('content.previousPostPhoto')"
-            @pointerdown.stop.prevent="moveViewer(-1)"
+            @click="moveViewer(-1)"
           />
           <!-- The video starts on its own when opened; browsers only allow that
                muted, and the controls turn the sound on. -->
@@ -267,7 +267,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
             class="shrink-0 rounded-full"
             icon="i-lucide-chevron-right"
             :aria-label="t('content.nextPostPhoto')"
-            @pointerdown.stop.prevent="moveViewer(1)"
+            @click="moveViewer(1)"
           />
         </div>
         <div class="flex items-center justify-between gap-3">
