@@ -31,6 +31,7 @@ import {
   monthlyInstructions,
   monthlyAutomaticStageKey,
   audienceLanguageResearchInstruction,
+  eventResearchInstruction,
   researchOccasionsFromText,
   postImageEditPrompt,
   type ProviderResponse,
@@ -69,6 +70,16 @@ describe('audience-language research instruction', () => {
     expect(audienceLanguageResearchInstruction).toContain(
       'must not override that explicit audience declaration',
     )
+  })
+
+  it('keeps language in the one closing block when event research is on', () => {
+    // Both instructions describe the closing JSON block. When event research
+    // gave it a shape of its own with "nothing else", the model dropped
+    // language and every plan with events stopped at research.
+    expect(audienceLanguageResearchInstruction).toContain('{"language":')
+    expect(eventResearchInstruction.research).toContain('the same block that carries language')
+    expect(eventResearchInstruction.research).not.toContain('{"occasions":')
+    expect(eventResearchInstruction.research).not.toContain('nothing else')
   })
 })
 const now = new Date('2026-09-09T08:00:00Z')

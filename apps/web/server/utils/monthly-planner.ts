@@ -34,7 +34,7 @@ import {
   recordTrialPostUsage,
   trialStatus,
 } from './trials'
-import { setTenantContext } from './database'
+import { guardConnectionErrors, setTenantContext } from './database'
 import { postContentSnapshot, postFingerprint } from './post-validation'
 import { normalizeQualityReview } from './post-quality-domain'
 import {
@@ -130,6 +130,7 @@ export function monthlyWorkerDatabase() {
         code,
       })
     })
+    guardConnectionErrors(workerPool, 'Monthly planner')
   }
   return workerPool
 }
