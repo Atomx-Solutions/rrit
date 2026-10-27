@@ -16,6 +16,7 @@ watch(
   { immediate: true },
 )
 const toast = useToast()
+const { ask: requestPackage } = useBillingRequest()
 async function signOut() {
   const result = await authClient.signOut()
   if (result.error) {
@@ -348,6 +349,21 @@ onBeforeUnmount(removeNavigationGuard)
       :description="t('nav.notificationsDescription')"
       ><template #body
         ><div class="space-y-5">
+          <template v-if="billingSnapshot?.packageExpiry">
+            <UAlert
+              color="warning"
+              :title="t('packageExpiry.title')"
+              :description="t('packageExpiry.description', { package: billingSnapshot.packageExpiry.packageName })"
+              icon="i-lucide-circle-alert"
+            />
+            <UButton
+              :to="`${base}/billing`"
+              color="warning"
+              variant="outline"
+              @click="requestPackage('package'); notificationsOpen = false"
+              >{{ t('packageExpiry.requestPackage') }}</UButton
+            ><USeparator />
+          </template>
           <UAlert
             :title="t('nav.approvalPosts')"
             :description="t('nav.approvalPostsDescription', { count: data.posts.filter((p) => p.status === 'review').length })"
