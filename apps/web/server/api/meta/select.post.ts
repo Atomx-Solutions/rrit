@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
     await setTenantContext(client, { userId: user.id, organizationId: business.id })
     await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])
     const jobs = await client.query(
-      "SELECT status,target_page_id,target_instagram_id FROM publication_jobs WHERE business_id=$1 AND status IN ('pending','processing','uncertain')",
+      "SELECT status,target_page_id,target_instagram_id FROM publication_jobs WHERE business_id=$1 AND status IN ('pending','processing','uncertain') AND target_page_id IS NOT NULL",
       [business.id],
     )
     if (

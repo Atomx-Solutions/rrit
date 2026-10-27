@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
 import { setTenantContext, withUserTransaction } from './database'
+import { instagramConfiguration } from './instagram'
 
 export interface MetaPage {
   id: string
@@ -121,20 +122,32 @@ export function decryptMetaToken(envelope: string, businessId: string) {
   decipher.setAuthTag(tag)
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
 }
+// A token issued through Instagram Login is only valid on graph.instagram.com;
+// a Facebook Login token only on graph.facebook.com.
+export type GraphHost = 'facebook' | 'instagram'
 // No caller-supplied hostname and no tokens in application responses or logs.
 export async function graphRequest<T>(
   path: string,
   token: string,
   parameters: Record<string, string> = {},
   method: 'GET' | 'POST' | 'DELETE' = 'GET',
+  host: GraphHost = 'facebook',
 ): Promise<T> {
-  const config = metaConfiguration()
   if (!/^[a-zA-Z0-9_/-]+$/.test(path)) throw new Error('Invalid Graph path')
-  const url = new URL(`https://graph.facebook.com/${config.version}/${path}`)
-  const params = new URLSearchParams({
-    ...parameters,
-    appsecret_proof: createHmac('sha256', config.appSecret).update(token).digest('hex'),
-  })
+  let url: URL
+  let params: URLSearchParams
+  if (host === 'instagram') {
+    const { version } = instagramConfiguration()
+    url = new URL(`https://graph.instagram.com/${version}/${path}`)
+    params = new URLSearchParams(parameters)
+  } else {
+    const config = metaConfiguration()
+    url = new URL(`https://graph.facebook.com/${config.version}/${path}`)
+    params = new URLSearchParams({
+      ...parameters,
+      appsecret_proof: createHmac('sha256', config.appSecret).update(token).digest('hex'),
+    })
+  }
   if (method === 'GET') url.search = params.toString()
   let response: Response
   try {

@@ -68,7 +68,7 @@ export default defineEventHandler(async (event) => {
       await setTenantContext(client, { userId: user.id, organizationId: businessId })
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [businessId])
       const jobs = await client.query(
-        "SELECT id FROM publication_jobs WHERE business_id=$1 AND status IN ('pending','processing') LIMIT 1",
+        "SELECT id FROM publication_jobs WHERE business_id=$1 AND status IN ('pending','processing') AND target_page_id IS NOT NULL LIMIT 1",
         [businessId],
       )
       if (jobs.rows.length)

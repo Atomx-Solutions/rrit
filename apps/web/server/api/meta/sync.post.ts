@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { instagramTarget, markInstagramTargetExpired, markInstagramTargetSynced } from '../../utils/instagram'
 import type { MetaList } from '../../utils/meta'
 type RemotePost = {
   id: string
@@ -23,26 +24,33 @@ type RemotePost = {
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
-  const { business, connection } = await withBusinessTransaction(user.id, async (client, business) => {
-    await requireEntitlement(business.id, 'social_import', client)
-    return { business, connection: await connectedMeta(business.id, client) }
-  })
   const input = z
     .object({ channel: z.enum(['Facebook', 'Instagram']), after: z.string().max(2000).optional() })
     .safeParse(await boundedBody(event, 4096))
   if (!input.success) throw createError({ statusCode: 422, message: 'server.NETWORK_REQUIRED' })
   const instagram = input.data.channel === 'Instagram'
-  if (instagram && !connection.instagram_id)
-    throw createError({
-      statusCode: 409,
-      message: 'server.INSTAGRAM_LINK_REQUIRED',
-    })
-  const sourceAccountId = instagram ? connection.instagram_id! : connection.page_id
+  // Instagram reads from the account connected through Instagram Login when
+  // there is one, otherwise from the account linked to the Facebook page.
+  const { business, source } = await withBusinessTransaction(user.id, async (client, business) => {
+    await requireEntitlement(business.id, 'social_import', client)
+    if (instagram) {
+      const target = await instagramTarget(business.id, client)
+      if (!target)
+        throw createError({
+          statusCode: 409,
+          message: 'server.INSTAGRAM_LINK_REQUIRED',
+        })
+      return { business, source: { target, page: null } }
+    }
+    return { business, source: { target: null, page: await connectedMeta(business.id, client) } }
+  })
+  const sourceAccountId = source.target ? source.target.id : source.page!.page_id
+  const brandId = source.target ? source.target.brandId : source.page!.brand_id
   let response: MetaList<RemotePost>
   try {
     response = await graphRequest<MetaList<RemotePost>>(
-      `${instagram ? connection.instagram_id : connection.page_id}/${instagram ? 'media' : 'posts'}`,
-      decryptMetaToken(connection.page_token_ciphertext, business.id),
+      `${sourceAccountId}/${instagram ? 'media' : 'posts'}`,
+      source.target ? source.target.token : decryptMetaToken(source.page!.page_token_ciphertext, business.id),
       {
         fields: instagram
           ? 'id,caption,media_type,media_url,permalink,timestamp'
@@ -50,15 +58,19 @@ export default defineEventHandler(async (event) => {
         limit: '25',
         ...(input.data.after ? { after: input.data.after } : {}),
       },
+      'GET',
+      source.target ? source.target.host : 'facebook',
     )
   } catch (error) {
     if (error instanceof MetaFailure && error.code === 190)
-      await withBusinessTransaction(user.id, (client) =>
-        client.query(
-          "UPDATE meta_connections SET status='expired',updated_at=now() WHERE id=$1",
-          [connection.id],
-        ),
-      )
+      await withBusinessTransaction(user.id, async (client) => {
+        if (source.target) await markInstagramTargetExpired(source.target, client)
+        else
+          await client.query(
+            "UPDATE meta_connections SET status='expired',updated_at=now() WHERE id=$1",
+            [source.page!.id],
+          )
+      })
     throw createError({
       statusCode: 502,
       message: 'server.META_POSTS_UNREADABLE',
@@ -70,10 +82,15 @@ export default defineEventHandler(async (event) => {
   try {
     await client.query('BEGIN')
     await setTenantContext(client, { userId: user.id, organizationId: business.id })
-    const current = await client.query(
-      "SELECT id FROM meta_connections WHERE id=$1 AND business_id=$2 AND status='connected' AND page_id=$3 FOR UPDATE",
-      [connection.id, business.id, connection.page_id],
-    )
+    const current = source.target?.source === 'instagram'
+      ? await client.query(
+          "SELECT id FROM instagram_connections WHERE id=$1 AND business_id=$2 AND status='connected' AND instagram_user_id=$3 FOR UPDATE",
+          [source.target.connectionId, business.id, sourceAccountId],
+        )
+      : await client.query(
+          "SELECT id FROM meta_connections WHERE id=$1 AND business_id=$2 AND status='connected' AND page_id=$3 FOR UPDATE",
+          [source.target?.connectionId || source.page!.id, business.id, source.target?.pageId || source.page!.page_id],
+        )
     if (!current.rows.length)
       throw createError({
         statusCode: 409,
@@ -95,7 +112,7 @@ export default defineEventHandler(async (event) => {
         'INSERT INTO social_posts (business_id,brand_id,channel,source_account_id,provider_id,caption,media_url,permalink,published_at,media_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (business_id,channel,source_account_id,provider_id) DO UPDATE SET brand_id=EXCLUDED.brand_id,caption=EXCLUDED.caption,media_url=EXCLUDED.media_url,permalink=EXCLUDED.permalink,published_at=EXCLUDED.published_at,media_type=EXCLUDED.media_type,imported_at=now()',
         [
           business.id,
-          connection.brand_id,
+          brandId,
           input.data.channel,
           sourceAccountId,
           post.id,
@@ -119,10 +136,12 @@ export default defineEventHandler(async (event) => {
     // A refresh is additive/upsert-only. Meta may omit older, visitor-created,
     // permission-limited or expired media from a later response, so a missing
     // provider id must never erase the local style history.
-    await client.query(
-      'UPDATE meta_connections SET last_sync_at=now(),updated_at=now() WHERE id=$1',
-      [connection.id],
-    )
+    if (source.target) await markInstagramTargetSynced(source.target, client)
+    else
+      await client.query(
+        'UPDATE meta_connections SET last_sync_at=now(),updated_at=now() WHERE id=$1',
+        [source.page!.id],
+      )
     await client.query('COMMIT')
     return {
       imported: response.data.length,

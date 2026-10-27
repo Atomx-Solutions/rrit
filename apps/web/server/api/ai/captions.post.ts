@@ -168,7 +168,7 @@ export default defineEventHandler(async (event) => {
             [brand.id],
           ),
           history: await client.query(
-            "SELECT sp.caption,sp.channel FROM social_posts sp WHERE sp.business_id=$1 AND EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) ORDER BY sp.published_at DESC LIMIT 8",
+            "SELECT sp.caption,sp.channel FROM social_posts sp WHERE sp.business_id=$1 AND (EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) OR EXISTS (SELECT 1 FROM instagram_connections ic WHERE ic.business_id=sp.business_id AND ic.status='connected' AND sp.channel='Instagram' AND sp.source_account_id=ic.instagram_user_id)) ORDER BY sp.published_at DESC LIMIT 8",
             [business.id],
           ),
           language: await client.query<{ research: unknown }>(
