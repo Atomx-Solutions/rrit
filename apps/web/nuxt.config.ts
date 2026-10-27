@@ -69,6 +69,10 @@ export default defineNuxtConfig({
           content:
             'Erstelle mit KI professionelle Texte, Bilder und Social-Media-Beiträge für dein Unternehmen in Deutschland, Österreich und der Schweiz.',
         },
+        // Meta Business verification reads this tag from the server-rendered home page.
+        ...(process.env.META_DOMAIN_VERIFICATION
+          ? [{ name: 'facebook-domain-verification', content: process.env.META_DOMAIN_VERIFICATION }]
+          : []),
       ],
       link: [{ rel: 'icon', type: 'image/webp', href: '/f-logo.webp' }],
     },
