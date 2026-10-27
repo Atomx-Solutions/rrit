@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 const authorizeUrl = 'https://www.tiktok.com/v2/auth/authorize/'
 const tokenUrl = 'https://open.tiktokapis.com/v2/oauth/token/'
 const inboxVideoInitUrl = 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/'
+const contentInitUrl = 'https://open.tiktokapis.com/v2/post/publish/content/init/'
 const videoListUrl = 'https://open.tiktokapis.com/v2/video/list/'
 
 export const hashTikTokState = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -82,6 +83,48 @@ export async function uploadTikTokDraft(accessToken: string, video: Buffer, cont
   console.log('[tiktok-upload] upload response:', uploaded.status, uploadBody)
   if (!uploaded.ok) throw createError({ statusCode: 502, message: 'server.TIKTOK_SEND_FAILED' })
   return { publishId: initialized.data.publish_id }
+}
+
+// TikTok refuses a photo for reasons only the app owner can clear in the
+// developer portal: the photo URL prefix is not verified, or the app was not
+// granted the upload scope. Those are not failures of this post, so the post
+// is handed over for manual publishing instead of failing.
+export const tiktokPhotoPermissionErrors = ['url_ownership_unverified', 'scope_not_authorized', 'scope_permission_missed']
+
+export class TikTokPhotoNotPermitted extends Error {
+  constructor(public readonly code: string) {
+    super(code)
+  }
+}
+
+// Sends one photo to the account holder's TikTok inbox as a draft they finish
+// and post in the app, the same hand-over a video gets. TikTok accepts photos
+// only by pulling them from a URL whose prefix the app has verified.
+export async function uploadTikTokPhotoDraft(
+  accessToken: string,
+  input: { photoUrl: string; title: string; description: string },
+) {
+  const response = await fetch(contentInitUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify({
+      media_type: 'PHOTO',
+      post_mode: 'MEDIA_UPLOAD',
+      post_info: {
+        title: Array.from(input.title).slice(0, 90).join(''),
+        description: Array.from(input.description).slice(0, 4000).join(''),
+      },
+      source_info: { source: 'PULL_FROM_URL', photo_images: [input.photoUrl], photo_cover_index: 0 },
+    }),
+    signal: AbortSignal.timeout(20000),
+    redirect: 'error',
+  })
+  const data = await response.json().catch(() => ({})) as { data?: { publish_id?: string }; error?: { code?: string; message?: string } }
+  const code = data.error?.code
+  if (code && tiktokPhotoPermissionErrors.includes(code)) throw new TikTokPhotoNotPermitted(code)
+  if (!response.ok || !data.data?.publish_id || (code && code !== 'ok'))
+    throw createError({ statusCode: 502, message: 'server.TIKTOK_UPLOAD_REJECTED' })
+  return { publishId: data.data.publish_id }
 }
 
 export type TikTokVideo = {

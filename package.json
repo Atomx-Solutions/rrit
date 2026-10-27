@@ -29,5 +29,10 @@
     "test:security": "npm run test:security --workspace apps/web",
     "test:e2e": "npm run test:e2e --workspace apps/web",
     "ai:smoke": "npm run ai:smoke --workspace apps/web"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "unrs-resolver": true,
+    "vue-demi": true
   }
 }

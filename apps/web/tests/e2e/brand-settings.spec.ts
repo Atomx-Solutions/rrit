@@ -50,10 +50,7 @@ test('brand settings persist profile, goals, locale and timezone', async ({ page
   await page.getByLabel('Çfarë ofron për klientët?', { exact: true }).fill('Servis real dhe i kontrolluar për klientët.')
   await page.getByRole('button', { name: 'Shto qëllim', exact: true }).click()
   await page.getByPlaceholder('P.sh. Gjej klientë të rinj').fill('Gjej klientë të rinj')
-  await page.getByLabel('Facebook URL', { exact: true }).fill('abc')
-  await page.getByRole('button', { name: 'Ruaj identitetin', exact: true }).click()
-  await expect(page.getByText('Vendos një URL valide.', { exact: true })).toBeVisible()
-  await page.getByLabel('Facebook URL', { exact: true }).fill('https://facebook.com/brand-settings')
+  await expect(page.getByLabel('Facebook URL', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Ruaj identitetin', exact: true }).click()
   await expect(page.getByText('Identiteti i biznesit u ruajt')).toBeVisible()
 
@@ -72,7 +69,6 @@ test('brand settings persist profile, goals, locale and timezone', async ({ page
     city: 'Rahovec',
     industry: 'Auto',
     goals: ['Gjej klientë të rinj'],
-    facebookUrl: 'https://facebook.com/brand-settings',
   })
   expect(saved.workspace.preferences).toMatchObject({ locale: 'en-US', timezone: 'Europe/Tirane' })
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { publishingChannels, type PublishingChannel } from '~~/shared/schemas/channel-format'
+import { maxVideoPhotos } from '~~/shared/schemas/storyboard'
 const props = defineProps<{ month: string }>()
 const { t } = useI18n()
 const { data: workspace, base, initLive, syncing } = useWorkspace()
@@ -20,6 +22,10 @@ watch(loadError, (value) => {
 }, { immediate: true })
 const researchOpen = ref(false)
 const resetOpen = ref(false)
+// A follow-up batch gets its own photo decision. It must not inherit the
+// first batch's allow-list, otherwise a customer cannot use newer or simply
+// different owned photographs for the next post.
+const configuringMore = ref(false)
 const photoMode = ref<'auto' | 'selected'>(planner.value?.photoPreference?.mode || 'auto')
 const originalPhotos = computed(() =>
   workspace.value.assets
@@ -35,27 +41,58 @@ const photoPageCount = computed(() => Math.max(1, Math.ceil(photoTotal.value / p
 const selectedPhotoIds = ref<string[]>([
   ...(planner.value?.photoPreference?.selectedAssetIds || []),
 ].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
-// A TikTok video is a deliverable of its own, so the photograph it animates is
-// chosen apart from the ones the feed posts use. The two lists never overlap.
-const selectedVideoPhotoIds = ref<string[]>([
-  ...(planner.value?.photoPreference?.selectedVideoAssetIds || []),
-].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
+// A video is a deliverable of its own, chosen apart from the feed posts. Each
+// video is a group of photographs of one subject: the first is the main one it
+// closes on and shows as its poster, the rest are further angles, one scene
+// each, up to maxVideoPhotos. The group being filled is the active card.
+const videoGroups = ref<string[][]>(
+  (planner.value?.photoPreference?.selectedVideoAssetIds || []).map((id) => [
+    id,
+    ...(planner.value?.photoPreference?.videoExtraAssetIds?.[id] || []),
+  ]),
+)
+const activeVideo = ref(0)
+const selectedVideoPhotoIds = computed(() => videoGroups.value.filter((group) => group.length).map((group) => group[0]!))
+const videoExtraAssetIds = computed(() => Object.fromEntries(
+  videoGroups.value.filter((group) => group.length > 1).map((group) => [group[0]!, group.slice(1)]),
+))
 watch(
   originalPhotos,
   (photos) => {
     const allowed = new Set(photos.map((photo) => photo.id))
     selectedPhotoIds.value = selectedPhotoIds.value.filter((id) => allowed.has(id))
-    selectedVideoPhotoIds.value = selectedVideoPhotoIds.value.filter((id) => allowed.has(id))
+    videoGroups.value = videoGroups.value.map((group) => group.filter((id) => allowed.has(id)))
   },
   { immediate: true },
 )
+function videoCardOf(id: string) {
+  return videoGroups.value.findIndex((group) => group.includes(id))
+}
 function photoChosen(id: string, kind: 'post' | 'video') {
-  return (kind === 'video' ? selectedVideoPhotoIds : selectedPhotoIds).value.includes(id)
+  return kind === 'video' ? videoCardOf(id) >= 0 : selectedPhotoIds.value.includes(id)
 }
 function photoRoleFull(kind: 'post' | 'video') {
   return kind === 'video'
-    ? selectedVideoPhotoIds.value.length >= selectedVideoQuantity.value
+    ? activeVideo.value >= selectedVideoQuantity.value
+      || (videoGroups.value[activeVideo.value]?.length || 0) >= maxVideoPhotos
     : selectedPhotoIds.value.length >= selectedQuantity.value
+}
+function configureMore() {
+  configuringMore.value = true
+  photoMode.value = 'selected'
+  selectedPhotoIds.value = []
+  videoGroups.value = []
+  activeVideo.value = 0
+}
+// The photograph moves to the front of its card and becomes the main one.
+function makeMainVideoPhoto(card: number, id: string) {
+  videoGroups.value = videoGroups.value.map((group, index) =>
+    index === card ? [id, ...group.filter((item) => item !== id)] : group)
+}
+function removeVideoCard(card: number) {
+  videoGroups.value = videoGroups.value.filter((_, index) => index !== card)
+  selectedVideoQuantity.value = Math.max(0, selectedVideoQuantity.value - 1)
+  activeVideo.value = Math.max(0, Math.min(activeVideo.value > card ? activeVideo.value - 1 : activeVideo.value, selectedVideoQuantity.value - 1))
 }
 // The two choices are independent, so each has its own control on the tile. A
 // photograph carrying both produces a feed post and a TikTok video from the
@@ -63,7 +100,20 @@ function photoRoleFull(kind: 'post' | 'video') {
 // planner has to reject later, so a full role refuses the click while the
 // person can still act on it.
 function togglePhoto(id: string, kind: 'post' | 'video') {
-  const list = kind === 'video' ? selectedVideoPhotoIds : selectedPhotoIds
+  if (kind === 'video') {
+    const card = videoCardOf(id)
+    if (card >= 0) {
+      videoGroups.value = videoGroups.value.map((group, index) => index === card ? group.filter((item) => item !== id) : group)
+      return
+    }
+    if (photoRoleFull('video')) return
+    const groups = [...videoGroups.value]
+    while (groups.length <= activeVideo.value) groups.push([])
+    groups[activeVideo.value] = [...groups[activeVideo.value]!, id]
+    videoGroups.value = groups
+    return
+  }
+  const list = selectedPhotoIds
   if (list.value.includes(id)) {
     list.value = list.value.filter((item) => item !== id)
     return
@@ -89,23 +139,23 @@ const plan = computed(() => planner.value?.plan)
 // reserve a static photo post before the customer chooses its quantity.
 const selectedQuantity = ref(0)
 const selectedVideoQuantity = ref(0)
-// Which platforms this request is for. Both selected is the absence of a
-// restriction, which is how the planner behaved before the choice existed.
-type PlannerChannel = 'Instagram' | 'Facebook'
-const channelOptions: { value: PlannerChannel; label: string; icon: string }[] = [
-  { value: 'Instagram', label: 'Instagram', icon: 'i-lucide-instagram' },
-  { value: 'Facebook', label: 'Facebook', icon: 'i-lucide-facebook' },
-]
-const channelSplit = reactive<Record<PlannerChannel, number>>({ Instagram: 0, Facebook: 0 })
-type VideoChannel = PlannerChannel | 'TikTok'
-const videoChannelOptions: { value: VideoChannel; label: string; icon: string }[] = [
-  ...channelOptions,
-  { value: 'TikTok', label: 'TikTok', icon: 'i-lucide-clapperboard' },
-]
-const videoChannelSplit = reactive<Record<VideoChannel, number>>({ Instagram: 0, Facebook: 0, TikTok: 0 })
+// Which platforms this request is for. Posts and videos reach the same three,
+// each on its own channel's canvas.
+type PlannerChannel = PublishingChannel
+const channelOptions = publishingChannels.map((channel) => ({
+  value: channel,
+  label: channel,
+  icon: channelIcon(channel),
+}))
+const emptySplit = () =>
+  Object.fromEntries(publishingChannels.map((channel) => [channel, 0])) as Record<PlannerChannel, number>
+const channelSplit = reactive(emptySplit())
+type VideoChannel = PlannerChannel
+const videoChannelOptions = channelOptions
+const videoChannelSplit = reactive(emptySplit())
 const requestOpen = ref(false)
 const requestAction = ref<'prepare' | 'generate'>('prepare')
-const splitAssigned = computed(() => channelSplit.Instagram + channelSplit.Facebook)
+const splitAssigned = computed(() => Object.values(channelSplit).reduce((sum, count) => sum + count, 0))
 // A single post is a choice between platforms, not an allocation across them.
 const singlePost = computed(() => selectedQuantity.value === 1)
 const splitComplete = computed(() => splitAssigned.value === selectedQuantity.value)
@@ -116,7 +166,7 @@ function openRequest(action: 'prepare' | 'generate') {
   // need a video photo. The guard fires only when the user is in `selected`
   // mode and has picked neither.
   if (
-    action === 'prepare' &&
+    (action === 'prepare' || action === 'generate') &&
     photoMode.value === 'selected' &&
     !selectedPhotoIds.value.length &&
     !selectedVideoPhotoIds.value.length
@@ -128,44 +178,43 @@ function openRequest(action: 'prepare' | 'generate') {
   // Start from everything on Instagram for one post, and an even split
   // otherwise, so the common case needs no arithmetic from the customer.
   const half = Math.floor(selectedQuantity.value / 2)
-  channelSplit.Instagram = selectedQuantity.value - half
-  channelSplit.Facebook = half
-  videoChannelSplit.Instagram = selectedVideoQuantity.value
-  videoChannelSplit.Facebook = 0
-  videoChannelSplit.TikTok = 0
+  Object.assign(channelSplit, emptySplit(), {
+    Instagram: selectedQuantity.value - half,
+    Facebook: half,
+  })
+  Object.assign(videoChannelSplit, emptySplit(), { Instagram: selectedVideoQuantity.value })
   requestOpen.value = true
 }
-function chooseSingleChannel(channel: PlannerChannel) {
-  channelSplit.Instagram = channel === 'Instagram' ? 1 : 0
-  channelSplit.Facebook = channel === 'Facebook' ? 1 : 0
+function chooseSingle(split: Record<PlannerChannel, number>, channel: PlannerChannel) {
+  for (const option of channelOptions) split[option.value] = option.value === channel ? 1 : 0
 }
-function setChannelCount(channel: PlannerChannel, value: number) {
-  const other: PlannerChannel = channel === 'Instagram' ? 'Facebook' : 'Instagram'
-  const next = Math.max(0, Math.min(value, selectedQuantity.value))
-  channelSplit[channel] = next
-  // Keep the pair consistent with the number of posts being requested, so the
-  // customer adjusts one side rather than solving for both.
-  channelSplit[other] = selectedQuantity.value - next
-}
-function chooseSingleVideoChannel(channel: VideoChannel) {
-  for (const option of videoChannelOptions) videoChannelSplit[option.value] = option.value === channel ? 1 : 0
-}
-function setVideoChannelCount(channel: VideoChannel, value: number) {
-  const next = Math.max(0, Math.min(value, selectedVideoQuantity.value))
-  videoChannelSplit[channel] = next
-  let excess = videoSplitAssigned.value - selectedVideoQuantity.value
-  for (const option of videoChannelOptions) {
+// Keeps a split consistent with the number being requested, so the customer
+// adjusts one platform rather than solving for all of them.
+function setCount(split: Record<PlannerChannel, number>, total: number, channel: PlannerChannel, value: number) {
+  const assigned = () => Object.values(split).reduce((sum, count) => sum + count, 0)
+  split[channel] = Math.max(0, Math.min(value, total))
+  let excess = assigned() - total
+  for (const option of channelOptions) {
     if (option.value === channel || excess <= 0) continue
-    const removed = Math.min(excess, videoChannelSplit[option.value])
-    videoChannelSplit[option.value] -= removed
+    const removed = Math.min(excess, split[option.value])
+    split[option.value] -= removed
     excess -= removed
   }
-  let missing = selectedVideoQuantity.value - videoSplitAssigned.value
-  for (const option of videoChannelOptions) {
-    if (option.value === channel || missing <= 0) continue
-    videoChannelSplit[option.value] += missing
-    missing = 0
-  }
+  const missing = total - assigned()
+  const receiver = channelOptions.find((option) => option.value !== channel)
+  if (missing > 0 && receiver) split[receiver.value] += missing
+}
+function chooseSingleChannel(channel: PlannerChannel) {
+  chooseSingle(channelSplit, channel)
+}
+function setChannelCount(channel: PlannerChannel, value: number) {
+  setCount(channelSplit, selectedQuantity.value, channel, value)
+}
+function chooseSingleVideoChannel(channel: VideoChannel) {
+  chooseSingle(videoChannelSplit, channel)
+}
+function setVideoChannelCount(channel: VideoChannel, value: number) {
+  setCount(videoChannelSplit, selectedVideoQuantity.value, channel, value)
 }
 // Platforms with no posts are left out entirely: zero is the absence of a
 // request for that platform, not a request for none.
@@ -202,8 +251,8 @@ watch(remainingPosts, (remaining) => {
 // Lowering a count leaves photos chosen that no longer have a deliverable to go
 // with, so the extras are released rather than left to fail at submission.
 watch(selectedVideoQuantity, (quantity) => {
-  if (selectedVideoPhotoIds.value.length > quantity)
-    selectedVideoPhotoIds.value = selectedVideoPhotoIds.value.slice(0, quantity)
+  if (videoGroups.value.length > quantity) videoGroups.value = videoGroups.value.slice(0, quantity)
+  if (activeVideo.value >= quantity) activeVideo.value = Math.max(0, quantity - 1)
 })
 watch(selectedQuantity, (quantity) => {
   if (selectedPhotoIds.value.length > quantity)
@@ -375,15 +424,13 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       body: {
         action,
         month: props.month,
-        ...(action === 'generate'
-          ? { quantity: selectedQuantity.value, channelCounts: requestedChannelCounts(), videoQuantity: selectedVideoQuantity.value, videoChannelCounts: requestedVideoChannelCounts() }
-          : {}),
-        ...(action === 'prepare'
+        ...(action === 'prepare' || action === 'generate'
           ? {
               photoMode: photoMode.value,
               selectedAssetIds: photoMode.value === 'selected' ? selectedPhotoIds.value : [],
               selectedVideoAssetIds:
                 photoMode.value === 'selected' ? selectedVideoPhotoIds.value : [],
+              videoExtraAssetIds: photoMode.value === 'selected' ? videoExtraAssetIds.value : {},
               quantity: selectedQuantity.value,
               channelCounts: requestedChannelCounts(),
               videoChannelCounts: requestedVideoChannelCounts(),
@@ -394,11 +441,13 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
       retry: 0,
     })
     await refresh()
+    if (action === 'generate') configuringMore.value = false
     if (action === 'reset') {
       resetOpen.value = false
       photoMode.value = 'auto'
       selectedPhotoIds.value = []
-      selectedVideoPhotoIds.value = []
+      videoGroups.value = []
+      activeVideo.value = 0
       await initLive()
     }
   } catch (problem) {
@@ -771,7 +820,7 @@ onBeforeUnmount(() => clearInterval(timer))
       />
     </div>
 
-    <div v-else-if="settled && plan" class="border-t border-default p-4">
+    <div v-else-if="settled && plan && !configuringMore" class="border-t border-default p-4">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
         <div class="flex items-start gap-3">
           <div
@@ -847,7 +896,7 @@ onBeforeUnmount(() => clearInterval(timer))
             :loading="busy"
             :disabled="selectedQuantity + selectedVideoQuantity < 1"
             icon="i-lucide-plus"
-            @click="openRequest('generate')"
+            @click="configureMore"
           >
             {{ generateMoreLabel }}
           </UButton>
@@ -855,7 +904,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
       <p v-else class="mt-3 text-sm text-muted">{{ t('monthly.quotaUsedUp') }}</p>
     </div>
-    <div v-else-if="ready && plan" class="border-t border-default p-4">
+    <div v-else-if="ready && plan && !configuringMore" class="border-t border-default p-4">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
         <div class="flex items-start gap-3">
           <div
@@ -930,7 +979,7 @@ onBeforeUnmount(() => clearInterval(timer))
             :loading="busy"
             :disabled="selectedQuantity + selectedVideoQuantity < 1"
             icon="i-lucide-plus"
-            @click="openRequest('generate')"
+            @click="configureMore"
           >
             {{ generateMoreLabel }}
           </UButton>
@@ -941,9 +990,20 @@ onBeforeUnmount(() => clearInterval(timer))
     <div v-else class="border-t border-default p-4">
       <div>
         <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('monthly.monthPhotos') }}</p>
-        <h3 class="mt-1 text-base font-semibold text-highlighted">
-          {{ t('legacy.choosePhotoQuestion') }}
-        </h3>
+        <div class="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-base font-semibold text-highlighted">{{ t('legacy.choosePhotoQuestion') }}</h3>
+          <UButton
+            v-if="configuringMore"
+            type="button"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-x"
+            @click="configuringMore = false"
+          >
+            {{ t('common.cancel') }}
+          </UButton>
+        </div>
         <p class="mt-1 max-w-2xl text-sm leading-6 text-muted">
           {{ t('legacy.originalsDescription') }}
         </p>
@@ -1079,6 +1139,77 @@ onBeforeUnmount(() => clearInterval(timer))
               thing being chosen. Two columns on a phone keep each tile and each
               tap target comfortable; the denser grids return with the width.
             -->
+            <!--
+              One card per video. The photographs chosen with the video button
+              join the active card; the first in a card is the main one.
+            -->
+            <div v-if="originalPhotos.length && selectedVideoQuantity > 0" class="mt-3">
+              <p class="text-xs font-semibold text-highlighted">{{ t('monthly.videoCardsTitle') }}</p>
+              <p class="mt-0.5 text-xs text-muted">{{ t('monthly.videoCardsHelp', { max: maxVideoPhotos }) }}</p>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div
+                  v-for="card in selectedVideoQuantity"
+                  :key="card"
+                  role="button"
+                  tabindex="0"
+                  class="relative block h-auto cursor-pointer rounded-xl border border-default p-2.5 text-left transition hover:bg-elevated/80"
+                  :class="activeVideo === card - 1 ? 'ring-2 ring-primary' : ''"
+                  :aria-pressed="activeVideo === card - 1"
+                  @click="activeVideo = card - 1"
+                  @keydown.enter="activeVideo = card - 1"
+                  @keydown.space.prevent="activeVideo = card - 1"
+                >
+                  <UButton
+                    type="button"
+                    color="neutral"
+                    variant="ghost"
+                    size="xs"
+                    icon="i-lucide-x"
+                    class="absolute right-1.5 top-1.5"
+                    :aria-label="t('monthly.removeVideoCard', { number: card })"
+                    :title="t('monthly.removeVideoCard', { number: card })"
+                    @click.stop="removeVideoCard(card - 1)"
+                  />
+                  <span class="flex items-center gap-1.5 text-xs font-semibold">
+                    <UIcon name="i-lucide-clapperboard" class="size-3.5 text-primary" />
+                    {{ t('monthly.videoCardTitle', { number: card }) }}
+                  </span>
+                  <span class="mt-2 flex gap-1.5">
+                    <span
+                      v-for="(id, index) in videoGroups[card - 1] || []"
+                      :key="id"
+                      class="relative size-12 overflow-hidden rounded-lg border border-default"
+                    >
+                      <MediaImage
+                        :src="originalPhotos.find((asset) => asset.id === id)?.url || ''"
+                        :alt="originalPhotos.find((asset) => asset.id === id)?.name || ''"
+                        fit="cover"
+                        class="size-full"
+                      />
+                      <span
+                        role="button"
+                        tabindex="0"
+                        class="absolute right-0.5 top-0.5 rounded-full bg-black/60 px-1 text-[10px] leading-4"
+                        :class="index === 0 ? 'text-yellow-300' : 'text-white/70'"
+                        :title="index === 0 ? t('monthly.videoMainPhoto') : t('monthly.videoMakeMain')"
+                        :aria-label="index === 0 ? t('monthly.videoMainPhoto') : t('monthly.videoMakeMain')"
+                        @click.stop="makeMainVideoPhoto(card - 1, id)"
+                        @keydown.enter.stop="makeMainVideoPhoto(card - 1, id)"
+                      >&#9733;</span>
+                    </span>
+                    <span
+                      v-if="(videoGroups[card - 1]?.length || 0) < maxVideoPhotos"
+                      class="flex size-12 items-center justify-center rounded-lg border border-dashed border-default text-muted"
+                    >+</span>
+                  </span>
+                  <span class="mt-1.5 block text-[11px] text-muted">
+                    {{ (videoGroups[card - 1]?.length || 0) > 1
+                      ? t('monthly.videoCardScenes', { count: videoGroups[card - 1]!.length })
+                      : t('monthly.videoCardOneAngle') }}
+                  </span>
+                </div>
+              </div>
+            </div>
             <div
               v-if="originalPhotos.length"
               class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
@@ -1111,6 +1242,7 @@ onBeforeUnmount(() => clearInterval(timer))
                     :color="photoChosen(asset.id, kind) ? 'primary' : 'neutral'"
                     :variant="photoChosen(asset.id, kind) ? 'solid' : 'soft'"
                     :icon="kind === 'video' ? 'i-lucide-clapperboard' : 'i-lucide-image'"
+                    :label="kind === 'video' && photoChosen(asset.id, 'video') ? `V${videoCardOf(asset.id) + 1}` : undefined"
                     :aria-pressed="photoChosen(asset.id, kind)"
                     :title="kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')"
                     :aria-label="`${asset.name} — ${kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')}`"
@@ -1210,7 +1342,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="text-sm font-medium text-highlighted">{{ t('monthly.readyToPrepare') }}</p>
               <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
             </div>
-            <UButton :loading="busy" :disabled="selectedQuantity + selectedVideoQuantity < 1" icon="i-lucide-calendar-plus" @click="openRequest('prepare')">
+            <UButton :loading="busy" :disabled="selectedQuantity + selectedVideoQuantity < 1" icon="i-lucide-calendar-plus" @click="openRequest(configuringMore ? 'generate' : 'prepare')">
               {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
             </UButton>
           </div>
@@ -1231,7 +1363,7 @@ onBeforeUnmount(() => clearInterval(timer))
     >
       <template #body>
         <h3 v-if="selectedVideoQuantity" class="mb-3 text-sm font-semibold text-highlighted">{{ t('monthly.postPlatforms') }}</h3>
-        <div v-if="singlePost" class="grid grid-cols-2 gap-3">
+        <div v-if="singlePost" class="grid grid-cols-3 gap-3">
           <UButton
             v-for="option in channelOptions"
             :key="option.value"
@@ -1243,11 +1375,12 @@ onBeforeUnmount(() => clearInterval(timer))
             class="h-auto flex-col gap-3 py-6"
             @click="chooseSingleChannel(option.value)"
           >
-            <UIcon :name="option.icon" class="size-12" />
+            <TikTokMark v-if="option.value === 'TikTok'" class="size-12" />
+            <UIcon v-else :name="option.icon" class="size-12" />
             <span class="text-sm font-semibold">{{ option.label }}</span>
           </UButton>
         </div>
-        <div v-else class="grid grid-cols-2 gap-3">
+        <div v-else class="grid grid-cols-3 gap-3">
           <UCard
             v-for="option in channelOptions"
             :key="option.value"
@@ -1255,13 +1388,14 @@ onBeforeUnmount(() => clearInterval(timer))
             :class="channelSplit[option.value] > 0 ? 'ring-1 ring-primary' : ''"
           >
             <div class="flex flex-col items-center gap-3 text-center">
-              <UIcon :name="option.icon" class="size-8" />
+              <TikTokMark v-if="option.value === 'TikTok'" class="size-8" />
+              <UIcon v-else :name="option.icon" class="size-8" />
               <span class="text-sm font-semibold text-highlighted">{{ option.label }}</span>
               <LiveInputNumber
                 :model-value="channelSplit[option.value]"
                 :min="0"
                 :max="selectedQuantity"
-                class="w-28"
+                class="w-24"
                 :aria-label="t('monthly.postsForChannel', { channel: option.label })"
                 @update:model-value="setChannelCount(option.value, Number($event))"
               />

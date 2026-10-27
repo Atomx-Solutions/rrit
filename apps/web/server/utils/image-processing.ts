@@ -1,5 +1,12 @@
 import sharp, { type OverlayOptions } from 'sharp'
-import { PlannerFailure, feedCreativeCanvas } from './monthly-planner-domain'
+import { PlannerFailure } from './monthly-planner-domain'
+import {
+  channelCanvas,
+  channelUiInsets,
+  type Canvas,
+  type CanvasInsets,
+  type PublishingChannel,
+} from '../../shared/schemas/channel-format'
 
 function escapeXml(value: string) {
   return value.replace(
@@ -299,10 +306,9 @@ export async function removeLogoBackground(input: Buffer) {
 // the logo itself. Headline type set beside the logo is what makes a placement
 // look wrong, and a region limited to the logo's own box never sees it.
 const LOGO_CLEARANCE = 88
-// Fine enough for set type to register as edges; the former 108x135 averaged a
-// headline away into flat sky.
+// Fine enough for set type to register as edges; the former 108px width
+// averaged a headline away into flat sky. The height follows the canvas.
 const PLACEMENT_ANALYSIS_WIDTH = 216
-const PLACEMENT_ANALYSIS_HEIGHT = 270
 
 /**
  * The corner the composing model left free, when it said which one. Scoring is
@@ -311,10 +317,20 @@ const PLACEMENT_ANALYSIS_HEIGHT = 270
  */
 export type LogoZone = 'auto' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
-export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: LogoZone) {
+export async function chooseLogoPlacement(
+  image: Buffer,
+  logo: Buffer,
+  zone?: LogoZone,
+  // Where the channel's own interface covers the image; the logo never goes there.
+  covered: CanvasInsets = { top: 0, right: 0, bottom: 0, left: 0 },
+) {
+  const imageMeta = await sharp(image).metadata()
+  const width = imageMeta.width || 0
+  const height = imageMeta.height || 0
+  const analysisHeight = Math.max(1, Math.round(PLACEMENT_ANALYSIS_WIDTH * height / Math.max(1, width)))
   const [imageAnalysis, logoAnalysis] = await Promise.all([
     sharp(image)
-      .resize(PLACEMENT_ANALYSIS_WIDTH, PLACEMENT_ANALYSIS_HEIGHT, { fit: 'fill' })
+      .resize(PLACEMENT_ANALYSIS_WIDTH, analysisHeight, { fit: 'fill' })
       .grayscale()
       .raw()
       .toBuffer({ resolveWithObject: true }),
@@ -333,8 +349,6 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
   if (!visibleLogoPixels) return { left: 48, top: 48 }
   logoLuminance /= visibleLogoPixels
 
-  const width = feedCreativeCanvas.width
-  const height = feedCreativeCanvas.height
   const logoMetadata = await sharp(logo).metadata()
   const logoWidth = logoMetadata.width || 0
   const logoHeight = logoMetadata.height || 0
@@ -344,13 +358,17 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
     marginX,
     Math.round((width - logoWidth) / 2),
     width - logoWidth - 56,
-  ])].filter((left) => left >= marginX && left + logoWidth <= width - marginX)
+  ])].filter((left) =>
+    left >= Math.max(marginX, Math.ceil(width * covered.left)) &&
+    left + logoWidth <= width - Math.max(marginX, Math.ceil(width * covered.right)))
   const verticalPositions = [...new Set([
     marginY,
     140,
     height - logoHeight - 140,
     height - logoHeight - marginY,
-  ])].filter((top) => top >= marginY && top + logoHeight <= height - marginY)
+  ])].filter((top) =>
+    top >= Math.max(marginY, Math.ceil(height * covered.top)) &&
+    top + logoHeight <= height - Math.max(marginY, Math.ceil(height * covered.bottom)))
 
   // The named corner is a preference, not a rule. A model that says it left the
   // bottom free and then sets its copy block there would otherwise push the
@@ -363,7 +381,11 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
     return zone === `${onTop ? 'top' : 'bottom'}-${onLeft ? 'left' : 'right'}`
   }
 
-  let best = { left: marginX, top: marginY, score: Number.POSITIVE_INFINITY }
+  let best = {
+    left: horizontalPositions[0] ?? marginX,
+    top: verticalPositions[0] ?? marginY,
+    score: Number.POSITIVE_INFINITY,
+  }
   for (const top of verticalPositions) {
     for (const left of horizontalPositions) {
       const startX = Math.max(
@@ -418,13 +440,20 @@ export async function chooseLogoPlacement(image: Buffer, logo: Buffer, zone?: Lo
 
 // Technical output normalization. A supplied approved logo is the only optional
 // deterministic brand element added after generation; no logo means no overlay.
-export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer, logoZone?: LogoZone) {
+export async function normalizeGeneratedCreative(
+  image: Buffer,
+  channel: PublishingChannel,
+  logo?: Buffer,
+  logoZone?: LogoZone,
+) {
+  const canvas = channelCanvas(channel)
   const normalized = sharp(image, { limitInputPixels: 24000000 })
     .rotate()
-    // The image prompt reserves a centered 4:5 safe region inside providers that
-    // only expose a native 3:4 portrait canvas. A deterministic centre crop keeps
-    // that contract; attention-based cropping could unexpectedly move typography.
-    .resize(feedCreativeCanvas.width, feedCreativeCanvas.height, {
+    // The image prompt reserves a centered safe region of the channel's canvas
+    // inside the provider's closest portrait ratio. A deterministic centre crop
+    // keeps that contract; attention-based cropping could move typography.
+    // `cover` scales uniformly, so the picture is cropped, never stretched.
+    .resize(canvas.width, canvas.height, {
       fit: 'cover',
       position: 'centre',
     })
@@ -444,7 +473,7 @@ export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer, l
     const logoHeight = logoMetadata.height || 0
     if (logoWidth && logoHeight) {
       const base = await normalized.png().toBuffer()
-      const placement = await chooseLogoPlacement(base, resizedLogo, logoZone)
+      const placement = await chooseLogoPlacement(base, resizedLogo, logoZone, channelUiInsets(channel))
       result = await sharp(base)
         .composite([{ input: resizedLogo, left: placement.left, top: placement.top }])
         .jpeg({ quality: 94, mozjpeg: true })
@@ -460,216 +489,54 @@ export async function normalizeGeneratedCreative(image: Buffer, logo?: Buffer, l
 }
 
 /**
- * Prepare a source photograph to be sent to the video provider as the first
- * frame of a vertical video. The provider receives a frame that already matches
- * the requested video canvas, so it never has to invent a landscape→vertical
- * transition and never letterboxes the clip.
- *
- * Attention-based cropping keeps the salient subject in frame when it can; if
- * sharp cannot evaluate attention for this image (very small, unusual channel
- * layout, etc.), a centre crop takes over so the render never fails on a
- * preparation step.
+ * A finished image brought to another canvas without cutting or stretching
+ * it: the whole image is scaled to fit and set over a blurred, darkened fill
+ * of itself, so its type and subject stay complete. Used only when a file
+ * reaches publishing in the wrong shape.
  */
-export async function prepareVideoFirstFrame(image: Buffer, target: { width: number; height: number }) {
-  const base = sharp(image, { limitInputPixels: 24000000 }).rotate()
-  try {
-    return await base
-      .clone()
-      .resize(target.width, target.height, { fit: 'cover', position: sharp.strategy.attention })
-      .jpeg({ quality: 94, mozjpeg: true })
-      .toBuffer()
-  } catch {
-    return await base
-      .resize(target.width, target.height, { fit: 'cover', position: 'centre' })
-      .jpeg({ quality: 94, mozjpeg: true })
-      .toBuffer()
-  }
-}
-
-/**
- * The opening and closing frames a motion model travels between.
- *
- * Both are cut from the same real photograph, so the model only interpolates
- * between two true views of one subject and has nothing to invent: a push ends
- * on a closer crop, a pull starts on one, and an orbit-like idea becomes a
- * glide across the photographed view instead of a turn that would reveal a
- * side the photograph never showed. Zoom stays modest so the closer view keeps
- * the whole subject recognisable.
- *
- * A photograph much wider than the vertical canvas is not cropped to fill it:
- * a crop keeps only a fragment of the subject, and a model shown a fragment
- * invents the rest. Its motion is made on the landscape canvas instead, the
- * vertical canvas turned on its side, so the model sees the whole photograph
- * and nothing else; the composer then places that clip whole across the
- * vertical canvas over a blurred fill of itself, clear of the zone the type
- * will occupy. The model is never shown an empty area it could
- * fill with an invented subject.
- */
-const MIN_COVER_KEPT_WIDTH = 0.75
-
-export async function videoKeyframes(
-  image: Buffer,
-  target: { width: number; height: number },
-  shot: { camera: string; pacing: string; subjectAnchor: string; textZone: string; action: string },
-) {
+export async function conformImageToCanvas(image: Buffer, canvas: Canvas) {
   const source = sharp(image, { limitInputPixels: 24000000 }).rotate()
-  const meta = await source.clone().metadata()
-  const sourceWidth = (meta.orientation || 1) >= 5 ? meta.height || 0 : meta.width || 0
-  const sourceHeight = (meta.orientation || 1) >= 5 ? meta.width || 0 : meta.height || 0
-  const keptWidth = sourceWidth && sourceHeight
-    ? Math.min(1, (sourceHeight * target.width / target.height) / sourceWidth)
-    : 1
-  const landscape = keptWidth < MIN_COVER_KEPT_WIDTH
-  const canvas = landscape ? { width: target.height, height: target.width } : target
-  const zoom = shot.pacing === 'punchy' ? 1.18 : shot.pacing === 'calm' ? 1.08 : 1.12
-  const wideWidth = Math.round(canvas.width * zoom)
-  const wideHeight = Math.round(canvas.height * zoom)
-  let wide: Buffer
-  try {
-    wide = await source.clone().resize(wideWidth, wideHeight, { fit: 'cover', position: sharp.strategy.attention }).toBuffer()
-  } catch {
-    wide = await source.resize(wideWidth, wideHeight, { fit: 'cover', position: 'centre' }).toBuffer()
-  }
-  // Each view is a rectangle of the wide image: the whole of it, or a
-  // canvas-sized window toward one side. The frames are those rectangles at
-  // canvas size, and the rectangles themselves let a camera-only move be
-  // rendered from the photograph directly.
-  type View = { x: number; y: number; width: number; height: number }
-  const full: View = { x: 0, y: 0, width: wideWidth, height: wideHeight }
-  const closer = (anchor: string): View => {
-    const spare = wideWidth - canvas.width
-    return {
-      x: anchor === 'left' ? 0 : anchor === 'right' ? spare : Math.round(spare / 2),
-      y: Math.round((wideHeight - canvas.height) / 2),
-      width: canvas.width,
-      height: canvas.height,
-    }
-  }
-  const opposite = shot.subjectAnchor === 'left' ? 'right' : 'left'
-  const [from, to] = ((): [View, View] => {
-    switch (shot.camera) {
-      case 'static':
-        return [full, full]
-      case 'slow_pull':
-        return [closer(shot.subjectAnchor), full]
-      case 'arc':
-      case 'parallax_drift':
-        // A sideways glide that comes to rest on the subject.
-        return [closer(opposite), closer(shot.subjectAnchor)]
-      default:
-        return [full, closer(shot.subjectAnchor)]
-    }
-  })()
-  const frame = (view: View) => sharp(wide)
-    .extract({ left: view.x, top: view.y, width: view.width, height: view.height })
-    .resize(canvas.width, canvas.height)
-    .jpeg({ quality: 94, mozjpeg: true })
+  const fill = await source.clone()
+    .resize(canvas.width, canvas.height, { fit: 'cover', position: 'centre' })
+    .blur(Math.max(8, Math.round(canvas.width / 40)))
+    .modulate({ brightness: 0.78 })
     .toBuffer()
-  const [first, last] = await Promise.all([frame(from), frame(to)])
-  // A subject that moves ends somewhere the photograph never showed, so its
-  // motion is pinned at the start only; the result is checked afterwards.
-  return {
-    first,
-    last: shot.action === 'subject_moves' ? undefined : last,
-    canvas,
-    landscape,
-    still: { image: await sharp(wide).jpeg({ quality: 95 }).toBuffer(), from, to },
-  }
+  const fitted = await source.resize(canvas.width, canvas.height, { fit: 'inside' }).toBuffer({ resolveWithObject: true })
+  return sharp(fill)
+    .composite([{
+      input: fitted.data,
+      left: Math.round((canvas.width - fitted.info.width) / 2),
+      top: Math.round((canvas.height - fitted.info.height) / 2),
+    }])
+    .jpeg({ quality: 90, mozjpeg: true })
+    .toBuffer()
 }
 
 /**
- * Deterministic branded end-card for a video post.
- *
- * Composes a 9:16 image (default 1080x1920) with the brand's primary colour as
- * the background, the approved logo centred in the upper third when present,
- * the business name as a headline and the approved CTA as a secondary line.
- * No AI call. Reuses existing sharp + logo infrastructure.
- *
- * SVG text is used instead of sharp's text input so the composition is a single
- * atomic rasterisation that works on any sharp install, with no fontconfig or
- * Pango prerequisites. The font-family falls back through a safe stack when a
- * specific brand font is not installed on the server.
+ * A delivered frame placed whole and untouched in the centre of a larger
+ * provider canvas, with a blurred, darkened stretch of itself filling the
+ * rest. The provider paints its own ratio; the composer centre-crops the clip
+ * back to the frame, so the padding is never delivered and no pixel of the
+ * frame is cut or distorted to fit the provider.
  */
-export async function buildVideoEndCard(input: {
-  businessName: string
-  cta: string
-  primaryColor?: string
-  onPrimary?: string
-  fontFamily?: string
-  weightHook?: number
-  weightCta?: number
-  logo?: Buffer
-  target?: { width: number; height: number }
-}) {
-  const width = input.target?.width ?? 1080
-  const height = input.target?.height ?? 1920
-  const primary = sanitizeHex(input.primaryColor) || '#0F172A'
-  const onPrimary = sanitizeHex(input.onPrimary) || readableOn(primary)
-  const fontStack = (input.fontFamily?.trim() || 'Inter')
-    .replace(/["<>]/g, '')
-  const weightHook = clampWeight(input.weightHook, 700)
-  const weightCta = clampWeight(input.weightCta, 600)
-  // Wrap complete approved strings inside the phone-safe centre. Never crop
-  // their content to make it fit: the end-card is the exact-copy renderer.
-  const textBlock = (value: string, centreY: number, maxSize: number, boxHeight: number) => {
-    const maxChars = Math.max(12, Math.floor(width * 0.82 / (maxSize * 0.55)))
-    const words = value.split(/\s+/).filter(Boolean)
-    const lines: string[] = []
-    let line = ''
-    for (const word of words) {
-      if (line && `${line} ${word}`.length > maxChars) {
-        lines.push(line)
-        line = word
-      } else line = line ? `${line} ${word}` : word
-    }
-    if (line) lines.push(line)
-    if (!lines.length) lines.push('')
-    const longest = Math.max(...lines.map(part => Array.from(part).length), 1)
-    const fontSize = Math.max(1, Math.floor(Math.min(maxSize, width * 0.82 / (longest * 0.55), boxHeight / (lines.length * 1.2))))
-    const step = fontSize * 1.2
-    const firstY = centreY - (lines.length - 1) * step / 2
-    return { fontSize, tspans: lines.map((part, index) => `<tspan x="${width / 2}" y="${Math.round(firstY + index * step)}">${escapeXml(part)}</tspan>`).join('') }
-  }
-  // A logo already says who the business is, so the card shows the logo large
-  // in place of the name rather than both; the call to action moves up to sit
-  // under it.
-  const ctaY = input.logo ? height * 0.64 : height * 0.74
-  const headline = textBlock(input.businessName, height * 0.6, 96, height * 0.17)
-  // A short call to action is set as the same button the video's overlay
-  // uses, inverted onto the brand colour; a long one stays a line of copy.
-  const ctaText = input.cta.trim()
-  const ctaButton = ctaText.length > 0 && ctaText.length <= 40
-  const cta = textBlock(ctaText, ctaY, ctaButton ? 46 : 48, height * 0.19)
-  const buttonWidth = Math.min(width * 0.82, Array.from(ctaText).length * cta.fontSize * 0.58 + cta.fontSize * 2.6)
-  const buttonHeight = cta.fontSize * 2.3
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="${width}" height="${height}" fill="${primary}"/>
-  ${input.logo ? '' : `<text font-family="${fontStack}, 'Helvetica Neue', Arial, sans-serif" font-size="${headline.fontSize}" font-weight="${weightHook}" fill="${onPrimary}" text-anchor="middle">${headline.tspans}</text>`}
-  ${ctaButton ? `<rect x="${Math.round((width - buttonWidth) / 2)}" y="${Math.round(ctaY - buttonHeight / 2 - cta.fontSize * 0.36)}" width="${Math.round(buttonWidth)}" height="${Math.round(buttonHeight)}" rx="${Math.round(buttonHeight / 2)}" fill="${onPrimary}"/>` : ''}
-  <text font-family="${fontStack}, 'Helvetica Neue', Arial, sans-serif" font-size="${cta.fontSize}" font-weight="${weightCta}" fill="${ctaButton ? primary : onPrimary}" fill-opacity="${ctaButton ? 1 : 0.85}" text-anchor="middle">${cta.tspans}</text>
-</svg>`
-  const background = await sharp(Buffer.from(svg)).jpeg({ quality: 92, mozjpeg: true }).toBuffer()
-  if (!input.logo) return background
-  // Trimmed to the artwork, so the empty canvas a logo file often carries
-  // around it does not shrink the logo inside its box.
-  const trimmedLogo = await sharp(await removeLogoBackground(input.logo)).trim().png().toBuffer()
-  const resizedLogo = await sharp(trimmedLogo)
-    .resize(Math.round(width * 0.6), Math.round(height * 0.26), {
-      fit: 'inside',
-      kernel: sharp.kernel.lanczos3,
-    })
-    .png()
+export async function padFrameToCanvas(frame: Buffer, canvas: Canvas) {
+  const meta = await sharp(frame).metadata()
+  const width = meta.width || 0
+  const height = meta.height || 0
+  if (width === canvas.width && height === canvas.height) return frame
+  if (width > canvas.width || height > canvas.height) throw new Error('Frame is larger than the provider canvas')
+  const fill = await sharp(frame)
+    .resize(canvas.width, canvas.height, { fit: 'cover', position: 'centre' })
+    .blur(Math.max(8, Math.round(canvas.width / 40)))
+    .modulate({ brightness: 0.78 })
     .toBuffer()
-  const logoMeta = await sharp(resizedLogo).metadata()
-  const logoWidth = logoMeta.width || 0
-  const logoHeight = logoMeta.height || 0
-  if (!logoWidth || !logoHeight) throw new Error('Approved logo could not be composed')
-  const left = Math.round((width - logoWidth) / 2)
-  const top = Math.round(height * 0.42 - logoHeight / 2)
-  return sharp(background)
-    .composite([{ input: resizedLogo, left, top }])
-    .jpeg({ quality: 92, mozjpeg: true })
+  return sharp(fill)
+    .composite([{
+      input: frame,
+      left: Math.round((canvas.width - width) / 2),
+      top: Math.round((canvas.height - height) / 2),
+    }])
+    .jpeg({ quality: 94, mozjpeg: true })
     .toBuffer()
 }
 
@@ -691,6 +558,10 @@ export async function buildVideoOverlayLayers(input: {
   subline?: string
   cta?: string
   zone: 'top' | 'bottom'
+  // Where the subject spans vertically, as shares of the height from the top.
+  // The text then takes the free side with more room and is sized to fit
+  // there, so it never covers the subject.
+  avoid?: { top: number; bottom: number }
   primaryColor?: string
   onPrimary?: string
   fontFamily?: string
@@ -699,19 +570,23 @@ export async function buildVideoOverlayLayers(input: {
   // The approved logo, shown in place of the business name when there is one.
   logo?: Buffer
   target: { width: number; height: number }
+  // Where the channel's own interface covers the video, beyond the general
+  // header and footer bands below.
+  covered?: CanvasInsets
 }) {
   const { width, height } = input.target
+  const covered = input.covered || { top: 0, right: 0, bottom: 0, left: 0 }
   const primary = sanitizeHex(input.primaryColor) || '#0F172A'
   const onPrimary = sanitizeHex(input.onPrimary) || readableOn(primary)
   const font = `${(input.fontFamily?.trim() || 'Inter').replace(/["<>]/g, '')}, 'Helvetica Neue', Arial, sans-serif`
   const weightHook = clampWeight(input.weightHook, 800)
   const weightCta = clampWeight(input.weightCta, 600)
-  const margin = Math.round(width * 0.075)
-  const textWidth = width - margin * 2
+  const margin = Math.round(Math.max(width * 0.075, width * covered.left))
+  const textWidth = width - margin - Math.round(Math.max(width * 0.075, width * covered.right))
   // The platforms draw their own header across the top and their caption,
   // actions and progress bar across the bottom, so the type stays between.
-  const safeTop = Math.round(height * 0.11)
-  const safeBottom = Math.round(height * 0.78)
+  const safeTop = Math.round(height * Math.max(0.11, covered.top))
+  const safeBottom = Math.round(height * Math.min(0.78, 1 - covered.bottom))
 
   const wrap = (value: string, size: number, widthFactor: number) => {
     const maxChars = Math.max(6, Math.floor(textWidth / (size * widthFactor)))
@@ -741,7 +616,7 @@ export async function buildVideoOverlayLayers(input: {
   const eyebrow = input.eyebrow?.trim().toLocaleUpperCase() || ''
   const sublineSize = Math.round(width * 0.052)
   // A headline that already fills three lines carries the message alone.
-  const sublineLines = input.subline?.trim() && headlineLines.length < 3
+  let sublineLines = input.subline?.trim() && headlineLines.length < 3
     ? wrap(input.subline.trim(), sublineSize, 0.52).slice(0, 2)
     : []
   // A call to action reads as a button only while it is button-sized.
@@ -752,7 +627,7 @@ export async function buildVideoOverlayLayers(input: {
 
   const gap = Math.round(height * 0.02)
   const ruleHeight = Math.max(4, Math.round(brandSize * 0.18))
-  const headlineStep = Math.round(headlineSize * 1.02)
+  let headlineStep = Math.round(headlineSize * 1.02)
   const sublineStep = Math.round(sublineSize * 1.25)
   // Every row's height in reading order, so the block can be placed from
   // either edge of the safe area with the same arithmetic.
@@ -765,15 +640,32 @@ export async function buildVideoOverlayLayers(input: {
       .toBuffer()
     : undefined
   const brandHeight = brandMark ? (await sharp(brandMark).metadata()).height || brandSize : brandSize
-  const rows = [
+  const measure = () => [
     brandHeight, gap, ruleHeight, gap,
     ...(eyebrow ? [eyebrowSize, gap] : []),
     headlineLines.length * headlineStep, gap,
     ...(sublineLines.length ? [sublineLines.length * sublineStep, gap] : []),
     cta ? ctaHeight : 0,
-  ]
-  const blockHeight = rows.reduce((total, value) => total + value, 0)
-  let y = input.zone === 'top' ? safeTop : safeBottom - blockHeight
+  ].reduce((total, value) => total + value, 0)
+  let blockHeight = measure()
+  // With the subject's band known, the text goes to the free side with more
+  // room, and the headline steps down until the whole block fits there. The
+  // copy itself is never cut; at the smallest size it keeps the room it needs.
+  let zone = input.zone
+  if (input.avoid) {
+    const above = Math.round(height * input.avoid.top) - safeTop - gap
+    const below = safeBottom - Math.round(height * input.avoid.bottom) - gap
+    zone = above >= below ? 'top' : 'bottom'
+    const room = Math.max(above, below)
+    while (blockHeight > room && headlineSize > 40) {
+      headlineSize -= 4
+      headlineLines = wrap(headlineText, headlineSize, 0.62)
+      headlineStep = Math.round(headlineSize * 1.02)
+      sublineLines = headlineLines.length < 3 ? sublineLines : []
+      blockHeight = measure()
+    }
+  }
+  let y = zone === 'top' ? safeTop : safeBottom - blockHeight
   const top = y
   const brandTop = y
   const brandY = (y += brandHeight)
@@ -790,9 +682,9 @@ export async function buildVideoOverlayLayers(input: {
   // A soft scrim behind the type keeps it legible on any photograph without
   // boxing the motion in.
   const reach = Math.round(height * 0.12)
-  const scrimStart = input.zone === 'top' ? 0 : Math.max(0, top - reach)
-  const scrimEnd = input.zone === 'top' ? Math.min(height, top + blockHeight + reach) : height
-  const scrim = input.zone === 'top'
+  const scrimStart = zone === 'top' ? 0 : Math.max(0, top - reach)
+  const scrimEnd = zone === 'top' ? Math.min(height, top + blockHeight + reach) : height
+  const scrim = zone === 'top'
     ? '<stop offset="0" stop-color="#000" stop-opacity="0.66"/><stop offset="0.7" stop-color="#000" stop-opacity="0.38"/><stop offset="1" stop-color="#000" stop-opacity="0"/>'
     : '<stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="0.3" stop-color="#000" stop-opacity="0.38"/><stop offset="1" stop-color="#000" stop-opacity="0.66"/>'
   const layer = (body: string) => sharp(Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>

@@ -403,7 +403,7 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                       class="w-full"
                     />
                   </UFormField>
-                  <UFormField :label="t('brain.factSource')">
+                  <UFormField :label="t('brain.factSource')" required>
                     <UInput
                       v-model="newFact.source"
                       :placeholder="t('brain.factSourcePlaceholder')"
@@ -412,7 +412,7 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                     />
                   </UFormField>
                 </div>
-                <UFormField :label="t('brain.factText')">
+                <UFormField :label="t('brain.factText')" required>
                   <UTextarea
                     v-model="newFact.text"
                     :placeholder="t('brain.factTextPlaceholder')"
@@ -470,14 +470,14 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                 <div>
                   <template v-if="editingFact === fact.id">
                     <div class="space-y-4">
-                      <UFormField :label="t('brain.factText')"
+                      <UFormField :label="t('brain.factText')" required
                         ><UTextarea
                           v-model="editFact.text"
                           :aria-label="t('brain.editFact')"
                           :rows="3"
                           class="w-full"
                       /></UFormField>
-                      <UFormField :label="t('brain.source')"
+                      <UFormField :label="t('brain.source')" required
                         ><UInput
                           v-model="editFact.source"
                           :aria-label="t('brain.editSource')"
@@ -564,7 +564,7 @@ watch([ready, organizationId, brandId], load, { immediate: true })
           <template #voice>
             <div class="mt-4 space-y-4 pb-2">
               <p class="text-sm text-muted">{{ t('brain.voiceDescription') }}</p>
-              <UFormField :label="t('brain.voice')">
+              <UFormField :label="t('brain.voice')" required>
                 <UTextarea
                   v-model="settings.voice.text"
                   :aria-label="t('brain.voice')"
@@ -573,7 +573,7 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                   class="w-full"
                 />
               </UFormField>
-              <UFormField :label="t('brain.voiceSource')"
+              <UFormField :label="t('brain.voiceSource')" required
                 ><UInput
                   v-model="settings.voice.source"
                   :aria-label="t('brain.voiceSource')"
@@ -607,14 +607,14 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                 :key="audience.id || index"
                 class="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
               >
-                <UFormField :label="t('brain.audienceName', { index: index + 1 })"
+                <UFormField :label="t('brain.audienceName', { index: index + 1 })" required
                   ><UInput
                     v-model="audience.name"
                     :aria-label="t('brain.audienceName', { index: index + 1 })"
                     :placeholder="t('brain.audienceNamePlaceholder')"
                     class="w-full"
                 /></UFormField>
-                <UFormField :label="t('brain.descriptionLabel')"
+                <UFormField :label="t('brain.descriptionLabel')" required
                   ><UInput
                     v-model="audience.description"
                     :aria-label="t('brain.audienceDescription', { index: index + 1 })"
@@ -663,13 +663,13 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                 class="rounded-lg border border-default bg-elevated/20 p-4 space-y-4"
               >
                 <div class="grid gap-4 sm:grid-cols-2">
-                  <UFormField :label="t('brain.offerName')"
+                  <UFormField :label="t('brain.offerName')" required
                     ><UInput
                       v-model="offer.name"
                       :placeholder="t('brain.offerNamePlaceholder')"
                       :aria-label="t('brain.offerName')"
                       class="w-full" /></UFormField
-                  ><UFormField :label="t('brain.source')"
+                  ><UFormField :label="t('brain.source')" required
                     ><UInput
                       v-model="offer.source"
                       :placeholder="t('brain.offerSourcePlaceholder')"
@@ -677,7 +677,7 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                       class="w-full"
                   /></UFormField>
                 </div>
-                <UFormField :label="t('brain.descriptionLabel')"
+                <UFormField :label="t('brain.descriptionLabel')" required
                   ><UTextarea
                     v-model="offer.description"
                     :placeholder="t('brain.offerDescriptionPlaceholder')"
@@ -699,7 +699,7 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                       :placeholder="t('brain.optional')"
                       :aria-label="t('brain.price')"
                       class="w-full" /></UFormField
-                  ><UFormField :label="t('brain.validFrom')"
+                  ><UFormField :label="t('brain.validFrom')" required
                     ><UInput
                       v-model="offer.validFrom"
                       type="date"
@@ -860,13 +860,13 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                 :key="guardrail.id || index"
                 class="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
               >
-                <UFormField :label="t('brain.rule', { index: index + 1 })"
+                <UFormField :label="t('brain.rule', { index: index + 1 })" required
                   ><UInput
                     v-model="guardrail.text"
                     :aria-label="t('brain.rule', { index: index + 1 })"
                     :placeholder="t('brain.rulePlaceholder')"
                     class="w-full" /></UFormField
-                ><UFormField :label="t('brain.source')"
+                ><UFormField :label="t('brain.source')" required
                   ><UInput
                     v-model="guardrail.source"
                     :aria-label="t('brain.source')"

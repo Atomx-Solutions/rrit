@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
-import { prepareVideoFirstFrame } from '../../server/utils/image-processing'
+import { smartCropToCanvas as prepareVideoFirstFrame } from '../../server/utils/photo-fit'
 
 describe('prepareVideoFirstFrame', () => {
   it('converts a landscape source to the exact target vertical dimensions with no padding', async () => {

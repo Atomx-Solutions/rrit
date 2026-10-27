@@ -31,8 +31,14 @@ function timestamp(value: unknown) {
   return value instanceof Date ? value.toISOString() : String(value)
 }
 
-function dateValue(value: unknown) {
-  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value)
+// pg reads a date column as local midnight, so the calendar day is taken from
+// the local fields. Converting it to UTC first would move it to the day
+// before wherever the server runs ahead of UTC, and two processes in
+// different zones would then disagree about the same offer.
+export function dateValue(value: unknown) {
+  if (!(value instanceof Date)) return String(value)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
 }
 
 function toFact(row: FactRow) {

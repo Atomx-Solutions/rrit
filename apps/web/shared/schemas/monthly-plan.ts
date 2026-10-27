@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { publishingChannels } from './channel-format'
+import { ctaMaxLength } from './storyboard'
 
 export const monthSchema = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/)
 export const researchSourceSchema = z.object({
@@ -71,54 +73,24 @@ export const timingBasisSchema = z.enum(['social_history', 'platform_history', '
 // video afterward, so the slot carries a motion brief alongside the post. Older
 // plans were all static, which is why this defaults rather than being required.
 export const slotDeliverableSchema = z.enum(['static_post', 'video'])
-// Structured shot direction for a video slot. Strategy picks each enum from
-// the actual photograph and the content intent; the planner's deterministic
-// Video Creative Plan reads these to decide subject-safe and text-safe
-// zones, and the prompt builder templates them into natural language so the
-// provider receives a camera idea and a composition anchor rather than
-// prose alone. Every field is optional with a safe default so legacy video
-// briefs keep rendering.
-export const shotCameraSchema = z.enum([
-  'static',
-  'slow_push',
-  'slow_pull',
-  'arc',
-  'parallax_drift',
-  'handheld_settle',
-])
-export const shotPacingSchema = z.enum(['calm', 'measured', 'punchy'])
-export const shotSubjectAnchorSchema = z.enum(['left', 'centre', 'right'])
+// What the strategy decides for a video slot. The motion itself, every camera
+// move and the edit, is the video's creative director's to invent from the
+// photographs, so nothing here names a move. The strategy keeps only where type
+// stays clear in its photograph.
 export const shotTextZoneSchema = z.enum(['top', 'bottom', 'left', 'right', 'full'])
-// What happens in the frame beyond the camera. Each step trades certainty
-// about the subject for life: the camera alone moves over the real photograph;
-// ambient adds the light, reflections and air the photograph already holds;
-// subject_moves lets the subject itself move, which only the photograph's own
-// subject may do, and which is checked against the photograph afterwards.
-export const shotActionSchema = z.enum(['camera_only', 'ambient', 'subject_moves'])
 export const shotDirectionSchema = z.object({
-  camera: shotCameraSchema,
-  pacing: shotPacingSchema,
-  subjectAnchor: shotSubjectAnchorSchema,
   textZone: shotTextZoneSchema,
-  action: shotActionSchema,
-  // Whether the video closes on the branded end-card. The designed overlay
-  // already carries the brand and the call to action, so a card is a choice
-  // for videos that benefit from a closing beat, not a fixture of every one.
-  endCard: z.boolean(),
 })
-// A shot as stored. Shots written before the action existed read as the
-// camera-only motion they were rendered with.
+// A shot as stored. Shots written before carried camera, pacing, anchor and
+// action and end-card fields as well; those are dropped on read.
 export const storedShotDirectionSchema = shotDirectionSchema.extend({
-  action: shotActionSchema.default('camera_only'),
-  endCard: z.boolean().default(true),
+  textZone: shotTextZoneSchema.default('top'),
 })
 export const slotBriefSchema = z.object({
   day: z.number().int().min(1).max(31),
   time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-  // A video reaches whichever of these three the brief chose. TikTok appears
-  // here only because a video can go there; a static feed post cannot, which
-  // the planner enforces rather than the enum.
-  channel: z.enum(['Facebook', 'Instagram', 'TikTok']),
+  // The one channel this slot is for. Its canvas follows from it.
+  channel: z.enum(publishingChannels),
   topic: z.string().min(5).max(200),
   pillar: z.string().min(2).max(80),
   intent: contentIntentSchema,
@@ -211,7 +183,7 @@ export type LogoZone = z.infer<typeof logoZoneSchema>
 export const creativeSchema = z.object({
   headline: z.string().trim().min(3).max(64),
   eyebrow: z.string().trim().min(2).max(48),
-  cta: z.string().trim().min(2).max(32),
+  cta: z.string().trim().min(2).max(ctaMaxLength),
   // Describes the model's unique composition; it never selects a coded preset.
   layout: z.string().trim().min(1).max(600),
   // Required of the model, because provider structured output rejects a

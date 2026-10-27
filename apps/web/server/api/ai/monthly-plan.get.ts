@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
       client,
     )
     const settings = await client.query(
-      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
       [business.id],
     )
     let prerequisite: string | null = null
@@ -87,6 +87,8 @@ export default defineEventHandler(async (event) => {
         // The photographs held back for motion, so the planner can show which
         // of the chosen photographs belong to which deliverable.
         selectedVideoAssetIds: (settings.rows[0]?.preferred_video_asset_ids || []) as string[],
+        // Further photographs of each video's subject, keyed by its main one.
+        videoExtraAssetIds: (settings.rows[0]?.preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
       },
       paid: access?.paid || false,
       package: access?.plan || null,

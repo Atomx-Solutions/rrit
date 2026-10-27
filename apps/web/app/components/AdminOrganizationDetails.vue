@@ -295,6 +295,7 @@ async function copyId() {
         :organization-name="organization.name"
         :edit-package-id="editPackageId"
         @edit-opened="packageEditOpened"
+        @changed="onSubscriptionChanged"
       />
       <UCard v-if="currentStep === 'invoices'" variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
         <template #header>

@@ -460,7 +460,7 @@
   "admin.packages.delete": "Delete",
   "admin.packages.deleteTitle": "Delete package",
   "admin.packages.deleteWarning": "Are you sure you want to permanently delete this package? This action cannot be undone.",
-  "admin.packages.deleteFor": "Delete package {name}",
+  "admin.packages.deleteFor": "Delete package {{name}}",
   "admin.packages.deleted": "Package deleted.",
   "admin.packages.deleteFailed": "The package could not be deleted.",
   "admin.packages.editFor": "Edit {{name}}",

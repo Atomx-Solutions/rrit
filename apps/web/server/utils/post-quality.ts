@@ -9,7 +9,7 @@ import {
   postFingerprint,
   postContentSnapshot,
 } from './post-validation'
-import { monthlyProviderCall } from './monthly-ai'
+import { monthlyProviderCall, REVIEW_MAX_OUTPUT_TOKENS } from './monthly-ai'
 import { PlannerFailure } from './monthly-planner-domain'
 import { audienceLanguageFromResearch } from './audience-language'
 import {
@@ -99,7 +99,7 @@ export async function reviewPostQuality(
     capability: 'quality',
     language: snapshot.language,
     schema: qualitySchema,
-    maxOutput: 2000,
+    maxOutput: REVIEW_MAX_OUTPUT_TOKENS,
     input: {
       brand: {
         ...snapshot.brand,

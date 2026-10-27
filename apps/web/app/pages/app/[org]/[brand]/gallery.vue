@@ -29,8 +29,6 @@ const viewerIndex = ref(0)
 const downloading = ref(false)
 const videoPreviews = ref<Record<string, string | null>>({})
 const resolvingVideo = ref(false)
-const embeddedEndCards = ref<Record<string, boolean>>({})
-const legacyCardVisible = ref(false)
 function videoPostFor(asset: Asset): Post | undefined {
   if (!asset.tags.includes('video-poster')) return undefined
   return data.value.posts.find((post) => post.image === asset.url && !!post.video)
@@ -49,18 +47,13 @@ async function resolveVideo(asset: Asset) {
   if (!post || post.video?.status !== 'ready' || post.id in videoPreviews.value) return
   resolvingVideo.value = true
   try {
-    const response = await $fetch<{ render: { previewUrl: string | null; endCardEmbedded: boolean } | null }>(`/api/posts/${post.id}/video`)
+    const response = await $fetch<{ render: { previewUrl: string | null } | null }>(`/api/posts/${post.id}/video`)
     videoPreviews.value[post.id] = response.render?.previewUrl || null
-    embeddedEndCards.value[post.id] = response.render?.endCardEmbedded || false
   } catch {
     videoPreviews.value[post.id] = null
   } finally {
     resolvingVideo.value = false
   }
-}
-function handleVideoEnded() {
-  const post = viewerVideoPost.value
-  if (post?.video?.endCardAssetId && !embeddedEndCards.value[post.id]) legacyCardVisible.value = true
 }
 function displayTag(tag: string) {
   return tag === 'ngarkim' || tag === 'upload' ? t('gallery.uploadTag') : tag
@@ -93,20 +86,17 @@ function openViewer(asset: Asset) {
   if (index < 0) return
   viewerIndex.value = index
   viewerOpen.value = true
-  legacyCardVisible.value = false
   void resolveVideo(asset)
 }
 function moveViewer(offset: number) {
   if (!viewerAssets.value.length) return
   viewerIndex.value =
     (viewerIndex.value + offset + viewerAssets.value.length) % viewerAssets.value.length
-  legacyCardVisible.value = false
   const asset = viewerAsset.value
   if (asset) void resolveVideo(asset)
 }
 function selectViewerAsset(index: number) {
   viewerIndex.value = index
-  legacyCardVisible.value = false
   const asset = viewerAsset.value
   if (asset) void resolveVideo(asset)
 }
@@ -134,6 +124,8 @@ function onViewerKeydown(event: KeyboardEvent) {
   if (event.key === 'ArrowLeft') moveViewer(-1)
   if (event.key === 'ArrowRight') moveViewer(1)
 }
+const viewerStrip = ref<HTMLElement | null>(null)
+useCenteredStrip(viewerStrip, viewerIndex, viewerOpen)
 onMounted(() => window.addEventListener('keydown', onViewerKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 const filterTabs = computed(() => [
@@ -436,18 +428,17 @@ async function saveMetadata() {
         <div v-if="viewerAsset" class="flex h-[calc(100dvh-12rem)] min-h-[36rem] flex-col gap-5">
           <div class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8">
             <video
-              v-if="viewerVideoUrl && !legacyCardVisible"
+              v-if="viewerVideoUrl"
               :key="viewerVideoUrl"
               :src="viewerVideoUrl"
               :poster="viewerAsset.url"
               controls
               playsinline
               class="h-full w-auto max-w-full rounded-xl bg-black"
-              @ended="handleVideoEnded"
             />
             <MediaImage
               v-else
-              :src="legacyCardVisible && viewerVideoPost?.video?.endCardAssetId ? `/api/media/${viewerVideoPost.video.endCardAssetId}` : viewerAsset.url"
+              :src="viewerAsset.url"
               :alt="viewerAsset.name"
               fit="natural"
               class="size-full rounded-xl"
@@ -497,7 +488,7 @@ async function saveMetadata() {
                a scroll container clips anything outside its padding box. The
                padding gives the ring room, the negative margin keeps the strip
                aligned with the rest. -->
-          <div class="flex gap-2 overflow-x-auto p-1 -m-1">
+          <div ref="viewerStrip" class="flex gap-2 overflow-x-auto p-1 -m-1">
             <UButton
               v-for="(asset, index) in viewerAssets"
               :key="asset.id"

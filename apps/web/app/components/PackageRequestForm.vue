@@ -278,7 +278,7 @@ async function submit() {
       />
     </UFormField>
     <div v-else :class="compact ? 'space-y-4' : 'grid gap-4 sm:grid-cols-2'">
-      <UFormField name="contactName" :label="t('request.name')">
+      <UFormField name="contactName" :label="t('request.name')" required>
         <UInput
           v-model="form.contactName"
           :placeholder="t('request.namePlaceholder')"
@@ -286,7 +286,7 @@ async function submit() {
           class="w-full"
         />
       </UFormField>
-      <UFormField name="contactEmail" :label="t('request.email')">
+      <UFormField name="contactEmail" :label="t('request.email')" required>
         <UInput
           v-model="form.contactEmail"
           type="email"
@@ -295,7 +295,7 @@ async function submit() {
           class="w-full"
         />
       </UFormField>
-      <UFormField name="phone" :label="t('request.phone')">
+      <UFormField name="phone" :label="t('request.phone')" required>
         <UInput
           v-model="form.phone"
           type="tel"
@@ -310,7 +310,7 @@ async function submit() {
           </template>
         </UInput>
       </UFormField>
-      <UFormField name="businessName" :label="t('request.businessName')">
+      <UFormField name="businessName" :label="t('request.businessName')" required>
         <UInput
           v-model="form.businessName"
           :placeholder="t('request.businessPlaceholder')"
@@ -318,7 +318,7 @@ async function submit() {
           class="w-full"
         />
       </UFormField>
-      <UFormField v-if="!lean" name="industry" :label="t('request.industry')">
+      <UFormField v-if="!lean" name="industry" :label="t('request.industry')" required>
         <UInput
           v-model="form.industry"
           :placeholder="t('request.industryPlaceholder')"
@@ -326,7 +326,7 @@ async function submit() {
           class="w-full"
         />
       </UFormField>
-      <UFormField v-if="!lean" name="platform" :label="t('request.platform')">
+      <UFormField v-if="!lean" name="platform" :label="t('request.platform')" required>
         <USelect v-model="form.platform" :items="platformOptions" class="w-full" />
       </UFormField>
       <UFormField v-if="!lean" name="message" :label="t('request.message')" :class="compact ? '' : 'sm:col-span-2'">

@@ -8,9 +8,8 @@ export default defineEventHandler(async (event) => {
       id: string
       status: 'rendering' | 'ready' | 'failed'
       failure_reason: string | null
-      composed: boolean
     }>(
-      `SELECT r.id,r.status,r.failure_reason,r.composed
+      `SELECT r.id,r.status,r.failure_reason
          FROM video_renders r
         WHERE r.post_id=$1 AND r.business_id=$2 ORDER BY r.created_at DESC LIMIT 1`,
       [id, business.id],
@@ -22,9 +21,6 @@ export default defineEventHandler(async (event) => {
         status: render.status,
         failureReason: render.failure_reason,
         previewUrl: render.status === 'ready' ? `/api/videos/${render.id}` : null,
-        // A composed MP4 carries whatever end-card it has; only a raw legacy
-        // clip needs the separate card shown beside it.
-        endCardEmbedded: render.composed,
       },
     }
   })

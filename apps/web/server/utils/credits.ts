@@ -140,17 +140,6 @@ async function updateBalance(client: PoolClient, organizationId: string, remaini
   )
   return toBalance(result.rows[0]!)
 }
-// An invoice left unpaid past its due date pauses new AI work until the
-// superadmin records the payment. Work already charged by a provider is still
-// settled, so only the calls that start new work ask.
-async function assertPaymentCurrent(client: PoolClient, organizationId: string) {
-  const result = await client.query<{ overdue: boolean }>(
-    'SELECT app.organization_payment_overdue($1) AS overdue',
-    [organizationId],
-  )
-  if (result.rows[0]?.overdue)
-    throw createError({ statusCode: 402, data: { code: 'PAYMENT_OVERDUE' }, message: 'server.PAYMENT_OVERDUE' })
-}
 function exhausted() {
   return createError({ statusCode: 402, data: { code: 'CREDITS_EXHAUSTED' }, message: 'server.CREDITS_EXHAUSTED' })
 }
@@ -190,7 +179,6 @@ export async function expireRemainingCredits(client: PoolClient, input: { organi
 }
 export async function reserveCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
-  await assertPaymentCurrent(client, input.organizationId)
   const balance = await lockBalance(client, input.organizationId)
   if (toBalance(balance).spendable < input.credits) throw exhausted()
   const ledger = await writeLedger(client, { ...input, eventType: 'reserve', creditDelta: 0 })
@@ -229,7 +217,6 @@ export async function consumeReservedCredits(client: PoolClient, input: { organi
 }
 export async function consumeCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
-  await assertPaymentCurrent(client, input.organizationId)
   const balance = await lockBalance(client, input.organizationId)
   if (toBalance(balance).spendable < input.credits) throw exhausted()
   const ledger = await writeLedger(client, { ...input, eventType: 'consume', creditDelta: -input.credits })

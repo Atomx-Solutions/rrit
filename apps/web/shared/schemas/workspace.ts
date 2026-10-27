@@ -7,6 +7,8 @@ import {
   storedShotDirectionSchema,
 } from './monthly-plan'
 import { brandFactSchema } from './business-brain'
+import { publishingChannels, videoFormats } from './channel-format'
+import { storyboardSchema } from './storyboard'
 
 const researchSourceSchema = z
   .url()
@@ -59,15 +61,10 @@ export function permittedEventCategories(events: EventResearch | undefined) {
   return eventResearchCategoryKeys.filter((key) => events.categories[key])
 }
 
-// The shape of every vertical video this application renders. It is one canvas
-// and one length, defined once: the motion brief carries them to the provider
-// call, so neither the brief endpoint nor the monthly planner restates them.
-// The canvas is shared by every channel a video can reach, because Instagram
-// Reels, Facebook video and TikTok all want the same full-screen 9:16 frame.
-export const videoFormat = '1080x1920' as const
+// A video's canvas is its channel's canvas (see channel-format), carried in
+// the motion brief so the provider call never restates it.
 // Six seconds of generated motion: the provider is paid per second, the
-// designed overlay carries the message, and the branded end-card adds its own
-// seconds after it. The schema below still accepts the wider range a future
+// designed overlay carries the message. The schema below still accepts the wider range a future
 // model could offer.
 export const videoDurationSeconds = 6
 export const postSchema = z.object({
@@ -75,7 +72,7 @@ export const postSchema = z.object({
   title: z.string().min(3).max(120),
   caption: z.string().max(2200),
   status: z.enum(['draft', 'review', 'approved', 'scheduled', 'published', 'failed']),
-  channel: z.enum(['Instagram', 'Facebook', 'TikTok']),
+  channel: z.enum(publishingChannels),
   format: z.enum(['static', 'carousel']),
   image: z.string(),
   pillar: z.string(),
@@ -92,6 +89,14 @@ export const postSchema = z.object({
   campaignId: z.string().optional(),
   providerPostId: z.string().optional(),
   publishedAt: z.string().optional(),
+  // How the post was last handed to TikTok: sent to the account holder's
+  // inbox as a draft, or left ready for manual publishing because TikTok would
+  // not take it from this app (the reason is TikTok's own error code).
+  tiktokDelivery: z.object({
+    mode: z.enum(['draft', 'manual']),
+    reason: z.string().max(80).optional(),
+    at: z.iso.datetime(),
+  }).optional(),
   // The motion brief for a post whose deliverable is a video. Which channel it
   // reaches is the post's own `channel`, so nothing here names a platform.
   video: z.object({
@@ -115,14 +120,29 @@ export const postSchema = z.object({
     // slot so the planner's VideoCreativePlan can be rebuilt deterministically
     // at render time without reading the editorial plan again.
     shot: storedShotDirectionSchema.optional(),
+    // The AI creative director's storyboard for the last render. Optional:
+    // videos rendered before the director existed, or when it gave no valid
+    // storyboard, follow the strategy's shot direction alone.
+    storyboard: storyboardSchema.optional(),
+    // Set when the delivered video may show a different subject than the
+    // photograph even after a calmer take: what the check saw. The video is
+    // kept for the business to judge, and to redirect with an AI edit.
+    subjectWarning: z.object({
+      detail: z.string().max(400),
+      at: z.iso.datetime(),
+    }).optional(),
+    // The business's own direction for the next take, from Edit video with AI.
+    editInstruction: z.string().trim().min(5).max(600).optional(),
+    // Why the last render could not be made at all (a provider or storage
+    // failure), so the business is told plainly.
+    failure: z.object({
+      code: z.string().max(60),
+      detail: z.string().max(400).optional(),
+      at: z.iso.datetime(),
+    }).optional(),
     durationSeconds: z.number().int().min(6).max(30),
-    format: z.literal(videoFormat),
+    format: z.enum(videoFormats),
     strategyVersion: z.number().int().positive().optional(),
-    // Deterministic branded end-card asset rendered after the mp4. Optional
-    // so legacy videos (and video posts that fail end-card generation) still
-    // parse and play. Points at an `assets` row whose `creative_provenance`
-    // flags it as a video end-card so it is excluded from source-photo pickers.
-    endCardAssetId: z.uuid().optional(),
     createdAt: z.iso.datetime(),
     quality: qualitySchema.optional(),
     qualityContentVersion: z.number().int().positive().optional(),
@@ -219,8 +239,8 @@ export const workspaceSchema = z.object({
     audience: z.string(),
     color: z.string(),
     // Optional typography and palette anchors for deterministic brand
-    // composition (end-card, overlays). Everything is optional so a workspace
-    // that never configures these still renders a reasonable end-card from
+    // composition (video overlays). Everything is optional so a workspace
+    // that never configures these still renders reasonable overlays from
     // `brand.color` + the application defaults.
     typography: z
       .object({

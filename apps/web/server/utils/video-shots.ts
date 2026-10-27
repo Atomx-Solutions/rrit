@@ -1,0 +1,122 @@
+import type { Canvas } from '../../shared/schemas/channel-format'
+import type { Storyboard } from '../../shared/schemas/storyboard'
+import { generateAiVideo } from './ai-video-provider'
+import { padFrameToCanvas } from './image-processing'
+import { extractLastFrame, extractVideoFrames } from './video-compose'
+import { buildShotExecutionBrief } from './video-execution-brief'
+import { verifyVideoSubject } from './video-subject-check'
+
+export class ShotSubjectChanged extends Error {
+  constructor(public readonly shot: number, public readonly reason: string) {
+    super('subject_changed')
+  }
+}
+
+export type ShotDependencies = {
+  // Told what every generated shot cost as soon as it is paid for, so a take
+  // stopped by a changed subject is still charged for what it made.
+  onCost: (costUsd: number | null) => void
+  generate: typeof generateAiVideo
+  verify: typeof verifyVideoSubject
+  lastFrameOf: typeof extractLastFrame
+  framesOf: typeof extractVideoFrames
+}
+
+const defaults: ShotDependencies = {
+  onCost: () => undefined,
+  generate: generateAiVideo,
+  verify: verifyVideoSubject,
+  lastFrameOf: extractLastFrame,
+  framesOf: extractVideoFrames,
+}
+
+/**
+ * Generates every shot of a storyboard with the configured motion model, one
+ * after another. The first shot starts on its photograph unless the director
+ * wrote an arrival; a later shot from the same photograph as the one before
+ * starts on that shot's last frame, so the motion carries on without a jump,
+ * while a shot from another photograph starts on its own, as a new scene. A
+ * shot that ends on its photograph is pinned to it as its last frame, the
+ * final shot always is. Every shot is held against its own photograph before
+ * the next one is made.
+ */
+export async function generateStoryboardShots(input: {
+  storyboard: Storyboard
+  // The photograph on the channel canvas.
+  fitted: Buffer
+  // Further photographs of the same subject on the canvas; a shot's
+  // photoIndex 1 is the first of them.
+  extraFitted?: Buffer[]
+  // The canvas the model paints and whether it accepts a closing frame.
+  provider: { canvas: Canvas; aspectRatio: string }
+  lastFrameSupported: boolean
+  guardrails?: string[]
+  maxLength?: number
+  // 'stop' ends the take at the first shot that changed the subject so a
+  // calmer take can be tried; 'record' keeps going and reports it, so the
+  // last take is always delivered for the business to judge and edit.
+  onSubjectChange?: 'stop' | 'record'
+}, dependencies: Partial<ShotDependencies> = {}) {
+  const deps = { ...defaults, ...dependencies }
+  const photographs = await Promise.all(
+    [input.fitted, ...(input.extraFitted || [])].map((image) => padFrameToCanvas(image, input.provider.canvas)),
+  )
+  const clips: Buffer[] = []
+  const subjectChanges: { shot: number; reason: string }[] = []
+  let costUsd: number | null = 0
+  for (const [index, shot] of input.storyboard.shots.entries()) {
+    const final = index === input.storyboard.shots.length - 1
+    const photograph = photographs[shot.photoIndex ?? 0] || photographs[0]!
+    const sameScene = index > 0 && (input.storyboard.shots[index - 1]!.photoIndex ?? 0) === (shot.photoIndex ?? 0)
+    const endsOnPhotograph = (shot.endsOnPhotograph || final) && input.lastFrameSupported
+    // An arrival may open away from the photograph only when the model can
+    // still be pinned to it at the end; otherwise it starts on it.
+    const start: 'photograph' | 'previous_shot' | 'free' = sameScene
+      ? 'previous_shot'
+      : index === 0 && !shot.opensOnPhotograph && endsOnPhotograph ? 'free' : 'photograph'
+    const firstFrame = start === 'previous_shot'
+      ? await deps.lastFrameOf(clips[index - 1]!, input.provider.canvas)
+      : start === 'photograph' ? photograph : undefined
+    const request = (opening: typeof start, image: Buffer | undefined) => deps.generate({
+      image,
+      lastFrame: endsOnPhotograph ? photograph : undefined,
+      prompt: buildShotExecutionBrief({
+        storyboard: input.storyboard,
+        index,
+        start: opening,
+        endsOnPhotograph,
+        guardrails: input.guardrails,
+        maxLength: input.maxLength,
+      }),
+      durationSeconds: shot.durationSeconds,
+      canvas: input.provider.canvas,
+      aspectRatio: input.provider.aspectRatio,
+    })
+    let generated
+    try {
+      generated = await request(start, firstFrame)
+    } catch (error) {
+      // A model that will not take a closing frame alone gets the photograph
+      // as its opening frame too, rather than losing the shot.
+      if (start !== 'free') throw error
+      generated = await request('photograph', photograph)
+    }
+    if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
+    costUsd = costUsd === null || generated.costUsd === null ? null : costUsd + generated.costUsd
+    deps.onCost(generated.costUsd)
+    const check = await deps.verify({ photograph, frames: await deps.framesOf(generated.bytes, [0.3, 0.6, 0.95]) })
+    deps.onCost(check.costUsd ?? 0)
+    if (!check.sameSubject) {
+      if (input.onSubjectChange !== 'record') throw new ShotSubjectChanged(index + 1, check.reason)
+      subjectChanges.push({ shot: index + 1, reason: check.reason })
+    }
+    clips.push(generated.bytes)
+  }
+  return { clips, costUsd, subjectChanges }
+}
+
+/** The shot length the model renders that is closest to the one asked for. */
+export function closestDuration(requested: number, durations: number[]) {
+  if (!durations.length) return requested
+  return durations.reduce((best, value) => (Math.abs(value - requested) < Math.abs(best - requested) ? value : best))
+}

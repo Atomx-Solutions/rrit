@@ -5,6 +5,13 @@ import {
   type SlotBrief,
 } from '../../shared/schemas/monthly-plan'
 import type { Workspace } from '../../shared/schemas/workspace'
+import {
+  channelCanvas,
+  publishingChannels,
+  ratioLabel,
+  type Canvas,
+  type PublishingChannel,
+} from '../../shared/schemas/channel-format'
 import { dayInZone } from '../../shared/utils/calendar'
 import { zonedToIso } from '../../shared/utils/format'
 import {
@@ -18,13 +25,14 @@ import {
   type PlannerBrainOffer,
 } from '../../shared/schemas/business-brain'
 
-// The platforms a post may be planned for.
-export const plannerChannels = ['Instagram', 'Facebook'] as const
+// The platforms a post may be planned for. Static posts and videos reach the
+// same three; each lands on its channel's own canvas.
+export const plannerChannels = publishingChannels
 export type PlannerChannel = (typeof plannerChannels)[number]
 // How many of a batch's posts each platform gets. An empty object is the
 // absence of a request, not a request for nothing.
 export type PlannerChannelCounts = Partial<Record<PlannerChannel, number>>
-export const plannerVideoChannels = ['Instagram', 'Facebook', 'TikTok'] as const
+export const plannerVideoChannels = publishingChannels
 export type PlannerVideoChannel = (typeof plannerVideoChannels)[number]
 export type PlannerVideoChannelCounts = Partial<Record<PlannerVideoChannel, number>>
 
@@ -96,7 +104,7 @@ export type PlannerPrerequisite = {
 }
 export type PlannerTimingSample = {
   source: 'facebook' | 'instagram' | 'platform'
-  channel: 'Facebook' | 'Instagram'
+  channel: PublishingChannel
   publishedAt: string
 }
 export function plannerPrerequisites(
@@ -180,6 +188,7 @@ export function plannerEvidence(
     mode: 'auto' | 'selected'
     selectedAssetIds: string[]
     selectedVideoAssetIds?: string[]
+    videoExtraAssetIds?: Record<string, string[]>
   } = {
     mode: 'auto',
     selectedAssetIds: [],
@@ -224,6 +233,16 @@ export function plannerEvidence(
   )
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]))
+  // Further angles of a video's subject. They are not part of the plan's
+  // photograph allow-list (the strategy still assigns one main photograph per
+  // video); a further photograph that is no longer an owned original with its
+  // rights confirmed is simply left out, since the video can be made without it.
+  const videoExtraAssetIds = Object.fromEntries(
+    Object.entries(photoSelection.mode === 'selected' ? photoSelection.videoExtraAssetIds || {} : {})
+      .filter(([id]) => selectedVideoAssetIds.includes(id))
+      .map(([id, extras]) => [id, [...new Set(extras)].filter((extra) => eligibleAssetIds.has(extra) && extra !== id)])
+      .filter(([, extras]) => extras!.length),
+  ) as Record<string, string[]>
   const generationAssets =
     photoSelection.mode === 'selected'
       ? [...new Set([...selectedAssetIds, ...selectedVideoAssetIds])].map(
@@ -299,6 +318,7 @@ export function plannerEvidence(
       mode: photoSelection.mode,
       selectedAssetIds: photoSelection.mode === 'selected' ? selectedAssetIds : [],
       selectedVideoAssetIds: photoSelection.mode === 'selected' ? selectedVideoAssetIds : [],
+      ...(Object.keys(videoExtraAssetIds).length ? { videoExtraAssetIds } : {}),
     },
     videoChannelCounts,
     recentPosts: workspace.posts
@@ -681,6 +701,20 @@ export function validateEditorialPlan(
     platformHistory: 0,
   }
   if (plan.slots.length !== count) throw new PlannerFailure('INVALID_SLOT_COUNT')
+  // A surplus video slot is demoted before anything else is checked, so the
+  // photo, channel and split checks below judge the static post it becomes:
+  // its selected photograph is a post photograph, and with one platform asked
+  // for it takes that platform instead of the video channel the model chose.
+  let videosKept = 0
+  for (const slot of plan.slots) {
+    if (slot.deliverable !== 'video') continue
+    if (videosKept < videoSlots) {
+      videosKept += 1
+      continue
+    }
+    slot.deliverable = 'static_post'
+    slot.channel = soleChannel(channelCounts) || slot.channel
+  }
   for (const [index, slot] of plan.slots.entries()) {
     const key = `${slot.day}:${slot.time}:${slot.channel}`
     const date = `${month}-${String(slot.day).padStart(2, '0')}T${slot.time}`
@@ -688,12 +722,6 @@ export function validateEditorialPlan(
     const hook = normalizedIdea(slot.hook)
     if (slot.day > days)
       throw new PlannerFailure('INVALID_SLOT_DATE', [`Postimi ${index + 1}: dita ${slot.day} nuk ekziston në muaj.`])
-    // A video may go to any of the three channels, but a static feed post has
-    // nowhere to land on TikTok, which publishes video only.
-    if (slot.deliverable !== 'video' && !plannerChannels.includes(slot.channel as PlannerChannel))
-      throw new PlannerFailure('UNGROUNDED_PLAN', [
-        `Postimi ${index + 1}: ${slot.channel} pranon vetëm deliverable video; një postim statik duhet të shkojë te ${plannerChannels.join(' ose ')}.`,
-      ])
     if (used.has(key))
       throw new PlannerFailure('REPETITIVE_PLAN', [`Postimi ${index + 1}: data, ora dhe kanali përsëriten.`])
     if (topics.has(topic) || hooks.has(hook))
@@ -832,12 +860,6 @@ export function validateEditorialPlan(
   // discarding a batch the business already paid for would cost it more than the
   // flag is worth. A demoted slot simply reaches the business as the static post
   // it already is, which is why nothing extra has to be reported.
-  let videosKept = 0
-  for (const slot of plan.slots) {
-    if (slot.deliverable !== 'video') continue
-    if (videosKept < videoSlots) videosKept += 1
-    else slot.deliverable = 'static_post'
-  }
   if (videosKept < videoSlots)
     throw new PlannerFailure('UNGROUNDED_PLAN', [
       `Planifiko saktësisht ${videoSlots} slote si deliverable video, me fotografi të vetat; të tjerat si static_post.`,
@@ -945,14 +967,24 @@ export function resumableContentFailureCode(code: string | null | undefined) {
 }
 
 /**
- * The only two canvas facts the creative pipeline depends on: the provider's
- * native portrait canvas and the final feed canvas the application crops to.
- * Everything the image prompt says about bleed and safe margins is derived from
- * these, so no percentage is restated as prose that could silently drift if
- * either canvas changes.
+ * The only two canvas facts the creative pipeline depends on: the ratio the
+ * image provider paints for a channel and that channel's final canvas, which
+ * the application crops to. Everything the image prompt says about bleed and
+ * safe margins is derived from these, so no percentage is restated as prose
+ * that could silently drift if either canvas changes.
+ *
+ * The painted ratio is the provider's closest portrait ratio that is not
+ * narrower than the final canvas, so the crop only ever removes height: 3:4
+ * for the 4:5 feed (no 4:5 is offered), and 9:16 itself for TikTok.
  */
-export const feedCreativeCanvas = { width: 1080, height: 1350 } as const
-export const providerCreativeCanvas = { width: 3, height: 4 } as const
+const providerCreativeCanvases: Record<PublishingChannel, Canvas> = {
+  Instagram: { width: 3, height: 4 },
+  Facebook: { width: 3, height: 4 },
+  TikTok: { width: 9, height: 16 },
+}
+export function providerCreativeCanvas(channel: PublishingChannel) {
+  return providerCreativeCanvases[channel]
+}
 /**
  * Editorial margin kept clear of critical content on every side of the final
  * canvas, as a share of that side. It is a design tunable, not a layout: it
@@ -960,29 +992,25 @@ export const providerCreativeCanvas = { width: 3, height: 4 } as const
  */
 export const criticalContentMargin = 0.09
 
-function ratioLabel(canvas: { width: number; height: number }) {
-  const divisor = (a: number, b: number): number => (b ? divisor(b, a % b) : a)
-  const factor = divisor(canvas.width, canvas.height)
-  return `${canvas.width / factor}:${canvas.height / factor}`
-}
-
 /**
  * Derives the composition contract for the centre crop performed by
  * normalizeGeneratedCreative. A provider canvas that is taller than the final
  * canvas loses height; one that is wider loses width. Percentages are expressed
  * against the provider canvas, because that is the surface the model paints.
  */
-export function feedCreativeGeometry() {
-  const providerAspect = providerCreativeCanvas.width / providerCreativeCanvas.height
-  const finalAspect = feedCreativeCanvas.width / feedCreativeCanvas.height
+export function creativeGeometry(channel: PublishingChannel) {
+  const finalCanvas = channelCanvas(channel)
+  const providerCanvas = providerCreativeCanvas(channel)
+  const providerAspect = providerCanvas.width / providerCanvas.height
+  const finalAspect = finalCanvas.width / finalCanvas.height
   const retainedWidth = providerAspect > finalAspect ? finalAspect / providerAspect : 1
   const retainedHeight = providerAspect > finalAspect ? 1 : providerAspect / finalAspect
   const safeShare = 1 - criticalContentMargin * 2
   const percent = (value: number) => `${Math.round(value * 1000) / 10}%`
   return {
-    finalPixels: `${feedCreativeCanvas.width}x${feedCreativeCanvas.height}`,
-    finalRatio: ratioLabel(feedCreativeCanvas),
-    providerRatio: ratioLabel(providerCreativeCanvas),
+    finalPixels: `${finalCanvas.width}x${finalCanvas.height}`,
+    finalRatio: ratioLabel(finalCanvas),
+    providerRatio: ratioLabel(providerCanvas),
     discardedWidthPerSide: percent((1 - retainedWidth) / 2),
     discardedHeightPerSide: percent((1 - retainedHeight) / 2),
     safeWidth: percent(retainedWidth * safeShare),

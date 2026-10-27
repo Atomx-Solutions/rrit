@@ -4,6 +4,26 @@ let pool: pg.Pool | undefined
 let operationsWorkerPool: pg.Pool | undefined
 let operationsWorkerLeases = 0
 
+/**
+ * Keeps a connection that Supabase closes from crashing the process.
+ *
+ * A pool listens for errors only on its idle connections: it drops that
+ * listener while a connection is checked out. A socket closed mid-transaction
+ * then emits an error nobody handles, which Node raises as an uncaught
+ * exception. Every connection keeps a listener of its own instead; the query
+ * in flight still fails and its transaction rolls back, and the pool removes
+ * the broken connection when it is released.
+ */
+export function guardConnectionErrors(target: pg.Pool, label: string) {
+  target.on('connect', (client) => {
+    client.on('error', (error: Error & { code?: unknown }) => {
+      console.warn(`${label} lost a database connection in use.`, {
+        code: typeof error.code === 'string' ? error.code.slice(0, 64) : undefined,
+      })
+    })
+  })
+}
+
 export function database() {
   const connectionString = process.env.DATABASE_URL
   if (!connectionString)
@@ -22,6 +42,7 @@ export function database() {
           'code' in error && typeof error.code === 'string' ? error.code.slice(0, 64) : undefined,
       })
     })
+    guardConnectionErrors(pool, 'Runtime database pool')
   }
   return pool
 }
@@ -44,13 +65,15 @@ export function acquireOperationsWorkerDatabase() {
     idleTimeoutMillis: 30000,
     statement_timeout: statementTimeout,
   }))
-  if (operationsWorkerLeases === 0)
+  if (operationsWorkerLeases === 0) {
     worker.on('error', (error) => {
       console.warn('Operations pool discarded an interrupted idle connection.', {
         code:
           'code' in error && typeof error.code === 'string' ? error.code.slice(0, 64) : undefined,
       })
     })
+    guardConnectionErrors(worker, 'Operations pool')
+  }
   operationsWorkerLeases += 1
   let released = false
   return {

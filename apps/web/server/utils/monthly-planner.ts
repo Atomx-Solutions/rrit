@@ -13,8 +13,9 @@ import {
   contentLocaleForPreferences,
   postSchema,
   videoDurationSeconds,
-  videoFormat,
 } from '../../shared/schemas/workspace'
+import { channelCanvas, channelFormat } from '../../shared/schemas/channel-format'
+import { fitPhotoToChannel, reviewExtension, type PhotoFitMode } from './photo-fit'
 import {
   emptyPlannerBrain,
   factIsUsable,
@@ -33,13 +34,12 @@ import {
   recordTrialPostUsage,
   trialStatus,
 } from './trials'
-import { setTenantContext } from './database'
+import { guardConnectionErrors, setTenantContext } from './database'
 import { postContentSnapshot, postFingerprint } from './post-validation'
 import { normalizeQualityReview } from './post-quality-domain'
 import {
   assetContactSheet,
   normalizeGeneratedCreative,
-  prepareVideoFirstFrame,
 } from './image-processing'
 import {
   assetStorageFolder,
@@ -60,6 +60,7 @@ import {
   monthlyAiConfigured,
   monthlyAutomaticStageKey,
   invalidateMonthlyGenerationRun,
+  channelFrame,
   monthlyImageCall,
   monthlyImagePrompt,
   monthlyProviderCall,
@@ -129,6 +130,7 @@ export function monthlyWorkerDatabase() {
         code,
       })
     })
+    guardConnectionErrors(workerPool, 'Monthly planner')
   }
   return workerPool
 }
@@ -253,7 +255,7 @@ export async function ensureMonthlyPlan(
     return prior.rows[0] as { id: string; status: string }
   const settings = await plannerStep('ensure.settings', () =>
     client.query(
-      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
       [businessId],
     ),
   )
@@ -294,6 +296,7 @@ export async function ensureMonthlyPlan(
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
+    videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
   }
   // The two selections are checked independently so the message the user sees
   // names the exact deliverable they oversubscribed, rather than a shared
@@ -399,7 +402,7 @@ export async function requestMonthlyPosts(
   if (!['idle', 'review', 'queued'].includes(prior.status))
     throw new PlannerFailure('PLAN_NOT_RESTARTABLE')
   const settings = await client.query(
-    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
     [businessId],
   )
   if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
@@ -431,6 +434,7 @@ export async function requestMonthlyPosts(
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
+    videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
   }
   // Stored preferences only constrain the kinds this batch actually asks for;
   // a video-only batch must not be rejected because the saved post photos
@@ -540,7 +544,7 @@ export async function restartMonthlyPlan(
   if (['BUDGET_ESTIMATE_EXCEEDED', 'PROVIDER_RETRY_EXHAUSTED'].includes(prior.error_code || ''))
     throw new PlannerFailure('PLAN_RECONCILIATION_REQUIRED')
   const settings = await client.query(
-    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
     [businessId],
   )
   if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
@@ -574,6 +578,7 @@ export async function restartMonthlyPlan(
     mode: settings.rows[0].photo_mode as 'auto' | 'selected',
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
+    videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
   }
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
@@ -659,7 +664,7 @@ export async function resetMonthlyPlan(
   await client.query(
     `UPDATE monthly_planner_settings
       SET configured_at=NULL,photo_mode='auto',preferred_asset_ids='{}',
-          preferred_video_asset_ids='{}',updated_at=now()
+          preferred_video_asset_ids='{}',preferred_video_extra_asset_ids='{}'::jsonb,updated_at=now()
       WHERE business_id=$1`,
     [businessId],
   )
@@ -1758,6 +1763,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     let content: ReturnType<typeof generatedPostSchema.parse> | undefined
     let original: { id: string; bytes: Buffer } | undefined
     let creative: Buffer | undefined
+    // How a video slot's photograph was fitted to its channel canvas.
+    let videoPosterFit: PhotoFitMode | undefined
+    let videoPosterFitReasons: string[] = []
     let imageGeneration: Awaited<ReturnType<typeof monthlyImageCall>> | undefined
     let quality: ReturnType<typeof qualitySchema.parse> | undefined
     const revisionFeedback: string[] = []
@@ -1859,19 +1867,35 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         creative: { ...parsedContent.data.creative, layout: slot.visualLayout },
       }
       original = assets.find((asset) => asset.id === selectedAssetId)!
-      // A video slot's gallery poster is the prepared 9:16 opening frame of
-      // the mp4 that is about to be rendered, not a separately AI-generated
-      // 4:5 creative. The expensive planner image call, its creative
+      // A video slot's gallery poster is the prepared opening frame of the
+      // mp4 that is about to be rendered, on the channel's canvas, not a
+      // separately AI-generated creative. The expensive planner image call, its creative
       // normalization and the still-image quality review are skipped for video
       // deliverables. The finished MP4 receives its own frame-based review.
       if (slot.deliverable === 'video') {
-        const [posterWidth, posterHeight] = videoFormat.split('x').map(Number)
-        creative = await plannerStep('content.video_poster', () =>
-          prepareVideoFirstFrame(original!.bytes, {
-            width: posterWidth!,
-            height: posterHeight!,
+        // The poster is the photograph fitted to the channel canvas, the same
+        // image the render later animates, so what the gallery shows is the
+        // video's own first frame.
+        const fitted = await plannerStep('content.video_poster', () =>
+          fitPhotoToChannel(original!.bytes, slot.channel, {
+            outpaint: async (guide, prompt, attempt) => {
+              const painted = await monthlyImageCall(db, {
+                ...common,
+                stageKey: monthlyAutomaticStageKey('fit', plan.evidence_hash, `${plan.completed_count}:${attempt}`),
+                prompt,
+                channel: slot.channel,
+                reference: guide,
+              })
+              return { bytes: painted.bytes }
+            },
+            review: reviewExtension,
           }),
         )
+        creative = fitted.bytes
+        videoPosterFit = fitted.mode
+        videoPosterFitReasons = fitted.reasons
+        if (fitted.mode === 'crop_fallback' && fitted.reasons.length)
+          console.warn('A photograph could not be extended and was cropped instead', { planId: plan.id, reasons: fitted.reasons })
         imageGeneration = undefined
         quality = normalizeQualityReview(
           qualitySchema.parse({
@@ -1915,6 +1939,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           `${plan.completed_count}:${previousPageStyle.revision}`,
         ),
         prompt: imagePrompt,
+        channel: slot.channel,
         reference: original.bytes,
         styleReferences: previousPageStyle.contactSheet
           ? [
@@ -1932,6 +1957,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       // selected clear region; it does not apply a coded layout template.
       creative = await normalizeGeneratedCreative(
         imageGeneration.bytes,
+        slot.channel,
         brandLogo?.bytes,
         content.creative.logoZone,
       )
@@ -1951,6 +1977,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           // content stage was given, so it receives the identical projection.
           businessBrain: slotBrain,
           slot,
+          channelFrame: channelFrame(slot.channel),
           content,
           previousPosts: earlier.rows,
           previousGeneratedPostCount: previousGeneratedAssets.length,
@@ -2161,7 +2188,13 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
               ? {
                   video: {
                     status: 'brief_ready' as const,
-                    sourceAssetIds: [content.assetId],
+                    // The main photograph first: the video closes on it and it
+                    // is the poster. Further angles of the same subject the
+                    // business grouped with it follow, one per shot at most.
+                    sourceAssetIds: [
+                      content.assetId,
+                      ...(plan.evidence.photoSelection?.videoExtraAssetIds?.[content.assetId] || []),
+                    ],
                     ...(videoBriefLogoId ? { logoAssetId: videoBriefLogoId } : {}),
                     // The strategy's own direction for this video, carried
                     // forward in full rather than truncated into a single
@@ -2183,7 +2216,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
                     // builder itself.
                     ...(slot.shot ? { shot: slot.shot } : {}),
                     durationSeconds: videoDurationSeconds,
-                    format: videoFormat,
+                    format: channelFormat(slot.channel),
                     createdAt: new Date().toISOString(),
                   },
                 }
@@ -2196,16 +2229,14 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             aiProvenance: provenance,
           }),
         )
-        // A static-post creative is 1080x1350 (4:5). A video poster is the
-        // 9:16 opening frame, same dimensions as the mp4 that is about to be
-        // rendered, so the gallery thumbnail matches what the viewer sees
-        // when they open the video. The `video-poster` tag keeps the poster
+        // A static-post creative and a video poster are both on the slot
+        // channel's canvas, the poster at the same dimensions as the mp4 that
+        // is about to be rendered, so the gallery thumbnail matches what the
+        // viewer sees when they open the video. The `video-poster` tag keeps the poster
         // out of flows that look for `monthly-creative` static posts and the
         // non-null creative_provenance (set below) keeps it out of the
         // owned-source photo picker that filters creative_provenance IS NULL.
-        const [posterWidth, posterHeight] = slot.deliverable === 'video'
-          ? videoFormat.split('x').map(Number)
-          : [1080, 1350]
+        const { width: posterWidth, height: posterHeight } = channelCanvas(slot.channel)
         await plannerStep('content.persist.asset_insert', () =>
           client.query(
             "INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,storage_path,size_bytes,width,height,creative_provenance) VALUES($1,$2,$3,$4,true,'image/jpeg',NULL,$5,$6,$8,$9,$7)",
@@ -2223,7 +2254,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
               JSON.stringify({
                 ...provenance,
                 ...(slot.deliverable === 'video'
-                  ? { source: 'video-first-frame', sourceAssetId: content.assetId }
+                  ? { source: 'video-first-frame', sourceAssetId: content.assetId, channel: slot.channel, fit: videoPosterFit, ...(videoPosterFitReasons.length ? { fitReasons: videoPosterFitReasons.map((reason) => reason.slice(0, 200)) } : {}) }
                   : {}),
                 checksum: evidenceHash(creative.toString('base64')),
               }),
@@ -2472,11 +2503,13 @@ export async function runMonthlyPlannerTick(
           : undefined
       // A customer pausing their own planner is a decision, not a fault. The
       // plan is still blocked below so the explicit resume can pick it up, but
-      // it is not worth a warning on every tick that races a pause.
-      if (stage && code !== 'PLANNER_PAUSED')
-        console.warn('Monthly planner paused the current tick at a validated stage.', {
+      // it is not worth a warning on every tick that races a pause. Every other
+      // stop is logged, with its stage when one is known, so a failure outside
+      // a named step still says what went wrong.
+      if (code !== 'PLANNER_PAUSED')
+        console.warn('Monthly planner paused the current tick.', {
           code,
-          stage,
+          stage: stage || 'unknown',
           database,
           ...(error instanceof PlannerFailure
             ? { details: error.details.slice(0, 5) }
@@ -2489,6 +2522,11 @@ export async function runMonthlyPlannerTick(
                   typeof error === 'object' && error && 'message' in error
                     ? String(error.message).slice(0, 500)
                     : 'Unknown generation failure',
+                // Where it was thrown, so a failure outside a named step can
+                // be found without a debugger.
+                at: error instanceof Error && error.stack
+                  ? error.stack.split('\n').slice(1, 4).map((line) => line.trim())
+                  : [],
               }),
         })
       // A provider-side temporary error or rate limit has no usable result,

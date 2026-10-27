@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 import type { Post } from '~~/shared/schemas/workspace'
+import { channelCanvas } from '~~/shared/schemas/channel-format'
 import { formatDate } from '~~/shared/utils/format'
 const props = defineProps<{ posts: Post[] }>()
 const { base, data } = useWorkspace()
@@ -14,13 +15,7 @@ const viewerPost = computed(() => props.posts[viewerIndex.value] || null)
 // finished render. The map keeps the resolution per post so flipping back and
 // forth in the viewer does not re-fetch what is already known.
 const videoPreviews = ref<Record<string, string | null>>({})
-const embeddedEndCards = ref<Record<string, boolean>>({})
 const resolvingVideo = ref(false)
-const viewerLegacyCardVisible = ref(false)
-function handleViewerVideoEnded() {
-  const post = viewerPost.value
-  if (post?.video?.endCardAssetId && !embeddedEndCards.value[post.id]) viewerLegacyCardVisible.value = true
-}
 const viewerVideoUrl = computed(() => {
   const post = viewerPost.value
   if (!post || post.video?.status !== 'ready') return null
@@ -32,11 +27,10 @@ async function resolveViewerVideo() {
   if (post.id in videoPreviews.value) return
   resolvingVideo.value = true
   try {
-    const response = await $fetch<{ render: { previewUrl: string | null; endCardEmbedded: boolean } | null }>(
+    const response = await $fetch<{ render: { previewUrl: string | null } | null }>(
       `/api/posts/${post.id}/video`,
     )
     videoPreviews.value[post.id] = response.render?.previewUrl || null
-    embeddedEndCards.value[post.id] = response.render?.endCardEmbedded || false
   } catch {
     videoPreviews.value[post.id] = null
   } finally {
@@ -47,16 +41,42 @@ function openViewer(post: Post) {
   const index = props.posts.findIndex((item) => item.id === post.id)
   if (index < 0) return
   viewerIndex.value = index
-  viewerLegacyCardVisible.value = false
   viewerOpen.value = true
   resolveViewerVideo()
 }
 function moveViewer(offset: number) {
   if (!props.posts.length) return
   viewerIndex.value = (viewerIndex.value + offset + props.posts.length) % props.posts.length
-  viewerLegacyCardVisible.value = false
   resolveViewerVideo()
 }
+// The arrow keys move through the posts like the gallery viewer, except while
+// a video or a field has focus, where they belong to it.
+function onViewerKeydown(event: KeyboardEvent) {
+  if (!viewerOpen.value) return
+  const target = event.target as HTMLElement | null
+  if (target?.closest('video, input, textarea, [contenteditable="true"]')) return
+  if (event.key === 'ArrowLeft') moveViewer(-1)
+  if (event.key === 'ArrowRight') moveViewer(1)
+}
+// The stage keeps the post's channel shape while the next photo loads, so the
+// controls never jump and the viewer never flashes empty.
+const viewerFrame = computed(() => {
+  if (!viewerPost.value) return undefined
+  const { width, height } = channelCanvas(viewerPost.value.channel)
+  return { aspectRatio: `${width} / ${height}` }
+})
+// The photos either side are fetched ahead, so stepping to them is instant.
+watch([viewerOpen, viewerIndex], ([open]) => {
+  if (!open || !import.meta.client || !props.posts.length) return
+  for (const offset of [-1, 1]) {
+    const neighbour = props.posts[(viewerIndex.value + offset + props.posts.length) % props.posts.length]
+    if (neighbour?.image) new Image().src = neighbour.image
+  }
+})
+const viewerStrip = ref<HTMLElement | null>(null)
+useCenteredStrip(viewerStrip, viewerIndex, viewerOpen)
+onMounted(() => window.addEventListener('keydown', onViewerKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onViewerKeydown))
 async function downloadViewerPost() {
   if (!viewerPost.value || downloading.value) return
   downloading.value = true
@@ -218,35 +238,30 @@ const columns = computed<TableColumn<Post>[]>(() => [
             :aria-label="t('content.previousPostPhoto')"
             @click="moveViewer(-1)"
           />
-          <!-- New MP4s contain the card; historical raw renders retain their
-               separate card in Gallery until they are recomposed. -->
+          <!-- The video starts on its own when opened; browsers only allow that
+               muted, and the controls turn the sound on. -->
           <template v-if="viewerVideoUrl">
             <video
-              v-show="!viewerLegacyCardVisible"
+              :key="`video-${viewerPost.id}`"
               :src="viewerVideoUrl"
               :poster="viewerPost.image"
+              autoplay
+              muted
               controls
               playsinline
               class="h-full w-auto max-w-full rounded-xl bg-black ring-1 ring-default"
-              @ended="handleViewerVideoEnded"
-            />
-            <MediaImage
-              v-if="viewerLegacyCardVisible && viewerPost.video?.endCardAssetId"
-              :src="`/api/media/${viewerPost.video.endCardAssetId}`"
-              :alt="viewerPost.title"
-              fit="natural"
-              :surface="false"
-              class="h-full w-auto max-w-full rounded-xl ring-1 ring-default"
             />
           </template>
-          <MediaImage
-            v-if="!viewerVideoUrl"
-            :src="viewerPost.image"
-            :alt="viewerPost.title"
-            fit="natural"
-            :surface="false"
-            class="h-full w-auto max-w-full rounded-xl ring-1 ring-default"
-          />
+          <div v-if="!viewerVideoUrl" class="h-full max-w-full min-w-0" :style="viewerFrame">
+            <MediaImage
+              :src="viewerPost.image"
+              :alt="viewerPost.title"
+              fit="contain"
+              loading="eager"
+              :surface="false"
+              class="size-full rounded-xl"
+            />
+          </div>
           <UButton
             color="neutral"
             variant="outline"
@@ -274,7 +289,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
              a scroll container clips anything outside its padding box. The
              padding gives the ring room, the negative margin keeps the strip
              aligned with the rest. -->
-        <div class="flex gap-2 overflow-x-auto p-1 -m-1">
+        <div ref="viewerStrip" class="flex gap-2 overflow-x-auto p-1 -m-1">
           <UButton
             v-for="(post, index) in props.posts"
             :key="post.id"

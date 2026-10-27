@@ -4,6 +4,7 @@ import { postSchema, type Post } from '../../shared/schemas/workspace'
 import { recordAuditEvent, transitionMetadata } from './audit'
 import { setTenantContext } from './database'
 import { blockingPostChecks, localPostChecks, postContentVersion, providerPostChecks } from './post-validation'
+import { conformDeliveredMedia } from './delivered-media'
 import { requireEntitlement, trialStatus } from './trials'
 import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
 
@@ -538,10 +539,16 @@ async function runOnePublishingJob(db: Pool) {
       post.publicationMode !== 'automatic'
     )
       throw new Error('version_changed')
+    // Measured again from the stored file at the moment of publishing and
+    // brought to the channel's canvas if it is not, so the channel never
+    // receives the wrong shape and the post is never held back for it.
+    const delivered = await conformDeliveredMedia(post, job.business_id, owner.rows[0].owner_id, preflight)
     const checks = [
       ...(await localPostChecks(post, job.business_id, preflight)),
       ...(await providerPostChecks(post, job.business_id, { throwProviderFailure: true, db: preflight })),
+      ...delivered.checks,
     ]
+    const image = delivered.imageAssetId ? `/api/media/${delivered.imageAssetId}` : post.image
     const failedBlocking = blockingPostChecks(checks).filter((check) => !check.passed)
     if (failedBlocking.length) {
       console.error('[publish] preflight blocking checks failed:', failedBlocking.map((c) => ({ key: c.key, message: c.message })))
@@ -582,7 +589,7 @@ async function runOnePublishingJob(db: Pool) {
         : await graphRequest<{ id?: string; post_id?: string }>(
             `${connection.page_id}/photos`,
             token,
-            { url: publicMediaUrl(post.image), caption: post.caption, published: 'true' },
+            { url: publicMediaUrl(image), caption: post.caption, published: 'true' },
             'POST',
           )
       console.log('[publish] Facebook response:', JSON.stringify(response))
@@ -598,7 +605,7 @@ async function runOnePublishingJob(db: Pool) {
           // container Instagram offers a professional account.
           videoUrl
             ? { media_type: 'REELS', video_url: videoUrl, caption: post.caption }
-            : { image_url: publicMediaUrl(post.image), caption: post.caption },
+            : { image_url: publicMediaUrl(image), caption: post.caption },
           'POST',
         )
         if (!response.id) throw new Error('missing_container')

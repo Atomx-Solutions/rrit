@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { contentLocaleForPreferences, postSchema } from '../../../../shared/schemas/workspace'
+import { channelCanvas } from '../../../../shared/schemas/channel-format'
 import { audienceLanguageFromResearch } from '../../../utils/audience-language'
 import { normalizeGeneratedCreative } from '../../../utils/image-processing'
 import { monthlyImageCall, postImageEditPrompt } from '../../../utils/monthly-ai'
@@ -101,6 +102,7 @@ export default defineEventHandler(async (event) => {
           businessId: snapshot.businessId,
           stageKey: `user-image-edit:${snapshot.post.id}:${input.data.contentVersion}:${evidenceHash({ sourceAssetId: snapshot.sourceAssetId, instruction: input.data.instruction })}`,
           prompt,
+          channel: snapshot.post.channel,
           reference: snapshot.sourceBytes,
           referenceMime: ['image/jpeg', 'image/png', 'image/webp'].includes(snapshot.sourceMime)
             ? (snapshot.sourceMime as 'image/jpeg' | 'image/png' | 'image/webp')
@@ -110,7 +112,7 @@ export default defineEventHandler(async (event) => {
         })
         return {
           generated,
-          bytes: await normalizeGeneratedCreative(generated.bytes, snapshot.brandLogo?.bytes),
+          bytes: await normalizeGeneratedCreative(generated.bytes, snapshot.post.channel, snapshot.brandLogo?.bytes),
         }
       } finally {
         snapshot.brandLogo?.bytes.fill(0)
@@ -155,10 +157,11 @@ export default defineEventHandler(async (event) => {
           revision: { instruction: input.data.instruction, sourceAssetId: snapshot.sourceAssetId, createdAt },
         },
       })
+      const canvas = channelCanvas(snapshot.post.channel)
       await client.query(
         `INSERT INTO assets(id,business_id,name,tags,rights,mime,bytes,storage_path,size_bytes,width,height,creative_provenance)
-         VALUES($1,$2,$3,'["monthly-creative","ai-edited"]',true,'image/jpeg',NULL,$4,$5,1080,1350,$6)`,
-        [assetId, business.id, post.title, storagePath, bytes.length, JSON.stringify({ ...post.aiProvenance, editedBy: user.id, editSourceAssetId: snapshot.sourceAssetId })],
+         VALUES($1,$2,$3,'["monthly-creative","ai-edited"]',true,'image/jpeg',NULL,$4,$5,$6,$7,$8)`,
+        [assetId, business.id, post.title, storagePath, bytes.length, canvas.width, canvas.height, JSON.stringify({ ...post.aiProvenance, editedBy: user.id, editSourceAssetId: snapshot.sourceAssetId })],
       )
       await client.query('UPDATE posts SET payload=$1,content_version=$2,updated_at=now() WHERE id=$3 AND business_id=$4', [JSON.stringify(post), postContentVersion(post), post.id, business.id])
       await client.query(

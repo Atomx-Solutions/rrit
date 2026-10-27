@@ -146,21 +146,21 @@ async function saveAndLeave() {
               <p class="small muted mt-1">{{ t('settings.businessAccount') }}</p>
             </div>
           </div>
-          <UFormField :label="t('settings.fullName')" name="name" class="field"
+          <UFormField :label="t('settings.fullName')" name="name" class="field" required
             ><UInput
               v-model="form.name"
               class="w-full"
               required
               minlength="2"
               maxlength="100" /></UFormField
-          ><UFormField :label="t('settings.email')" name="email" class="field"
+          ><UFormField :label="t('settings.email')" name="email" class="field" required
             ><UInput v-model="form.email" class="w-full" type="email" required /><small
               >{{ t('settings.emailDescription') }}</small
             ></UFormField
           ></template
         ><template v-if="tab === 'preferences'"
           ><h2>{{ t('settings.languageRegion') }}</h2>
-           <UFormField :label="t('settings.language')" name="locale" class="field"
+           <UFormField :label="t('settings.language')" name="locale" class="field" required
             ><USelect
               v-model="form.locale"
               class="w-72 max-w-full"
@@ -178,7 +178,7 @@ async function saveAndLeave() {
               v-model="form.timezone"
               class="w-72 max-w-full"
               :items="TIMEZONE_OPTIONS.map(zone => ({ label: t(zone.labelKey), value: zone.value }))" /></UFormField
-          ><UFormField :label="t('settings.currency')" name="currency" class="field"
+          ><UFormField :label="t('settings.currency')" name="currency" class="field" required
             ><USelect
               v-model="form.currency"
               class="w-72 max-w-full"

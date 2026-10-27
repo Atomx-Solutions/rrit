@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Post } from '~~/shared/schemas/workspace'
+import { publishingChannels } from '~~/shared/schemas/channel-format'
 import { zonedToIso } from '~~/shared/utils/format'
 const props = defineProps<{ id?: string }>()
 const { data, base, commit, transition, notify, conflict, initLive, syncing } = useWorkspace()
@@ -46,6 +47,12 @@ const {
 )
 const savedId = ref(props.id)
 const post = computed(() => data.value.posts.find((p) => p.id === savedId.value))
+// The video review's findings are shown once, in the approval check, together
+// with the way to act on them.
+const videoFindingsShown = computed(() => {
+  const video = post.value?.video
+  return video?.status === 'ready' && !!video.quality && video.quality.decision !== 'PASS' && video.quality.reasons.length > 0
+})
 const selectableAssets = computed(() => {
   const assets = data.value.assets.filter((asset) => asset.rights)
   if (!post.value) return assets
@@ -165,10 +172,12 @@ async function publishNow() {
       return
     }
     if (form.channel === 'TikTok') {
-      await $fetch(`/api/posts/${post.value.id}/tiktok-upload`, { method: 'POST', body: {}, retry: 0 })
+      const sent = await $fetch(`/api/posts/${post.value.id}/tiktok-upload`, { method: 'POST', body: {}, retry: 0 })
       publishOpen.value = false
       await initLive()
-      notify(t('tiktok.uploadSucceeded'))
+      // A photo TikTok will not take from this app yet stays ready for the
+      // business to post by hand; it is said so, never reported as sent.
+      notify(t(sent.mode === 'manual' ? 'tiktok.photoManual' : post.value.video ? 'tiktok.uploadSucceeded' : 'tiktok.photoSent'))
     } else {
       await $fetch(`/api/posts/${post.value.id}/publish`, {
         method: 'POST',
@@ -240,6 +249,30 @@ async function renderVideo() {
   error.value = ''
   try {
     await $fetch(`/api/posts/${post.value.id}/video-render`, { method: 'POST', body: {}, retry: 0 })
+    await initLive()
+    await refreshVideo()
+    notify(t('video.ready'))
+  } catch (problem) {
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
+  } finally {
+    videoBusy.value = false
+  }
+}
+// Edit video with AI: the business's own direction for the next take.
+const videoEditOpen = ref(false)
+const videoInstruction = ref('')
+async function editVideoWithAi() {
+  if (!post.value || videoBusy.value || videoInstruction.value.trim().length < 5) return
+  videoBusy.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/posts/${post.value.id}/video-edit`, {
+      method: 'POST',
+      body: { instruction: videoInstruction.value.trim() },
+      retry: 0,
+    })
+    videoEditOpen.value = false
+    videoInstruction.value = ''
     await initLive()
     await refreshVideo()
     notify(t('video.ready'))
@@ -507,6 +540,7 @@ onBeforeUnmount(() => {
             name="title"
             :description="t('content.postNameDescription')"
             class="field"
+            required
             ><UInput
               v-model="form.title"
               :disabled="!editable"
@@ -515,19 +549,19 @@ onBeforeUnmount(() => {
               class="w-full"
           /></UFormField>
           <div class="grid-2">
-            <UFormField :label="t('content.channel')" name="channel" class="field"
+            <UFormField :label="t('content.channel')" name="channel" class="field" required
               ><USelect
                 v-model="form.channel"
                 :disabled="!editable"
-                :items="post?.video ? ['Instagram', 'Facebook', 'TikTok'] : ['Instagram', 'Facebook']" /></UFormField
-            ><UFormField :label="t('content.postTopic')" name="pillar" class="field"
+                :items="[...publishingChannels]" /></UFormField
+            ><UFormField :label="t('content.postTopic')" name="pillar" class="field" required
               ><USelect
                 v-model="form.pillar"
                 :disabled="!editable"
                 :items="[t('strategy.intent.product'), t('strategy.intent.behind_the_scenes'), t('strategy.goal.meaningful_comments'), t('strategy.goal.profile_actions'), t('brand.offerType')]"
             /></UFormField>
           </div>
-          <UFormField :label="t('content.postText')" name="caption" class="field"
+          <UFormField :label="t('content.postText')" name="caption" class="field" required
             ><UTextarea
               v-model="form.caption"
               :disabled="!editable"
@@ -592,11 +626,47 @@ onBeforeUnmount(() => {
                 icon="i-lucide-eye"
                 @click="videoPreviewOpen = true"
               >{{ t('video.preview') }}</UButton>
+              <UButton
+                v-if="post?.video && ['ready', 'failed'].includes(post.video.status)"
+                size="sm"
+                variant="outline"
+                color="neutral"
+                icon="i-lucide-wand-sparkles"
+                :disabled="dirty || syncing || !editable || videoBusy"
+                @click="videoEditOpen = true"
+              >{{ t('video.editWithAi') }}</UButton>
             </div>
           </div>
           <p v-if="post?.video" class="text-sm text-muted">
             {{ videoRender?.status === 'ready' ? t('video.readyHint') : t('video.sourceHint') }}
           </p>
+          <!-- A video the subject check doubted is kept for the business to
+               judge; the check's own words say what it saw. -->
+          <UAlert
+            v-if="post?.video?.status === 'ready' && post.video.subjectWarning"
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-triangle-alert"
+            :title="t('video.subjectWarningTitle')"
+            :description="t('video.subjectWarning', { detail: post.video.subjectWarning.detail })"
+            :actions="[{ label: t('video.editWithAi'), icon: 'i-lucide-wand-sparkles', onClick: () => { videoEditOpen = true } }]"
+          />
+          <UAlert
+            v-if="post?.video?.status === 'ready' && !post.video.quality"
+            color="neutral"
+            variant="subtle"
+            icon="i-lucide-hourglass"
+            :title="t('video.qualityPendingTitle')"
+            :description="t('video.qualityPending')"
+          />
+          <UAlert
+            v-if="post?.video?.status === 'failed'"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-circle-alert"
+            :title="t('video.failedTitle')"
+            :description="t('video.failedGeneric')"
+          />
           <div
             v-if="form.image"
             class="shrink-0"
@@ -719,7 +789,8 @@ onBeforeUnmount(() => {
                   ? t('coverage.technicalPassed')
                   : t('coverage.manualReview')
             "
-            :description="policyDescription(post?.policyReason)"
+            :description="videoFindingsShown ? post?.video?.quality?.reasons.join(' ') : policyDescription(post?.policyReason)"
+            :actions="videoFindingsShown ? [{ label: t('video.editWithAi'), icon: 'i-lucide-wand-sparkles', onClick: () => { videoEditOpen = true } }] : undefined"
           /><ULink :to="`${base}/brand`" class="text-primary small"
             >{{ t('content.businessFacts') }}</ULink
           >
@@ -786,6 +857,15 @@ onBeforeUnmount(() => {
           <p v-if="form.channel !== 'TikTok'" class="small muted">
             {{ t('content.approvalCalendarNote') }}
           </p>
+          <UAlert
+            v-if="form.channel === 'TikTok' && post?.tiktokDelivery?.mode === 'manual'"
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-hand"
+            :title="t('tiktok.manualReady')"
+            :description="t('tiktok.photoManual')"
+            :actions="[{ label: t('tiktok.downloadPhoto'), icon: 'i-lucide-download', href: form.image, download: '', target: '_blank' }]"
+          />
         </UCard>
       </div>
       <aside class="stack lg:sticky lg:top-6">
@@ -862,6 +942,31 @@ onBeforeUnmount(() => {
       </template>
     </UModal>
     <UModal
+      v-model:open="videoEditOpen"
+      :title="t('video.editTitle')"
+      :description="t('video.editDescription')"
+      :ui="{ content: 'sm:max-w-lg' }"
+    >
+      <template #body>
+        <UTextarea
+          v-model="videoInstruction"
+          :placeholder="t('video.editPlaceholder')"
+          :rows="4"
+          :maxlength="600"
+          autoresize
+          class="w-full"
+        />
+        <div class="mt-4 flex justify-end">
+          <UButton
+            icon="i-lucide-wand-sparkles"
+            :loading="videoBusy"
+            :disabled="videoInstruction.trim().length < 5"
+            @click="editVideoWithAi"
+          >{{ t('video.editSubmit') }}</UButton>
+        </div>
+      </template>
+    </UModal>
+    <UModal
       v-model:open="videoPreviewOpen"
       :title="t('video.previewTitle')"
       :description="t('video.previewDescription')"
@@ -896,7 +1001,7 @@ onBeforeUnmount(() => {
           @submit="schedulePost"
           @error="onFormError"
         >
-          <UFormField :label="t('content.dateAndTime')" name="schedule" class="field"
+          <UFormField :label="t('content.dateAndTime')" name="schedule" class="field" required
             ><UInput v-model="schedule" class="w-full" type="datetime-local" required
           /></UFormField>
           <UCheckbox

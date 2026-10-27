@@ -31,12 +31,6 @@ const schema = z.object({
   audience: z.string(),
   industry: z.string().max(200),
   color: z.string().regex(/^#[0-9a-f]{6}$/i, t('brand.colorInvalid')),
-  facebookUrl: z
-    .string()
-    .refine((value) => !value || URL.canParse(value), t('brand.urlInvalid')),
-  instagramUrl: z
-    .string()
-    .refine((value) => !value || URL.canParse(value), t('brand.urlInvalid')),
   goals: z
     .array(z.string().trim().min(2, t('brand.goalMinLength')).max(120))
     .max(10),
@@ -212,27 +206,6 @@ function setPrice(fact: BrandFact, value: string | number) {
                 ]"
             /></UFormField>
           </div>
-          <UFormField
-            :label="t('brand.socialLinks')"
-            :description="t('brand.socialLinksDescription')"
-          >
-            <div class="grid sm:grid-cols-2 gap-5">
-              <UFormField name="facebookUrl">
-                <UInput
-                  v-model="form.facebookUrl"
-                  :aria-label="t('brand.facebookUrl')"
-                  :placeholder="t('brand.facebookPlaceholder')"
-                />
-              </UFormField>
-              <UFormField name="instagramUrl">
-                <UInput
-                  v-model="form.instagramUrl"
-                  :aria-label="t('brand.instagramUrl')"
-                  :placeholder="t('brand.instagramPlaceholder')"
-                />
-              </UFormField>
-            </div>
-          </UFormField>
           <div class="space-y-3">
             <div>
               <h3 class="text-sm font-semibold">{{ t('brand.goals') }}</h3>

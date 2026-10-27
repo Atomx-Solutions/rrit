@@ -1,3 +1,5 @@
+import { ratioLabel, type Canvas } from '../../shared/schemas/channel-format'
+
 type OpenRouterVideoStatus = {
   id?: string
   status?: string
@@ -35,22 +37,15 @@ export function aiVideoConfigured() {
   return !!config()
 }
 
-// The canvas and the length come from the post's own motion brief, so the
-// provider call never restates them: `format` is the brief's "<width>x<height>".
-function canvas(format: string) {
-  const [width, height] = format.split('x').map(Number)
-  if (!width || !height) throw createError({ statusCode: 422, message: 'server.VIDEO_FORMAT_INVALID' })
-  const divisor = (a: number, b: number): number => (b ? divisor(b, a % b) : a)
-  const gcd = divisor(width, height)
-  return { aspectRatio: `${width / gcd}:${height / gcd}`, resolution: `${Math.min(width, height)}p` }
-}
 
 // Framic's provider-independent video request. The planner and renderer build
 // this shape; adapters convert it into provider-specific payloads. Adding a
 // future provider only means adding another adapter — the rest of the
 // pipeline keeps speaking this type.
 export type VideoProviderRequest = {
-  firstFrame: Buffer
+  // Where the motion starts. Left out for a shot that opens away from the
+  // photograph and only has to arrive at it.
+  firstFrame?: Buffer
   // Where the motion must end. Sent only to a model that accepts a closing
   // frame; it pins the subject at both ends so the model cannot redraw it.
   lastFrame?: Buffer
@@ -64,7 +59,60 @@ export type VideoProviderResult = { bytes: Buffer; costUsd: number | null }
 
 // What the configured model accepts, as OpenRouter publishes it. Read once per
 // process: the catalogue changes with the model, not between renders.
-type OpenRouterVideoModel = { id: string; supported_resolutions?: string[]; supported_frame_images?: string[] }
+type OpenRouterVideoModel = {
+  id: string
+  supported_resolutions?: string[]
+  supported_aspect_ratios?: string[]
+  supported_frame_images?: string[]
+  supported_durations?: number[]
+  pricing_skus?: Record<string, string>
+}
+
+/**
+ * What one second of video costs in USD at a resolution, read from the price
+ * list OpenRouter publishes for the model. Videos are made without audio, so
+ * the silent price is preferred; a price in cents is converted. A model priced
+ * some other way (per token, for instance) has no per-second price here and
+ * the caller falls back on the configured reservation.
+ */
+export function pricePerSecondUsd(skus: Record<string, string> | undefined, resolution: string): number | null {
+  const prices = Object.entries(skus || {}).flatMap(([key, value]) => {
+    const amount = Number(value)
+    if (!Number.isFinite(amount) || amount <= 0 || !/second/.test(key)) return []
+    if (/reference|video_input|continuation|image/.test(key)) return []
+    return [{ key, usd: key.startsWith('cents_per') ? amount / 100 : amount }]
+  })
+  const silent = prices.filter((price) => price.key.includes('without_audio'))
+  const pool = silent.length ? silent : prices.filter((price) => !price.key.includes('with_audio'))
+  const candidates = pool.length ? pool : prices
+  const sized = /_(\d+p|\dk)$/i
+  const exact = candidates.find((price) => price.key.toLowerCase().endsWith(`_${resolution.toLowerCase()}`))
+  const general = candidates.find((price) => !sized.test(price.key))
+  const chosen = exact || general
+  return chosen ? chosen.usd : null
+}
+
+/**
+ * What the configured model (OPENROUTER_VIDEO_MODEL) can do, as OpenRouter
+ * publishes it: the shot lengths it renders and the frames it can be pinned
+ * to. Nothing here is assumed about a particular model.
+ */
+export async function aiVideoCapabilities(canvas?: { width: number; height: number }) {
+  const provider = config()
+  const model = provider ? await configuredModel(provider) : undefined
+  // The resolution actually asked of the model for this canvas, the same
+  // one the adapter sends, so the price matches the call.
+  const resolution = canvas
+    ? providerResolution(resolutionCap(`${Math.min(canvas.width, canvas.height)}p`), model?.supported_resolutions || [])
+    : undefined
+  return {
+    model: provider?.model,
+    pricePerSecondUsd: resolution ? pricePerSecondUsd(model?.pricing_skus, resolution) : null,
+    durations: [...new Set(model?.supported_durations || [])].filter((value) => Number.isInteger(value) && value > 0).sort((a, b) => a - b),
+    firstFrame: !model?.supported_frame_images || model.supported_frame_images.includes('first_frame'),
+    lastFrame: !!model?.supported_frame_images?.includes('last_frame'),
+  }
+}
 let modelCatalogue: Promise<OpenRouterVideoModel[]> | undefined
 
 async function configuredModel(provider: NonNullable<ReturnType<typeof config>>) {
@@ -127,7 +175,7 @@ async function openrouterAdapter(request: VideoProviderRequest): Promise<VideoPr
       resolution: providerResolution(resolutionCap(request.resolution), model?.supported_resolutions || []),
       generate_audio: false,
       frame_images: [
-        frame(request.firstFrame, 'first_frame'),
+        ...(request.firstFrame ? [frame(request.firstFrame, 'first_frame')] : []),
         ...(request.lastFrame && model?.supported_frame_images?.includes('last_frame')
           ? [frame(request.lastFrame, 'last_frame')]
           : []),
@@ -160,24 +208,57 @@ async function openrouterAdapter(request: VideoProviderRequest): Promise<VideoPr
   return { bytes: Buffer.from(await video.arrayBuffer()), costUsd: completed.usage?.cost ?? null }
 }
 
-// Framic entry point. Builds the provider-independent request from the
-// (image, prompt, duration, format) tuple callers already have, then hands it
-// to the single configured adapter. Keeps the renderer blind to which
-// provider is in use so a future adapter is a one-file addition.
+/**
+ * The canvas the configured model is asked to paint for a delivered canvas.
+ *
+ * A model offers only some aspect ratios (Veo: 16:9 and 9:16, never 4:5), so
+ * the delivered canvas is placed whole inside the offered ratio that wastes
+ * the least of it: the frames sent are the delivered frames padded out to that
+ * ratio, and the composer centre-crops the clip back to the delivered canvas.
+ * Nothing of the photograph is cut to fit the provider. A model that does not
+ * publish its ratios is asked for the delivered canvas itself.
+ */
+export async function aiVideoCanvas(target: Canvas): Promise<{ canvas: Canvas; aspectRatio: string }> {
+  const provider = config()
+  const model = provider ? await configuredModel(provider) : undefined
+  return providerCanvasFor(target, model?.supported_aspect_ratios || [])
+}
+
+export function providerCanvasFor(target: Canvas, supported: string[]) {
+  const targetAspect = target.width / target.height
+  const ratios = supported.flatMap((value) => {
+    const [width, height] = value.split(':').map(Number)
+    return width && height ? [{ label: value, aspect: width / height }] : []
+  })
+  if (!ratios.length || ratios.some((ratio) => Math.abs(ratio.aspect - targetAspect) < 0.005))
+    return { canvas: target, aspectRatio: ratioLabel(target) }
+  const kept = (aspect: number) => Math.min(aspect, targetAspect) / Math.max(aspect, targetAspect)
+  const best = ratios.reduce((winner, ratio) => (kept(ratio.aspect) > kept(winner.aspect) ? ratio : winner))
+  // Taller than the target: keep its width and add height. Wider: the reverse.
+  const canvas = best.aspect < targetAspect
+    ? { width: target.width, height: Math.round(target.width / best.aspect) }
+    : { width: Math.round(target.height * best.aspect), height: target.height }
+  return { canvas, aspectRatio: best.label }
+}
+
+// Framic entry point. Builds the provider-independent request from what the
+// renderer already has, then hands it to the single configured adapter. Keeps
+// the renderer blind to which provider is in use so a future adapter is a
+// one-file addition. `canvas` and `aspectRatio` come from aiVideoCanvas.
 export async function generateAiVideo(input: {
-  image: Buffer
+  image?: Buffer
   lastFrame?: Buffer
   prompt: string
   durationSeconds: number
-  format: string
+  canvas: Canvas
+  aspectRatio: string
 }): Promise<VideoProviderResult | null> {
-  const { aspectRatio, resolution } = canvas(input.format)
   return openrouterAdapter({
     firstFrame: input.image,
     lastFrame: input.lastFrame,
     prompt: input.prompt,
     durationSeconds: input.durationSeconds,
-    aspectRatio,
-    resolution,
+    aspectRatio: input.aspectRatio,
+    resolution: `${Math.min(input.canvas.width, input.canvas.height)}p`,
   })
 }

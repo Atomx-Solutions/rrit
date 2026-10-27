@@ -52,6 +52,17 @@ export default defineEventHandler(async (event) => {
         `SELECT app.process_paddle_payment($1,$2,$3)`,
         [data.custom_data.orderId, data.id, payload.event_id],
       )
+      // The invoice is our internal record; failing to issue it must not undo
+      // the credits the customer paid for. Rerunning
+      // app.issue_paddle_invoice with the transaction id issues it later.
+      await client.query('SAVEPOINT paddle_invoice')
+      try {
+        await client.query(`SELECT app.issue_paddle_invoice($1)`, [data.id])
+        await client.query('RELEASE SAVEPOINT paddle_invoice')
+      } catch (error) {
+        await client.query('ROLLBACK TO SAVEPOINT paddle_invoice')
+        console.error(`Paddle transaction ${data.id}: invoice not issued`, error)
+      }
     }
     await client.query(
       `UPDATE paddle_webhook_events SET processed_at=now() WHERE event_id=$1`,

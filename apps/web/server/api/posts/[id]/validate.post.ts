@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { postSchema } from '../../../../shared/schemas/workspace'
 import { blockingPostChecks, postContentVersion, tiktokPublishChecks } from '../../../utils/post-validation'
+import { conformDeliveredMedia } from '../../../utils/delivered-media'
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
@@ -29,9 +30,14 @@ export default defineEventHandler(async (event) => {
       const contentChecks = await localPostChecks(post, business.id, client)
       const providerChecks =
         input.data.scope === 'publication'
-          ? post.channel === 'TikTok'
-            ? await tiktokPublishChecks(business.id, client)
-            : await providerPostChecks(post, business.id, { db: client })
+          ? [
+              ...(post.channel === 'TikTok'
+                ? await tiktokPublishChecks(business.id, client)
+                : await providerPostChecks(post, business.id, { db: client })),
+              // The very file the channel would receive, opened, measured and,
+              // when it is not on the channel's canvas, brought to it.
+              ...(await conformDeliveredMedia(post, business.id, user.id, client)).checks,
+            ]
           : []
       const checks = [...contentChecks, ...providerChecks]
       return { post, contentChecks, checks }

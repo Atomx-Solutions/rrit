@@ -2,8 +2,8 @@ import { z } from 'zod'
 import {
   postSchema,
   videoDurationSeconds,
-  videoFormat,
 } from '../../../../shared/schemas/workspace'
+import { channelFormat } from '../../../../shared/schemas/channel-format'
 
 const paramsSchema = z.object({ id: z.uuid() })
 
@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
     post.video = {
       status: 'brief_ready', sourceAssetIds: selected.map((asset) => asset.id), logoAssetId: logo.rows[0]?.id,
       hook, overlays: [post.pillar.slice(0, 120)], cta: post.caption.slice(0, 120),
-      durationSeconds: videoDurationSeconds, format: videoFormat,
+      durationSeconds: videoDurationSeconds, format: channelFormat(post.channel),
       createdAt: new Date().toISOString(),
     }
     await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(post), id, business.id])
