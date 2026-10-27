@@ -79,7 +79,7 @@ export default defineEventHandler(async (event) => {
         [businessId],
       )
       await client.query(
-        "INSERT INTO instagram_connections (business_id,instagram_user_id,username,token_ciphertext,expires_at,scopes,status) VALUES ($1,$2,$3,$4,$5,$6,'connected') ON CONFLICT (business_id) DO UPDATE SET instagram_user_id=EXCLUDED.instagram_user_id,username=EXCLUDED.username,token_ciphertext=EXCLUDED.token_ciphertext,expires_at=EXCLUDED.expires_at,scopes=EXCLUDED.scopes,status='connected',updated_at=now()",
+        "INSERT INTO instagram_connections (business_id,instagram_user_id,username,token_ciphertext,expires_at,scopes,status,instagram_scoped_id) VALUES ($1,$2,$3,$4,$5,$6,'connected',$7) ON CONFLICT (business_id) DO UPDATE SET instagram_user_id=EXCLUDED.instagram_user_id,instagram_scoped_id=EXCLUDED.instagram_scoped_id,username=EXCLUDED.username,token_ciphertext=EXCLUDED.token_ciphertext,expires_at=EXCLUDED.expires_at,scopes=EXCLUDED.scopes,status='connected',updated_at=now()",
         [
           businessId,
           token.userId,
@@ -87,6 +87,7 @@ export default defineEventHandler(async (event) => {
           encryptInstagramToken(token.token, businessId),
           token.expiresAt,
           JSON.stringify(token.scopes),
+          token.scopedId,
         ],
       )
       await client.query('UPDATE businesses SET revision=revision+1 WHERE id=$1', [businessId])
