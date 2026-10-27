@@ -110,7 +110,7 @@ onMounted(async () => {
   <div class="space-y-4">
     <div :class="compact ? 'space-y-3' : 'grid sm:grid-cols-2 gap-4'">
       <UCard
-        v-for="channel in ['Facebook', 'Instagram']"
+        v-for="channel in ['Facebook']"
         :key="channel"
         :ui="{ body: 'p-4 sm:p-5' }"
       >

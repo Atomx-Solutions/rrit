@@ -846,7 +846,7 @@ async function loadPlannerTimingSamples(
     `SELECT channel,published_at
        FROM social_posts
       WHERE business_id=$1
-        AND EXISTS (
+        AND (EXISTS (
           SELECT 1
           FROM meta_connections mc
           WHERE mc.business_id=social_posts.business_id
@@ -854,6 +854,14 @@ async function loadPlannerTimingSamples(
             AND ((social_posts.channel='Facebook' AND social_posts.source_account_id=mc.page_id)
               OR (social_posts.channel='Instagram' AND social_posts.source_account_id=mc.instagram_id))
         )
+          OR EXISTS (
+            SELECT 1
+            FROM instagram_connections ic
+            WHERE ic.business_id=social_posts.business_id
+              AND ic.status='connected'
+              AND social_posts.channel='Instagram'
+              AND social_posts.source_account_id=ic.instagram_user_id
+          ))
       ORDER BY published_at DESC,id DESC
       LIMIT 200`,
     [businessId],
@@ -947,6 +955,7 @@ export async function loadPreviousPageStyle(
   const styleScope = await db.query<{
     brand_id: string
     connection_id: string | null
+    instagram_connected: boolean
     style_fetch_post_count: number
     is_trial: boolean
     snapshot_summary: StyleSnapshotSummary | null
@@ -955,6 +964,7 @@ export async function loadPreviousPageStyle(
     contact_sheet_path: string | null
   }>(
     `SELECT brand.id AS brand_id,connection.id AS connection_id,
+            EXISTS (SELECT 1 FROM instagram_connections ic WHERE ic.business_id=brand.organization_id AND ic.status='connected') AS instagram_connected,
             GREATEST(1,package.posts_included) AS style_fetch_post_count,
             false AS is_trial,snapshot.summary AS snapshot_summary,
             snapshot.source_revision AS snapshot_revision,snapshot.last_style_fetch_at,
@@ -992,7 +1002,7 @@ export async function loadPreviousPageStyle(
   const fetchLimit = scope?.style_fetch_post_count
   try {
     if (!scope) await syncAllConnectedSocialPosts(db, businessId)
-    else if (scope.connection_id) await fetchLatestSocialPosts(db, businessId, fetchLimit!)
+    else if (scope.connection_id || scope.instagram_connected) await fetchLatestSocialPosts(db, businessId, fetchLimit!)
   } catch (error) {
     // Cached social history remains usable when Meta is temporarily unavailable.
     console.warn('[monthly-planner] social history sync failed; using cached posts', {
@@ -1009,7 +1019,7 @@ export async function loadPreviousPageStyle(
        FROM social_posts sp
       WHERE sp.business_id=$1
         AND ($2::uuid IS NULL OR sp.brand_id=$2)
-        AND EXISTS (
+        AND (EXISTS (
           SELECT 1
           FROM meta_connections mc
           WHERE mc.business_id=sp.business_id
@@ -1017,6 +1027,14 @@ export async function loadPreviousPageStyle(
             AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id)
               OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))
         )
+          OR EXISTS (
+            SELECT 1
+            FROM instagram_connections ic
+            WHERE ic.business_id=sp.business_id
+              AND ic.status='connected'
+              AND sp.channel='Instagram'
+              AND sp.source_account_id=ic.instagram_user_id
+          ))
       ORDER BY sp.published_at DESC,sp.provider_id DESC
       LIMIT COALESCE($3::integer,2147483647)`,
     [businessId, scope?.brand_id || null, fetchLimit || null],

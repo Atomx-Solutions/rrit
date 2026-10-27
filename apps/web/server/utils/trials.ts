@@ -517,6 +517,16 @@ export async function usageSnapshot(
             WHERE business_id=$1 AND status='connected' AND expires_at > now()
           ), 0)
           + (SELECT count(*)::integer FROM tiktok_connections WHERE business_id=$1 AND status='connected' AND expires_at > now())
+          -- An account connected through Instagram Login counts once, even when the page links it too.
+          + (
+            SELECT count(*)::integer FROM instagram_connections ic
+            WHERE ic.business_id=$1 AND ic.status='connected' AND ic.expires_at > now()
+              AND NOT EXISTS (
+                SELECT 1 FROM meta_connections mc
+                WHERE mc.business_id=ic.business_id AND mc.status='connected' AND mc.expires_at > now()
+                  AND mc.instagram_id=ic.instagram_user_id
+              )
+          )
         ) AS social_accounts,
         (SELECT count(*)::integer FROM video_renders WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS videos_per_month`,
       [businessId],

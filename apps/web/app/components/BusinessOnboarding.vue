@@ -370,6 +370,7 @@ async function finishLater() {
       <template v-else-if="step === 1">
         <LogoUpload v-if="!hadWorkspace" />
         <SocialConnections compact />
+        <InstagramConnection />
         <UFormField :label="t('onboarding.networkProfileInstagram')" name="instagramUrl"
           ><UInput
             v-model="form.instagramUrl"

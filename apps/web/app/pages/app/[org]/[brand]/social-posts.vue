@@ -27,6 +27,14 @@ const { data: connection } = await useFetch('/api/meta/status', { lazy: true, ke
 const selected = ref<NonNullable<typeof result.value>['posts'][number] | null>(null)
 const importing = ref(false)
 const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { lazy: true, key: 'tiktok-status' })
+const { data: instagramStatus } = await useFetch('/api/instagram/status', { lazy: true, key: 'instagram-status' })
+// Instagram imports from its own connection or from the account linked to the page.
+const canImport = computed(() =>
+  importChannel.value === 'TikTok'
+    ? tiktokStatus.value?.connection?.status === 'connected'
+    : connection.value?.connection?.status === 'connected' ||
+      (importChannel.value === 'Instagram' && instagramStatus.value?.connection?.status === 'connected'),
+)
 const importChannel = ref<'Facebook' | 'Instagram' | 'TikTok'>(
   requestedChannel === 'TikTok' ? 'TikTok' : 'Facebook',
 )
@@ -95,6 +103,7 @@ async function sync(more = false) {
     :toolbar-border="false"
   >
     <SocialConnections />
+    <div class="mt-6"><InstagramConnection /></div>
     <div class="mt-6"><TikTokConnection /></div>
     <div class="mt-6 border-t border-default pt-6">
       <div class="flex flex-wrap items-end gap-3">
@@ -114,7 +123,7 @@ async function sync(more = false) {
         color="neutral"
         icon="i-lucide-refresh-cw"
         :loading="importing"
-        :disabled="importChannel === 'TikTok' ? tiktokStatus?.connection?.status !== 'connected' : connection?.connection?.status !== 'connected'"
+        :disabled="!canImport"
         @click="sync()"
         >{{ t('social.refreshPosts') }}</UButton
       >

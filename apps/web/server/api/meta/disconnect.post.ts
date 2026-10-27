@@ -18,16 +18,21 @@ export default defineEventHandler(async (event) => {
         statusCode: 409,
         message: 'server.PUBLICATION_IN_FLIGHT_BLOCKS_DISCONNECT',
       })
+    // An Instagram account connected directly through Instagram Login keeps
+    // publishing; its jobs carry no page.
     await client.query(
-      "UPDATE publication_jobs SET status='cancelled',updated_at=now() WHERE business_id=$1 AND status='pending'",
+      "UPDATE publication_jobs SET status='cancelled',updated_at=now() WHERE business_id=$1 AND status='pending' AND target_page_id IS NOT NULL",
       [business.id],
     )
     await client.query(
-      "UPDATE posts p SET payload=jsonb_set(payload,'{publicationMode}','\"manual\"'),updated_at=now() WHERE business_id=$1 AND payload->>'status'='scheduled' AND payload->>'publicationMode'='automatic' AND NOT EXISTS (SELECT 1 FROM publication_jobs j WHERE j.post_id=p.id AND j.status IN ('processing','uncertain'))",
+      "UPDATE posts p SET payload=jsonb_set(payload,'{publicationMode}','\"manual\"'),updated_at=now() WHERE business_id=$1 AND payload->>'status'='scheduled' AND payload->>'publicationMode'='automatic' AND (payload->>'channel'<>'Instagram' OR NOT EXISTS (SELECT 1 FROM instagram_connections ic WHERE ic.business_id=p.business_id)) AND NOT EXISTS (SELECT 1 FROM publication_jobs j WHERE j.post_id=p.id AND j.status IN ('processing','uncertain'))",
       [business.id],
     )
     await client.query('DELETE FROM meta_connections WHERE business_id=$1', [business.id])
-    await client.query('DELETE FROM social_posts WHERE business_id=$1', [business.id])
+    await client.query(
+      "DELETE FROM social_posts sp WHERE business_id=$1 AND NOT (channel='Instagram' AND EXISTS (SELECT 1 FROM instagram_connections ic WHERE ic.business_id=sp.business_id AND ic.instagram_user_id=sp.source_account_id))",
+      [business.id],
+    )
     await client.query(
       "DELETE FROM post_validations WHERE business_id=$1 AND COALESCE(result->>'scope','publication')='publication'",
       [business.id],

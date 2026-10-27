@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg'
-import { connectedMeta, decryptMetaToken, graphRequest, type MetaList } from './meta'
+import { instagramTarget, markInstagramTargetSynced } from './instagram'
+import { connectedMeta, decryptMetaToken, graphRequest, type GraphHost, type MetaList } from './meta'
 
 type SocialChannel = 'Facebook' | 'Instagram'
 
@@ -16,7 +17,6 @@ type RemoteSocialPost = {
   media_type?: string
 }
 
-const channels: SocialChannel[] = ['Facebook', 'Instagram']
 const pageSize = '100'
 const maxPages = 200
 const fullSyncIntervalMs = 10 * 60 * 1000
@@ -35,15 +35,13 @@ async function syncChannel(
   db: Pool | PoolClient,
   businessId: string,
   channel: SocialChannel,
-  pageId: string,
-  instagramId: string | null,
+  sourceAccountId: string,
   brandId: string | null,
   token: string,
+  host: GraphHost,
   latestPosts?: number,
 ) {
   const instagram = channel === 'Instagram'
-  const sourceAccountId = instagram ? instagramId : pageId
-  if (!sourceAccountId) return
 
   let after: string | undefined
 
@@ -61,6 +59,8 @@ async function syncChannel(
         limit: latestPosts ? String(Math.min(latestPosts, 100)) : pageSize,
         ...(after ? { after } : {}),
       },
+      'GET',
+      host,
     )
     if (!Array.isArray(response.data)) throw new Error('Meta returned an invalid post list.')
 
@@ -106,51 +106,62 @@ async function syncChannel(
   // when the account changes; retention handles bounded storage separately.
 }
 
+// Facebook posts come from the connected page; Instagram posts from the
+// account connected through Instagram Login, otherwise the page's account.
+async function syncConnectedChannels(db: Pool | PoolClient, businessId: string, latestPosts?: number) {
+  let page: Awaited<ReturnType<typeof connectedMeta>> | null = null
+  let missing: unknown
+  try {
+    page = await connectedMeta(businessId, db)
+  } catch (error) {
+    missing = error
+  }
+  const instagram = await instagramTarget(businessId, db)
+  if (!page && !instagram) throw missing
+  if (page) {
+    await syncChannel(
+      db,
+      businessId,
+      'Facebook',
+      page.page_id,
+      page.brand_id,
+      decryptMetaToken(page.page_token_ciphertext, businessId),
+      'facebook',
+      latestPosts,
+    )
+    await db.query('UPDATE meta_connections SET last_sync_at=now(),updated_at=now() WHERE id=$1', [page.id])
+  }
+  if (instagram) {
+    await syncChannel(
+      db,
+      businessId,
+      'Instagram',
+      instagram.id,
+      instagram.brandId,
+      instagram.token,
+      instagram.host,
+      latestPosts,
+    )
+    await markInstagramTargetSynced(instagram, db)
+  }
+}
+
 /** Fetches only the newest posts of each connected channel (the monthly style fetch). */
 export async function fetchLatestSocialPosts(
   db: Pool | PoolClient,
   businessId: string,
   latestPosts: number,
 ) {
-  const connection = await connectedMeta(businessId, db)
-  const token = decryptMetaToken(connection.page_token_ciphertext, businessId)
-  for (const channel of channels)
-    await syncChannel(
-      db,
-      businessId,
-      channel,
-      connection.page_id,
-      connection.instagram_id,
-      connection.brand_id,
-      token,
-      latestPosts,
-    )
-  await db.query('UPDATE meta_connections SET last_sync_at=now(),updated_at=now() WHERE id=$1', [
-    connection.id,
-  ])
+  await syncConnectedChannels(db, businessId, latestPosts)
 }
 
-/** Refresh every post currently available from the connected Meta accounts. */
+/** Refresh every post currently available from the connected accounts. */
 export async function syncAllConnectedSocialPosts(
   db: Pool | PoolClient,
   businessId: string,
 ) {
   const previous = lastFullSyncAt.get(businessId) || 0
   if (Date.now() - previous < fullSyncIntervalMs) return
-  const connection = await connectedMeta(businessId, db)
-  const token = decryptMetaToken(connection.page_token_ciphertext, businessId)
-  for (const channel of channels)
-    await syncChannel(
-      db,
-      businessId,
-      channel,
-      connection.page_id,
-      connection.instagram_id,
-      connection.brand_id,
-      token,
-    )
-  await db.query('UPDATE meta_connections SET last_sync_at=now(),updated_at=now() WHERE id=$1', [
-    connection.id,
-  ])
+  await syncConnectedChannels(db, businessId)
   lastFullSyncAt.set(businessId, Date.now())
 }

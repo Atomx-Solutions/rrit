@@ -6,7 +6,8 @@ import { setTenantContext } from './database'
 import { blockingPostChecks, localPostChecks, postContentVersion, providerPostChecks } from './post-validation'
 import { conformDeliveredMedia } from './delivered-media'
 import { requireEntitlement, trialStatus } from './trials'
-import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
+import { instagramConfigured, instagramTarget } from './instagram'
+import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured, type GraphHost } from './meta'
 
 export async function requirePublishingWorker(db: Pool | PoolClient = database()) {
   if (!metaConfigured() || process.env.PUBLISHING_ENABLED !== 'true')
@@ -100,10 +101,22 @@ export async function queuePublication(
       statusCode: 422,
       message: 'server.TRIAL_SCHEDULE_REQUIRED',
     })
-  const connection = await client.query(
-    "SELECT page_id,instagram_id FROM meta_connections WHERE business_id=$1 AND status='connected' AND expires_at>$2",
-    [businessId, runAt],
-  )
+  // An Instagram post goes to the account connected through Instagram Login
+  // when there is one; that job carries no page. Its token is refreshed as it
+  // is used, so it only has to be valid now, not at the time of publishing.
+  const direct =
+    post.channel === 'Instagram'
+      ? await client.query<{ instagram_user_id: string }>(
+          "SELECT instagram_user_id FROM instagram_connections WHERE business_id=$1 AND status='connected' AND expires_at>now()",
+          [businessId],
+        )
+      : null
+  const connection = direct?.rows[0]
+    ? { rows: [{ page_id: null, instagram_id: direct.rows[0].instagram_user_id }] }
+    : await client.query(
+        "SELECT page_id,instagram_id FROM meta_connections WHERE business_id=$1 AND status='connected' AND expires_at>$2",
+        [businessId, runAt],
+      )
   if (!connection.rows[0])
     throw createError({
       statusCode: 422,
@@ -137,7 +150,7 @@ type Job = {
   content_version: number
   provider_container_id: string | null
   provider_post_id: string | null
-  target_page_id: string
+  target_page_id: string | null
   target_instagram_id: string | null
   container_started_at: Date | null
   run_at: Date
@@ -433,6 +446,27 @@ async function finishJob(
   }
 }
 
+// The account and token a job publishes with, resolved again when it runs.
+// An Instagram job follows its account wherever it is connected now; null
+// means the job's page or account is no longer the connected one.
+async function publishingTarget(
+  channel: Post['channel'],
+  job: Pick<Job, 'business_id' | 'target_page_id' | 'target_instagram_id'>,
+  db: Pool | PoolClient,
+): Promise<{ id: string; token: string; host: GraphHost } | null> {
+  if (channel === 'Instagram') {
+    const target = await instagramTarget(job.business_id, db)
+    if (!target || target.id !== job.target_instagram_id) return null
+    return { id: target.id, token: target.token, host: target.host }
+  }
+  const connection = await connectedMeta(job.business_id, db)
+  if (connection.page_id !== job.target_page_id) return null
+  return {
+    id: connection.page_id,
+    token: decryptMetaToken(connection.page_token_ciphertext, job.business_id),
+    host: 'facebook',
+  }
+}
 export async function reconcileUncertainPublication(
   postId: string,
   businessId: string,
@@ -445,31 +479,33 @@ export async function reconcileUncertainPublication(
   const job = result.rows[0] as (Job & { payload: unknown }) | undefined
   if (!job) throw createError({ statusCode: 409, message: 'server.NO_PENDING_PUBLICATION' })
   const post = postSchema.parse(job.payload)
-  const connection = await connectedMeta(businessId, db)
-  if (
-    connection.page_id !== job.target_page_id ||
-    (post.channel === 'Instagram' && connection.instagram_id !== job.target_instagram_id)
-  )
+  const target = await publishingTarget(post.channel, job, db)
+  if (!target)
     throw createError({
       statusCode: 409,
       message: 'server.RECONNECT_SAME_PAGE',
     })
-  const token = decryptMetaToken(connection.page_token_ciphertext, businessId)
   let providerId = job.provider_post_id
   if (providerId) {
-    const verified = await graphRequest<{ id: string }>(providerId, token, { fields: 'id' })
+    const verified = await graphRequest<{ id: string }>(providerId, target.token, { fields: 'id' }, 'GET', target.host)
     if (verified.id !== providerId) providerId = null
   } else {
     const path =
       post.channel === 'Instagram'
-        ? `${connection.instagram_id}/media`
-        : `${connection.page_id}/published_posts`
+        ? `${target.id}/media`
+        : `${target.id}/published_posts`
     const fields = post.channel === 'Instagram' ? 'id,caption,timestamp' : 'id,message,created_time'
-    const candidates = await graphRequest<{ data: ProviderPublication[] }>(path, token, {
-      fields,
-      limit: '50',
-      since: String(Math.floor((job.run_at.getTime() - 5 * 60 * 1000) / 1000)),
-    })
+    const candidates = await graphRequest<{ data: ProviderPublication[] }>(
+      path,
+      target.token,
+      {
+        fields,
+        limit: '50',
+        since: String(Math.floor((job.run_at.getTime() - 5 * 60 * 1000) / 1000)),
+      },
+      'GET',
+      target.host,
+    )
     providerId = uniquePublicationMatch(candidates.data || [], post, job.run_at)?.id || null
   }
   if (!providerId) {
@@ -484,7 +520,8 @@ export async function reconcileUncertainPublication(
 }
 // Claims use SKIP LOCKED; network calls never hold a database transaction open.
 async function runOnePublishingJob(db: Pool) {
-  if (process.env.PUBLISHING_ENABLED !== 'true' || !metaConfigured()) return { processed: 0 }
+  if (process.env.PUBLISHING_ENABLED !== 'true' || (!metaConfigured() && !instagramConfigured()))
+    return { processed: 0 }
   await db.query(
     "INSERT INTO worker_heartbeats (name) VALUES ('publisher') ON CONFLICT(name) DO UPDATE SET last_seen_at=now()",
   )
@@ -554,13 +591,9 @@ async function runOnePublishingJob(db: Pool) {
       console.error('[publish] preflight blocking checks failed:', failedBlocking.map((c) => ({ key: c.key, message: c.message })))
       throw new Error('preflight_failed')
     }
-    const connection = await connectedMeta(job.business_id, preflight)
-    if (
-      connection.page_id !== job.target_page_id ||
-      (post.channel === 'Instagram' && connection.instagram_id !== job.target_instagram_id)
-    )
-      throw new Error('identity_changed')
-    const token = decryptMetaToken(connection.page_token_ciphertext, job.business_id)
+    const target = await publishingTarget(post.channel, job, preflight)
+    if (!target) throw new Error('identity_changed')
+    const { token, host } = target
     let videoUrl: string | null = null
     if (post.video) {
       const render = await preflight.query<{ id: string; status: string; storage_path: string | null; composed: boolean }>(
@@ -578,16 +611,16 @@ async function runOnePublishingJob(db: Pool) {
     let providerId: string | undefined
     if (post.channel === 'Facebook') {
       publicWriteStarted = true
-      console.log('[publish] Facebook publish:', videoUrl ? 'video' : 'photo', 'page:', connection.page_id)
+      console.log('[publish] Facebook publish:', videoUrl ? 'video' : 'photo', 'page:', target.id)
       const response = videoUrl
         ? await graphRequest<{ id?: string; post_id?: string }>(
-            `${connection.page_id}/videos`,
+            `${target.id}/videos`,
             token,
             { file_url: videoUrl, description: post.caption },
             'POST',
           )
         : await graphRequest<{ id?: string; post_id?: string }>(
-            `${connection.page_id}/photos`,
+            `${target.id}/photos`,
             token,
             { url: publicMediaUrl(image), caption: post.caption, published: 'true' },
             'POST',
@@ -599,7 +632,7 @@ async function runOnePublishingJob(db: Pool) {
       if (!container) {
         // Container creation does not publish content and is safe to fail without duplicating a post.
         const response = await graphRequest<{ id?: string }>(
-          `${connection.instagram_id}/media`,
+          `${target.id}/media`,
           token,
           // A vertical video is published as a Reel, which is the only video
           // container Instagram offers a professional account.
@@ -607,6 +640,7 @@ async function runOnePublishingJob(db: Pool) {
             ? { media_type: 'REELS', video_url: videoUrl, caption: post.caption }
             : { image_url: publicMediaUrl(image), caption: post.caption },
           'POST',
+          host,
         )
         if (!response.id) throw new Error('missing_container')
         container = response.id
@@ -616,9 +650,13 @@ async function runOnePublishingJob(db: Pool) {
         )
         job.container_started_at = stored.rows[0].container_started_at
       }
-      const status = await graphRequest<{ status_code: string }>(container, token, {
-        fields: 'status_code',
-      })
+      const status = await graphRequest<{ status_code: string }>(
+        container,
+        token,
+        { fields: 'status_code' },
+        'GET',
+        host,
+      )
       if (status.status_code === 'IN_PROGRESS') {
         const startedAt = job.container_started_at
         if (!startedAt) throw new Error('container_start_missing')
@@ -629,10 +667,11 @@ async function runOnePublishingJob(db: Pool) {
       if (status.status_code !== 'FINISHED') throw new Error('container_rejected')
       publicWriteStarted = true
       const response = await graphRequest<{ id?: string }>(
-        `${connection.instagram_id}/media_publish`,
+        `${target.id}/media_publish`,
         token,
         { creation_id: container },
         'POST',
+        host,
       )
       providerId = response.id
     }
@@ -643,7 +682,7 @@ async function runOnePublishingJob(db: Pool) {
       providerId,
       job.id,
     ])
-    const verified = await graphRequest<{ id: string }>(providerId, token, { fields: 'id' })
+    const verified = await graphRequest<{ id: string }>(providerId, token, { fields: 'id' }, 'GET', host)
     if (verified.id !== providerId) throw new Error('provider_confirmation_mismatch')
     await finishJob(job, 'published', null, providerId, db)
   } catch (error) {

@@ -8,6 +8,7 @@ import { factIsUsable, sameFactContent, type BrandFact } from '../../shared/sche
 import { dayInZone } from '../../shared/utils/calendar'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
 import { qualityBrandHash, qualityReviewKey, reviewedQuality } from './post-quality-domain'
+import { instagramTarget, markInstagramTargetExpired, type InstagramTarget } from './instagram'
 import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
 
 const limitsSchema = z.object({
@@ -330,7 +331,37 @@ export async function providerPostChecks(
   businessId: string,
   options: { throwProviderFailure?: boolean; db?: Pool | PoolClient } = {},
 ): Promise<PostCheck[]> {
+  const db = options.db || database()
+  let direct: InstagramTarget | null = null
   try {
+    if (post.channel === 'Instagram') {
+      const target = await instagramTarget(businessId, db)
+      if (target?.source === 'instagram') direct = target
+    }
+    if (direct) {
+      if (!direct.canPublish)
+        return [{ key: 'meta_permission', passed: false, message: 'server.RECONNECT_WITH_PUBLISH_PERMISSION' }]
+      const profile = await graphRequest<{ user_id?: string | number }>(
+        'me',
+        direct.token,
+        { fields: 'user_id' },
+        'GET',
+        'instagram',
+      )
+      if (String(profile.user_id) !== direct.id)
+        return [{ key: 'meta_identity', passed: false, message: 'server.LINKED_PROFILE_CHANGED' }]
+      const quota = await graphRequest<{
+        data: { quota_usage: number; config: { quota_total: number } }[]
+      }>(`${direct.id}/content_publishing_limit`, direct.token, { fields: 'quota_usage,config' }, 'GET', 'instagram')
+      const limit = quota.data?.[0]
+      if (
+        !limit ||
+        !Number.isFinite(limit.config?.quota_total) ||
+        limit.quota_usage >= limit.config.quota_total
+      )
+        return [{ key: 'meta_quota', passed: false, message: 'server.INSTAGRAM_RATE_LIMIT' }]
+      return [{ key: 'meta', passed: true, message: 'server.META_CONFIRMED_ACCESS' }]
+    }
     const connection = await connectedMeta(businessId, options.db)
     const permission =
       post.channel === 'Instagram' ? 'instagram_content_publish' : 'pages_manage_posts'
@@ -385,11 +416,14 @@ export async function providerPostChecks(
       { key: 'meta', passed: true, message: 'server.META_CONFIRMED_ACCESS' },
     ]
   } catch (error) {
-    if (error instanceof MetaFailure && error.code === 190)
-      await (options.db || database()).query(
-        "UPDATE meta_connections SET status='expired',updated_at=now() WHERE business_id=$1",
-        [businessId],
-      )
+    if (error instanceof MetaFailure && error.code === 190) {
+      if (direct) await markInstagramTargetExpired(direct, db)
+      else
+        await db.query(
+          "UPDATE meta_connections SET status='expired',updated_at=now() WHERE business_id=$1",
+          [businessId],
+        )
+    }
     if (error instanceof MetaFailure && options.throwProviderFailure) throw error
     return [
       {
