@@ -157,6 +157,7 @@ onBeforeUnmount(() => {
     <template #body>
       <div class="page dashboard-page-body space-y-4">
         <TrialBanner :key="locale" />
+        <PackageExpiryBanner :package-expiry="headerUsage?.packageExpiry" />
         <LowCreditBanner
           :spendable="spendableCredits"
           :threshold="headerUsage?.lowCredit.threshold"
