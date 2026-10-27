@@ -137,10 +137,11 @@ export async function exchangeInstagramCode(code: string) {
   const long = await tokenRequest(longUrl)
   if (!long.expires_in) throw new MetaFailure(190, false)
   // user_id is the professional account id the publishing and media endpoints take.
-  const profile = await graphRequest<{ user_id?: string | number; username?: string }>(
+  // id is app-scoped and identifies the person in deauthorization requests.
+  const profile = await graphRequest<{ id?: string; user_id?: string | number; username?: string }>(
     'me',
     long.access_token!,
-    { fields: 'user_id,username' },
+    { fields: 'id,user_id,username' },
     'GET',
     'instagram',
   )
@@ -148,6 +149,7 @@ export async function exchangeInstagramCode(code: string) {
   return {
     token: long.access_token!,
     userId: String(profile.user_id),
+    scopedId: profile.id || null,
     username: profile.username || null,
     expiresAt: new Date(Date.now() + long.expires_in * 1000),
     scopes: scopeList(short.permissions),
