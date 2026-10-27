@@ -710,6 +710,7 @@ export async function monthlyProviderCall(
     monthlyInstructionAddenda[args.capability],
     businessBrainInstruction[args.capability],
     goalsInstructionFor(args.capability, args.input),
+    args.capability === 'research' ? audienceLanguageResearchInstruction : '',
     args.capability === 'planning' ? batchPlanningInstruction : '',
     hasEventResearch ? eventResearchInstruction[args.capability] : '',
     (hasVideoDeliverables ? videoDeliverable : staticOnlyDeliverable)[args.capability] || '',

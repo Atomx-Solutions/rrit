@@ -1996,6 +1996,7 @@
   "server.AI_REQUEST_CHANGED": "Die Anfrage hat sich geändert. Starte eine neue Vorbereitung.",
   "server.AI_COST_LIMIT_REACHED": "Die KI-Vorbereitung ist durch die Kostensicherheitsgrenze vorübergehend gestoppt.",
   "server.CAPTION_IDEA_REQUIRED": "Beschreibe die Idee kurz und wähle das Netzwerk.",
+  "server.AUDIENCE_LANGUAGE_REQUIRED": "Die Sprache der Zielgruppe ist noch nicht festgelegt. Erstelle die Strategie neu oder starte sie neu, nachdem Zielgruppe und lokaler Markt ausgefüllt sind.",
   "server.MONTH_INVALID": "Wähle einen gültigen Monat.",
   "server.PLAN_START_FAILED": "Die Vorbereitung wurde wegen eines internen Problems nicht gestartet. Es wurde kein Plan aktiviert; versuche es erneut.",
   "server.RESEARCH_NOT_READY": "Die Recherche ist noch nicht fertig.",

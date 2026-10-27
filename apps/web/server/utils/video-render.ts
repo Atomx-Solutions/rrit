@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { PoolClient } from 'pg'
-import { postSchema } from '../../shared/schemas/workspace'
+import { contentLocaleForPreferences, postSchema } from '../../shared/schemas/workspace'
 import { channelCanvas, channelFormat, channelUiInsets } from '../../shared/schemas/channel-format'
+import { audienceLanguageFromResearch } from './audience-language'
 import { assetStorageFolder, downloadAsset, removeAsset, uploadBinaryAsset } from './asset-storage'
 import {
   consumeReservedCredits,
@@ -51,7 +52,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // as it is and only this render, once ready, records the channel's format.
     const canvas = channelCanvas(post.channel)
 
-    const { verifiedFacts, businessBrain } = await videoPostEvidence(client, business.id, post, postRow!)
+    const { verifiedFacts, businessBrain, planResearch } = await videoPostEvidence(client, business.id, post, postRow!)
 
     const asset = await client.query<{ bytes: Buffer | null; storage_path: string | null }>(
       "SELECT bytes,storage_path FROM assets WHERE id=$1 AND business_id=$2 AND rights=true AND kind='photo' AND creative_provenance IS NULL",
@@ -118,6 +119,11 @@ export async function renderVideoForPost(userId: string, postId: string) {
     await reserveCredits(client, { organizationId: business.id, credits: videoCredits, usageKind: 'generation', referenceType: 'video', referenceId: renderRow.id, idempotencyKey: `video-reserve:${renderRow.id}` })
     const logoRow = logo?.rows[0]
     const { workspace } = await loadWorkspace(client, business.id, userId)
+    // The video speaks the language of the audience the research found.
+    const locale = audienceLanguageFromResearch(
+      planResearch,
+      contentLocaleForPreferences(workspace.preferences),
+    )
     // The approved logo, resolved inside the same transaction so the
     // composition stage below never has to re-read business data.
     const logoBytes = logoRow

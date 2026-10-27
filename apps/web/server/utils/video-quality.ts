@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg'
-import { postSchema, type Post } from '../../shared/schemas/workspace'
+import { contentLocaleForPreferences, postSchema, type Post } from '../../shared/schemas/workspace'
 import { editorialPlanSchema, researchSchema } from '../../shared/schemas/monthly-plan'
+import { audienceLanguageFromResearch } from './audience-language'
 import { downloadAsset } from './asset-storage'
 import { brainForSlot, plannerBrainOf } from './monthly-planner-domain'
 import { extractVideoFrames } from './video-compose'
@@ -23,6 +24,7 @@ export async function videoPostEvidence(
   let researchFindings = ''
   let researchSources: string[] = provenance?.sourceUrls || []
   let businessBrain = ''
+  let planResearch: unknown
   if (row.monthly_plan_id) {
     const planResult = await client.query<{ evidence: unknown; research: unknown; editorial_plan: unknown; month_key: string }>(
       "SELECT evidence,research,editorial_plan,to_char(month,'YYYY-MM') AS month_key FROM monthly_plans WHERE id=$1 AND business_id=$2",
@@ -30,6 +32,7 @@ export async function videoPostEvidence(
     )
     const planRow = planResult.rows[0]
     if (planRow) {
+      planResearch = planRow.research
       const evidence = planRow.evidence as { brand?: { facts?: Array<{ id: string; text: string; source?: string }> }; brain?: unknown } | null
       const factIds = new Set(provenance?.factIds || [])
       verifiedFacts = (evidence?.brand?.facts || [])
@@ -53,7 +56,7 @@ export async function videoPostEvidence(
       }
     }
   }
-  return { verifiedFacts, researchFindings, researchSources, businessBrain }
+  return { verifiedFacts, researchFindings, researchSources, businessBrain, planResearch }
 }
 
 /** The approved words a post's video carries over its motion. */
@@ -113,7 +116,10 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
         : source.rows[0].bytes!,
       caption: post.caption,
       brandName: workspace.brand.name,
-      locale: workspace.preferences.contentLocale || workspace.preferences.locale,
+      locale: audienceLanguageFromResearch(
+        plan?.rows[0]?.research,
+        contentLocaleForPreferences(workspace.preferences),
+      ),
       verifiedFacts: evidence.verifiedFacts.length
         ? evidence.verifiedFacts
         : workspace.brand.facts.filter((fact) => factIds.has(fact.id)).map((fact) => fact.text),

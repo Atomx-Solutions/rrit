@@ -1996,6 +1996,7 @@
   "server.AI_REQUEST_CHANGED": "İstek değişti. Yeni bir hazırlık başlatın.",
   "server.AI_COST_LIMIT_REACHED": "Yapay zekâ hazırlığı maliyet güvenlik sınırı nedeniyle duraklatıldı.",
   "server.CAPTION_IDEA_REQUIRED": "Fikri kısaca açıklayın ve ağı seçin.",
+  "server.AUDIENCE_LANGUAGE_REQUIRED": "Hedef kitlenin dili henüz belirlenmedi. Hedef kitleyi ve yerel pazarı tamamladıktan sonra stratejiyi oluştur veya yeniden başlat.",
   "server.MONTH_INVALID": "Geçerli bir ay seçin.",
   "server.PLAN_START_FAILED": "Hazırlık iç bir sorun nedeniyle başlamadı. Hiçbir plan etkinleştirilmedi; tekrar deneyin.",
   "server.RESEARCH_NOT_READY": "Araştırma henüz hazır değil.",

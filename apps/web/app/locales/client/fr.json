@@ -1996,6 +1996,7 @@
   "server.AI_REQUEST_CHANGED": "La demande a changé. Lancez une nouvelle préparation.",
   "server.AI_COST_LIMIT_REACHED": "La préparation IA est en pause en raison de la limite de sécurité des coûts.",
   "server.CAPTION_IDEA_REQUIRED": "Décrivez brièvement l’idée et choisissez le réseau.",
+  "server.AUDIENCE_LANGUAGE_REQUIRED": "La langue de l’audience n’est pas encore déterminée. Génère ou relance la stratégie après avoir complété l’audience et le marché local.",
   "server.MONTH_INVALID": "Choisissez un mois valide.",
   "server.PLAN_START_FAILED": "La préparation n’a pas démarré à cause d’un problème interne. Aucun plan n’a été activé ; réessayez.",
   "server.RESEARCH_NOT_READY": "La recherche n’est pas encore prête.",

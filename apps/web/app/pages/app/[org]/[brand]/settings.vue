@@ -173,25 +173,7 @@ async function saveAndLeave() {
                 { label: t('settings.turkishTurkey'), value: 'tr-TR' },
               ]"
             /></UFormField
-          ><UFormField
-            :label="t('settings.contentLanguage')"
-            :description="t('settings.contentLanguageDescription')"
-            name="contentLocale"
-            class="field"
-            required
-            ><USelect
-              v-model="form.contentLocale"
-              class="w-72 max-w-full"
-              :items="[
-                { label: t('settings.albanianKosovo'), value: 'sq-XK' },
-                { label: t('settings.englishUnitedStates'), value: 'en-US' },
-                { label: t('settings.germanSwitzerland'), value: 'de-CH' },
-                { label: t('settings.italianSwitzerland'), value: 'it-CH' },
-                { label: t('settings.frenchSwitzerland'), value: 'fr-CH' },
-                { label: t('settings.turkishTurkey'), value: 'tr-TR' },
-              ]"
-            /></UFormField
-><UFormField :label="t('settings.timezone')" name="timezone" class="field" required
+          ><UFormField :label="t('settings.timezone')" name="timezone" class="field"
             ><USelect
               v-model="form.timezone"
               class="w-72 max-w-full"
