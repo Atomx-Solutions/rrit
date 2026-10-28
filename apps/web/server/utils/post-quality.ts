@@ -78,6 +78,7 @@ export async function reviewPostQuality(
       language: audienceLanguageFromResearch(
         planResearch.rows[0]?.research,
         contentLocaleForPreferences(result.rows[0].state.preferences),
+        post.aiProvenance?.locale,
       ),
       original: original.bytes as Buffer,
       image: current.bytes as Buffer,
@@ -179,7 +180,9 @@ export async function currentPostQuality(
     if (!post.aiProvenance)
       return { contentVersion, quality: null, reviewedAt: null as string | null }
     const timezone = result.rows[0].state.preferences.timezone
-    const language = contentLocaleForPreferences(result.rows[0].state.preferences)
+    // The same language the review was written under, so it is found again.
+    const language =
+      post.aiProvenance.locale || contentLocaleForPreferences(result.rows[0].state.preferences)
     const day = qualityReviewDay(post, timezone)
     const review = await client.query(
       "SELECT result,completed_at FROM monthly_ai_runs WHERE business_id=$1 AND plan_id=$2 AND stage_key=$3 AND status='completed' AND actual_cost_micro_eur<=reserved_cost_micro_eur",

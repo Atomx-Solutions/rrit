@@ -71,6 +71,7 @@ export default defineEventHandler(async (event) => {
         language: audienceLanguageFromResearch(
           planResearch.rows[0]?.research,
           contentLocaleForPreferences(workspace.preferences),
+          post.aiProvenance.locale,
         ),
         sourceAssetId: sourceAssetId.data,
         sourceBytes: source.rows[0].storage_path

@@ -24,9 +24,10 @@ const { data: headerUsage } = useHeaderUsage()
 // Show settled customer credits in the global header. `spendable` subtracts
 // temporary reservations and can rise again when a cheaper AI run settles,
 // which makes the balance look like credits were returned during generation.
-// The server still uses spendable for entitlement checks.
+// The server still uses spendable for entitlement checks. The low-credit
+// reminder reads the same settled balance: a running generation reserves
+// credits for a moment, and that is not a balance the customer has run out of.
 const credits = computed(() => headerUsage.value?.credits?.remaining)
-const spendableCredits = computed(() => headerUsage.value?.credits?.spendable)
 // `basis` rather than `flex-1` on the description: the row has to decide to
 // wrap before it decides to squeeze. With flex-1 the editor's three actions
 // left the description about sixty pixels wide, one word per line and
@@ -159,7 +160,7 @@ onBeforeUnmount(() => {
         <TrialBanner :key="locale" />
         <PackageExpiryBanner :package-expiry="headerUsage?.packageExpiry" />
         <LowCreditBanner
-          :spendable="spendableCredits"
+          :credits="credits"
           :threshold="headerUsage?.lowCredit.threshold"
           :has-active-package="headerUsage?.lowCredit.hasActivePackage"
         />

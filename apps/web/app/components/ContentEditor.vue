@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Post } from '~~/shared/schemas/workspace'
-import { publishingChannels } from '~~/shared/schemas/channel-format'
+import { channelFormat, publishingChannels } from '~~/shared/schemas/channel-format'
 import { zonedToIso } from '~~/shared/utils/format'
 const props = defineProps<{ id?: string }>()
 const { data, base, commit, transition, notify, conflict, initLive, syncing } = useWorkspace()
@@ -10,18 +10,23 @@ function validationMessage(check: { key: string; message: string; params?: Recor
     ? t('validation.aiQualityReview')
     : t(check.message, check.params || {})
 }
-function policyDescription(reason?: string) {
+function policyDescription(reason?: string, channel?: Post['channel']) {
   if (!reason) return t('content.verifyDescription')
   const knownKeys = [
     'server.SOURCE_MATERIAL_CHANGED',
     'server.AI_QUALITY_REVIEW_NEEDED',
     'server.VIDEO_QA_PENDING',
     'server.VIDEO_QA_UNAVAILABLE',
+    'server.IMAGE_CHANNEL_FORMAT_MISMATCH',
+    'server.VIDEO_CHANNEL_FORMAT_MISMATCH',
     'validation.aiQualityPassed',
   ]
+  // The stored reason keeps only the keys; the format keys name the post's
+  // channel and its canvas, which the post itself still carries.
+  const params: Record<string, string> = channel ? { channel, format: channelFormat(channel) } : {}
   const parts = reason.split(/\s+/).filter(Boolean)
   if (parts.length && parts.every((part) => knownKeys.includes(part)))
-    return parts.map((part) => t(part)).join(' ')
+    return parts.map((part) => t(part, params)).join(' ')
   return reason
 }
 const { data: capabilities } = await useFetch('/api/capabilities')
@@ -789,7 +794,7 @@ onBeforeUnmount(() => {
                   ? t('coverage.technicalPassed')
                   : t('coverage.manualReview')
             "
-            :description="videoFindingsShown ? post?.video?.quality?.reasons.join(' ') : policyDescription(post?.policyReason)"
+            :description="videoFindingsShown ? post?.video?.quality?.reasons.join(' ') : policyDescription(post?.policyReason, post?.channel)"
             :actions="videoFindingsShown ? [{ label: t('video.editWithAi'), icon: 'i-lucide-wand-sparkles', onClick: () => { videoEditOpen = true } }] : undefined"
           /><ULink :to="`${base}/brand`" class="text-primary small"
             >{{ t('content.businessFacts') }}</ULink

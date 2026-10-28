@@ -163,12 +163,38 @@ describe('monthly evidence and provider boundaries', () => {
       audienceSummary: 'Young workers and students in Zurich',
       rationale: 'The declared audience is in Zurich and the local market is German-speaking.',
       confidence: 0.94,
+      decidedBy: 'research',
     })
   })
-  it('blocks a new plan when research cannot make one clear audience-language decision', () => {
-    expect(() => researchFromResponse(researchFixture(), now, undefined, true)).toThrow(
-      'AUDIENCE_LANGUAGE_REQUIRED',
-    )
+  it('repairs a wrong locale region when the language names one supported locale', () => {
+    const response = researchFixture()
+    const text = response.output[1]!.content![0]!.text!
+    response.output[1]!.content![0]!.text = `${text}\n\`\`\`json\n{"language":{"locale":"sq-KX","audienceSummary":"Coffee lovers in Prishtina","rationale":"The declared audience writes Albanian and targets Prishtina.","confidence":0.95},"occasions":[]}\n\`\`\``
+
+    expect(researchFromResponse(response, now, undefined, 'en-US').language?.locale).toBe('sq-XK')
+  })
+  it('keeps the audience language when one occasion in the block is malformed', () => {
+    const response = researchFixture()
+    const text = response.output[1]!.content![0]!.text!
+    response.output[1]!.content![0]!.text = `${text}\n\`\`\`json\n{"language":{"locale":"de-CH","audienceSummary":"Zurich audience","rationale":"Zurich local market uses German.","confidence":0.94},"occasions":[{"date":"soon"}]}\n\`\`\``
+
+    expect(researchFromResponse(response, now, undefined, 'en-US').language?.locale).toBe('de-CH')
+  })
+  it('continues in the business content language when research names no language', () => {
+    expect(researchFromResponse(researchFixture(), now, undefined, 'de-CH').language).toMatchObject({
+      locale: 'de-CH',
+      confidence: 0,
+      decidedBy: 'preferences',
+    })
+  })
+  it('marks a language the research decided as its own', () => {
+    const response = researchFixture()
+    const text = response.output[1]!.content![0]!.text!
+    response.output[1]!.content![0]!.text = `${text}
+\`\`\`json
+{"language":{"locale":"sq-XK","audienceSummary":"Prishtina","rationale":"The declared audience is in Prishtina.","confidence":0.9},"occasions":[]}
+\`\`\``
+    expect(researchFromResponse(response, now, undefined, 'de-CH').language?.decidedBy).toBe('research')
   })
   it('uses the saved research decision instead of the dashboard locale for later work', () => {
     const research = researchFromResponse(

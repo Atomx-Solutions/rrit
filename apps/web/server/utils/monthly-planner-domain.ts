@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import {
   editorialPlanSchema,
@@ -32,6 +33,13 @@ export type PlannerChannel = (typeof plannerChannels)[number]
 // How many of a batch's posts each platform gets. An empty object is the
 // absence of a request, not a request for nothing.
 export type PlannerChannelCounts = Partial<Record<PlannerChannel, number>>
+// The split as a request carries it, with one entry per planner channel, so a
+// platform the planner offers can never be silently dropped from the request.
+export const plannerChannelCountsSchema = z.object(
+  Object.fromEntries(
+    plannerChannels.map((channel) => [channel, z.number().int().min(0).max(100).optional()]),
+  ) as Record<PlannerChannel, z.ZodOptional<z.ZodNumber>>,
+)
 export const plannerVideoChannels = publishingChannels
 export type PlannerVideoChannel = (typeof plannerVideoChannels)[number]
 export type PlannerVideoChannelCounts = Partial<Record<PlannerVideoChannel, number>>
@@ -568,6 +576,64 @@ function offerIdForSlot(
   if (!month) return offer.id
   return offerIsUsable(offer, `${month}-${String(slot.day).padStart(2, '0')}`) ? offer.id : null
 }
+// Models sometimes copy a long fact id with a character dropped, added or
+// changed. A typo that close to exactly one known id can only mean that id;
+// anything farther or ambiguous is left for validation to reject.
+const FACT_ID_TYPO_TOLERANCE = 2
+function editDistance(left: string, right: string) {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+  for (let i = 1; i <= left.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= right.length; j++)
+      current[j] = Math.min(
+        previous[j]! + 1,
+        current[j - 1]! + 1,
+        previous[j - 1]! + (left[i - 1] === right[j - 1] ? 0 : 1),
+      )
+    previous = current
+  }
+  return previous[right.length]!
+}
+export function repairedFactId(id: string, known: Set<string>) {
+  if (known.has(id)) return id
+  // Only a long random id makes a near miss unambiguous; short ids sit a
+  // character apart from each other by design.
+  const close = [...known].filter(
+    (candidate) =>
+      z.uuid().safeParse(candidate).success &&
+      editDistance(id, candidate) <= FACT_ID_TYPO_TOLERANCE,
+  )
+  return close.length === 1 ? close[0] : undefined
+}
+// A slot may leave the plan language only to reach the visitors of an occasion
+// the research found them at: it must speak exactly their language, cite that
+// occasion, be dated no later than it and say why. Each occasion earns at most
+// one such post. Anything else is returned to the plan language rather than
+// rejected, because the post is still a complete one in the plan language.
+export function withGroundedSlotLanguages<
+  T extends { day: number; sourceUrls: string[]; locale?: string | null; languageRationale?: string | null },
+>(slots: T[], research: Research, month?: string): T[] {
+  const visitor = research.visitorAudience
+  const spent = new Set<string>()
+  return slots.map((slot) => {
+    const rationale = slot.languageRationale?.trim() || ''
+    const cited = new Set(slot.sourceUrls.map(canonicalSourceUrl))
+    const date = month ? `${month}-${String(slot.day).padStart(2, '0')}` : undefined
+    const occasion =
+      visitor && date && slot.locale === visitor.locale && rationale
+        ? research.occasions.find(
+            (item) =>
+              item.visitorFacing &&
+              !spent.has(item.sourceUrl + item.date) &&
+              cited.has(canonicalSourceUrl(item.sourceUrl)) &&
+              date <= item.date,
+          )
+        : undefined
+    if (!occasion) return { ...slot, locale: null, languageRationale: null }
+    spent.add(occasion.sourceUrl + occasion.date)
+    return { ...slot, languageRationale: rationale }
+  })
+}
 // editorial meaning still has to pass validateEditorialPlan below.
 export function normalizeEditorialPlanResponse(
   value: unknown,
@@ -609,10 +675,15 @@ export function normalizeEditorialPlanResponse(
       : ('no_data' as const)
   }
 
-  return {
-    ...plan,
-    slots: plan.slots.slice(0, count).map((slot) => {
-      const verifiedFactIds = [...new Set(slot.factIds.filter((id) => knownFacts.has(id)))]
+  const slots = plan.slots.slice(0, count).map((slot) => {
+      const verifiedFactIds = [
+        ...new Set(
+          slot.factIds.flatMap((id) => {
+            const repaired = repairedFactId(id, knownFacts)
+            return repaired ? [repaired] : []
+          }),
+        ),
+      ]
       const verifiedSourceUrls = [
         ...new Set(
           slot.sourceUrls.flatMap((url) => {
@@ -656,8 +727,8 @@ export function normalizeEditorialPlanResponse(
           slot.audienceId && knownAudiences.has(slot.audienceId) ? slot.audienceId : null,
         offerId: offerIdForSlot(monthOffers, slot, month),
       }
-    }),
-  }
+    })
+  return { ...plan, slots: withGroundedSlotLanguages(slots, research, month) }
 }
 export function validateEditorialPlan(
   value: unknown,
@@ -891,6 +962,8 @@ export const plannerMessages: Record<string, string> = {
     'Ofruesi AI e kufizoi përkohësisht kërkesën. Provo rifillimin pas pak minutash.',
   RESEARCH_SOURCES_REQUIRED:
     'Hulumtimi nuk dha burime të verifikueshme. Muaji nuk u plotësua me të dhëna të sajuara.',
+  CREDITS_EXHAUSTED:
+    'Kreditet e biznesit nuk mjaftojnë për hapin e radhës. Draftet e krijuara mbeten të ruajtura; shto kredite dhe vazhdo përgatitjen.',
   AUDIENCE_LANGUAGE_REQUIRED:
     'Gjuha e audiencës nuk u kuptua qartë. Plotëso audiencën dhe tregun lokal më saktë, pastaj rifillo planin.',
   EVIDENCE_CHANGED:
@@ -951,11 +1024,22 @@ export function requestedPlannerPosts(quantity: number, remaining: number) {
   return quantity
 }
 
+// The code a stopped plan is saved with. A request error the planner reached
+// through a shared helper (for example `server.CREDITS_EXHAUSTED`) keeps its
+// own reason when the planner has a message for it, so the business is told
+// what actually stopped the plan instead of a generic failure.
+export function plannerFailureCode(error: unknown) {
+  if (error instanceof PlannerFailure) return error.code
+  const message = error instanceof Error ? error.message : ''
+  const code = /^server\.([A-Z_]+)$/.exec(message)?.[1]
+  return code && plannerMessages[code] ? code : 'GENERATION_FAILED'
+}
 export function resumableContentFailureCode(code: string | null | undefined) {
   return [
     'QUALITY_BLOCKED',
     'UNGROUNDED_CONTENT',
     'GENERATION_FAILED',
+    'CREDITS_EXHAUSTED',
     'PROVIDER_CREDIT_REQUIRED',
     'PROVIDER_RATE_LIMITED',
     'CONFIGURATION_REQUIRED',

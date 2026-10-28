@@ -16,8 +16,8 @@ import {
 } from '../../utils/ai-provider'
 import { getBusinessBrain } from '../../utils/business-brain'
 import { getBrandBySlug } from '../../utils/brands'
-import { contentLanguageForLocale } from '../../../shared/schemas/workspace'
-import { researchSchema } from '../../../shared/schemas/monthly-plan'
+import { contentLanguageForLocale, contentLocaleForPreferences } from '../../../shared/schemas/workspace'
+import { audienceLanguageFromResearch } from '../../utils/audience-language'
 import type { CachedPageStyle } from '../../utils/monthly-planner'
 const outputSchema = z.object({
   variants: z
@@ -181,12 +181,14 @@ export default defineEventHandler(async (event) => {
       },
     )
     const pageStyle = styleSnapshot.rows[0]?.summary
-    const latestResearch = language.rows[0]?.research
-      ? researchSchema.safeParse(language.rows[0].research)
-      : null
-    if (!latestResearch?.success || !latestResearch.data.language)
-      throw createError({ statusCode: 409, message: 'server.AUDIENCE_LANGUAGE_REQUIRED' })
-    const contentLanguage = contentLanguageForLocale(latestResearch.data.language.locale)
+    // Captions never stop for a missing language decision: without research
+    // they speak the business's own content language.
+    const contentLanguage = contentLanguageForLocale(
+      audienceLanguageFromResearch(
+        language.rows[0]?.research,
+        contentLocaleForPreferences(workspace.preferences),
+      ),
+    )
     const context = {
       business: {
         name: workspace.brand.name,

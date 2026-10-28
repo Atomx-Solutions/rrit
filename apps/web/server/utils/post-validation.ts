@@ -177,7 +177,8 @@ export async function localPostChecks(
       // Review the delivered motion, never the pending poster result.
       quality = post.video.qualityContentVersion === postContentVersion(post) ? post.video.quality || null : null
     } else if (row?.state?.brand) {
-      const language = contentLocaleForPreferences(row.state.preferences)
+      // The same language the review was written under, so it is found again.
+      const language = provenance.locale || contentLocaleForPreferences(row.state.preferences)
       const review = await db.query(
         "SELECT result FROM monthly_ai_runs WHERE business_id=$1 AND plan_id=$2 AND stage_key=$3 AND status='completed' AND actual_cost_micro_eur<=reserved_cost_micro_eur",
         [businessId, provenance.planId, qualityReviewKey(post, postFingerprint(post), row.state.brand, useDay, language)],

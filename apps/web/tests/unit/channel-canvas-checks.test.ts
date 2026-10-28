@@ -147,6 +147,23 @@ describe('channel interface zones', () => {
     }
   })
 
+  it('moves the logo off a headline that fills the top of a TikTok canvas', async () => {
+    const canvas = channelCanvas('TikTok')
+    // Busy stripes stand in for set type across the whole top band; the rest
+    // of the free area is a calm surface.
+    const stripes = Buffer.alloc(canvas.width * 500 * 3)
+    for (let y = 0; y < 500; y++)
+      for (let x = 0; x < canvas.width; x++)
+        stripes.fill((Math.floor(x / 6) + Math.floor(y / 6)) % 2 ? 255 : 0, (y * canvas.width + x) * 3, (y * canvas.width + x) * 3 + 3)
+    const image = await sharp({ create: { ...canvas, channels: 3, background: '#808080' } })
+      .composite([{ input: stripes, raw: { width: canvas.width, height: 500, channels: 3 }, left: 0, top: 100 }])
+      .jpeg()
+      .toBuffer()
+    const logo = await sharp({ create: { width: 200, height: 100, channels: 4, background: '#000000ff' } }).png().toBuffer()
+    const placement = await chooseLogoPlacement(image, logo, 'auto', channelUiInsets('TikTok'))
+    expect(placement.top).toBeGreaterThanOrEqual(600)
+  })
+
   it('sets video type in the free space beside the subject, never over it', async () => {
     const canvas = channelCanvas('Facebook')
     // A car filling the lower two thirds leaves room only above it.

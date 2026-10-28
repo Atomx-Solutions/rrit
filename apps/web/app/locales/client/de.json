@@ -368,6 +368,7 @@
   "creative.originalRedesign": "Ursprüngliche KI-Neugestaltung",
   "creative.createVariant": "KI-Variante erstellen",
   "provenance.whyPost": "Warum dieser Beitrag?",
+  "provenance.visitorLanguage": "Auf {{language}} für die Besucher eines Events verfasst",
   "provenance.whyCreated": "Warum wurde er so erstellt?",
   "provenance.marketSources": "Quellen für den Marktkontext",
   "provenance.reviewWithAi": "Aktuelle Version mit KI prüfen",

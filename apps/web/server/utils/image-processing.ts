@@ -309,6 +309,10 @@ const LOGO_CLEARANCE = 88
 // Fine enough for set type to register as edges; the former 108px width
 // averaged a headline away into flat sky. The height follows the canvas.
 const PLACEMENT_ANALYSIS_WIDTH = 216
+// The share of the free height, from the top and from the bottom, where a logo
+// may sit. Brand marks read as part of the frame along its edges; deeper in,
+// they compete with the subject.
+const LOGO_EDGE_BAND = 0.3
 
 /**
  * The corner the composing model left free, when it said which one. Scoring is
@@ -354,26 +358,35 @@ export async function chooseLogoPlacement(
   const logoHeight = logoMetadata.height || 0
   const marginX = 48
   const marginY = 48
-  const horizontalPositions = [...new Set([
-    marginX,
-    Math.round((width - logoWidth) / 2),
-    width - logoWidth - 56,
-  ])].filter((left) =>
-    left >= Math.max(marginX, Math.ceil(width * covered.left)) &&
-    left + logoWidth <= width - Math.max(marginX, Math.ceil(width * covered.right)))
+  // The free area: inside the margins and outside whatever the channel's own
+  // interface covers. On a feed post that is the whole canvas; on TikTok it is
+  // what its interface leaves visible, so every format searches its own frame.
+  const minLeft = Math.max(marginX, Math.ceil(width * covered.left))
+  const maxLeft = width - Math.max(56, Math.ceil(width * covered.right)) - logoWidth
+  const minTop = Math.max(marginY, Math.ceil(height * covered.top))
+  const maxTop = height - Math.max(marginY, Math.ceil(height * covered.bottom)) - logoHeight
+  // Candidates are spread along the top and the bottom of that area rather
+  // than fixed at a few offsets: a handful of fixed spots often all touched the
+  // type or the subject, while a calm patch a little further in went unseen.
+  const spread = (from: number, to: number, step: number) =>
+    to < from
+      ? []
+      : [...new Set([
+          ...Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, index) => from + index * step),
+          to,
+        ])]
+  const horizontalPositions = spread(minLeft, maxLeft, Math.max(1, Math.round(logoWidth / 2)))
+  const edgeBand = Math.round((maxTop - minTop) * LOGO_EDGE_BAND)
   const verticalPositions = [...new Set([
-    marginY,
-    140,
-    height - logoHeight - 140,
-    height - logoHeight - marginY,
-  ])].filter((top) =>
-    top >= Math.max(marginY, Math.ceil(height * covered.top)) &&
-    top + logoHeight <= height - Math.max(marginY, Math.ceil(height * covered.bottom)))
+    ...spread(minTop, Math.min(maxTop, minTop + edgeBand), Math.max(1, logoHeight)),
+    ...spread(Math.max(minTop, maxTop - edgeBand), maxTop, Math.max(1, logoHeight)),
+  ])]
 
-  // The named corner is a preference, not a rule. A model that says it left the
-  // bottom free and then sets its copy block there would otherwise push the
-  // logo onto its own type, so the measurement still decides and the hint only
-  // breaks a tie.
+  // The named corner is the composing model's own statement of where it kept
+  // the frame free, so it wins unless the measurement shows that corner is
+  // busier than a typical spot on this image: a model that says it left the
+  // bottom free and then sets its copy block there must not push the logo onto
+  // its own type. Without a usable corner the calmest spot decides alone.
   const inZone = (left: number, top: number) => {
     if (!zone || zone === 'auto') return false
     const onLeft = left + logoWidth / 2 < width / 2
@@ -381,11 +394,7 @@ export async function chooseLogoPlacement(
     return zone === `${onTop ? 'top' : 'bottom'}-${onLeft ? 'left' : 'right'}`
   }
 
-  let best = {
-    left: horizontalPositions[0] ?? marginX,
-    top: verticalPositions[0] ?? marginY,
-    score: Number.POSITIVE_INFINITY,
-  }
+  const candidates: { left: number; top: number; score: number; complexity: number }[] = []
   for (const top of verticalPositions) {
     for (const left of horizontalPositions) {
       const startX = Math.max(
@@ -431,10 +440,18 @@ export async function chooseLogoPlacement(
       // surface, and a ceiling of one made the two look equally bad.
       const complexity = variance / 7000 + edgeDifference / Math.max(1, edgeCount) / 80
       const contrastPenalty = 1 - Math.min(1, Math.abs(mean - logoLuminance) / 160)
-      const score = complexity + contrastPenalty * 0.5 - (inZone(left, top) ? 0.3 : 0)
-      if (score < best.score) best = { left, top, score }
+      candidates.push({ left, top, score: complexity + contrastPenalty * 0.5, complexity })
     }
   }
+  if (!candidates.length)
+    return { left: horizontalPositions[0] ?? marginX, top: verticalPositions[0] ?? marginY }
+  const byScore = (a: { score: number }, b: { score: number }) => a.score - b.score
+  const complexities = candidates.map((candidate) => candidate.complexity).sort((a, b) => a - b)
+  const typical = complexities[Math.floor((complexities.length - 1) / 2)]!
+  const named = candidates
+    .filter((candidate) => inZone(candidate.left, candidate.top) && candidate.complexity <= typical)
+    .sort(byScore)[0]
+  const best = named || candidates.sort(byScore)[0]!
   return { left: best.left, top: best.top }
 }
 

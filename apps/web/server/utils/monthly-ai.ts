@@ -18,9 +18,12 @@ import {
 import {
   researchOccasionSchema,
   researchLanguageSchema,
+  researchVisitorAudienceSchema,
   researchSchema,
   type Creative,
   type Research,
+  type ResearchLocale,
+  type ResearchVisitorAudience,
   type StyleProfile,
 } from '../../shared/schemas/monthly-plan'
 import { ctaMaxLength } from '../../shared/schemas/storyboard'
@@ -30,7 +33,7 @@ import {
   consumeReservedCredits,
   creditsForCost,
   releaseReservedCredits,
-  reserveCredits,
+  reserveAvailableCredits,
 } from './credits'
 import {
   aiProviderConfiguration,
@@ -359,9 +362,56 @@ function completedRunHasUsableProviderResult(run: Record<string, unknown>) {
 const researchBlockPattern = new RegExp(
   '\\n?```json\\s*\\n([\\s\\S]*?)\\n```\\s*$',
 )
+const researchLocales = researchLanguageSchema.shape.locale.options
+// The model sometimes gets the region of a locale wrong while the language is
+// right (e.g. "sq-KX" for "sq-XK"). When the language alone names exactly one
+// supported locale, that locale is meant; anything ambiguous stays as written.
+export function normalizeResearchLocale(value: unknown) {
+  if (typeof value !== 'string') return value
+  const exact = researchLocales.find((locale) => locale.toLowerCase() === value.trim().toLowerCase())
+  if (exact) return exact
+  const language = value.trim().toLowerCase().split(/[-_]/)[0]
+  const candidates = researchLocales.filter((locale) => locale.split('-')[0] === language)
+  return candidates.length === 1 ? candidates[0] : value
+}
+// Language and occasions are validated apart, so one malformed occasion can
+// never discard a valid audience language and stop the plan.
 const researchOutputBlockSchema = z.object({
-  language: researchLanguageSchema.optional(),
-  occasions: researchOccasionSchema.array().max(30).default([]),
+  language: z
+    .unknown()
+    .transform((value) => {
+      if (typeof value !== 'object' || value === null) return undefined
+      const parsed = researchLanguageSchema.safeParse({
+        ...value,
+        locale: normalizeResearchLocale((value as { locale?: unknown }).locale),
+      })
+      return parsed.success ? parsed.data : undefined
+    })
+    .optional(),
+  visitorAudience: z
+    .unknown()
+    .transform((value) => {
+      if (typeof value !== 'object' || value === null) return undefined
+      const parsed = researchVisitorAudienceSchema.safeParse({
+        ...value,
+        locale: normalizeResearchLocale((value as { locale?: unknown }).locale),
+      })
+      return parsed.success ? parsed.data : undefined
+    })
+    .optional(),
+  occasions: z
+    .unknown()
+    .transform((value) =>
+      Array.isArray(value)
+        ? value
+            .slice(0, 30)
+            .flatMap((occasion) => {
+              const parsed = researchOccasionSchema.safeParse(occasion)
+              return parsed.success ? [parsed.data] : []
+            })
+        : [],
+    )
+    .optional(),
 })
 function researchOutputFromText(text: string) {
   const match = text.match(researchBlockPattern)
@@ -389,7 +439,12 @@ function researchOutputFromText(text: string) {
       occasions: [] as Research['occasions'],
       language: undefined as Research['language'],
     }
-  return { text: prose || text, ...parsed.data }
+  return {
+    text: prose || text,
+    language: parsed.data.language,
+    visitorAudience: parsed.data.visitorAudience,
+    occasions: parsed.data.occasions ?? [],
+  }
 }
 export function researchOccasionsFromText(
   text: string,
@@ -416,11 +471,24 @@ export function researchOccasionsFromText(
   })
   return { text: output.text, occasions }
 }
+// A visitor audience is kept only when it is a real second language, beside a
+// decided plan language, and cited to a source the live search returned.
+function groundedVisitorAudience(
+  visitor: ResearchVisitorAudience | undefined,
+  language: Research['language'],
+  sources: Map<string, { url: string; title: string }>,
+) {
+  if (!visitor || !language || visitor.locale === language.locale) return undefined
+  const cited = new Set([...sources.keys()].map(canonicalSourceUrl))
+  return cited.has(canonicalSourceUrl(visitor.sourceUrl)) ? visitor : undefined
+}
 export function researchFromResponse(
   response: ProviderResponse,
   now = new Date(),
   occasionWindow?: { from: string; to: string; categories: string[] },
-  requireLanguage = false,
+  // The business's own content language. When the research names no usable
+  // language the plan continues in this one instead of stopping.
+  fallbackLocale?: ResearchLocale,
 ): Research {
   const text = responseText(response)
   const sources = new Map<string, { url: string; title: string }>()
@@ -472,20 +540,36 @@ export function researchFromResponse(
     throw new PlannerFailure('RESEARCH_SOURCES_REQUIRED')
   const output = researchOutputFromText(text)
   const report = researchOccasionsFromText(text, sources, occasionWindow)
-  if (requireLanguage && !output.language) throw new PlannerFailure('AUDIENCE_LANGUAGE_REQUIRED')
+  const language =
+    output.language ||
+    (fallbackLocale
+      ? {
+          locale: fallbackLocale,
+          audienceSummary: 'Business content language',
+          rationale: 'The research found no usable audience-language signal.',
+          confidence: 0,
+          decidedBy: 'preferences' as const,
+        }
+      : undefined)
+  const visitorAudience = groundedVisitorAudience(output.visitorAudience, language, sources)
   return researchSchema.parse({
     // Citation offsets index the full response text, and the JSON block only
     // ever trails the prose, so trimming it cannot move an earlier citation.
     text: report.text,
     sources: [...sources.values()],
     citations: citations.filter((citation) => citation.end <= report.text.length),
-    occasions: report.occasions,
-    ...(output.language ? { language: output.language } : {}),
+    // An occasion can only face visitors the research actually found.
+    occasions: report.occasions.map((occasion) => ({
+      ...occasion,
+      visitorFacing: Boolean(visitorAudience && occasion.visitorFacing),
+    })),
+    ...(language ? { language } : {}),
+    ...(visitorAudience ? { visitorAudience } : {}),
     researchedAt: now.toISOString(),
   })
 }
 
-export const monthlyPromptVersion = 'monthly-studio/1.13.0'
+export const monthlyPromptVersion = 'monthly-studio/1.14.0'
 export type MonthlyAutomaticStage =
   | 'research'
   | 'planning'
@@ -604,7 +688,7 @@ const businessBrainInstruction: Partial<Record<keyof typeof monthlyInstructions,
 }
 
 export const audienceLanguageResearchInstruction =
-  'Before writing the report, determine one customer-content language from the declared audiences and a focused live search of the business local market. The dashboard language and the language in which the business filled its fields are not evidence. The declared audience is the primary source: when it explicitly states its target market or language, choose that language. A different physical business location or its local search results must not override that explicit audience declaration; describe it only as a target-market difference. Use local-market research to corroborate the declared audience or to decide only when the audience does not clearly state a market or language. If the audience is genuinely multilingual, equal between languages, missing a usable market signal, or you cannot determine one language with confidence, do not guess: return language as null. Write the report in the determined language when one is clear. End the entire report with exactly one fenced ```json block and nothing after it: {"language":{"locale":"sq-XK|en-US|de-CH|it-CH|fr-CH|tr-TR","audienceSummary":"","rationale":"","confidence":0.0},"occasions":[]}. The rationale must explain the audience and local-market evidence. If event research is present, include its verified occasions in that same occasions array.'
+  'Before writing the report, determine one customer-content language from the declared audiences and a focused live search of the business local market. The dashboard language and the language in which the business filled its fields are not evidence. The declared audience is the primary source: when it explicitly states its target market or language, choose that language. A different physical business location or its local search results must not override that explicit audience declaration; describe it only as a target-market difference. Use local-market research to corroborate the declared audience or to decide only when the audience does not clearly state a market or language. Always decide one primary language, because the plan never stops for it. If the audience is multilingual or split between languages, choose the language of the largest declared local audience, and when the declared audiences are equal, the language of the local market where the business operates; state the split in the rationale and lower confidence accordingly. A second audience such as visiting tourists never changes the primary language, it is handled per post. Return language as null only when there is no audience or market signal at all. Write the report in the determined language when one is clear. End the entire report with exactly one fenced ```json block and nothing after it: {"language":{"locale":"sq-XK|en-US|de-CH|it-CH|fr-CH|tr-TR","audienceSummary":"","rationale":"","confidence":0.0},"occasions":[]}. The rationale must explain the audience and local-market evidence. If event research is present, include its verified occasions in that same occasions array.'
 
 // Dated occasions are a permission the business grants, with a window of its
 // own: the part of the month that is both inside the package it bought and
@@ -613,9 +697,9 @@ export const audienceLanguageResearchInstruction =
 // never told that holidays exist.
 export const eventResearchInstruction: Partial<Record<keyof typeof monthlyInstructions, string>> = {
   research:
-    'eventResearch grants permission to research dated occasions, and bounds it. Look for occasions only of the listed categories — publicEvents covers national, local, religious and cultural occasions; seasonalEvents covers seasons and recurring commercial periods; industryTrends covers industry occasions and local trends — and only ones whose date falls between eventResearch.from and eventResearch.to inclusive. Never report an occasion outside that window, in a category that is not listed, or on a date you cannot cite: each one needs its exact date and a source returned by live search, and an occasion you cannot date is an evidence gap, not an occasion. Add a Markdown section titled "Evente dhe trende" listing each one as date, name, category, why it matters to this business and its source. If you find none inside the window, say so plainly in that section and invent nothing. Then put them in the occasions array of the one fenced ```json block that ends the whole report, the same block that carries language: do not write a second block and do not leave language out of it. Each occasion is shaped {"date":"YYYY-MM-DD","name":"","category":"publicEvents|seasonalEvents|industryTrends","relevance":"","sourceUrl":""}. Repeat there exactly the occasions of that section, each with its own cited sourceUrl, and use an empty occasions array when there are none. Posts are produced on request throughout the month rather than all at once, so this block is how a post asked for the day before an occasion can still be dated on it.',
+    'eventResearch grants permission to research dated occasions, and bounds it. Look for occasions only of the listed categories — publicEvents covers national, local, religious and cultural occasions; seasonalEvents covers seasons and recurring commercial periods; industryTrends covers industry occasions and local trends — and only ones whose date falls between eventResearch.from and eventResearch.to inclusive. Never report an occasion outside that window, in a category that is not listed, or on a date you cannot cite: each one needs its exact date and a source returned by live search, and an occasion you cannot date is an evidence gap, not an occasion. Add a Markdown section titled "Evente dhe trende" listing each one as date, name, category, why it matters to this business and its source. If you find none inside the window, say so plainly in that section and invent nothing. Then put them in the occasions array of the one fenced ```json block that ends the whole report, the same block that carries language: do not write a second block and do not leave language out of it. Each occasion is shaped {"date":"YYYY-MM-DD","name":"","category":"publicEvents|seasonalEvents|industryTrends","relevance":"","sourceUrl":""}. Repeat there exactly the occasions of that section, each with its own cited sourceUrl, and use an empty occasions array when there are none. Posts are produced on request throughout the month rather than all at once, so this block is how a post asked for the day before an occasion can still be dated on it. Visitors: also decide whether the occasions you found draw a visiting audience that does not speak the customer-content language, such as foreign tourists at a festival. Albanian-speaking diaspora visitors speak the customer-content language and are never a visiting audience. Decide only from live-search evidence, such as the organiser publishing in another language, international ticketing, tourism-board listings or reported foreign attendance; a guess or a generic statement that tourists exist is not evidence. When you find it, add to the same JSON block "visitorAudience":{"locale":"sq-XK|en-US|de-CH|it-CH|fr-CH|tr-TR","summary":"","rationale":"","sourceUrl":"","confidence":0.0} with the one language those visitors read, the evidence and its cited sourceUrl, and set "visitorFacing":true on exactly the occasions that evidence covers; every other occasion carries "visitorFacing":false. When the evidence is missing, mixed or weak, set "visitorAudience":null and every visitorFacing to false. Never choose the customer-content language as the visitor language.',
   planning:
-    'upcomingOccasions lists the dated occasions the research verified that are still ahead and not already used. Posts are produced in small batches whenever the business asks, so this batch may be the last chance to use one. When an occasion falls inside this batch\'s publishable range, give it a slot dated on the occasion itself, or one to three days before it when the idea is an announcement rather than a greeting, and cite its sourceUrl in that slot. The nearest occasion takes priority over a generic idea; at most one occasion-led slot per batch unless the batch has more slots than occasions. Never use an occasion that is not in upcomingOccasions, and never date a post after the occasion it is about: a greeting published once the day has passed is wrong, so an occasion outside the range is simply skipped. An occasion justifies the date of a post, never its hour: choose the hour under the timing rules and set timingBasis from the real timing evidence exactly as for every other slot.',
+    'upcomingOccasions lists the dated occasions the research verified that are still ahead and not already used. Posts are produced in small batches whenever the business asks, so this batch may be the last chance to use one. When an occasion falls inside this batch\'s publishable range, give it a slot dated on the occasion itself, or one to three days before it when the idea is an announcement rather than a greeting, and cite its sourceUrl in that slot. The nearest occasion takes priority over a generic idea; at most one occasion-led slot per batch unless the batch has more slots than occasions. Never use an occasion that is not in upcomingOccasions, and never date a post after the occasion it is about: a greeting published once the day has passed is wrong, so an occasion outside the range is simply skipped. An occasion justifies the date of a post, never its hour: choose the hour under the timing rules and set timingBasis from the real timing evidence exactly as for every other slot. Language: every slot sets locale and languageRationale to null, so it speaks the plan language, except a slot built around an occasion marked visitorFacing when visitorAudience is supplied. Such a slot may instead set locale to visitorAudience.locale and languageRationale to one sentence on why these visitors need this post in their language, citing the occasion. Do it only when the post is genuinely useful to a visitor, such as what to find at the festival or how to reach the business, and never for a post aimed at the local audience. At most visitorLanguage.maxSlots slots in this batch may do so.',
 }
 
 // The goals the business set on its brand page ride along inside the brand it
@@ -642,7 +726,7 @@ export function goalsInstructionFor(capability: keyof typeof monthlyInstructions
 // is dated from the day it is asked for, which is why a slot can never be left
 // waiting until its own date has passed.
 const batchPlanningInstruction =
-  'This is one batch of a month that is produced on request: plan exactly `count` slots now, and expect further batches later. When channelPlan is supplied it is the exact split the business asked for: produce precisely that many slots per platform, for example two Instagram and one Facebook, and never rebalance it because one platform seems to suit the ideas better. Choose which ideas go to which platform, not how many. alreadyPlanned lists the slots earlier batches of this same month already hold. Treat them as taken: never reuse their day/time/channel combination, their topic or their hook, and build on them so the month still reads as one deliberate narrative rather than a set of unrelated posts. Spread the new slots across the remaining publishable days rather than clustering them on consecutive days, unless an occasion dictates otherwise.'
+  'This is one batch of a month that is produced on request: plan exactly `count` slots now, and expect further batches later. When channelPlan is supplied it is the exact split the business asked for: produce precisely that many slots per platform, for example two Instagram and one Facebook, and never rebalance it because one platform seems to suit the ideas better. Choose which ideas go to which platform, not how many. alreadyPlanned lists the slots earlier batches of this same month already hold. Treat them as taken: never reuse their day/time/channel combination, their topic or their hook, and build on them so the month still reads as one deliberate narrative rather than a set of unrelated posts. Spread the new slots across the remaining publishable days rather than clustering them on consecutive days, unless an occasion dictates otherwise. Every slot speaks the plan language: set locale and languageRationale to null unless the occasion instructions explicitly allow a visitor language for that slot.'
 
 const evidenceFirstInstruction = {
   research:
@@ -862,10 +946,9 @@ export async function monthlyProviderCall(
     // The monthly page-style analysis is a platform cost, never charged to
     // the customer's credits; its provider cost stays in monthly_ai_runs.
     if (!platformCost) {
-      creditReserve = await creditsForCost(client, reserve)
-      await reserveCredits(client, {
+      creditReserve = await reserveAvailableCredits(client, {
         organizationId: args.businessId,
-        credits: creditReserve,
+        credits: await creditsForCost(client, reserve),
         usageKind,
         referenceType: 'monthly_ai_run',
         referenceId: runId,
@@ -1222,10 +1305,9 @@ export async function monthlyImageCall(
       throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
     }
     runId = result.rows[0].id
-    creditReserve = await creditsForCost(client, reserve)
-    await reserveCredits(client, {
+    creditReserve = await reserveAvailableCredits(client, {
       organizationId: args.businessId,
-      credits: creditReserve,
+      credits: await creditsForCost(client, reserve),
       usageKind: 'generation',
       referenceType: 'monthly_ai_run',
       referenceId: runId,

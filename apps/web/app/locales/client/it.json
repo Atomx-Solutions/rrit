@@ -368,6 +368,7 @@
   "creative.originalRedesign": "Riprogettazione IA originale",
   "creative.createVariant": "Crea una variante IA",
   "provenance.whyPost": "Perché questo post?",
+  "provenance.visitorLanguage": "Scritto in {{language}} per i visitatori di un evento",
   "provenance.whyCreated": "Perché è stato creato così?",
   "provenance.marketSources": "Fonti per il contesto di mercato",
   "provenance.reviewWithAi": "Rivedi la versione attuale con l’IA",

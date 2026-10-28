@@ -3,7 +3,7 @@ import type { Post } from '~~/shared/schemas/workspace'
 import type { z } from 'zod'
 import type { qualitySchema } from '~~/shared/schemas/monthly-plan'
 const props = defineProps<{ post: Post; disabled?: boolean }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { initLive } = useWorkspace()
 const open = ref(false)
 const reviewing = ref(false)
@@ -25,6 +25,20 @@ const reasoningItems = computed(() => {
     { icon: 'i-lucide-instagram', title: t('provenance.platform'), text: reasoning.platform },
     { icon: 'i-lucide-clock-3', title: t('provenance.timing'), text: reasoning.timing },
   ]
+})
+// Shown only for a post the strategy wrote for an occasion's visitors in their
+// own language, so the business sees why before approving it.
+const visitorLanguage = computed(() => {
+  const provenance = props.post.aiProvenance
+  if (!provenance?.locale || !provenance.languageRationale) return null
+  const language = provenance.locale.split('-')[0]!
+  let name = language
+  try {
+    name = new Intl.DisplayNames([locale.value], { type: 'language' }).of(language) || language
+  } catch {
+    /* An unsupported runtime keeps the language code. */
+  }
+  return { code: language.toUpperCase(), name, rationale: provenance.languageRationale }
 })
 type CurrentReview = {
   contentVersion: number
@@ -98,6 +112,14 @@ async function review() {
       @click="open = true"
       >{{ t('provenance.whyPost') }}</UButton
     >
+    <UTooltip
+      v-if="visitorLanguage"
+      :text="t('provenance.visitorLanguage', { language: visitorLanguage.name })"
+    >
+      <UBadge color="primary" variant="subtle" icon="i-lucide-languages">{{
+        visitorLanguage.code
+      }}</UBadge>
+    </UTooltip>
     <USlideover
       v-model:open="open"
       :title="t('provenance.title')"
@@ -105,6 +127,14 @@ async function review() {
     >
       <template #body>
         <div class="space-y-6">
+          <UAlert
+            v-if="visitorLanguage"
+            color="primary"
+            variant="subtle"
+            icon="i-lucide-languages"
+            :title="t('provenance.visitorLanguage', { language: visitorLanguage.name })"
+            :description="visitorLanguage.rationale"
+          />
           <div v-if="reasoningItems.length" class="space-y-3">
             <div>
               <h3 class="text-sm font-semibold">{{ t('provenance.whyCreated') }}</h3>
