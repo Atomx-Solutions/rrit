@@ -7,7 +7,6 @@ const { t } = useI18n()
 const route = useRoute()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Framic` })
 const query = ref('')
-const mobileSearchOpen = ref(false)
 const assetFilter = ref<'all' | 'original'>('all')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
@@ -349,61 +348,30 @@ async function saveMetadata() {
     :toolbar-border="false"
   >
     <template #toolbar>
-      <div class="flex w-full flex-wrap items-center justify-between gap-3">
-        <div
-          class="flex min-w-0 items-center gap-2 sm:w-80"
-          :class="mobileSearchOpen ? 'w-full' : 'w-auto'"
-        >
-          <UButton
-            v-if="!mobileSearchOpen"
-            type="button"
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-search"
-            :aria-label="t('gallery.searchLabel')"
-            square
-            class="size-10 shrink-0 justify-center p-0 sm:hidden"
-            @click="mobileSearchOpen = true"
-          />
-          <UInput
-            v-if="mobileSearchOpen"
-            v-model="query"
-            :placeholder="t('gallery.searchPlaceholder')"
-            :aria-label="t('gallery.searchLabel')"
-            icon="i-lucide-search"
-            class="min-w-0 flex-1 sm:hidden"
-          />
-          <UButton
-            v-if="mobileSearchOpen"
-            type="button"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-x"
-            :aria-label="t('common.close')"
-            class="shrink-0 sm:hidden"
-            @click="mobileSearchOpen = false"
-          />
-          <UInput
-            v-model="query"
-            :placeholder="t('gallery.searchPlaceholder')"
-            :aria-label="t('gallery.searchLabel')"
-            icon="i-lucide-search"
-            class="hidden w-full sm:block"
-          />
-        </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <UTabs
-            v-model="assetFilter"
-            :items="filterTabs"
-            :content="false"
-            variant="link"
-            size="sm"
-            :aria-label="t('gallery.assetFilter')"
-          />
-          <span role="status" class="text-sm text-muted">{{ assets.length }} {{ assetFilter === 'all' ? t('gallery.items') : t('gallery.photos') }}</span
+      <div class="grid w-full min-w-0 gap-3 py-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:py-0">
+        <UInput
+          v-model="query"
+          :placeholder="t('gallery.searchPlaceholder')"
+          :aria-label="t('gallery.searchLabel')"
+          icon="i-lucide-search"
+          class="w-full min-w-0 sm:w-80"
+        />
+        <div class="flex min-w-0 items-center justify-between gap-3 sm:justify-start">
+          <!-- Only the tabs scroll on a narrow phone; the count stays whole. -->
+          <div class="min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <UTabs
+              v-model="assetFilter"
+              :items="filterTabs"
+              :content="false"
+              variant="link"
+              size="sm"
+              :aria-label="t('gallery.assetFilter')"
+            />
+          </div>
+          <span role="status" class="shrink-0 whitespace-nowrap text-sm text-muted">{{ assets.length }} {{ assetFilter === 'all' ? t('gallery.items') : t('gallery.photos') }}</span
           >
         </div>
-        <div class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+        <div class="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
           <UButton
             v-if="selected.length"
             color="neutral"
@@ -420,8 +388,8 @@ async function saveMetadata() {
             @click="deleteOpen = true"
             >{{ t('gallery.removeSelected') }} {{ selected.length }}</UButton
           >
-          <LogoUpload compact class="shrink-0" />
-          <UButton variant="outline" icon="i-lucide-upload" class="shrink-0" @click="openUpload">
+          <LogoUpload compact class="min-w-0 shrink-0 justify-center" />
+          <UButton variant="outline" icon="i-lucide-upload" class="min-w-0 shrink-0 justify-center" @click="openUpload">
             {{ t('gallery.uploadPhotos') }}
           </UButton>
         </div>

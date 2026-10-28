@@ -76,6 +76,12 @@ function item(n: (typeof navigation)[number]): NavigationMenuItem {
     // Start loading the next workspace page as soon as the navigation item is
     // hovered/focused, so the click only performs the data request.
     prefetch: true,
+    // A page's leave guard runs before the router's beforeEach, so a page
+    // asking about unsaved changes would open its dialog under the phone menu.
+    // Closing the menu on the tap itself leaves that dialog on top.
+    onSelect: () => {
+      if (window.matchMedia('(max-width: 1023px)').matches) sidebarOpen.value = false
+    },
     active: route.path.includes(`/${n.path}`),
     tooltip: { text: t(n.label) },
     // How many posts there are, matching the count the content list shows. A

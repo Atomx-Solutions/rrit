@@ -7,7 +7,6 @@ const { t } = useI18n()
 useSeoMeta({ title: () => `${t('content.yourPosts')} · Framic` })
 const route = useRoute()
 const search = ref('')
-const mobileSearchOpen = ref(false)
 const filter = computed({
   get: () =>
     typeof route.query.status === 'string' && Object.hasOwn(statusLabels, route.query.status)
@@ -65,63 +64,29 @@ watch([search, filter, channel, format], () => {
     :description="t('content.yourPostsDescription')"
     :toolbar-border="false"
   >
-    <!-- The mobile search expands above the filter row; keep filters and the
-         create action together so the plus button never lands between rows. -->
+    <!-- The search spans the first row on a phone; keep filters and the create
+         action together below it so the plus button never lands between rows. -->
     <template #toolbar>
       <div class="flex w-full flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-between sm:gap-3">
-        <div
-          class="flex min-w-0 items-center gap-2 sm:w-72"
-          :class="mobileSearchOpen ? 'w-full' : 'w-auto'"
-        >
-          <UButton
-            v-if="!mobileSearchOpen"
-            type="button"
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-search"
-            :aria-label="t('content.searchPosts')"
-            square
-            class="size-10 shrink-0 justify-center p-0 sm:hidden"
-            @click="mobileSearchOpen = true"
-          />
-          <UInput
-            v-if="mobileSearchOpen"
-            v-model="search"
-            icon="i-lucide-search"
-            :placeholder="t('content.searchPlaceholder')"
-            :aria-label="t('content.searchPosts')"
-            class="min-w-0 flex-1 sm:hidden"
-          />
-          <UButton
-            v-if="mobileSearchOpen"
-            type="button"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-x"
-            :aria-label="t('common.close')"
-            class="shrink-0 sm:hidden"
-            @click="mobileSearchOpen = false"
-          />
-          <UInput
-            v-model="search"
-            icon="i-lucide-search"
-            :placeholder="t('content.searchPlaceholder')"
-            :aria-label="t('content.searchPosts')"
-            class="hidden w-full sm:block"
-          />
-        </div>
-        <div class="actions shrink-0">
+        <UInput
+          v-model="search"
+          icon="i-lucide-search"
+          :placeholder="t('content.searchPlaceholder')"
+          :aria-label="t('content.searchPosts')"
+          class="w-full min-w-0 sm:w-72"
+        />
+        <div class="actions flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
           <USelect
             v-model="format"
             :items="[{ label: t('content.allFormats'), value: 'all' }, { label: t('content.postsOnly'), value: 'post' }, { label: t('content.videoOnly'), value: 'video' }]"
             :aria-label="t('content.filterFormat')"
-            class="w-32 sm:w-auto"
+            class="min-w-0 flex-1 sm:w-auto sm:flex-none"
           />
           <USelect
             v-model="channel"
             :items="channelItems"
             :aria-label="t('content.filterChannel')"
-            class="w-32 sm:w-auto"
+            class="min-w-0 flex-1 sm:w-auto sm:flex-none"
           />
           <UButton
             variant="outline"
