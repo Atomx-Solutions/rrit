@@ -5,6 +5,7 @@ import { eventResearchCategoryKeys, videoDeliverablesDefault } from '~~/shared/s
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base, syncing, commit, notify } = useWorkspace()
 const { t } = useI18n()
+const route = useRoute()
 useSeoMeta({ title: () => `${t('brand.title')} · Framic` })
 const { form, clear, recovered, localError } = useDraft(
   `${base.value}:brand`,
@@ -15,12 +16,62 @@ const eventCategories = eventResearchCategoryKeys
 // recovered form is brought up to the current brand shape before it is bound.
 if (!form.videoDeliverables) form.videoDeliverables = { ...videoDeliverablesDefault }
 const baseline = ref(JSON.stringify(form))
+const openAccordion = ref<string | undefined>()
+const attentionTarget = ref('')
 const saved = ref(false)
 const formError = ref('')
 const { onFormError, watchError } = useFormFeedback()
 watchError(formError)
 watchError(localError, 'warning')
 const dirty = computed(() => JSON.stringify(form) !== baseline.value)
+const focusTarget = computed(() => {
+  if (route.query.attention !== 'planner') return ''
+  const value = route.query.focus
+  return typeof value === 'string' && [
+    'industry', 'audience', 'fact-text', 'fact-source', 'fact-confirmation', 'required',
+  ].includes(value) ? value : ''
+})
+const showAllRequired = computed(() =>
+  route.query.attention === 'planner' && route.query.required === '1',
+)
+function hasAttention(target: string) {
+  if (attentionTarget.value !== target && !showAllRequired.value) return false
+  const fact = form.facts[0]
+  if (target === 'industry') return !form.industry.trim()
+  if (target === 'audience') return !form.audience.trim()
+  if (target === 'fact-text') return !fact?.text.trim()
+  if (target === 'fact-source') return !fact?.source.trim()
+  if (target === 'fact-confirmation') return !fact?.verified
+  return false
+}
+function firstIncompleteTarget() {
+  const fact = form.facts[0]
+  if (!form.industry.trim()) return 'industry'
+  if (!form.audience.trim()) return 'audience'
+  if (!fact?.text.trim()) return 'fact-text'
+  if (!fact?.source.trim()) return 'fact-source'
+  if (!fact?.verified) return 'fact-confirmation'
+  return ''
+}
+async function focusRequiredField(target: string) {
+  if (!import.meta.client || !target) return
+  if (showAllRequired.value || target === 'required' || target.startsWith('fact-')) {
+    openAccordion.value = 'facts'
+    if (!form.facts.length) addFact()
+  }
+  attentionTarget.value = target
+  await nextTick()
+  const focusId = target === 'required' ? firstIncompleteTarget() : target
+  document.getElementById(`${focusId}-input`)?.focus()
+}
+watch(
+  () => route.hash,
+  (hash) => {
+    if (hash === '#facts') openAccordion.value = 'facts'
+  },
+  { immediate: true },
+)
+watch(focusTarget, (target) => { void focusRequiredField(target) }, { immediate: true })
 const leaveOpen = ref(false)
 let resolveLeave: ((allow: boolean) => void) | undefined
 const schema = z.object({
@@ -80,6 +131,7 @@ async function save() {
     baseline.value = JSON.stringify(form)
     saved.value = true
     notify(t('brand.identitySaved'))
+    await refreshNuxtData('monthly-planner')
   } else {
     formError.value = t('brand.saveError')
   }
@@ -172,8 +224,13 @@ function setPrice(fact: BrandFact, value: string | number) {
                 v-model="form.city"
                 class="w-full"
                 :placeholder="t('brand.cityPlaceholder')" /></UFormField
-            ><UFormField :label="t('brand.industry')" name="industry"
-              ><UInput v-model="form.industry" class="w-full" :placeholder="t('brand.industryPlaceholder')"
+            ><UFormField id="industry" :label="t('brand.industry')" name="industry" required
+              ><UInput
+                id="industry-input"
+                v-model="form.industry"
+                class="w-full"
+                :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': hasAttention('industry') }"
+                :placeholder="t('brand.industryPlaceholder')"
             /></UFormField>
           </div>
           <UFormField
@@ -186,12 +243,14 @@ function setPrice(fact: BrandFact, value: string | number) {
               :rows="4"
               maxlength="2000"
               class="w-full" /></UFormField
-          ><UFormField :label="t('brand.audience')" name="audience"
+          ><UFormField id="audience" :label="t('brand.audience')" name="audience" required
             ><UTextarea
+              id="audience-input"
               v-model="form.audience"
               :rows="2"
               maxlength="1000"
               class="w-full"
+              :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': hasAttention('audience') }"
               :placeholder="t('brand.audiencePlaceholder')"
           /></UFormField>
           <div class="grid sm:grid-cols-2 gap-5">
@@ -236,7 +295,9 @@ function setPrice(fact: BrandFact, value: string | number) {
             </UButton>
           </div>
           <UAccordion
-            :items="[{ label: t('brand.facts'), slot: 'facts' }]"
+            id="facts"
+            v-model="openAccordion"
+            :items="[{ label: t('brand.facts'), slot: 'facts', value: 'facts' }]"
             ><template #facts
               ><div class="space-y-4 pb-4">
                 <p class="text-sm text-muted leading-relaxed">
@@ -247,18 +308,22 @@ function setPrice(fact: BrandFact, value: string | number) {
                   :key="fact.id"
                   variant="outline"
                   :ui="{ body: 'p-4 space-y-3' }"
-                  ><UFormField :label="t('brand.detailNumber', { index: i + 1 })"
+                  ><UFormField :label="t('brand.detailNumber', { index: i + 1 })" required
                     ><UTextarea
+                      :id="i === 0 ? 'fact-text-input' : undefined"
                       v-model="fact.text"
                       class="w-full"
+                      :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': i === 0 && hasAttention('fact-text') }"
                       :rows="2"
                       maxlength="1000"
                       @update:model-value="invalidateFact(fact)" /></UFormField
-                  ><UFormField :label="t('brand.source')"
+                  ><UFormField :label="t('brand.source')" required
                     ><UInput
+                      :id="i === 0 ? 'fact-source-input' : undefined"
                       v-model="fact.source"
                       class="w-full"
                       maxlength="500"
+                      :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': i === 0 && hasAttention('fact-source') }"
                       @update:model-value="invalidateFact(fact)"
                   /></UFormField>
                   <div class="grid sm:grid-cols-3 gap-3">
@@ -325,8 +390,10 @@ function setPrice(fact: BrandFact, value: string | number) {
                   </p>
                   <div class="flex items-center justify-between gap-3">
                     <UCheckbox
+                      :id="i === 0 ? 'fact-confirmation-input' : undefined"
                       v-model="fact.verified"
-                      :label="t('brand.checkedInformation')"
+                      :label="`${t('brand.checkedInformation')} *`"
+                      :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': i === 0 && hasAttention('fact-confirmation') }"
                     /><UButton
                       color="neutral"
                       variant="ghost"

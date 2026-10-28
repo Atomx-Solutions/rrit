@@ -92,7 +92,15 @@ async function upload(value: File | null | undefined) {
     </template>
     <UButton v-else type="button" variant="outline" icon="i-lucide-image-plus" @click="start">{{ t('logo.upload') }}</UButton>
   </UCard>
-  <UButton v-else type="button" variant="outline" icon="i-lucide-image-plus" @click="start">
+  <UButton
+    v-else
+    v-bind="$attrs"
+    type="button"
+    variant="outline"
+    icon="i-lucide-image-plus"
+    class="whitespace-nowrap"
+    @click="start"
+  >
     {{ currentLogo ? t('logo.replace') : t('logo.upload') }}
   </UButton>
 

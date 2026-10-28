@@ -276,13 +276,13 @@ describe('monthly evidence and provider boundaries', () => {
       'fact-confirmation',
       'owned-photo',
     ])
-    expect(missing.map((item) => item.label)).toEqual([
-      'Lloji i biznesit',
-      'Audienca e biznesit',
-      'Teksti i detajit të biznesit',
-      'Burimi i detajit',
-      'Konfirmimi i detajit',
-      'Fotografi reale me të drejta të konfirmuara',
+    expect(missing.map((item) => item.labelKey)).toEqual([
+      'monthly.prerequisiteIndustryLabel',
+      'monthly.prerequisiteAudienceLabel',
+      'monthly.prerequisiteFactTextLabel',
+      'monthly.prerequisiteFactSourceLabel',
+      'monthly.prerequisiteFactConfirmationLabel',
+      'monthly.prerequisiteOwnedPhotoLabel',
     ])
     expect(() => plannerEvidence(workspace, now, '2026-09')).toThrow('BUSINESS_CONTEXT_REQUIRED')
   })

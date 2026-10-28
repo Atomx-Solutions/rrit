@@ -128,6 +128,19 @@ function openReport(type: 'research' | 'strategy') {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+function prerequisitePath(id: string) {
+  if (id === 'owned-photo') return `${base.value}/gallery?upload=1&focus=rights&attention=planner`
+  const section = id === 'industry' || id === 'audience' ? id : 'facts'
+  return `${base.value}/brand?focus=${id}&required=1&attention=planner#${section}`
+}
+
+function prerequisiteMessageKey(code: string | null | undefined) {
+  if (code === 'BUSINESS_CONTEXT_REQUIRED') return 'monthly.prerequisiteBusinessContext'
+  if (code === 'VERIFIED_FACTS_REQUIRED') return 'monthly.prerequisiteVerifiedFacts'
+  if (code === 'OWNED_PHOTOS_REQUIRED') return 'monthly.prerequisiteOwnedPhotos'
+  return 'monthly.prerequisiteDefault'
+}
+
 const phases = [
   { key: 'research', label: t('monthly.phaseResearch'), description: t('monthly.phaseResearchDescription') },
   { key: 'planning', label: t('monthly.phaseStrategy'), description: t('monthly.phaseStrategyDescription') },
@@ -580,19 +593,23 @@ onBeforeUnmount(() => clearInterval(timer))
           <UIcon name="i-lucide-circle-alert" class="mt-0.5 size-5 text-warning" />
           <div>
             <h3 class="text-sm font-semibold text-highlighted">{{ t('monthly.needStep') }}</h3>
-            <p class="mt-1 text-sm text-muted">{{ planner.prerequisite }}</p>
+            <p class="mt-1 text-sm text-muted">{{ t(prerequisiteMessageKey(planner.prerequisiteCode)) }}</p>
             <div v-if="planner.prerequisites?.length" class="mt-3 space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-warning">
                 Plotëso këto para gjenerimit
               </p>
-              <div
+              <ULink
                 v-for="item in planner.prerequisites"
                 :key="item.id"
-                class="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2"
+                :to="prerequisitePath(item.id)"
+                class="group block rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 transition-colors hover:bg-warning/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                <p class="text-sm font-medium text-highlighted">{{ item.label }}</p>
-                <p class="mt-0.5 text-xs leading-5 text-muted">{{ item.description }}</p>
-              </div>
+                <div class="flex items-start justify-between gap-3">
+                  <p class="text-sm font-medium text-highlighted">{{ t(item.labelKey) }}</p>
+                  <UIcon name="i-lucide-arrow-up-right" class="mt-0.5 size-4 shrink-0 text-muted transition-colors group-hover:text-primary" />
+                </div>
+                <p class="mt-0.5 text-xs leading-5 text-muted">{{ t(item.descriptionKey) }}</p>
+              </ULink>
             </div>
           </div>
         </div>

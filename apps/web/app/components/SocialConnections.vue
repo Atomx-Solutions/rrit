@@ -146,9 +146,6 @@ onMounted(async () => {
     <p v-if="!status?.configured && !statusError" class="text-sm text-muted">
       {{ t('social.preparing') }}
     </p>
-    <p v-else-if="!connected" class="text-sm text-muted">
-      {{ t('social.connectInstruction') }}
-    </p>
     <div class="flex flex-wrap gap-2">
       <UButton
         type="button"

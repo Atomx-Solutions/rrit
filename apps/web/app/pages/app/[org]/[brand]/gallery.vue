@@ -17,6 +17,13 @@ const error = ref('')
 const { watchError } = useFormFeedback()
 watchError(error)
 const rights = ref(false)
+const needsRightsConfirmedPhoto = computed(() =>
+  !data.value.assets.some((asset) => asset.kind === 'photo' && asset.rights && !asset.generated),
+)
+const plannerAttention = ref(false)
+const highlightRights = computed(() =>
+  plannerAttention.value && needsRightsConfirmedPhoto.value,
+)
 const uploadOpen = ref(false)
 const tags = ref('')
 const rightsOpen = ref(false)
@@ -154,15 +161,33 @@ watch(assetFilter, () => {
   page.value = 1
 })
 function openUpload() {
+  const fromPlanner = route.query.attention === 'planner' && route.query.focus === 'rights'
   rights.value = false
   selectedFiles.value = []
   error.value = ''
+  plannerAttention.value = fromPlanner
   uploadOpen.value = true
+  if (fromPlanner) void focusRightsConfirmation()
 }
-onMounted(() => {
-  if (route.query.upload !== '1') return
-  openUpload()
-  void navigateTo({ path: route.path, query: { ...route.query, upload: undefined } }, { replace: true })
+async function focusRightsConfirmation() {
+  if (!import.meta.client) return
+  await nextTick()
+  document.getElementById('upload-rights-input')?.focus()
+}
+watch(
+  () => route.query.upload,
+  (upload) => {
+    if (upload !== '1') return
+    openUpload()
+    void navigateTo({
+      path: route.path,
+      query: { ...route.query, upload: undefined, focus: undefined, attention: undefined },
+    }, { replace: true })
+  },
+  { immediate: true },
+)
+watch(uploadOpen, (open) => {
+  if (!open) plannerAttention.value = false
 })
 async function withdrawRights() {
   if (!detail.value || rightsBusy.value) return
@@ -189,6 +214,14 @@ async function withdrawRights() {
     rightsBusy.value = false
   }
 }
+function selectFiles(files: File[] | null | undefined) {
+  selectedFiles.value = files || []
+  error.value = ''
+  if (rights.value && selectedFiles.value.length) void upload(selectedFiles.value)
+}
+watch(rights, (confirmed) => {
+  if (confirmed && selectedFiles.value.length) void upload(selectedFiles.value)
+})
 async function upload(files: File[] | null | undefined) {
   if (!files?.length || uploading.value) return
   error.value = ''
@@ -237,6 +270,7 @@ async function upload(files: File[] | null | undefined) {
       notify(t('gallery.photosSaved', { count: added.length }))
       uploadOpen.value = false
       selectedFiles.value = []
+      await refreshNuxtData('monthly-planner')
     } else {
       error.value = t('gallery.saveError')
     }
@@ -286,14 +320,6 @@ async function saveMetadata() {
     :description="t('gallery.description')"
     :toolbar-border="false"
   >
-    <template #actions>
-      <div class="flex flex-wrap gap-2">
-        <LogoUpload compact />
-        <UButton variant="outline" icon="i-lucide-upload" @click="openUpload">
-          {{ t('gallery.uploadPhotos') }}
-        </UButton>
-      </div>
-    </template>
     <template #toolbar>
       <div class="flex w-full flex-wrap items-center justify-between gap-3">
         <UInput
@@ -313,21 +339,29 @@ async function saveMetadata() {
             :aria-label="t('gallery.assetFilter')"
           />
           <span role="status" class="text-sm text-muted">{{ assets.length }} {{ assetFilter === 'all' ? t('gallery.items') : t('gallery.photos') }}</span
-          ><UButton
-            v-if="selected.length"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            @click="selected = []"
-            >{{ t('gallery.clearSelection') }}</UButton
-          ><UButton
+          >
+        </div>
+        <div class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+          <UButton
             v-if="selected.length"
             color="error"
             variant="outline"
             icon="i-lucide-trash-2"
+            class="shrink-0"
             @click="deleteOpen = true"
             >{{ t('gallery.removeSelected') }} {{ selected.length }}</UButton
           >
+          <UButton
+            v-if="selected.length"
+            color="neutral"
+            variant="outline"
+            class="shrink-0"
+            @click="selected = []"
+          >{{ t('gallery.clearSelection') }}</UButton>
+          <LogoUpload compact class="shrink-0" />
+          <UButton variant="outline" icon="i-lucide-upload" class="shrink-0" @click="openUpload">
+            {{ t('gallery.uploadPhotos') }}
+          </UButton>
         </div>
       </div>
     </template>
@@ -514,22 +548,26 @@ async function saveMetadata() {
       :description="t('gallery.privateDescription')"
       ><template #body
         ><div class="stack">
-          <UCheckbox
-            v-model="rights"
-            :disabled="uploading"
-            :label="t('gallery.rightsLabel')"
-          /><UFileUpload
+          <UFileUpload
             v-model="selectedFiles"
             multiple
             accept="image/jpeg,image/png,image/webp"
-            :disabled="!rights || uploading"
+            :disabled="uploading"
             :label="t('gallery.choosePhotos')"
             :description="t('gallery.formats')"
             icon="i-lucide-cloud-upload"
             :interactive="true"
             class="min-h-48"
-            @update:model-value="upload"
-          /><UProgress v-if="uploading" :model-value="progress" :aria-label="t('gallery.uploadProgress')" />
+            @update:model-value="selectFiles"
+          />
+          <UCheckbox
+            id="upload-rights-input"
+            v-model="rights"
+            :disabled="uploading"
+            :label="t('gallery.rightsLabel')"
+            :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': highlightRights }"
+          />
+          <UProgress v-if="uploading" :model-value="progress" :aria-label="t('gallery.uploadProgress')" />
           <UButton
             v-if="error && selectedFiles.length"
             variant="outline"

@@ -107,8 +107,8 @@ export function evidenceHash(value: unknown) {
 export type PlannerPrerequisite = {
   id: 'industry' | 'audience' | 'fact-text' | 'fact-source' | 'fact-confirmation' | 'owned-photo'
   code: string
-  label: string
-  description: string
+  labelKey: string
+  descriptionKey: string
 }
 export type PlannerTimingSample = {
   source: 'facebook' | 'instagram' | 'platform'
@@ -138,16 +138,15 @@ export function plannerPrerequisites(
     missing.push({
       id: 'industry',
       code: 'BUSINESS_CONTEXT_REQUIRED',
-      label: 'Lloji i biznesit',
-      description: 'Te Profili i biznesit, plotëso fushën “Lloji i biznesit”.',
+      labelKey: 'monthly.prerequisiteIndustryLabel',
+      descriptionKey: 'monthly.prerequisiteIndustryDescription',
     })
   if (!workspace.brand.audience.trim())
     missing.push({
       id: 'audience',
       code: 'BUSINESS_CONTEXT_REQUIRED',
-      label: 'Audienca e biznesit',
-      description:
-        'Te Profili i biznesit, plotëso fushën “Për kë janë produktet ose shërbimet e tua?”.',
+      labelKey: 'monthly.prerequisiteAudienceLabel',
+      descriptionKey: 'monthly.prerequisiteAudienceDescription',
     })
   if (!facts.length) {
     const candidate = knownFacts.find(
@@ -157,34 +156,30 @@ export function plannerPrerequisites(
       missing.push({
         id: 'fact-text',
         code: 'VERIFIED_FACTS_REQUIRED',
-        label: 'Teksti i detajit të biznesit',
-        description:
-          'Te “Detaje që postimet duhet t’i kenë të sakta”, shkruaj informacionin që AI mund ta përdorë.',
+        labelKey: 'monthly.prerequisiteFactTextLabel',
+        descriptionKey: 'monthly.prerequisiteFactTextDescription',
       })
     if (!candidate || !candidate.source.trim())
       missing.push({
         id: 'fact-source',
         code: 'VERIFIED_FACTS_REQUIRED',
-        label: 'Burimi i detajit',
-        description:
-          'Te i njëjti detaj, plotëso fushën “Burimi” për të treguar nga vjen informacioni.',
+        labelKey: 'monthly.prerequisiteFactSourceLabel',
+        descriptionKey: 'monthly.prerequisiteFactSourceDescription',
       })
     if (!candidate || !candidate.verified)
       missing.push({
         id: 'fact-confirmation',
         code: 'VERIFIED_FACTS_REQUIRED',
-        label: 'Konfirmimi i detajit',
-        description:
-          'Te i njëjti detaj, aktivizo “E kam kontrolluar këtë informacion” dhe ruaj identitetin.',
+        labelKey: 'monthly.prerequisiteFactConfirmationLabel',
+        descriptionKey: 'monthly.prerequisiteFactConfirmationDescription',
       })
   }
   if (!workspace.assets.some((asset) => asset.kind === 'photo' && asset.rights && !asset.generated))
     missing.push({
       id: 'owned-photo',
       code: 'OWNED_PHOTOS_REQUIRED',
-      label: 'Fotografi reale me të drejta të konfirmuara',
-      description:
-        'Te Galeria, ngarko një fotografi të biznesit dhe konfirmo të drejtat e përdorimit.',
+      labelKey: 'monthly.prerequisiteOwnedPhotoLabel',
+      descriptionKey: 'monthly.prerequisiteOwnedPhotoDescription',
     })
   return missing
 }
@@ -938,9 +933,9 @@ export function validateEditorialPlan(
   return plan
 }
 export const plannerMessages: Record<string, string> = {
-  VERIFIED_FACTS_REQUIRED: 'Konfirmo faktet dhe burimet te profili i biznesit.',
-  OWNED_PHOTOS_REQUIRED: 'Ngarko fotografi të biznesit dhe konfirmo të drejtat.',
-  BUSINESS_CONTEXT_REQUIRED: 'Plotëso industrinë dhe audiencën te profili i biznesit.',
+  VERIFIED_FACTS_REQUIRED: 'Confirm the facts and sources in Business profile.',
+  OWNED_PHOTOS_REQUIRED: 'Upload business photos and confirm the rights to use them.',
+  BUSINESS_CONTEXT_REQUIRED: 'Complete the business type and audience in Business profile.',
   CONFIGURATION_REQUIRED: 'Platforma ende nuk e ka aktivizuar planifikimin mujor.',
   ENTITLEMENT_REQUIRED: 'Planifikimi me AI kërkon një paketë aktive me AI.',
   QUOTA_EXCEEDED: 'Kufiri i paketës është arritur. Draftet e krijuara mbeten të ruajtura.',
