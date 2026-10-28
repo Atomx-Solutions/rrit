@@ -108,8 +108,9 @@ export default defineEventHandler(async (event) => {
       },
       workerAlive: worker.rows[0]?.alive === true,
       prerequisite: prerequisite
-        ? plannerMessages[prerequisite] || 'Plotëso profilin e biznesit.'
+        ? plannerMessages[prerequisite] || 'Complete your Business profile.'
         : null,
+      prerequisiteCode: prerequisite,
       prerequisites,
       plan: row
         ? {
@@ -139,7 +140,7 @@ export default defineEventHandler(async (event) => {
             errorCode: (row.error_code as string | null) || null,
             error: row.error_code
               ? plannerMessages[row.error_code] ||
-                'Përgatitja kërkon kontroll nga platforma. Draftet e ruajtura janë të disponueshme.'
+                'Preparation needs review by the platform. Your saved drafts are available.'
               : null,
             restartable:
               row.status === 'blocked' &&

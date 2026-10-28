@@ -132,7 +132,7 @@ export async function getBusinessBrain(
   // A PoolClient can execute only one query at a time. Keep these reads
   // sequential to avoid pg's concurrent-query deprecation warning.
   const brand = await client.query<{ revision: number }>(
-    'SELECT revision FROM brands WHERE id=$1 AND organization_id=$2',
+    'SELECT business_brain_revision AS revision FROM brands WHERE id=$1 AND organization_id=$2',
     [brandId, organizationId],
   )
   const facts = await client.query<FactRow>(
@@ -242,7 +242,7 @@ export async function loadPlannerBrain(
 
 async function lockBrand(client: PoolClient, organizationId: string, brandId: string) {
   const result = await client.query<{ revision: number; status: string }>(
-    'SELECT revision, status FROM brands WHERE id=$1 AND organization_id=$2 FOR UPDATE',
+    'SELECT business_brain_revision AS revision, status FROM brands WHERE id=$1 AND organization_id=$2 FOR UPDATE',
     [brandId, organizationId],
   )
   if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
@@ -253,7 +253,7 @@ async function lockBrand(client: PoolClient, organizationId: string, brandId: st
 
 async function bumpBrand(client: PoolClient, organizationId: string, brandId: string) {
   await client.query(
-    'UPDATE brands SET revision=revision+1, updated_at=now() WHERE id=$1 AND organization_id=$2',
+    'UPDATE brands SET business_brain_revision=business_brain_revision+1, updated_at=now() WHERE id=$1 AND organization_id=$2',
     [brandId, organizationId],
   )
 }

@@ -64,43 +64,38 @@ watch([search, filter, channel, format], () => {
     :description="t('content.yourPostsDescription')"
     :toolbar-border="false"
   >
-    <!-- Search, channel and the action share one row on a phone instead of
-         taking two. Only the button's label can give way: at 375px the three
-         full labels need more width than the screen has. `hidden` also takes
-         the text out of the accessibility tree, so the icon carries its name
-         through aria-label. -->
-    <!-- Goes to AI planning: a post starts by generating it there. -->
-    <template #actions>
-      <UButton
-        variant="outline"
-        :to="`${base}/monthly-planner`"
-        icon="i-lucide-plus"
-        :label="t('content.createPost')"
-        :aria-label="t('content.createPost')"
-        :ui="{ label: 'hidden sm:inline' }"
-      />
-    </template>
+    <!-- The search spans the first row on a phone; keep filters and the create
+         action together below it so the plus button never lands between rows. -->
     <template #toolbar>
-      <div class="flex w-full items-center gap-2 sm:justify-between sm:gap-3">
+      <div class="flex w-full flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-between sm:gap-3">
         <UInput
           v-model="search"
           icon="i-lucide-search"
           :placeholder="t('content.searchPlaceholder')"
           :aria-label="t('content.searchPosts')"
-          class="min-w-0 flex-1 sm:w-72 sm:flex-none"
+          class="w-full min-w-0 sm:w-72"
         />
-        <div class="actions shrink-0">
+        <div class="actions flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
           <USelect
             v-model="format"
             :items="[{ label: t('content.allFormats'), value: 'all' }, { label: t('content.postsOnly'), value: 'post' }, { label: t('content.videoOnly'), value: 'video' }]"
             :aria-label="t('content.filterFormat')"
-            class="w-32 sm:w-auto"
+            class="min-w-0 flex-1 sm:w-auto sm:flex-none"
           />
           <USelect
             v-model="channel"
             :items="channelItems"
             :aria-label="t('content.filterChannel')"
-            class="w-32 sm:w-auto"
+            class="min-w-0 flex-1 sm:w-auto sm:flex-none"
+          />
+          <UButton
+            variant="outline"
+            :to="`${base}/monthly-planner`"
+            icon="i-lucide-plus"
+            :label="t('content.createPost')"
+            :aria-label="t('content.createPost')"
+            :ui="{ label: 'hidden sm:inline' }"
+            class="shrink-0"
           />
         </div>
       </div>
@@ -116,7 +111,7 @@ watch([search, filter, channel, format], () => {
       variant="link"
       class="border-b border-default"
       :ui="{
-        list: 'gap-1 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-x-visible',
+        list: 'gap-1 flex-nowrap overflow-x-auto overflow-y-hidden sm:flex-wrap sm:overflow-x-visible',
         trigger: 'grow-0 shrink-0 px-3 min-h-10',
       }"
     />

@@ -9,11 +9,22 @@ const { watchError } = useFormFeedback()
 const open = ref(false)
 const rights = ref(false)
 const file = ref<File | null>(null)
+const filePreviewUrl = ref<string | null>(null)
+const previewOpen = ref(false)
 const busy = ref(false)
 const error = ref('')
 watchError(error)
 
 const currentLogo = computed(() => data.value.assets.find((asset) => asset.kind === 'brand'))
+
+watch(file, (value) => {
+  if (filePreviewUrl.value) URL.revokeObjectURL(filePreviewUrl.value)
+  filePreviewUrl.value = value ? URL.createObjectURL(value) : null
+})
+
+onBeforeUnmount(() => {
+  if (filePreviewUrl.value) URL.revokeObjectURL(filePreviewUrl.value)
+})
 
 function start() {
   rights.value = false
@@ -66,6 +77,10 @@ async function upload(value: File | null | undefined) {
     busy.value = false
   }
 }
+
+watch(rights, (confirmed) => {
+  if (confirmed && file.value) void upload(file.value)
+})
 </script>
 
 <template>
@@ -92,23 +107,64 @@ async function upload(value: File | null | undefined) {
     </template>
     <UButton v-else type="button" variant="outline" icon="i-lucide-image-plus" @click="start">{{ t('logo.upload') }}</UButton>
   </UCard>
-  <UButton v-else type="button" variant="outline" icon="i-lucide-image-plus" @click="start">
+  <UButton
+    v-else
+    v-bind="$attrs"
+    type="button"
+    variant="outline"
+    icon="i-lucide-image-plus"
+    class="whitespace-nowrap"
+    @click="start"
+  >
     {{ currentLogo ? t('logo.replace') : t('logo.upload') }}
   </UButton>
 
   <UModal
     v-model:open="open"
-    :dismissible="!busy"
-    :close="!busy"
+    :dismissible="false"
+    :close="true"
     :title="t('logo.modalTitle')"
     :description="t('logo.modalDescription')"
+    :ui="{
+      close: 'size-9 rounded-full border border-default bg-elevated text-muted shadow-sm hover:bg-muted hover:text-highlighted focus-visible:ring-2 focus-visible:ring-primary',
+    }"
   >
     <template #body>
       <div class="space-y-5">
-        <UCheckbox v-model="rights" :disabled="busy" :label="t('logo.rightsLabel')" />
+        <div
+          v-if="file"
+          class="relative flex min-h-40 items-center justify-center overflow-hidden rounded-lg border border-default bg-elevated"
+        >
+          <UButton
+            type="button"
+            color="neutral"
+            variant="ghost"
+            class="flex min-h-40 w-full cursor-zoom-in items-center justify-center p-3"
+            :aria-label="file.name"
+            @click="previewOpen = true"
+          >
+            <img
+              v-if="filePreviewUrl"
+              :src="filePreviewUrl"
+              :alt="file.name"
+              class="max-h-48 max-w-full rounded-md object-contain"
+            />
+          </UButton>
+          <UButton
+            type="button"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-x"
+            :aria-label="t('common.remove')"
+            :disabled="busy"
+            class="absolute right-2 top-2 size-10 justify-center rounded-full bg-default p-0 shadow-md"
+            @click.stop="file = null; error = ''"
+          />
+        </div>
         <UFileUpload
+          v-else
           v-model="file"
-          :disabled="!rights || busy"
+          :disabled="busy"
           accept="image/jpeg,image/png,image/webp"
           :label="t('logo.choose')"
           :description="t('logo.formats')"
@@ -116,6 +172,7 @@ async function upload(value: File | null | undefined) {
           :interactive="true"
           @update:model-value="upload"
         />
+        <UCheckbox v-model="rights" :disabled="busy" :label="t('logo.rightsLabel')" />
         <UProgress v-if="busy" :aria-label="t('logo.saving')" />
         <UButton
           v-if="error && file"
@@ -127,6 +184,24 @@ async function upload(value: File | null | undefined) {
         >
           {{ t('common.tryAgain') }}
         </UButton>
+      </div>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="previewOpen"
+    :dismissible="false"
+    :title="file?.name || t('logo.title')"
+    :ui="{ content: 'sm:max-w-4xl' }"
+  >
+    <template #body>
+      <div class="flex max-h-[75dvh] items-center justify-center">
+        <img
+          v-if="filePreviewUrl"
+          :src="filePreviewUrl"
+          :alt="file?.name || t('logo.title')"
+          class="max-h-[75dvh] max-w-full rounded-lg object-contain"
+        />
       </div>
     </template>
   </UModal>

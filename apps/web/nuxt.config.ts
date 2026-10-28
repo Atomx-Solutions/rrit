@@ -64,6 +64,12 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'de-CH' },
       title: 'Framic — KI-Marketing für Deutschland, Österreich und die Schweiz',
       meta: [
+        // iOS zooms into any field set below 16px when it is focused and does
+        // not zoom back out; a fixed scale keeps the app at its designed size.
+        {
+          name: 'viewport',
+          content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
+        },
         {
           name: 'description',
           content:

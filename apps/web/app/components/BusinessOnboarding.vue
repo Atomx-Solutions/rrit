@@ -49,8 +49,6 @@ const {
   audience: data.value.brand.audience,
   goals: [...data.value.brand.goals],
   facts: data.value.brand.facts.map((fact) => ({ ...fact })),
-  facebookUrl: data.value.brand.facebookUrl,
-  instagramUrl: data.value.brand.instagramUrl,
   timezone: data.value.preferences.timezone,
   // The language the person is already reading is the one they chose; a new
   // workspace's stored default must not contradict the screen.
@@ -156,27 +154,8 @@ async function next() {
       clearRecovery()
       step.value = 1
     } else if (step.value === 1) {
-      for (const [value, domain] of [
-        [form.instagramUrl, 'instagram.com'],
-        [form.facebookUrl, 'facebook.com'],
-      ]) {
-        if (!value?.trim()) continue
-        try {
-          const url = new URL(value)
-          if (
-            url.protocol !== 'https:' ||
-            !(url.hostname === domain || url.hostname.endsWith(`.${domain}`))
-          )
-            throw new Error()
-        } catch {
-          error.value = t('onboarding.invalidProfileUrl')
-          return
-        }
-      }
       if (
         await commit((d) => {
-          d.brand.facebookUrl = form.facebookUrl
-          d.brand.instagramUrl = form.instagramUrl
           d.onboarding = 2
         })
       ) {
@@ -322,6 +301,7 @@ async function finishLater() {
               :model-value="form.goals.includes(goal)"
               :label="goalLabel(goal)"
               @update:model-value="toggleGoal(goal, $event === true)"
+              @keydown.enter.prevent="toggleGoal(goal, !form.goals.includes(goal))"
             />
           </div>
         </UFormField>
@@ -371,25 +351,7 @@ async function finishLater() {
         <LogoUpload v-if="!hadWorkspace" />
         <SocialConnections compact />
         <InstagramConnection />
-        <UFormField :label="t('onboarding.networkProfileInstagram')" name="instagramUrl"
-          ><UInput
-            v-model="form.instagramUrl"
-            type="url"
-            class="w-full"
-            :placeholder="t('onboarding.instagramPlaceholder')"
-            icon="i-lucide-instagram"
-        /></UFormField>
-        <UFormField :label="t('onboarding.networkPageFacebook')" name="facebookUrl"
-          ><UInput
-            v-model="form.facebookUrl"
-            type="url"
-            class="w-full"
-            :placeholder="t('onboarding.facebookPlaceholder')"
-            icon="i-lucide-facebook"
-        /></UFormField>
-        <p class="text-xs text-muted leading-relaxed">
-          {{ t('onboarding.networksNote') }}
-        </p>
+        <TikTokConnection />
       </template>
       <template v-else>
         <UCard :ui="{ body: 'p-5 space-y-4' }"

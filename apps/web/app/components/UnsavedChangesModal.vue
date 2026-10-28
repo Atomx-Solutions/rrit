@@ -15,67 +15,55 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <!-- Saving is the one primary action; leaving without saving is set apart on
-       the other side, so it is never the button a hurried tap lands on. On a
-       phone the actions stack full width with saving on top. -->
+  <!-- A centred alert: the warning, one sentence of context, then the choices.
+       Only the close button (or "Stay here") dismisses it, so a stray tap
+       outside never decides for the user. Saving is the one primary action;
+       leaving without saving is the quietest, set apart below a divider. -->
   <UModal
     :open="open"
-    class="sm:max-w-md"
+    :dismissible="false"
+    :close="false"
+    class="sm:max-w-sm"
     :title="t('public.unsavedTitle')"
     :description="t('public.unsavedDescription')"
-    :ui="{
-      header: 'flex items-start gap-3',
-      footer: 'flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between',
-    }"
+    :ui="{ content: 'overflow-hidden', body: 'p-0 sm:p-0' }"
     @update:open="emit('update:open', $event)"
   >
-    <template #header="{ close }">
-      <span
-        class="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"
-        aria-hidden="true"
-      >
-        <UIcon name="i-lucide-triangle-alert" class="size-5" />
-      </span>
-      <div class="min-w-0 flex-1">
-        <DialogTitle class="text-base font-semibold text-highlighted">{{ t('public.unsavedTitle') }}</DialogTitle>
-        <DialogDescription class="mt-1 text-sm text-muted leading-relaxed">{{ t('public.unsavedDescription') }}</DialogDescription>
-      </div>
-      <UButton
-        icon="i-lucide-x"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        class="-me-1.5 -mt-1"
-        :aria-label="t('public.stayHere')"
-        @click="close"
-      />
-    </template>
-    <template #footer>
-      <UButton
-        color="error"
-        variant="ghost"
-        icon="i-lucide-log-out"
-        class="w-full justify-center sm:w-auto"
-        @click="emit('discard')"
-      >
-        {{ t('common.discard') }}
-      </UButton>
-      <div class="flex flex-col-reverse gap-2 sm:flex-row">
+    <template #content>
+      <div class="relative px-6 pt-8 pb-6 text-center">
         <UButton
+          icon="i-lucide-x"
           color="neutral"
-          variant="outline"
-          class="w-full justify-center sm:w-auto"
+          variant="ghost"
+          size="sm"
+          class="absolute end-3 top-3 rounded-full"
+          :aria-label="t('public.stayHere')"
           @click="emit('update:open', false)"
+        />
+        <span
+          class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-warning/10 text-warning ring-1 ring-warning/20"
+          aria-hidden="true"
         >
-          {{ t('public.stayHere') }}
-        </UButton>
-        <UButton
-          icon="i-lucide-save"
-          class="w-full justify-center sm:w-auto"
-          :loading="saving"
-          @click="emit('save')"
-        >
-          {{ t('common.save') }}
+          <UIcon name="i-lucide-file-pen-line" class="size-6" />
+        </span>
+        <DialogTitle class="mt-4 text-lg font-semibold text-highlighted text-balance">
+          {{ t('public.unsavedTitle') }}
+        </DialogTitle>
+        <DialogDescription class="mx-auto mt-2 max-w-72 text-sm text-muted leading-relaxed text-pretty">
+          {{ t('public.unsavedDescription') }}
+        </DialogDescription>
+        <div class="mt-6 grid gap-2">
+          <UButton icon="i-lucide-save" size="lg" block :loading="saving" @click="emit('save')">
+            {{ t('common.save') }}
+          </UButton>
+          <UButton color="neutral" variant="soft" size="lg" block @click="emit('update:open', false)">
+            {{ t('public.stayHere') }}
+          </UButton>
+        </div>
+      </div>
+      <div class="border-t border-default px-6 py-3">
+        <UButton color="error" variant="link" size="sm" block icon="i-lucide-log-out" @click="emit('discard')">
+          {{ t('common.discard') }}
         </UButton>
       </div>
     </template>
