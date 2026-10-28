@@ -2109,6 +2109,7 @@
   "server.INVOICES_LOAD_FAILED": "Impossible de charger les factures.",
   "server.ORGANIZATION_HAS_ACTIVE_PACKAGE": "Cette organisation a déjà un forfait actif.",
   "server.PACKAGE_NOT_FOUND": "Le forfait est introuvable.",
+  "server.ACTIVE_PACKAGE_REQUIRED": "Les achats nécessitent un forfait actif. Contacte-nous pour en activer un.",
   "server.PACKAGE_NOT_SAVED": "Le forfait n’a pas été enregistré.",
   "server.PACKAGE_MUST_INCLUDE_ITEMS": "Un forfait doit inclure des publications, des vidéos ou des crédits.",
   "server.ENDS_AT_AFTER_STARTS_AT": "La date de fin doit être postérieure à la date de début.",

@@ -2109,6 +2109,7 @@
   "server.INVOICES_LOAD_FAILED": "Die Rechnungen konnten nicht geladen werden.",
   "server.ORGANIZATION_HAS_ACTIVE_PACKAGE": "Diese Organisation hat bereits ein aktives Paket.",
   "server.PACKAGE_NOT_FOUND": "Das Paket wurde nicht gefunden.",
+  "server.ACTIVE_PACKAGE_REQUIRED": "Käufe erfordern ein aktives Paket. Kontaktiere uns, um eines zu aktivieren.",
   "server.PACKAGE_NOT_SAVED": "Das Paket wurde nicht gespeichert.",
   "server.PACKAGE_MUST_INCLUDE_ITEMS": "Ein Paket muss Beiträge, Videos oder Credits enthalten.",
   "server.ENDS_AT_AFTER_STARTS_AT": "Das Enddatum muss nach dem Startdatum liegen.",

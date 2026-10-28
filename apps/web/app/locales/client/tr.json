@@ -2109,6 +2109,7 @@
   "server.INVOICES_LOAD_FAILED": "Faturalar yüklenemedi.",
   "server.ORGANIZATION_HAS_ACTIVE_PACKAGE": "Bu kuruluşun zaten etkin bir paketi var.",
   "server.PACKAGE_NOT_FOUND": "Paket bulunamadı.",
+  "server.ACTIVE_PACKAGE_REQUIRED": "Satın almalar için aktif bir paket gerekir. Etkinleştirmek için bizimle iletişime geç.",
   "server.PACKAGE_NOT_SAVED": "Paket kaydedilmedi.",
   "server.PACKAGE_MUST_INCLUDE_ITEMS": "Bir paket gönderi, video veya kredi içermelidir.",
   "server.ENDS_AT_AFTER_STARTS_AT": "Bitiş tarihi başlangıç tarihinden sonra olmalıdır.",

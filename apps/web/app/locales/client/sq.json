@@ -2109,6 +2109,7 @@
   "server.INVOICES_LOAD_FAILED": "Faturat nuk u ngarkuan.",
   "server.ORGANIZATION_HAS_ACTIVE_PACKAGE": "Kjo organizatë ka tashmë një paketë aktive.",
   "server.PACKAGE_NOT_FOUND": "Paketa nuk u gjet.",
+  "server.ACTIVE_PACKAGE_REQUIRED": "Blerjet kërkojnë një paketë aktive. Na kontakto për ta aktivizuar.",
   "server.PACKAGE_NOT_SAVED": "Paketa nuk u ruajt.",
   "server.PACKAGE_MUST_INCLUDE_ITEMS": "Paketa duhet të përfshijë postime, video ose kredite.",
   "server.ENDS_AT_AFTER_STARTS_AT": "Data e përfundimit duhet të jetë pas datës së fillimit.",
