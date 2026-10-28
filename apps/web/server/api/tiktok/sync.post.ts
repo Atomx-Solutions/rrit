@@ -1,18 +1,13 @@
 import { z } from 'zod'
-import { decryptTikTokToken, listTikTokVideos } from '../../utils/tiktok'
+import { connectedTikTok, listTikTokVideos } from '../../utils/tiktok'
 
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
   const { business, connection } = await withBusinessTransaction(user.id, async (client, business) => {
     await requireEntitlement(business.id, 'social_import', client)
-    const result = await client.query(
-      "SELECT id,business_id,open_id,access_token_ciphertext,scopes,expires_at,status FROM tiktok_connections WHERE business_id=$1 AND status='connected'",
-      [business.id],
-    )
-    const row = result.rows[0] as { id: string; business_id: string; open_id: string; access_token_ciphertext: string; scopes: string[]; expires_at: Date; status: string } | undefined
+    const row = await connectedTikTok(business.id, client)
     if (!row) throw createError({ statusCode: 409, message: 'server.TIKTOK_NOT_CONNECTED' })
-    if (row.expires_at < new Date()) throw createError({ statusCode: 409, message: 'server.TIKTOK_TOKEN_EXPIRED' })
     if (!row.scopes.includes('video.list') && !row.scopes.includes('video.upload'))
       throw createError({ statusCode: 409, message: 'server.TIKTOK_SCOPE_MISSING' })
     return { business, connection: row }
@@ -22,7 +17,7 @@ export default defineEventHandler(async (event) => {
     .safeParse(await boundedBody(event, 1024))
   if (!input.success) throw createError({ statusCode: 422, message: 'server.INVALID_INPUT' })
 
-  const accessToken = decryptTikTokToken(connection.access_token_ciphertext, business.id)
+  const accessToken = connection.token
   let response
   try {
     response = await listTikTokVideos(accessToken, input.data.cursor)

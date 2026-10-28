@@ -9,6 +9,8 @@ import { dayInZone } from '../../shared/utils/calendar'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
 import { qualityBrandHash, qualityReviewKey, reviewedQuality } from './post-quality-domain'
 import { instagramTarget, markInstagramTargetExpired, type InstagramTarget } from './instagram'
+import { connectedTikTok, tiktokCreatorInfo, tiktokDirectPostScope, tiktokSettingsProblem } from './tiktok'
+import { tiktokPostSettings } from './tiktok-publishing'
 import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured } from './meta'
 
 const limitsSchema = z.object({
@@ -333,6 +335,7 @@ export async function providerPostChecks(
   options: { throwProviderFailure?: boolean; db?: Pool | PoolClient } = {},
 ): Promise<PostCheck[]> {
   const db = options.db || database()
+  if (post.channel === 'TikTok') return tiktokDirectPostChecks(post, businessId, db, options.throwProviderFailure)
   let direct: InstagramTarget | null = null
   try {
     if (post.channel === 'Instagram') {
@@ -437,19 +440,36 @@ export async function providerPostChecks(
     ]
   }
 }
+// A scheduled TikTok post is published directly: it needs the Direct Post
+// permission and choices for this post that the account still allows.
+async function tiktokDirectPostChecks(
+  post: Post,
+  businessId: string,
+  db: Pool | PoolClient,
+  throwProviderFailure = false,
+): Promise<PostCheck[]> {
+  const connection = await connectedTikTok(businessId, db)
+  if (!connection) return [{ key: 'tiktok', passed: false, message: 'server.TIKTOK_NOT_CONNECTED' }]
+  if (!connection.scopes.includes(tiktokDirectPostScope))
+    return [{ key: 'tiktok_scope', passed: false, message: 'server.TIKTOK_DIRECT_POST_PERMISSION' }]
+  const settings = await tiktokPostSettings(post.id, businessId, db)
+  if (!settings) return [{ key: 'tiktok_settings', passed: false, message: 'server.TIKTOK_SETTINGS_REQUIRED' }]
+  try {
+    const problem = tiktokSettingsProblem(settings, await tiktokCreatorInfo(connection.token), post.video?.durationSeconds)
+    if (problem) return [{ key: 'tiktok_settings', passed: false, message: problem }]
+  } catch (error) {
+    if (error instanceof MetaFailure && throwProviderFailure) throw error
+    return [{ key: 'tiktok', passed: false, message: 'server.TIKTOK_CREATOR_UNAVAILABLE' }]
+  }
+  return [{ key: 'tiktok', passed: true, message: 'server.TIKTOK_CONFIRMED_ACCESS' }]
+}
 export async function tiktokPublishChecks(
   businessId: string,
   db: Pool | PoolClient,
 ): Promise<PostCheck[]> {
-  const row = await db.query(
-    "SELECT id,scopes,expires_at,status FROM tiktok_connections WHERE business_id=$1 AND status='connected'",
-    [businessId],
-  )
-  const connection = row.rows[0] as { id: string; scopes: string[]; expires_at: Date; status: string } | undefined
+  const connection = await connectedTikTok(businessId, db)
   if (!connection)
     return [{ key: 'tiktok', passed: false, message: 'server.TIKTOK_NOT_CONNECTED' }]
-  if (connection.expires_at < new Date())
-    return [{ key: 'tiktok', passed: false, message: 'server.TIKTOK_TOKEN_EXPIRED' }]
   if (!connection.scopes.includes('video.upload'))
     return [{ key: 'tiktok_scope', passed: false, message: 'server.TIKTOK_SCOPE_MISSING' }]
   return [{ key: 'tiktok', passed: true, message: 'server.TIKTOK_CONFIRMED_ACCESS' }]

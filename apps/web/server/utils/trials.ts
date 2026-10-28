@@ -516,7 +516,7 @@ export async function usageSnapshot(
             FROM meta_connections
             WHERE business_id=$1 AND status='connected' AND expires_at > now()
           ), 0)
-          + (SELECT count(*)::integer FROM tiktok_connections WHERE business_id=$1 AND status='connected' AND expires_at > now())
+          + (SELECT count(*)::integer FROM tiktok_connections WHERE business_id=$1 AND status='connected' AND (refresh_expires_at IS NULL OR refresh_expires_at > now()))
           -- An account connected through Instagram Login counts once, even when the page links it too.
           + (
             SELECT count(*)::integer FROM instagram_connections ic

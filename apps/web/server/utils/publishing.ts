@@ -6,7 +6,17 @@ import { setTenantContext } from './database'
 import { blockingPostChecks, localPostChecks, postContentVersion, providerPostChecks } from './post-validation'
 import { conformDeliveredMedia } from './delivered-media'
 import { requireEntitlement, trialStatus } from './trials'
+import { downloadAsset } from './asset-storage'
 import { instagramConfigured, instagramTarget } from './instagram'
+import {
+  connectedTikTok,
+  publishTikTokPhoto,
+  publishTikTokVideo,
+  tiktokConfigured,
+  tiktokDirectPostScope,
+  tiktokPublishStatus,
+} from './tiktok'
+import { tiktokPostSettings } from './tiktok-publishing'
 import { connectedMeta, decryptMetaToken, graphRequest, MetaFailure, metaConfigured, type GraphHost } from './meta'
 
 export async function requirePublishingWorker(db: Pool | PoolClient = database()) {
@@ -81,15 +91,6 @@ export async function queuePublication(
   runAt: string,
   logicalKey = publicationLogicalKey(businessId, post.id, post.version),
 ) {
-  // This queue publishes to Meta only. TikTok has no scheduled publish of its
-  // own: a video bound for TikTok is pushed there as a draft the account holder
-  // finishes in the TikTok app, so it must never enter a Meta job, where the
-  // Facebook branch would otherwise take it by default.
-  if (post.channel === 'TikTok')
-    throw createError({
-      statusCode: 422,
-      message: 'server.TIKTOK_VIDEO_NOT_VIA_META',
-    })
   if (post.publicationMode !== 'automatic')
     throw createError({
       statusCode: 422,
@@ -101,6 +102,27 @@ export async function queuePublication(
       statusCode: 422,
       message: 'server.TRIAL_SCHEDULE_REQUIRED',
     })
+  // A TikTok post goes out through Direct Post, which needs its permission and
+  // the account holder's choices for this post.
+  if (post.channel === 'TikTok') {
+    const tiktok = await client.query<{ open_id: string; scopes: string[] }>(
+      "SELECT open_id,scopes FROM tiktok_connections WHERE business_id=$1 AND status='connected'",
+      [businessId],
+    )
+    if (!tiktok.rows[0] || !tiktok.rows[0].scopes.includes(tiktokDirectPostScope))
+      throw createError({ statusCode: 422, message: 'server.TIKTOK_DIRECT_POST_PERMISSION' })
+    if (!(await tiktokPostSettings(post.id, businessId, client)))
+      throw createError({ statusCode: 422, message: 'server.TIKTOK_SETTINGS_REQUIRED' })
+    const queued = await client.query(
+      `INSERT INTO publication_jobs
+         (post_id,business_id,post_version,content_version,status,run_at,target_tiktok_open_id,max_attempts,logical_key)
+       VALUES ($1,$2,$3,$4,'pending',$5,$6,$7,$8)
+       ON CONFLICT (business_id,logical_key) DO UPDATE SET logical_key=EXCLUDED.logical_key
+       RETURNING id,status`,
+      [post.id, businessId, post.version, postContentVersion(post), runAt, tiktok.rows[0].open_id, publishingMaxAttempts(), logicalKey],
+    )
+    return { id: queued.rows[0].id as string, status: queued.rows[0].status as string }
+  }
   // An Instagram post goes to the account connected through Instagram Login
   // when there is one; that job carries no page. Its token is refreshed as it
   // is used, so it only has to be valid now, not at the time of publishing.
@@ -152,6 +174,7 @@ type Job = {
   provider_post_id: string | null
   target_page_id: string | null
   target_instagram_id: string | null
+  target_tiktok_open_id: string | null
   container_started_at: Date | null
   run_at: Date
   created_at: Date
@@ -454,6 +477,7 @@ async function publishingTarget(
   job: Pick<Job, 'business_id' | 'target_page_id' | 'target_instagram_id'>,
   db: Pool | PoolClient,
 ): Promise<{ id: string; token: string; host: GraphHost } | null> {
+  if (channel === 'TikTok') return null
   if (channel === 'Instagram') {
     const target = await instagramTarget(job.business_id, db)
     if (!target || target.id !== job.target_instagram_id) return null
@@ -467,6 +491,13 @@ async function publishingTarget(
     host: 'facebook',
   }
 }
+// The TikTok account a job publishes to, with a renewed token; null when
+// another account is connected now.
+async function tiktokTarget(job: Pick<Job, 'business_id' | 'target_tiktok_open_id'>, db: Pool | PoolClient) {
+  const connection = await connectedTikTok(job.business_id, db)
+  if (!connection || connection.open_id !== job.target_tiktok_open_id) return null
+  return { id: connection.open_id, token: connection.token }
+}
 export async function reconcileUncertainPublication(
   postId: string,
   businessId: string,
@@ -479,6 +510,25 @@ export async function reconcileUncertainPublication(
   const job = result.rows[0] as (Job & { payload: unknown }) | undefined
   if (!job) throw createError({ statusCode: 409, message: 'server.NO_PENDING_PUBLICATION' })
   const post = postSchema.parse(job.payload)
+  if (post.channel === 'TikTok') {
+    const tiktok = await tiktokTarget(job, db)
+    if (!tiktok) throw createError({ statusCode: 409, message: 'server.RECONNECT_SAME_PAGE' })
+    let providerId = job.provider_post_id
+    if (!providerId && job.provider_container_id) {
+      const status = await tiktokPublishStatus(tiktok.token, job.provider_container_id)
+      if (status.status === 'PUBLISH_COMPLETE')
+        providerId = String(status.publicaly_available_post_id?.[0] ?? job.provider_container_id)
+    }
+    if (!providerId) {
+      await db.query(
+        "UPDATE publication_jobs SET failure_code='reconciliation_no_unique_match',updated_at=now() WHERE id=$1 AND status='uncertain'",
+        [job.id],
+      )
+      return { resolved: false as const }
+    }
+    await finishJob(job, 'published', null, providerId, db)
+    return { resolved: true as const, providerPostId: providerId }
+  }
   const target = await publishingTarget(post.channel, job, db)
   if (!target)
     throw createError({
@@ -520,7 +570,7 @@ export async function reconcileUncertainPublication(
 }
 // Claims use SKIP LOCKED; network calls never hold a database transaction open.
 async function runOnePublishingJob(db: Pool) {
-  if (process.env.PUBLISHING_ENABLED !== 'true' || (!metaConfigured() && !instagramConfigured()))
+  if (process.env.PUBLISHING_ENABLED !== 'true' || (!metaConfigured() && !instagramConfigured() && !tiktokConfigured()))
     return { processed: 0 }
   await db.query(
     "INSERT INTO worker_heartbeats (name) VALUES ('publisher') ON CONFLICT(name) DO UPDATE SET last_seen_at=now()",
@@ -591,10 +641,14 @@ async function runOnePublishingJob(db: Pool) {
       console.error('[publish] preflight blocking checks failed:', failedBlocking.map((c) => ({ key: c.key, message: c.message })))
       throw new Error('preflight_failed')
     }
-    const target = await publishingTarget(post.channel, job, preflight)
-    if (!target) throw new Error('identity_changed')
-    const { token, host } = target
+    const tiktok = post.channel === 'TikTok' ? await tiktokTarget(job, preflight) : null
+    const target = post.channel === 'TikTok' ? null : await publishingTarget(post.channel, job, preflight)
+    if (!tiktok && !target) throw new Error('identity_changed')
+    const token = tiktok ? tiktok.token : target!.token
+    const host = target?.host || 'facebook'
+    const tiktokSettings = tiktok ? await tiktokPostSettings(job.post_id, job.business_id, preflight) : null
     let videoUrl: string | null = null
+    let videoPath: string | null = null
     if (post.video) {
       const render = await preflight.query<{ id: string; status: string; storage_path: string | null; composed: boolean }>(
         'SELECT id,status,storage_path,composed FROM video_renders WHERE post_id=$1 AND business_id=$2 ORDER BY created_at DESC LIMIT 1',
@@ -605,10 +659,43 @@ async function runOnePublishingJob(db: Pool) {
         || !render.rows[0].composed)
         throw new Error('video_render_missing')
       videoUrl = publicVideoUrl(render.rows[0].id)
+      videoPath = render.rows[0].storage_path
       console.log('[publish] videoUrl:', videoUrl)
     }
     preflight.release(); preflightReleased = true
     let providerId: string | undefined
+    if (tiktok) {
+      // TikTok processes a direct post after accepting it: the publish id is
+      // kept as the container and its status read on the following runs.
+      let publishId = job.provider_container_id
+      if (!publishId) {
+        if (!tiktokSettings) throw new Error('tiktok_settings_missing')
+        publicWriteStarted = true
+        publishId = videoPath
+          ? await publishTikTokVideo(token, await downloadAsset(videoPath, 50 * 1024 * 1024), post.caption, tiktokSettings)
+          : await publishTikTokPhoto(token, { photoUrl: publicMediaUrl(image), title: post.title, caption: post.caption }, tiktokSettings)
+        await db.query(
+          'UPDATE publication_jobs SET provider_container_id=$1,container_started_at=COALESCE(container_started_at,now()),updated_at=now() WHERE id=$2',
+          [publishId, job.id],
+        )
+        await deferPublicationJob(job, db)
+        return { processed: 1 }
+      }
+      const status = await tiktokPublishStatus(token, publishId)
+      if (status.status === 'FAILED') throw new Error('container_rejected')
+      if (status.status !== 'PUBLISH_COMPLETE') {
+        if (!job.container_started_at) throw new Error('container_start_missing')
+        if (instagramContainerTimedOut(job.container_started_at)) throw new Error('container_timeout')
+        await deferPublicationJob(job, db)
+        return { processed: 1 }
+      }
+      providerId = String(status.publicaly_available_post_id?.[0] ?? publishId)
+      publicWriteAccepted = true
+      await db.query('UPDATE publication_jobs SET provider_post_id=$1 WHERE id=$2', [providerId, job.id])
+      await finishJob(job, 'published', null, providerId, db)
+      return { processed: 1 }
+    }
+    if (!target) throw new Error('identity_changed')
     if (post.channel === 'Facebook') {
       publicWriteStarted = true
       console.log('[publish] Facebook publish:', videoUrl ? 'video' : 'photo', 'page:', target.id)

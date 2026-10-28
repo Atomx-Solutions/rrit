@@ -108,7 +108,7 @@ onMounted(async () => {
 </script>
 <template>
   <div class="space-y-4">
-    <div :class="compact ? 'space-y-3' : 'grid sm:grid-cols-2 gap-4'">
+    <div class="space-y-3">
       <UCard
         v-for="channel in ['Facebook']"
         :key="channel"
