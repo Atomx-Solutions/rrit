@@ -2,7 +2,7 @@
 import { lowCreditAction, showLowCreditReminder } from '~/utils/low-credit'
 
 const props = defineProps<{
-  spendable?: number | null
+  credits?: number | null
   threshold?: number
   hasActivePackage?: boolean
 }>()
@@ -14,7 +14,7 @@ const storageKey = computed(() => `rrit:low-credit-dismissed:${base.value}`)
 const dismissedAt = ref<number | null>(null)
 // A business with no credit balance yet reports null; for the reminder that is
 // an empty balance, not an unknown one, so it can still be dismissed.
-const balance = computed(() => (props.spendable === undefined ? undefined : Number(props.spendable ?? 0)))
+const balance = computed(() => (props.credits === undefined ? undefined : Number(props.credits ?? 0)))
 onMounted(() => {
   try {
     const stored = sessionStorage.getItem(storageKey.value)

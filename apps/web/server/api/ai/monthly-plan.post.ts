@@ -7,7 +7,11 @@ import {
   resetMonthlyPlan,
   restartMonthlyPlan,
 } from '../../utils/monthly-planner'
-import { PlannerFailure, plannerMessages } from '../../utils/monthly-planner-domain'
+import {
+  PlannerFailure,
+  plannerChannelCountsSchema,
+  plannerMessages,
+} from '../../utils/monthly-planner-domain'
 
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -28,17 +32,10 @@ export default defineEventHandler(async (event) => {
       // into a default of 1 somewhere down the line.
       quantity: z.number().int().min(0).max(100).optional(),
       videoQuantity: z.number().int().min(0).max(100).optional(),
-      channelCounts: z
-        .object({
-          Instagram: z.number().int().min(0).max(100).optional(),
-          Facebook: z.number().int().min(0).max(100).optional(),
-        })
-        .optional(),
-      videoChannelCounts: z.object({
-        Instagram: z.number().int().min(0).max(100).optional(),
-        Facebook: z.number().int().min(0).max(100).optional(),
-        TikTok: z.number().int().min(0).max(100).optional(),
-      }).optional(),
+      // Every publishing channel, so a platform the planner offers is never
+      // silently dropped from the split the business asked for.
+      channelCounts: plannerChannelCountsSchema.optional(),
+      videoChannelCounts: plannerChannelCountsSchema.optional(),
     })
     .safeParse(await boundedBody(event, 16384))
   if (!input.success)

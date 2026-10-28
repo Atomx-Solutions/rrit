@@ -7,6 +7,7 @@ import {
   creditsForCost,
   creditsForProviderCost,
   grantAdditionalCredits,
+  reserveAvailableCredits,
   reserveCredits,
 } from '../../server/utils/credits'
 import {
@@ -146,5 +147,23 @@ describe('credit value', () => {
     const client = balanceClient(0, 0)
     await expect(creditPricing(client as never)).resolves.toEqual({ creditPriceCents: 2, providerCostPerCreditMicroEur: 7000 })
     await expect(creditsForCost(client as never, 21_000)).resolves.toBe(3)
+  })
+})
+
+describe('reserving what the balance allows', () => {
+  const input = { organizationId, usageKind: 'generation' as const, referenceType: 'monthly_ai_run', referenceId: 'r', idempotencyKey: 'r' }
+  it('reserves the full estimate when the balance covers it', async () => {
+    const client = balanceClient(300, 0)
+    await expect(reserveAvailableCredits(client as never, { ...input, credits: 143 })).resolves.toBe(143)
+    expect(client.state.reserved).toBe(143)
+  })
+  it('reserves only what can be spent when the estimate is larger', async () => {
+    const client = balanceClient(130, 0)
+    await expect(reserveAvailableCredits(client as never, { ...input, credits: 143 })).resolves.toBe(130)
+    expect(client.state.reserved).toBe(130)
+  })
+  it('refuses only an empty balance', async () => {
+    const client = balanceClient(10, 10)
+    await expect(reserveAvailableCredits(client as never, { ...input, credits: 143 })).rejects.toMatchObject({ message: 'server.CREDITS_EXHAUSTED' })
   })
 })

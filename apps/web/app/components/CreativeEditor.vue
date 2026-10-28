@@ -60,6 +60,7 @@ async function generateWithAi() {
     v-model:open="open"
     :title="t('creative.title')"
     :description="t('creative.description')"
+    :dismissible="false"
   >
     <template #body>
       <div class="space-y-6">

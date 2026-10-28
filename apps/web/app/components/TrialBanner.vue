@@ -7,11 +7,29 @@ const { showError } = useFormFeedback()
 watch(error, (value) => {
   if (value) showError(t('trial.loadError'), 'warning')
 }, { immediate: true })
+// The countdown follows the clock rather than the moment the usage was loaded,
+// and shows only whole days left: two days and five hours is two days.
+const now = ref(Date.now())
+let clock: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  clock = setInterval(() => (now.value = Date.now()), 60_000)
+})
+onBeforeUnmount(() => clearInterval(clock))
+const secondsLeft = computed(() => {
+  const expiresAt = trial.value?.expiresAt ? Date.parse(trial.value.expiresAt) : NaN
+  return Number.isFinite(expiresAt)
+    ? Math.max(0, (expiresAt - now.value) / 1000)
+    : trial.value?.secondsRemaining || 0
+})
+// When the trial runs out on screen, reload it so the banner shows its end.
+watch(secondsLeft, (seconds, previous) => {
+  if (seconds === 0 && previous > 0) void refreshCreditBalance()
+})
 const remaining = computed(() => {
-  const hours = Math.ceil((trial.value?.secondsRemaining || 0) / 3600)
+  const hours = secondsLeft.value / 3600
   return hours >= 24
-    ? `${Math.ceil(hours / 24)} ${t('trial.days')}`
-    : `${hours} ${t('trial.hours')}`
+    ? `${Math.floor(hours / 24)} ${t('trial.days')}`
+    : `${Math.max(1, Math.floor(hours))} ${t('trial.hours')}`
 })
 </script>
 <template>

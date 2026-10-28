@@ -123,6 +123,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     const locale = audienceLanguageFromResearch(
       planResearch,
       contentLocaleForPreferences(workspace.preferences),
+      post.aiProvenance?.locale,
     )
     // The approved logo, resolved inside the same transaction so the
     // composition stage below never has to re-read business data.

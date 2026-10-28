@@ -70,6 +70,7 @@ import {
 } from './monthly-ai'
 import {
   PlannerFailure,
+  plannerFailureCode,
   brainForSlot,
   evidenceHash,
   earliestPlanningDate,
@@ -1480,9 +1481,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       response,
       new Date(),
       eventWindow ? { ...eventWindow, categories: eventCategories } : undefined,
-      true,
+      contentLocaleForPreferences(workspace.preferences),
     )
-    researchLanguage = research.language!.locale
+    researchLanguage = research.language?.locale
     await db.query(
       "UPDATE monthly_plans SET research=$1,stage='planning',updated_at=now() WHERE id=$2",
       [JSON.stringify(research), plan.id],
@@ -1536,6 +1537,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             !takenDays.has(Number(occasion.date.slice(8, 10))),
         )
       : []
+    const visitorOccasions = upcomingOccasions.filter((occasion) => occasion.visitorFacing).length
     const planningAssets = await plannerStep('planning.assets', () =>
       loadPlannerAssets(
         db,
@@ -1586,6 +1588,14 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           // already taken by an earlier slot. This is what lets a post asked
           // for today be dated on tomorrow's holiday.
           ...(upcomingOccasions.length ? { upcomingOccasions } : {}),
+          // A visitor language is offered only with an occasion that draws
+          // those visitors, and at most once for each of them.
+          ...(research.visitorAudience && visitorOccasions
+            ? {
+                visitorAudience: research.visitorAudience,
+                visitorLanguage: { maxSlots: visitorOccasions },
+              }
+            : {}),
           // How many of this batch's posts each platform was asked for.
           ...(channelCountsTotal(plan.batch_channel_counts)
             ? { channelPlan: plan.batch_channel_counts }
@@ -1723,6 +1733,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   )
     throw new PlannerFailure('EVIDENCE_CHANGED')
   const slotBrain = brainForSlot(plannerBrainOf(plan.evidence), slot, slotDay)
+  // A post written for an occasion's visitors speaks their language; every
+  // other post speaks the plan's. Text, image and review all follow the slot.
+  const slotCommon = { ...common, language: slot.locale || common.language }
   const assets = await plannerStep('content.assets', () =>
     loadPlannerAssets(
       db,
@@ -1792,7 +1805,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     // warning for human review instead of spending credits on a second attempt.
     for (let attempt = 0; attempt < 1; attempt++) {
       const response = await monthlyProviderCall(db, {
-        ...common,
+        ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'content',
           plan.evidence_hash,
@@ -1898,7 +1911,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           fitPhotoToChannel(original!.bytes, slot.channel, {
             outpaint: async (guide, prompt, attempt) => {
               const painted = await monthlyImageCall(db, {
-                ...common,
+                ...slotCommon,
                 stageKey: monthlyAutomaticStageKey('fit', plan.evidence_hash, `${plan.completed_count}:${attempt}`),
                 prompt,
                 channel: slot.channel,
@@ -1927,7 +1940,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         break
       }
       const imagePrompt = monthlyImagePrompt({
-        language: common.language,
+        language: slotCommon.language,
         brand: plan.evidence.brand,
         slot,
         creative: content.creative,
@@ -1950,7 +1963,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         guardrails: slotBrain.guardrails.map((guardrail) => guardrail.text),
       })
       imageGeneration = await monthlyImageCall(db, {
-        ...common,
+        ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'image',
           plan.evidence_hash,
@@ -1980,7 +1993,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         content.creative.logoZone,
       )
       const qualityResponse = await monthlyProviderCall(db, {
-        ...common,
+        ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'quality',
           plan.evidence_hash,
@@ -2175,6 +2188,8 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             : {}),
           quality,
           promptVersion: monthlyPromptVersion,
+          locale: slotCommon.language,
+          ...(slot.locale && slot.languageRationale ? { languageRationale: slot.languageRationale } : {}),
         }
         const post = await plannerStep('content.persist.post_schema', async () =>
           postSchema.parse({
@@ -2501,7 +2516,7 @@ export async function runMonthlyPlannerTick(
     try {
       await plannerStep('jobs.advance', () => advanceMonthlyPlan(db, plan))
     } catch (error) {
-      const code = error instanceof PlannerFailure ? error.code : 'GENERATION_FAILED'
+      const code = plannerFailureCode(error)
       const rawStage =
         typeof error === 'object' && error && 'plannerStage' in error
           ? String(error.plannerStage)

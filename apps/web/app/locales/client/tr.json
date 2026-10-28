@@ -368,6 +368,7 @@
   "creative.originalRedesign": "Orijinal yapay zekâ yeniden tasarımı",
   "creative.createVariant": "Yapay zekâ varyantı oluştur",
   "provenance.whyPost": "Neden bu gönderi?",
+  "provenance.visitorLanguage": "Bir etkinliğin ziyaretçileri için {{language}} yazıldı",
   "provenance.whyCreated": "Neden bu şekilde oluşturuldu?",
   "provenance.marketSources": "Pazar bağlamı için kaynaklar",
   "provenance.reviewWithAi": "Mevcut sürümü yapay zekâyla incele",

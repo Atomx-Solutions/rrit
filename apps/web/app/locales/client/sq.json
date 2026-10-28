@@ -368,6 +368,7 @@
   "creative.originalRedesign": "Ridizajnim origjinal me AI",
   "creative.createVariant": "Krijo variantin me AI",
   "provenance.whyPost": "Pse ky postim?",
+  "provenance.visitorLanguage": "Shkruar në {{language}} për vizitorët e një eventi",
   "provenance.whyCreated": "Pse u krijua kështu?",
   "provenance.marketSources": "Burime për kontekstin e tregut",
   "provenance.reviewWithAi": "Rishiko versionin aktual me AI",

@@ -119,6 +119,7 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
       locale: audienceLanguageFromResearch(
         plan?.rows[0]?.research,
         contentLocaleForPreferences(workspace.preferences),
+        post.aiProvenance?.locale,
       ),
       verifiedFacts: evidence.verifiedFacts.length
         ? evidence.verifiedFacts

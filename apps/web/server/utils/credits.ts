@@ -185,6 +185,21 @@ export async function reserveCredits(client: PoolClient, input: { organizationId
   if (!ledger.rows.length) return toBalance(balance)
   return updateBalance(client, input.organizationId, 0, input.credits)
 }
+/**
+ * Reserves up to `credits`, capped at what the organization can spend, and
+ * returns what was reserved. A provider reserve is a worst-case estimate far
+ * above a typical call, so a business that can pay for the call must not be
+ * refused because it cannot cover the estimate; settlement charges the real
+ * cost and never fails. Only an empty balance is refused.
+ */
+export async function reserveAvailableCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
+  positiveInteger(input.credits, 'credits')
+  const spendable = toBalance(await lockBalance(client, input.organizationId)).spendable
+  const credits = Math.min(input.credits, spendable)
+  if (credits < 1) throw exhausted()
+  await reserveCredits(client, { ...input, credits })
+  return credits
+}
 export async function releaseReservedCredits(client: PoolClient, input: { organizationId: string; credits: number; usageKind: CreditUsageKind; referenceType: string; referenceId: string; idempotencyKey: string }) {
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)

@@ -12,17 +12,35 @@ export const researchSourceSchema = z.object({
 // planned on demand and must be able to anchor on a date without re-reading the
 // report. `sourceUrl` is always one of the research sources: an occasion whose
 // date cannot be cited is not an occasion, it is a guess.
+export const researchLocaleSchema = z.enum(['sq-XK', 'en-US', 'de-CH', 'it-CH', 'fr-CH', 'tr-TR'])
 export const researchOccasionSchema = z.object({
   date: z.string().date(),
   name: z.string().trim().min(2).max(120),
   category: z.enum(['publicEvents', 'seasonalEvents', 'industryTrends']),
   relevance: z.string().trim().max(400),
   sourceUrl: researchSourceSchema.shape.url,
+  // True only when cited evidence shows the occasion draws visitors who do not
+  // speak the plan's language. Older research carries none, which is false.
+  visitorFacing: z.boolean().default(false),
 })
 export const researchLanguageSchema = z.object({
-  locale: z.enum(['sq-XK', 'en-US', 'de-CH', 'it-CH', 'fr-CH', 'tr-TR']),
+  locale: researchLocaleSchema,
   audienceSummary: z.string().trim().min(2).max(500),
   rationale: z.string().trim().min(10).max(1000),
+  confidence: z.number().min(0).max(1),
+  // Who decided: the research, or the business's own content language when the
+  // research found no usable signal. A plan never stops for a language.
+  decidedBy: z.enum(['research', 'preferences']).default('research'),
+})
+// A second, visiting audience the research found evidence for, such as
+// foreign tourists at a festival. It never replaces the plan's language: it only
+// lets a post about a visitor-facing occasion speak to the people it draws.
+// Albanian-speaking diaspora is not a visitor audience, it is the plan's own.
+export const researchVisitorAudienceSchema = z.object({
+  locale: researchLocaleSchema,
+  summary: z.string().trim().min(2).max(500),
+  rationale: z.string().trim().min(10).max(1000),
+  sourceUrl: researchSourceSchema.shape.url,
   confidence: z.number().min(0).max(1),
 })
 export const researchSchema = z.object({
@@ -44,6 +62,7 @@ export const researchSchema = z.object({
   // Kept optional for plans created before language detection existed. New
   // research is required to carry a decision at the planner boundary.
   language: researchLanguageSchema.optional(),
+  visitorAudience: researchVisitorAudienceSchema.optional(),
   researchedAt: z.iso.datetime(),
 })
 export const contentIntentSchema = z.enum([
@@ -115,6 +134,10 @@ export const slotBriefSchema = z.object({
   // older plans and non-video slots parse without emitting it; null is what a
   // generated static slot carries, since structured outputs cannot omit it.
   shot: storedShotDirectionSchema.nullable().optional(),
+  // The language this one post speaks when it differs from the plan's, with
+  // the reason. Null means the plan's language; older plans carry neither.
+  locale: researchLocaleSchema.nullable().default(null),
+  languageRationale: z.string().trim().max(500).nullable().default(null),
 })
 export const styleProfileSchema = z.object({
   palette: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
@@ -150,6 +173,8 @@ export const slotBriefGenerationSchema = slotBriefSchema.extend({
   offerId: z.uuid().nullable(),
   deliverable: slotDeliverableSchema,
   shot: shotDirectionSchema.nullable(),
+  locale: researchLocaleSchema.nullable(),
+  languageRationale: z.string().trim().max(500).nullable(),
 })
 export const editorialPlanGenerationSchema = editorialPlanSchema.extend({
   styleProfile: styleProfileGenerationSchema,
@@ -295,12 +320,18 @@ export const monthlyPostProvenanceSchema = z.object({
     .optional(),
   quality: qualitySchema,
   promptVersion: z.string(),
+  // The language the post was written in, and why when it is not the plan's.
+  // Later reviews and the video read it from here; older posts carry none.
+  locale: researchLocaleSchema.optional(),
+  languageRationale: z.string().optional(),
 })
 export type SlotBrief = z.infer<typeof slotBriefSchema>
 export type ShotDirection = z.infer<typeof shotDirectionSchema>
 export type Research = z.infer<typeof researchSchema>
 export type ResearchOccasion = z.infer<typeof researchOccasionSchema>
 export type ResearchLanguage = z.infer<typeof researchLanguageSchema>
+export type ResearchLocale = z.infer<typeof researchLocaleSchema>
+export type ResearchVisitorAudience = z.infer<typeof researchVisitorAudienceSchema>
 export type Creative = z.infer<typeof creativeSchema>
 export type StyleProfile = z.infer<typeof styleProfileSchema>
 export type PlannedCreativeLayout = z.infer<typeof plannedCreativeLayoutSchema>
