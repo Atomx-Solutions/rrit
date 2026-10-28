@@ -2109,6 +2109,7 @@
   "server.INVOICES_LOAD_FAILED": "Impossibile caricare le fatture.",
   "server.ORGANIZATION_HAS_ACTIVE_PACKAGE": "Questa organizzazione ha già un pacchetto attivo.",
   "server.PACKAGE_NOT_FOUND": "Il pacchetto non è stato trovato.",
+  "server.ACTIVE_PACKAGE_REQUIRED": "Gli acquisti richiedono un pacchetto attivo. Contattaci per attivarne uno.",
   "server.PACKAGE_NOT_SAVED": "Il pacchetto non è stato salvato.",
   "server.PACKAGE_MUST_INCLUDE_ITEMS": "Un pacchetto deve includere post, video o crediti.",
   "server.ENDS_AT_AFTER_STARTS_AT": "La data di fine deve essere successiva alla data di inizio.",

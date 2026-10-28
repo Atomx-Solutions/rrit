@@ -109,8 +109,11 @@ watch(usageError, (value) => {
 
 const customPackage = computed(() => billing.value?.customPackage || null)
 const serverPackageProposal = computed(() => billing.value?.packageProposal || null)
+// Videos and credits are only sold on top of a running package, so without one
+// only an offer with posts is shown.
 const packageProposal = computed(() => {
   const proposal = serverPackageProposal.value
+  if (proposal && !customPackage.value && proposal.postsIncluded === 0) return null
   return proposal && proposal.id !== paidProposalId.value ? proposal : null
 })
 watch(serverPackageProposal, (proposal) => {
@@ -403,14 +406,6 @@ async function declineProposal() {
       </div>
     </UCard>
 
-    <UCard v-else :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
-      <UIcon name="i-lucide-credit-card" class="size-5 shrink-0 text-muted mt-0.5" />
-      <div class="space-y-1">
-        <h2 class="text-sm font-semibold">{{ t('workspace.serviceInactive') }}</h2>
-        <p class="text-sm text-muted">{{ t('billing.customPackageContact') }}</p>
-      </div>
-    </UCard>
-
     <!-- Packages are activated by the team, so the invitation lives here as
          a real card and the form opens in a modal on demand. -->
     <UCard as="section" :ui="{ body: 'p-4 sm:p-5' }">
@@ -456,27 +451,30 @@ async function declineProposal() {
           </template>
         </UModal>
       </div>
-      <USeparator class="my-5" />
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex min-w-0 gap-3">
-          <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <UIcon name="i-lucide-clapperboard" class="size-5" />
+      <!-- Videos, like credits, are only added to a package that is running. -->
+      <template v-if="customPackage">
+        <USeparator class="my-5" />
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex min-w-0 gap-3">
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <UIcon name="i-lucide-clapperboard" class="size-5" />
+            </div>
+            <div class="min-w-0 space-y-1.5">
+              <h2 class="text-base font-semibold">{{ t('billing.videos') }}</h2>
+              <p class="text-sm font-medium">{{ t('billing.needMoreVideos') }}</p>
+              <p class="text-sm text-muted leading-relaxed">{{ t('billing.videosDescription') }}</p>
+            </div>
           </div>
-          <div class="min-w-0 space-y-1.5">
-            <h2 class="text-base font-semibold">{{ t('billing.videos') }}</h2>
-            <p class="text-sm font-medium">{{ t('billing.needMoreVideos') }}</p>
-            <p class="text-sm text-muted leading-relaxed">{{ t('billing.videosDescription') }}</p>
-          </div>
+          <UButton
+            color="primary"
+            variant="outline"
+            icon="i-lucide-clapperboard"
+            :label="t('billing.requestVideos')"
+            class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
+            @click="videoRequestOpen = true"
+          />
         </div>
-        <UButton
-          color="primary"
-          variant="outline"
-          icon="i-lucide-clapperboard"
-          :label="t('billing.requestVideos')"
-          class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
-          @click="videoRequestOpen = true"
-        />
-      </div>
+      </template>
       <!-- Credits are bought the same way a package is, so the two live in one
            card. The balance is not repeated here: the header already carries
            it on every page. -->

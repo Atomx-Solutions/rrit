@@ -32,6 +32,10 @@ export default defineEventHandler(async (event) => {
       [business.id],
     )
     const isAddOn = activePackage.rowCount !== 0
+    // Videos and credits are only sold on top of a running package; without one
+    // the offer has to be a package with posts.
+    if (!isAddOn && packageRow.posts_included === 0)
+      throw createError({ statusCode: 409, message: 'server.ACTIVE_PACKAGE_REQUIRED' })
     const invoiceQuantity = packageRow.posts_included === 0 && packageRow.videos_included > 0 && packageRow.credits_included === 0
       ? packageRow.videos_included
       : packageRow.videos_included === 0 && packageRow.posts_included > 0 && packageRow.credits_included === 0

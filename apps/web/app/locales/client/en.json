@@ -2109,6 +2109,7 @@
   "server.INVOICES_LOAD_FAILED": "The invoices could not be loaded.",
   "server.ORGANIZATION_HAS_ACTIVE_PACKAGE": "This organization already has an active package.",
   "server.PACKAGE_NOT_FOUND": "The package was not found.",
+  "server.ACTIVE_PACKAGE_REQUIRED": "Purchases need an active package. Contact us to activate one.",
   "server.PACKAGE_NOT_SAVED": "The package was not saved.",
   "server.PACKAGE_MUST_INCLUDE_ITEMS": "A package must include posts, videos or credits.",
   "server.ENDS_AT_AFTER_STARTS_AT": "The end date must be after the start date.",
