@@ -7,10 +7,12 @@ const { t } = useI18n()
 const route = useRoute()
 useSeoMeta({ title: () => `${t('nav.gallery')} · Framic` })
 const query = ref('')
+const mobileSearchOpen = ref(false)
 const assetFilter = ref<'all' | 'original'>('all')
 const selected = ref<string[]>([])
 const detail = ref<Asset | null>(null)
 const deleteOpen = ref(false)
+const removing = ref(false)
 const uploading = ref(false)
 const progress = ref(0)
 const error = ref('')
@@ -31,11 +33,26 @@ const rightsBusy = ref(false)
 const rightsError = ref('')
 watchError(rightsError)
 const selectedFiles = ref<File[]>([])
+const selectedFilePreviewUrls = ref<string[]>([])
+const selectedPreviewOpen = ref(false)
+const selectedPreviewIndex = ref(0)
+const selectedPreviewFile = computed(() => selectedFiles.value[selectedPreviewIndex.value])
+const selectedPreviewUrl = computed(() => selectedFilePreviewUrls.value[selectedPreviewIndex.value])
 const viewerOpen = ref(false)
 const viewerIndex = ref(0)
 const downloading = ref(false)
 const videoPreviews = ref<Record<string, string | null>>({})
 const resolvingVideo = ref(false)
+watch(selectedFiles, (files) => {
+  selectedFilePreviewUrls.value.forEach((url) => URL.revokeObjectURL(url))
+  selectedFilePreviewUrls.value = files.map((file) => URL.createObjectURL(file))
+  if (selectedPreviewIndex.value >= files.length)
+    selectedPreviewIndex.value = Math.max(0, files.length - 1)
+  if (!files.length) selectedPreviewOpen.value = false
+})
+onBeforeUnmount(() => {
+  selectedFilePreviewUrls.value.forEach((url) => URL.revokeObjectURL(url))
+})
 function videoPostFor(asset: Asset): Post | undefined {
   if (!asset.tags.includes('video-poster')) return undefined
   return data.value.posts.find((post) => post.image === asset.url && !!post.video)
@@ -219,6 +236,14 @@ function selectFiles(files: File[] | null | undefined) {
   error.value = ''
   if (rights.value && selectedFiles.value.length) void upload(selectedFiles.value)
 }
+function previewSelectedPhoto(index: number) {
+  selectedPreviewIndex.value = index
+  selectedPreviewOpen.value = true
+}
+function removeSelectedPhoto(index: number) {
+  selectedFiles.value = selectedFiles.value.filter((_, fileIndex) => fileIndex !== index)
+  error.value = ''
+}
 watch(rights, (confirmed) => {
   if (confirmed && selectedFiles.value.length) void upload(selectedFiles.value)
 })
@@ -281,9 +306,10 @@ async function upload(files: File[] | null | undefined) {
   }
 }
 async function remove() {
-  if (dependencies.value.length) return
+  if (dependencies.value.length || removing.value) return
   const assetIds = [...selected.value]
   if (!assetIds.length) return
+  removing.value = true
   error.value = ''
   try {
     for (const id of assetIds)
@@ -295,6 +321,8 @@ async function remove() {
   } catch (problem) {
     error.value = t(
       (problem as { data?: { message?: string } }).data?.message || 'gallery.saveError')
+  } finally {
+    removing.value = false
   }
 }
 async function saveMetadata() {
@@ -322,13 +350,47 @@ async function saveMetadata() {
   >
     <template #toolbar>
       <div class="flex w-full flex-wrap items-center justify-between gap-3">
-        <UInput
-          v-model="query"
-          :placeholder="t('gallery.searchPlaceholder')"
-          :aria-label="t('gallery.searchLabel')"
-          icon="i-lucide-search"
-          class="w-full sm:w-80"
-        />
+        <div
+          class="flex min-w-0 items-center gap-2 sm:w-80"
+          :class="mobileSearchOpen ? 'w-full' : 'w-auto'"
+        >
+          <UButton
+            v-if="!mobileSearchOpen"
+            type="button"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-search"
+            :aria-label="t('gallery.searchLabel')"
+            square
+            class="size-10 shrink-0 justify-center p-0 sm:hidden"
+            @click="mobileSearchOpen = true"
+          />
+          <UInput
+            v-if="mobileSearchOpen"
+            v-model="query"
+            :placeholder="t('gallery.searchPlaceholder')"
+            :aria-label="t('gallery.searchLabel')"
+            icon="i-lucide-search"
+            class="min-w-0 flex-1 sm:hidden"
+          />
+          <UButton
+            v-if="mobileSearchOpen"
+            type="button"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-x"
+            :aria-label="t('common.close')"
+            class="shrink-0 sm:hidden"
+            @click="mobileSearchOpen = false"
+          />
+          <UInput
+            v-model="query"
+            :placeholder="t('gallery.searchPlaceholder')"
+            :aria-label="t('gallery.searchLabel')"
+            icon="i-lucide-search"
+            class="hidden w-full sm:block"
+          />
+        </div>
         <div class="flex flex-wrap items-center gap-3">
           <UTabs
             v-model="assetFilter"
@@ -344,6 +406,13 @@ async function saveMetadata() {
         <div class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
           <UButton
             v-if="selected.length"
+            color="neutral"
+            variant="outline"
+            class="shrink-0"
+            @click="selected = []"
+          >{{ t('gallery.clearSelection') }}</UButton>
+          <UButton
+            v-if="selected.length"
             color="error"
             variant="outline"
             icon="i-lucide-trash-2"
@@ -351,13 +420,6 @@ async function saveMetadata() {
             @click="deleteOpen = true"
             >{{ t('gallery.removeSelected') }} {{ selected.length }}</UButton
           >
-          <UButton
-            v-if="selected.length"
-            color="neutral"
-            variant="outline"
-            class="shrink-0"
-            @click="selected = []"
-          >{{ t('gallery.clearSelection') }}</UButton>
           <LogoUpload compact class="shrink-0" />
           <UButton variant="outline" icon="i-lucide-upload" class="shrink-0" @click="openUpload">
             {{ t('gallery.uploadPhotos') }}
@@ -542,13 +604,46 @@ async function saveMetadata() {
     </UModal>
     <UModal
       v-model:open="uploadOpen"
-      :dismissible="!uploading"
-      :close="!uploading"
+      :dismissible="false"
+      :close="true"
       :title="t('gallery.addToGalleryTitle')"
       :description="t('gallery.privateDescription')"
       ><template #body
         ><div class="stack">
+          <div v-if="selectedFiles.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div
+              v-for="(photo, index) in selectedFiles"
+              :key="`${photo.name}-${photo.size}-${index}`"
+              class="relative aspect-square overflow-hidden rounded-lg border border-default bg-elevated"
+            >
+              <UButton
+                type="button"
+                color="neutral"
+                variant="ghost"
+                class="size-full rounded-lg p-0"
+                :aria-label="photo.name"
+                @click="previewSelectedPhoto(index)"
+              >
+                <img
+                  :src="selectedFilePreviewUrls[index]"
+                  :alt="photo.name"
+                  class="size-full rounded-lg object-cover"
+                />
+              </UButton>
+              <UButton
+                type="button"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-x"
+                :aria-label="t('common.remove')"
+                :disabled="uploading"
+                class="absolute right-2 top-2 size-9 justify-center rounded-full bg-default p-0 shadow-md ring-2 ring-white"
+                @click.stop="removeSelectedPhoto(index)"
+              />
+            </div>
+          </div>
           <UFileUpload
+            v-if="!selectedFiles.length"
             v-model="selectedFiles"
             multiple
             accept="image/jpeg,image/png,image/webp"
@@ -557,9 +652,33 @@ async function saveMetadata() {
             :description="t('gallery.formats')"
             icon="i-lucide-cloud-upload"
             :interactive="true"
-            class="min-h-48"
+            class="min-h-40"
             @update:model-value="selectFiles"
           />
+          <UFileUpload
+            v-else
+            v-model="selectedFiles"
+            multiple
+            :preview="false"
+            accept="image/jpeg,image/png,image/webp"
+            :disabled="uploading"
+            :interactive="false"
+            :ui="{ root: 'w-fit' }"
+            @update:model-value="selectFiles"
+          >
+            <template #default="{ open }">
+              <UButton
+                type="button"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-upload"
+                :disabled="uploading"
+                @click.stop="open()"
+              >
+                {{ t('gallery.addMorePhotos') }}
+              </UButton>
+            </template>
+          </UFileUpload>
           <UCheckbox
             id="upload-rights-input"
             v-model="rights"
@@ -582,6 +701,26 @@ async function saveMetadata() {
         </div></template
       ></UModal
     >
+    <UModal
+      v-model:open="selectedPreviewOpen"
+      :dismissible="false"
+      :title="selectedPreviewFile?.name || t('gallery.photoViewer')"
+      :ui="{
+        content: 'sm:max-w-4xl',
+        close: 'size-9 rounded-full border border-default bg-elevated text-muted shadow-sm hover:bg-muted hover:text-highlighted focus-visible:ring-2 focus-visible:ring-primary',
+      }"
+    >
+      <template #body>
+        <div class="flex max-h-[75dvh] items-center justify-center">
+          <img
+            v-if="selectedPreviewUrl"
+            :src="selectedPreviewUrl"
+            :alt="selectedPreviewFile?.name || t('gallery.photoViewer')"
+            class="max-h-[75dvh] max-w-full rounded-lg object-contain"
+          />
+        </div>
+      </template>
+    </UModal>
     <USlideover
       :open="!!detail"
       :title="detail?.name"
@@ -637,6 +776,8 @@ async function saveMetadata() {
     </UModal>
     <UModal
       v-model:open="deleteOpen"
+      :dismissible="!removing"
+      :close="!removing"
       :title="t('gallery.removePhotosTitle')"
       :description="t('gallery.removePhotosDescription')"
       ><template #body
@@ -648,7 +789,12 @@ async function saveMetadata() {
             :description="t('gallery.photosUsedDescription', { count: dependencies.length })"
           />
           <p v-else>{{ t('gallery.photosWillBeRemoved', { count: selected.length }) }}</p>
-          <UButton variant="outline" color="error" :disabled="!!dependencies.length" @click="remove"
+          <UButton
+            variant="outline"
+            color="error"
+            :loading="removing"
+            :disabled="!!dependencies.length || removing"
+            @click="remove"
             >{{ t('gallery.confirmRemove') }}</UButton
           >
         </div></template

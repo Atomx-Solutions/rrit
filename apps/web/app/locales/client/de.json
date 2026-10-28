@@ -1147,6 +1147,7 @@
   "gallery.privateDescription": "Fotos werden privat im Unternehmenskonto gespeichert.",
   "gallery.rightsLabel": "Ich habe das Recht, diese Fotos zu verwenden, und die Zustimmung abgebildeter Personen.",
   "gallery.choosePhotos": "Fotos auswählen oder hierher ziehen",
+  "gallery.addMorePhotos": "Weitere Fotos hinzufügen",
   "gallery.formats": "JPG, PNG oder WebP bis 5 MB pro Datei. Bis zu 8 Fotos.",
   "gallery.uploadProgress": "Upload-Fortschritt",
   "gallery.retryUpload": "Upload wiederholen",

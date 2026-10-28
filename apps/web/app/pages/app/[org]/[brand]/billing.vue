@@ -431,7 +431,12 @@ async function declineProposal() {
             </p>
           </div>
         </div>
-        <UModal v-model:open="requestOpen" :title="customPackage ? t('request.appRenewTitle') : t('request.appTitle')">
+        <UModal
+          v-model:open="requestOpen"
+          :dismissible="false"
+          :close="true"
+          :title="customPackage ? t('request.appRenewTitle') : t('request.appTitle')"
+        >
           <UButton
             color="primary"
             variant="solid"

@@ -1147,6 +1147,7 @@
   "gallery.privateDescription": "Fotografitë ruhen privatisht në llogarinë e biznesit.",
   "gallery.rightsLabel": "Kam të drejtën t’i përdor këto fotografi dhe pëlqimin e personave të identifikueshëm.",
   "gallery.choosePhotos": "Zgjidh fotografitë ose tërhiqi këtu",
+  "gallery.addMorePhotos": "Shto më shumë fotografi",
   "gallery.formats": "JPG, PNG ose WebP deri 5 MB secila. Deri në 8 fotografi.",
   "gallery.uploadProgress": "Progresi i ngarkimit",
   "gallery.retryUpload": "Provo ngarkimin sërish",

@@ -1147,6 +1147,7 @@
   "gallery.privateDescription": "Le foto sono salvate in modo privato nell’account aziendale.",
   "gallery.rightsLabel": "Ho il diritto di usare queste foto e il consenso delle persone riconoscibili.",
   "gallery.choosePhotos": "Scegli le foto o trascinale qui",
+  "gallery.addMorePhotos": "Aggiungi altre foto",
   "gallery.formats": "JPG, PNG o WebP fino a 5 MB ciascuna. Fino a 8 foto.",
   "gallery.uploadProgress": "Avanzamento del caricamento",
   "gallery.retryUpload": "Riprova il caricamento",

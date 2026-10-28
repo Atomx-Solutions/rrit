@@ -1147,6 +1147,7 @@
   "gallery.privateDescription": "Fotoğraflar işletme hesabında gizli olarak saklanır.",
   "gallery.rightsLabel": "Bu fotoğrafları kullanma hakkım ve tanınabilir kişilerin onayı var.",
   "gallery.choosePhotos": "Fotoğraf seçin veya buraya sürükleyin",
+  "gallery.addMorePhotos": "Daha fazla fotoğraf ekle",
   "gallery.formats": "Her biri en fazla 5 MB olan JPG, PNG veya WebP. En fazla 8 fotoğraf.",
   "gallery.uploadProgress": "Yükleme ilerlemesi",
   "gallery.retryUpload": "Yüklemeyi tekrar dene",

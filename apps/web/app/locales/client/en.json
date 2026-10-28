@@ -1147,6 +1147,7 @@
   "gallery.privateDescription": "Photos are stored privately in the business account.",
   "gallery.rightsLabel": "I have the right to use these photos and consent from identifiable people.",
   "gallery.choosePhotos": "Choose photos or drag them here",
+  "gallery.addMorePhotos": "Add more photos",
   "gallery.formats": "JPG, PNG or WebP up to 5 MB each. Up to 8 photos.",
   "gallery.uploadProgress": "Upload progress",
   "gallery.retryUpload": "Retry upload",
