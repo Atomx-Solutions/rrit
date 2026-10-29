@@ -2260,5 +2260,8 @@
   "policy.refundExpiryTitle": "Expired credits",
   "policy.refundExpiryDescription": "Unused credits expire when their package ends and are not refunded after that.",
   "policy.refundRequestTitle": "Requesting a refund",
-  "policy.refundRequestDescription": "Send your request by email with your business name and the invoice number. Approved refunds are issued by Paddle to the original payment method."
+  "policy.refundRequestDescription": "Send your request by email with your business name and the invoice number. Approved refunds are issued by Paddle to the original payment method.",
+  "content.removedFromNetwork": "The post was deleted from {{channel}}. You can publish it again.",
+  "server.POST_REMOVED_FROM_NETWORK": "The post was deleted from the network after publishing. It can be published again.",
+  "content.removedFromNetworkCount": "{{count}} posts were deleted from the networks and can be published again."
 }

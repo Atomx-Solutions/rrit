@@ -2260,5 +2260,8 @@
   "policy.refundExpiryTitle": "Kreditet e skaduara",
   "policy.refundExpiryDescription": "Kreditet e papërdorura skadojnë kur mbaron paketa e tyre dhe nuk rimbursohen pas kësaj.",
   "policy.refundRequestTitle": "Si kërkohet rimbursimi",
-  "policy.refundRequestDescription": "Dërgo kërkesën me email, me emrin e biznesit dhe numrin e faturës. Rimbursimet e aprovuara i kryen Paddle në mënyrën origjinale të pagesës."
+  "policy.refundRequestDescription": "Dërgo kërkesën me email, me emrin e biznesit dhe numrin e faturës. Rimbursimet e aprovuara i kryen Paddle në mënyrën origjinale të pagesës.",
+  "content.removedFromNetwork": "Postimi u fshi nga {{channel}}. Mund ta publikosh përsëri.",
+  "server.POST_REMOVED_FROM_NETWORK": "Postimi u fshi nga rrjeti pas publikimit. Mund të publikohet përsëri.",
+  "content.removedFromNetworkCount": "{{count}} postime u fshinë nga rrjetet dhe mund të publikohen përsëri."
 }
