@@ -1,7 +1,7 @@
 export default defineEventHandler((event) => {
   const configuredUrl = process.env.APP_URL || getRequestURL(event).origin
   const origin = configuredUrl.replace(/\/$/, '')
-  const publicPaths = ['/', '/pricing', '/help', '/privacy', '/terms']
+  const publicPaths = ['/', '/pricing', '/help', '/privacy', '/terms', '/refund']
   const urls = publicPaths
     .map((path) => `  <url><loc>${origin}${path}</loc></url>`)
     .join('\n')

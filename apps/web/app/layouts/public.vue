@@ -47,6 +47,7 @@ const links = computed(() => [
 const legal = [
   { label: t('public.privacy'), to: '/privacy' },
   { label: t('public.terms'), to: '/terms' },
+  { label: t('public.refund'), to: '/refund' },
 ]
 const { canRegister } = useLandingOffer()
 const { to: offerCtaPath, labelKey: offerCtaLabelKey } = publicOfferCta

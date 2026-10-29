@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ kind: 'privacy' | 'terms' }>()
+defineProps<{ kind: 'privacy' | 'terms' | 'refund' }>()
 const { data: site, error: siteError } = await useFetch('/api/site')
 const { t } = useI18n()
 const { showError } = useFormFeedback()
@@ -9,6 +9,7 @@ watch(siteError, (value) => {
 const titles = {
   privacy: 'policy.privacyTitle',
   terms: 'policy.termsTitle',
+  refund: 'policy.refundTitle',
 }
 </script>
 <template>
@@ -21,6 +22,13 @@ const titles = {
         <h2>{{ t('policy.trialTitle') }}</h2><p>{{ t('policy.trialDescription') }}</p>
         <h2>{{ t('policy.photosTitle') }}</h2><p>{{ t('policy.photosDescription') }}</p>
         <h2>{{ t('policy.exportTitle') }}</h2><p>{{ t('policy.exportDescription') }}</p></template
+      >
+      <template v-else-if="kind === 'refund'"
+        ><h2>{{ t('policy.refundPaymentTitle') }}</h2><p>{{ t('policy.refundPaymentDescription') }}</p>
+        <h2>{{ t('policy.refundWindowTitle') }}</h2><p>{{ t('policy.refundWindowDescription') }}</p>
+        <h2>{{ t('policy.refundUsedTitle') }}</h2><p>{{ t('policy.refundUsedDescription') }}</p>
+        <h2>{{ t('policy.refundExpiryTitle') }}</h2><p>{{ t('policy.refundExpiryDescription') }}</p>
+        <h2>{{ t('policy.refundRequestTitle') }}</h2><p>{{ t('policy.refundRequestDescription') }}</p></template
       >
       <template v-else
         ><h2>{{ t('policy.accountTitle') }}</h2>
@@ -39,7 +47,7 @@ const titles = {
       <USeparator />
       <p v-if="site?.operator">{{ t('policy.operator') }}: {{ site.operator }}</p>
       <p v-if="site?.privacyEmail">
-        {{ t('policy.privacyContact') }}:
+        {{ t(kind === 'refund' ? 'policy.refundContact' : 'policy.privacyContact') }}:
         <ULink :to="'mailto:' + site.privacyEmail" class="text-primary">{{
           site.privacyEmail
         }}</ULink>

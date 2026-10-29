@@ -2246,5 +2246,19 @@
   "server.VIDEO_QA_UNAVAILABLE": "Video kalite kontrolü şu anda kullanılamıyor; video gönderilebilir ancak manuel inceleme gerektirir.",
   "server.INSTAGRAM_ALREADY_CONNECTED": "Bu Instagram hesabı Framic’te zaten başka bir işletmeye bağlı.",
   "server.INSTAGRAM_CONFIG_INVALID": "Instagram bağlantı yapılandırması geçerli değil.",
-  "server.INSTAGRAM_NOT_CONFIGURED": "Instagram bağlantısı henüz yapılandırılmadı."
+  "server.INSTAGRAM_NOT_CONFIGURED": "Instagram bağlantısı henüz yapılandırılmadı.",
+  "public.refund": "İade",
+  "policy.refundTitle": "İade politikası",
+  "policy.refundDescription": "Framic satın alımlarında iadelerin nasıl işlediği.",
+  "policy.refundContact": "İade talepleri",
+  "policy.refundPaymentTitle": "Ödemeler",
+  "policy.refundPaymentDescription": "Paketler, krediler ve videolar, satıcımız ve Merchant of Record olan Paddle üzerinden tek seferde ödenir. Satın alımlar otomatik olarak yenilenmez.",
+  "policy.refundWindowTitle": "Kullanılmamış satın alımlar",
+  "policy.refundWindowDescription": "Satın alımdan sonraki 14 gün içinde, hiç kullanılmamış bir satın alım talep üzerine iade edilebilir.",
+  "policy.refundUsedTitle": "Kullanılmış satın alımlar",
+  "policy.refundUsedDescription": "Tamamen veya kısmen kullanılmış paketler, krediler ve videolar iade edilmez.",
+  "policy.refundExpiryTitle": "Süresi dolan krediler",
+  "policy.refundExpiryDescription": "Kullanılmayan krediler paketlerinin bitiminde sona erer ve bundan sonra iade edilmez.",
+  "policy.refundRequestTitle": "İade talebi",
+  "policy.refundRequestDescription": "Talebinizi işletme adınız ve fatura numaranızla e-posta ile gönderin. Onaylanan iadeler Paddle tarafından orijinal ödeme yöntemine yapılır."
 }
