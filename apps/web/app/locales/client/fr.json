@@ -2246,5 +2246,19 @@
   "server.VIDEO_QA_UNAVAILABLE": "Le contrôle qualité vidéo est indisponible pour le moment ; la vidéo peut être envoyée, mais elle nécessite une relecture manuelle.",
   "server.INSTAGRAM_ALREADY_CONNECTED": "Ce compte Instagram est déjà connecté à une autre entreprise dans Framic.",
   "server.INSTAGRAM_CONFIG_INVALID": "La configuration de la connexion Instagram n’est pas valide.",
-  "server.INSTAGRAM_NOT_CONFIGURED": "La connexion Instagram n’est pas encore configurée."
+  "server.INSTAGRAM_NOT_CONFIGURED": "La connexion Instagram n’est pas encore configurée.",
+  "public.refund": "Remboursement",
+  "policy.refundTitle": "Politique de remboursement",
+  "policy.refundDescription": "Fonctionnement des remboursements des achats Framic.",
+  "policy.refundContact": "Demandes de remboursement",
+  "policy.refundPaymentTitle": "Paiements",
+  "policy.refundPaymentDescription": "Les forfaits, crédits et vidéos sont payés une seule fois via Paddle, notre revendeur et Merchant of Record. Les achats ne se renouvellent pas automatiquement.",
+  "policy.refundWindowTitle": "Achats non utilisés",
+  "policy.refundWindowDescription": "Dans les 14 jours suivant l’achat, un achat qui n’a pas du tout été utilisé peut être remboursé sur demande.",
+  "policy.refundUsedTitle": "Achats utilisés",
+  "policy.refundUsedDescription": "Les forfaits, crédits et vidéos utilisés, entièrement ou en partie, ne sont pas remboursés.",
+  "policy.refundExpiryTitle": "Crédits expirés",
+  "policy.refundExpiryDescription": "Les crédits non utilisés expirent à la fin de leur forfait et ne sont plus remboursés ensuite.",
+  "policy.refundRequestTitle": "Demander un remboursement",
+  "policy.refundRequestDescription": "Envoyez votre demande par e-mail avec le nom de votre entreprise et le numéro de facture. Les remboursements approuvés sont effectués par Paddle sur le moyen de paiement d’origine."
 }

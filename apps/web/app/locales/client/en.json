@@ -2246,5 +2246,19 @@
   "server.VIDEO_QA_UNAVAILABLE": "Video QA is currently unavailable; the video can be sent, but it needs manual review.",
   "server.INSTAGRAM_ALREADY_CONNECTED": "This Instagram account is already connected to another business in Framic.",
   "server.INSTAGRAM_CONFIG_INVALID": "The Instagram connection configuration is not valid.",
-  "server.INSTAGRAM_NOT_CONFIGURED": "The Instagram connection is not configured yet."
+  "server.INSTAGRAM_NOT_CONFIGURED": "The Instagram connection is not configured yet.",
+  "public.refund": "Refund policy",
+  "policy.refundTitle": "Refund policy",
+  "policy.refundDescription": "How refunds for Framic purchases work.",
+  "policy.refundContact": "Refund requests",
+  "policy.refundPaymentTitle": "Payments",
+  "policy.refundPaymentDescription": "Packages, credits and videos are paid once through Paddle, our reseller and Merchant of Record. Purchases do not renew automatically.",
+  "policy.refundWindowTitle": "Unused purchases",
+  "policy.refundWindowDescription": "Within 14 days of purchase, a purchase that has not been used at all can be refunded on request.",
+  "policy.refundUsedTitle": "Used purchases",
+  "policy.refundUsedDescription": "Packages, credits and videos that have been used, fully or in part, are not refunded.",
+  "policy.refundExpiryTitle": "Expired credits",
+  "policy.refundExpiryDescription": "Unused credits expire when their package ends and are not refunded after that.",
+  "policy.refundRequestTitle": "Requesting a refund",
+  "policy.refundRequestDescription": "Send your request by email with your business name and the invoice number. Approved refunds are issued by Paddle to the original payment method."
 }

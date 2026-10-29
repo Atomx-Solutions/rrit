@@ -2246,5 +2246,19 @@
   "server.VIDEO_QA_UNAVAILABLE": "Kontrolli QA i videos nuk është i disponueshëm tani; videoja mund të dërgohet, por duhet ta rishikosh manualisht.",
   "server.INSTAGRAM_ALREADY_CONNECTED": "Kjo llogari Instagram është lidhur tashmë me një biznes tjetër në Framic.",
   "server.INSTAGRAM_CONFIG_INVALID": "Konfigurimi i lidhjes me Instagram nuk është i vlefshëm.",
-  "server.INSTAGRAM_NOT_CONFIGURED": "Lidhja me Instagram ende nuk është konfiguruar."
+  "server.INSTAGRAM_NOT_CONFIGURED": "Lidhja me Instagram ende nuk është konfiguruar.",
+  "public.refund": "Rimbursimi",
+  "policy.refundTitle": "Politika e rimbursimit",
+  "policy.refundDescription": "Si funksionojnë rimbursimet për blerjet në Framic.",
+  "policy.refundContact": "Kërkesat për rimbursim",
+  "policy.refundPaymentTitle": "Pagesat",
+  "policy.refundPaymentDescription": "Paketat, kreditet dhe videot paguhen një herë përmes Paddle, rishitësit dhe shitësit tonë zyrtar (Merchant of Record). Blerjet nuk rinovohen automatikisht.",
+  "policy.refundWindowTitle": "Blerjet e papërdorura",
+  "policy.refundWindowDescription": "Brenda 14 ditëve nga blerja, një blerje që nuk është përdorur fare mund të rimbursohet me kërkesë.",
+  "policy.refundUsedTitle": "Blerjet e përdorura",
+  "policy.refundUsedDescription": "Paketat, kreditet dhe videot që janë përdorur, plotësisht ose pjesërisht, nuk rimbursohen.",
+  "policy.refundExpiryTitle": "Kreditet e skaduara",
+  "policy.refundExpiryDescription": "Kreditet e papërdorura skadojnë kur mbaron paketa e tyre dhe nuk rimbursohen pas kësaj.",
+  "policy.refundRequestTitle": "Si kërkohet rimbursimi",
+  "policy.refundRequestDescription": "Dërgo kërkesën me email, me emrin e biznesit dhe numrin e faturës. Rimbursimet e aprovuara i kryen Paddle në mënyrën origjinale të pagesës."
 }
