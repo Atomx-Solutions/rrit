@@ -7,7 +7,7 @@ const { data, base, syncing, commit, notify } = useWorkspace()
 const { t } = useI18n()
 const route = useRoute()
 useSeoMeta({ title: () => `${t('brand.title')} · Framic` })
-const { form, clear, recovered, localError } = useDraft(
+const { form, clear, localError } = useDraft(
   `${base.value}:brand`,
   structuredClone(toRaw(data.value.brand)),
 )
@@ -17,13 +17,57 @@ const eventCategories = eventResearchCategoryKeys
 if (!form.videoDeliverables) form.videoDeliverables = { ...videoDeliverablesDefault }
 const baseline = ref(JSON.stringify(form))
 const openAccordion = ref<string | undefined>()
+// The page is split into tabs by what the business has in mind; every tab's
+// fields stay mounted, so switching never loses what was typed.
+type BrandTab = 'profile' | 'audience' | 'facts' | 'rules' | 'planning'
+const activeTab = ref<BrandTab>('profile')
+// Leaving a tab with unsaved profile changes asks first, as leaving the page does.
+const pendingTab = ref<BrandTab | null>(null)
+const tab = computed({
+  get: () => activeTab.value,
+  set: (next: BrandTab) => {
+    if (next === activeTab.value) return
+    if (dirty.value) pendingTab.value = next
+    else activeTab.value = next
+  },
+})
+const currentTab = computed(() => tabs.value.find((item) => item.value === activeTab.value)!)
+function closeTabGuard(open: boolean) {
+  if (!open) pendingTab.value = null
+}
+function discardAndSwitch() {
+  Object.assign(form, JSON.parse(baseline.value))
+  brainEditor.value?.resetSettings()
+  activeTab.value = pendingTab.value!
+  pendingTab.value = null
+}
+async function saveAndSwitch() {
+  await saveAll()
+  if (dirty.value) return
+  activeTab.value = pendingTab.value!
+  pendingTab.value = null
+}
+const tabs = computed(() => [
+  { label: t('brand.tabProfile'), value: 'profile', icon: 'i-lucide-store' },
+  { label: t('brand.tabAudience'), value: 'audience', icon: 'i-lucide-message-circle' },
+  { label: t('brand.tabFacts'), value: 'facts', icon: 'i-lucide-badge-check' },
+  { label: t('brand.tabRules'), value: 'rules', icon: 'i-lucide-shield' },
+  { label: t('brand.tabPlanning'), value: 'planning', icon: 'i-lucide-settings-2' },
+])
 const attentionTarget = ref('')
 const saved = ref(false)
 const formError = ref('')
 const { onFormError, watchError } = useFormFeedback()
 watchError(formError)
 watchError(localError, 'warning')
-const dirty = computed(() => JSON.stringify(form) !== baseline.value)
+const profileDirty = computed(() => JSON.stringify(form) !== baseline.value)
+const brainEditor = ref<{ saveSettings: () => Promise<void>; settingsDirty: boolean; resetSettings: () => void } | null>(null)
+const dirty = computed(() => profileDirty.value || !!brainEditor.value?.settingsDirty)
+// The tab's one save button stores whichever part changed.
+async function saveAll() {
+  if (profileDirty.value) await save()
+  if (brainEditor.value?.settingsDirty) await brainEditor.value.saveSettings()
+}
 const focusTarget = computed(() => {
   if (route.query.attention !== 'planner') return ''
   const value = route.query.focus
@@ -55,6 +99,7 @@ function firstIncompleteTarget() {
 }
 async function focusRequiredField(target: string) {
   if (!import.meta.client || !target) return
+  activeTab.value = target === 'industry' || target === 'audience' ? 'profile' : 'facts'
   if (showAllRequired.value || target === 'required' || target.startsWith('fact-')) {
     openAccordion.value = 'facts'
     if (!form.facts.length) addFact()
@@ -67,7 +112,10 @@ async function focusRequiredField(target: string) {
 watch(
   () => route.hash,
   (hash) => {
-    if (hash === '#facts') openAccordion.value = 'facts'
+    if (hash === '#facts') {
+      activeTab.value = 'facts'
+      openAccordion.value = 'facts'
+    }
   },
   { immediate: true },
 )
@@ -171,7 +219,7 @@ function discardAndLeave() {
   finishLeave(true)
 }
 async function saveAndLeave() {
-  await save()
+  await saveAll()
   if (!dirty.value) finishLeave(true)
 }
 function addResearchSource() {
@@ -192,29 +240,35 @@ function setPrice(fact: BrandFact, value: string | number) {
 <template>
   <DashboardPage
     :title="t('brand.title')"
-    :description="t('brand.description')"
     :toolbar-border="false"
   >
-    <UAlert
-      v-if="recovered"
-      color="neutral"
-      variant="outline"
-      icon="i-lucide-history"
-      :title="t('brand.recoveredTitle')"
-      :description="t('brand.recoveredDescription')"
-    />
-    <div class="grid xl:grid-cols-[minmax(0,1fr)_280px] gap-6 items-start max-w-6xl">
+    <div class="max-w-5xl">
+      <div class="min-w-0 space-y-4">
+      <!-- The tabs and the profile's history share one row and one line. -->
+      <div class="flex items-center gap-2 border-b border-default">
+        <UTabs
+          v-model="tab"
+          :items="tabs"
+          :content="false"
+          variant="link"
+          class="min-w-0 flex-1"
+          :aria-label="t('brand.sections')"
+          :ui="{ list: 'border-0 flex-nowrap', trigger: 'min-w-0 flex-1 justify-center sm:flex-none', label: 'hidden sm:inline' }"
+        />
+        <BusinessBrainHistory class="shrink-0" />
+      </div>
       <UCard :ui="{ body: 'p-5 sm:p-7' }"
         ><UForm
           :schema="schema"
           :state="form"
           class="space-y-6"
-          @submit="save"
+          @submit="saveAll"
           @error="onFormError"
           ><div class="flex gap-3 items-center mb-2">
-            <UAvatar icon="i-lucide-store" size="md" />
-            <h2 class="text-base font-semibold">{{ t('brand.profile') }}</h2>
+            <UAvatar :icon="currentTab.icon" size="md" />
+            <h2 class="text-base font-semibold">{{ currentTab.label }}</h2>
           </div>
+          <div v-show="activeTab === 'profile'" class="space-y-6">
           <UFormField :label="t('brand.name')" name="name" required
             ><UInput v-model="form.name" class="w-full" maxlength="120"
           /></UFormField>
@@ -242,8 +296,10 @@ function setPrice(fact: BrandFact, value: string | number) {
               v-model="form.description"
               :rows="4"
               maxlength="2000"
-              class="w-full" /></UFormField
-          ><UFormField id="audience" :label="t('brand.audience')" name="audience" required
+              class="w-full" /></UFormField>
+          <!-- Every required field sits on this first tab, so the business can
+               finish the essentials here; the other tabs are optional. -->
+          <UFormField id="audience" :label="t('brand.audience')" name="audience" required
             ><UTextarea
               id="audience-input"
               v-model="form.audience"
@@ -265,6 +321,8 @@ function setPrice(fact: BrandFact, value: string | number) {
                 ]"
             /></UFormField>
           </div>
+          </div>
+          <div v-show="activeTab === 'audience'" class="space-y-6 border-b border-default pb-6">
           <div class="space-y-3">
             <div>
               <h3 class="text-sm font-semibold">{{ t('brand.goals') }}</h3>
@@ -286,17 +344,20 @@ function setPrice(fact: BrandFact, value: string | number) {
             </div>
             <UButton
               v-if="form.goals.length < 10"
-              color="neutral"
               variant="outline"
               icon="i-lucide-plus"
+              class="ml-auto flex"
               @click="addGoal"
             >
               {{ t('brand.addGoal') }}
             </UButton>
           </div>
+          </div>
           <UAccordion
+v-show="activeTab === 'facts'"
             id="facts"
             v-model="openAccordion"
+            class="border-b border-default"
             :items="[{ label: t('brand.facts'), slot: 'facts', value: 'facts' }]"
             ><template #facts
               ><div class="space-y-4 pb-4">
@@ -401,13 +462,14 @@ function setPrice(fact: BrandFact, value: string | number) {
                       :aria-label="t('brand.removeDetail', { index: i + 1 })"
                       @click="form.facts.splice(i, 1)"
                     /></div></UCard
-                ><UButton color="neutral" variant="outline" icon="i-lucide-plus" @click="addFact"
+                ><UButton variant="outline" icon="i-lucide-plus" class="ml-auto flex" @click="addFact"
                   >{{ t('brand.addDetail') }}</UButton
                 >
               </div></template
             ></UAccordion
           >
-          <UAccordion :items="[{ label: t('brand.researchSources'), slot: 'sources' }]">
+          <div v-show="activeTab === 'planning'">
+          <UAccordion class="border-b border-default" :items="[{ label: t('brand.researchSources'), slot: 'sources', value: 'sources' }]">
             <template #sources>
               <div class="space-y-3 pb-4">
                 <p class="text-sm text-muted leading-relaxed">
@@ -432,9 +494,9 @@ function setPrice(fact: BrandFact, value: string | number) {
                   />
                 </div>
                 <UButton
-                  color="neutral"
                   variant="outline"
                   icon="i-lucide-plus"
+                  class="ml-auto flex"
                   :disabled="(form.researchSources?.length || 0) >= 10"
                   @click="addResearchSource"
                   >{{ t('brand.addSource') }}</UButton
@@ -442,7 +504,7 @@ function setPrice(fact: BrandFact, value: string | number) {
               </div>
             </template>
           </UAccordion>
-          <UAccordion :items="[{ label: t('brand.eventResearch'), slot: 'events' }]">
+          <UAccordion class="border-b border-default" :items="[{ label: t('brand.eventResearch'), slot: 'events', value: 'events' }]">
             <template #events>
               <div class="space-y-3 pb-4">
                 <p class="text-sm text-muted leading-relaxed">
@@ -466,7 +528,7 @@ function setPrice(fact: BrandFact, value: string | number) {
               </div>
             </template>
           </UAccordion>
-          <UAccordion :items="[{ label: t('brand.videoDeliverables'), slot: 'videos' }]">
+          <UAccordion class="border-b border-default" :items="[{ label: t('brand.videoDeliverables'), slot: 'videos', value: 'videos' }]">
             <template #videos>
               <div class="space-y-3 pb-4">
                 <p class="text-sm text-muted leading-relaxed">
@@ -480,7 +542,8 @@ function setPrice(fact: BrandFact, value: string | number) {
               </div>
             </template>
           </UAccordion>
-          <UAccordion :items="[{ label: t('brand.guardrails'), slot: 'guardrails' }]">
+          </div>
+          <UAccordion v-show="activeTab === 'rules'" class="border-b border-default" :items="[{ label: t('brand.guardrails'), slot: 'guardrails', value: 'guardrails' }]">
             <template #guardrails>
               <div class="space-y-3 pb-4">
                 <p class="text-sm text-muted">
@@ -502,9 +565,9 @@ function setPrice(fact: BrandFact, value: string | number) {
                   />
                 </div>
                 <UButton
-                  color="neutral"
                   variant="outline"
                   icon="i-lucide-plus"
+                  class="ml-auto flex"
                   :disabled="(form.guardrails?.length || 0) >= 20"
                   @click="(form.guardrails ||= []).push('')"
                   >{{ t('brand.addGuidance') }}</UButton
@@ -512,58 +575,38 @@ function setPrice(fact: BrandFact, value: string | number) {
               </div>
             </template>
           </UAccordion>
-          <USeparator />
-          <div class="flex flex-wrap items-center justify-between gap-4">
-            <span role="status" class="text-xs text-muted">{{
+          <!-- The form's space-y leaves a gap after the section above; the
+               editor closes it so every section sits the same distance apart. -->
+          <BusinessBrainEditor
+            v-if="activeTab === 'audience' || activeTab === 'facts' || activeTab === 'rules'"
+            ref="brainEditor"
+            class="-mt-6"
+            :section="activeTab"
+            embedded
+          />
+          <div class="-mx-5 flex items-center justify-between gap-3 border-t border-default px-5 pt-4 sm:-mx-7 sm:px-7">
+            <span role="status" class="min-w-0 flex-1 truncate text-xs text-muted">{{
               dirty
                 ? t('brand.unsaved')
                 : saved
                   ? t('brand.identitySaved')
                   : t('brand.savedInAccount')
             }}</span
-            ><UButton :loading="syncing" variant="outline" type="submit" icon="i-lucide-check"
+            ><UButton :loading="syncing" type="submit" icon="i-lucide-check" :disabled="!dirty" class="shrink-0"
               >{{ t('brand.saveIdentity') }}</UButton
             >
           </div></UForm
         ></UCard
       >
-      <aside class="space-y-5 xl:sticky xl:top-6">
-        <BusinessBrainHistory />
-        <UCard variant="outline" :ui="{ body: 'p-5 space-y-5' }"
-          ><UUser
-            :name="form.name"
-            :description="form.city"
-            :avatar="{ alt: form.name }"
-            size="lg"
-          /><USeparator />
-          <p class="text-sm text-muted leading-relaxed">
-            {{ t('brand.profileInfo') }}
-          </p>
-          <UButton
-            :to="`${base}/social-posts`"
-            color="neutral"
-            variant="outline"
-            block
-            trailing-icon="i-lucide-arrow-right"
-            >{{ t('brand.socialPosts') }}</UButton
-          ></UCard
-        ><UCard :ui="{ body: 'p-5 space-y-4' }"
-          ><UIcon name="i-lucide-camera" class="size-5 text-primary" />
-          <h2 class="text-sm font-semibold">{{ t('brand.photosTitle') }}</h2>
-          <p class="text-sm text-muted leading-relaxed">
-            {{ t('brand.photosDescription') }}
-          </p>
-          <UButton
-            :to="`${base}/gallery`"
-            variant="link"
-            class="p-0"
-            trailing-icon="i-lucide-arrow-right"
-            >{{ t('brand.openGallery') }}</UButton
-          ></UCard
-        >
-      </aside>
+            </div>
     </div>
-    <BusinessBrainEditor />
+    <UnsavedChangesModal
+      :open="!!pendingTab"
+      :saving="syncing"
+      @update:open="closeTabGuard"
+      @save="saveAndSwitch"
+      @discard="discardAndSwitch"
+    />
     <UnsavedChangesModal
       :open="leaveOpen"
       :saving="syncing"

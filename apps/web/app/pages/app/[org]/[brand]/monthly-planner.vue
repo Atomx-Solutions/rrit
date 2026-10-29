@@ -19,20 +19,34 @@ const month = computed(() =>
     :toolbar-border="false"
   >
     <template #actions>
-      <div class="flex flex-wrap gap-2">
-        <UButton :to="`${base}/content`" color="neutral" variant="outline" icon="i-lucide-files">
-          {{ t('nav.content') }}
+      <!-- Two separate shortcuts to other pages, alike, each marked with an
+           arrow so neither reads as a selected tab. On a phone only icons show. -->
+      <div class="flex items-center gap-2">
+        <UButton
+          :to="`${base}/content`"
+          variant="outline"
+          icon="i-lucide-layout-grid"
+          trailing-icon="i-lucide-arrow-up-right"
+          :aria-label="t('nav.posts')"
+        >
+          <span class="hidden sm:inline">{{ t('nav.posts') }}</span>
         </UButton>
-        <UButton :to="`${base}/calendar`" variant="outline" icon="i-lucide-calendar-days">
-          {{ t('monthly.viewCalendar') }}
+        <UButton
+          :to="`${base}/calendar`"
+          variant="outline"
+          icon="i-lucide-calendar-days"
+          trailing-icon="i-lucide-arrow-up-right"
+          :aria-label="t('monthly.viewCalendar')"
+        >
+          <span class="hidden sm:inline">{{ t('monthly.viewCalendar') }}</span>
         </UButton>
       </div>
     </template>
 
     <MonthlyPlannerPanel :month="month" />
 
-    <UCard :ui="{ body: 'p-4' }">
-      <div class="grid gap-4 md:grid-cols-3">
+    <UCard :ui="{ body: 'p-4 sm:p-5' }">
+      <div class="grid gap-4 sm:grid-cols-3">
         <div class="flex items-start gap-3">
           <UIcon name="i-lucide-search" class="mt-0.5 size-4 shrink-0 text-primary" />
           <div>
@@ -43,7 +57,7 @@ const month = computed(() =>
           </div>
         </div>
         <div class="flex items-start gap-3">
-          <UIcon name="i-lucide-image" class="mt-0.5 size-4 shrink-0 text-primary" />
+          <UIcon name="i-lucide-lightbulb" class="mt-0.5 size-4 shrink-0 text-primary" />
           <div>
             <h2 class="text-sm font-semibold">{{ t('monthly.strategyDesign') }}</h2>
             <p class="mt-1 text-xs leading-5 text-muted">

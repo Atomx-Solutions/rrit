@@ -16,9 +16,18 @@ async function show() {
 </script>
 
 <template>
-  <UButton color="neutral" variant="ghost" icon="i-lucide-history" @click="show"
-    >{{ t('brain.historyButton') }}</UButton
+  <!-- A quiet button at the end of the tab row; on a phone only its icon shows. -->
+  <UButton
+    v-bind="$attrs"
+    color="neutral"
+    variant="ghost"
+    size="sm"
+    icon="i-lucide-history"
+    :aria-label="t('brain.historyButton')"
+    @click="show"
   >
+    <span class="hidden sm:inline">{{ t('brain.historyButton') }}</span>
+  </UButton>
   <USlideover
     v-model:open="open"
     :title="t('brain.historyTitle')"

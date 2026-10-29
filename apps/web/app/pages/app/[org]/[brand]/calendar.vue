@@ -59,6 +59,12 @@ const dayPosts = (key: string) => postsByDay.value.get(key) || []
 // fits no title. The phone grid therefore shows each day as a number with a dot
 // per post, and the list underneath belongs to the day you tap.
 const pickedDay = ref<string | null>(null)
+// "Today" returns to the current period; it shows only once the view has left it.
+const showsToday = computed(() => today.value >= period.value.start && today.value <= period.value.end)
+function goToDay(day: string) {
+  anchor.value = day
+  pickedDay.value = day
+}
 const activeDay = computed(() => {
   if (view.value === 'list') return null
   if (pickedDay.value) return pickedDay.value
@@ -106,38 +112,23 @@ function move(direction: number) {
 <template>
   <DashboardPage
     :title="t('nav.calendar')"
-    :description="t('calendar.description')"
     :toolbar-border="false"
   >
-    <template #actions
-      ><div class="flex flex-wrap gap-2">
-        <UButton :to="`${base}/monthly-planner`" variant="outline" icon="i-lucide-sparkles">
-          {{ t('monthly.pageTitle') }}
-        </UButton>
-        <UButton :to="monthlyPlannerPath(base)" color="neutral" variant="outline" icon="i-lucide-plus">
-          {{ t('content.createPost') }}
-        </UButton>
-      </div></template
-    >
     <template #toolbar>
-      <div class="flex w-full flex-wrap items-center justify-between gap-3">
-        <div class="flex flex-wrap items-center gap-2">
+      <!-- The period sits in the middle with the create action on its right.
+           The views take the left on a wide screen and a row of their own
+           below on a phone. -->
+      <div class="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-x-2 gap-y-3 border-b border-default pt-1">
+        <div class="justify-self-start">
           <UButton
-            icon="i-lucide-chevron-left"
-            :aria-label="view === 'week' ? t('calendar.previousWeek') : t('calendar.previousMonth')"
-            color="neutral"
-            variant="ghost"
-            @click="move(-1)"
-          />
-          <h2 class="text-sm font-medium capitalize" aria-live="polite">{{ period.title }}</h2>
-          <UButton
-            icon="i-lucide-chevron-right"
-            :aria-label="view === 'week' ? t('calendar.nextWeek') : t('calendar.nextMonth')"
-            color="neutral"
-            variant="ghost"
-            @click="move(1)"
-          />
-          <UButton color="neutral" variant="outline" size="sm" @click="anchor = today">{{ t('calendar.today') }}</UButton>
+            v-if="!showsToday"
+            variant="outline"
+            icon="i-lucide-rotate-ccw"
+            :aria-label="t('calendar.today')"
+            @click="goToDay(today)"
+          >
+            <span class="hidden sm:inline">{{ t('calendar.today') }}</span>
+          </UButton>
         </div>
         <UTabs
           v-model="view"
@@ -149,19 +140,46 @@ function move(direction: number) {
           :content="false"
           variant="link"
           size="sm"
+          class="order-last col-span-3 self-end justify-self-center"
+          :ui="{ list: 'border-0' }"
           :aria-label="t('calendar.view')"
         />
+        <div class="flex items-center">
+          <UButton
+            icon="i-lucide-chevron-left"
+            :aria-label="view === 'week' ? t('calendar.previousWeek') : t('calendar.previousMonth')"
+            color="neutral"
+            variant="ghost"
+            @click="move(-1)"
+          />
+          <h2 class="min-w-32 whitespace-nowrap px-1 text-center text-sm font-medium capitalize" aria-live="polite">{{ period.title }}</h2>
+          <UButton
+            icon="i-lucide-chevron-right"
+            :aria-label="view === 'week' ? t('calendar.nextWeek') : t('calendar.nextMonth')"
+            color="neutral"
+            variant="ghost"
+            @click="move(1)"
+          />
+        </div>
+        <!-- Posts are created in AI planning, so one action leads there; on a
+             phone only its icon shows. -->
+        <UButton
+          :to="monthlyPlannerPath(base)"
+          variant="outline"
+          icon="i-lucide-plus"
+          class="justify-self-end"
+          :aria-label="t('content.createPost')"
+        >
+          <span class="hidden sm:inline">{{ t('content.createPost') }}</span>
+        </UButton>
       </div>
     </template>
-    <p class="text-xs leading-5 text-muted">
-      {{ t('calendar.metaDescription') }}
-    </p>
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <div
         class="flex flex-wrap justify-between gap-2 px-3 py-2 border-b border-default text-[11px] text-muted"
       >
         <span>{{ visible.length }} {{ t('calendar.postsIn') }} {{ view === 'week' ? t('calendar.weekLower') : t('calendar.monthLower') }}</span
-        ><span>{{ t('calendar.localTime') }} · {{ data.preferences.timezone }}</span>
+        ><span class="hidden sm:inline">{{ t('calendar.localTime') }} · {{ data.preferences.timezone }}</span>
       </div>
       <div v-if="view !== 'list'" class="hidden md:block">
         <div class="grid grid-cols-7">

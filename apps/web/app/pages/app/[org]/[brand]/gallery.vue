@@ -348,16 +348,25 @@ async function saveMetadata() {
     :toolbar-border="false"
   >
     <template #toolbar>
-      <div class="grid w-full min-w-0 gap-3 py-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:py-0">
-        <UInput
-          v-model="query"
-          :placeholder="t('gallery.searchPlaceholder')"
-          :aria-label="t('gallery.searchLabel')"
-          icon="i-lucide-search"
-          class="w-full min-w-0 sm:w-80"
-        />
-        <div class="flex min-w-0 items-center justify-between gap-3 sm:justify-start">
-          <!-- Only the tabs scroll on a narrow phone; the count stays whole. -->
+      <!-- Search with both uploads at its right on every screen (icons only
+           on a phone); the filters, and any selection actions, on the row below. -->
+      <div class="grid w-full min-w-0 gap-2 py-2 sm:py-1">
+        <div class="flex min-w-0 items-center gap-2">
+          <UInput
+            v-model="query"
+            :placeholder="t('gallery.searchPlaceholder')"
+            :aria-label="t('gallery.searchLabel')"
+            icon="i-lucide-search"
+            class="min-w-0 flex-1 sm:w-80 sm:flex-none"
+          />
+          <div class="ml-auto flex shrink-0 items-center gap-2">
+            <LogoUpload compact class="shrink-0" />
+            <UButton variant="outline" icon="i-lucide-image-plus" class="shrink-0" :aria-label="t('gallery.uploadPhotos')" @click="openUpload">
+              <span class="hidden sm:inline">{{ t('gallery.uploadPhotos') }}</span>
+            </UButton>
+          </div>
+        </div>
+        <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
           <div class="min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <UTabs
               v-model="assetFilter"
@@ -368,30 +377,13 @@ async function saveMetadata() {
               :aria-label="t('gallery.assetFilter')"
             />
           </div>
-          <span role="status" class="shrink-0 whitespace-nowrap text-sm text-muted">{{ assets.length }} {{ assetFilter === 'all' ? t('gallery.items') : t('gallery.photos') }}</span
-          >
-        </div>
-        <div class="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-          <UButton
-            v-if="selected.length"
-            color="neutral"
-            variant="outline"
-            class="shrink-0"
-            @click="selected = []"
-          >{{ t('gallery.clearSelection') }}</UButton>
-          <UButton
-            v-if="selected.length"
-            color="error"
-            variant="outline"
-            icon="i-lucide-trash-2"
-            class="shrink-0"
-            @click="deleteOpen = true"
-            >{{ t('gallery.removeSelected') }} {{ selected.length }}</UButton
-          >
-          <LogoUpload compact class="min-w-0 shrink-0 justify-center" />
-          <UButton variant="outline" icon="i-lucide-upload" class="min-w-0 shrink-0 justify-center" @click="openUpload">
-            {{ t('gallery.uploadPhotos') }}
-          </UButton>
+          <span role="status" class="sr-only">{{ assets.length }} {{ assetFilter === 'all' ? t('gallery.items') : t('gallery.photos') }}</span>
+          <div v-if="selected.length" class="flex items-center gap-2">
+            <UButton color="neutral" variant="outline" size="sm" @click="selected = []">{{ t('gallery.clearSelection') }}</UButton>
+            <UButton color="error" variant="soft" size="sm" icon="i-lucide-trash-2" @click="deleteOpen = true"
+              >{{ t('gallery.removeSelected') }} {{ selected.length }}</UButton
+            >
+          </div>
         </div>
       </div>
     </template>

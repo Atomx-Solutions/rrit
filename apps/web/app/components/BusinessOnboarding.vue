@@ -7,11 +7,6 @@ import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 const { data, base, context, ready, applyBusiness, commit, syncing } = useWorkspace()
 const { setLocale, t, locale: activeLocale } = useI18n()
 const step = ref(context.value ? Math.min(data.value.onboarding, 2) : 0)
-// The workspace only exists once the business row does. An invited client
-// arrives with one, so the logo is asked for on the first step; a self-service
-// signup creates its business when leaving that step, so for them the logo
-// stays where it was, right after.
-const hadWorkspace = Boolean(context.value)
 
 // Onboarding is the one signed-in screen with no way out. Somebody who opened
 // the wrong account, or whose workspace is gone, would otherwise be stuck here
@@ -34,6 +29,14 @@ async function signOut() {
 }
 const busy = ref(false)
 const error = ref('')
+// The first screen asks only what AI planning needs; the rest (voice, goals,
+// more facts) is filled in later under My business. Language and time zone
+// are taken from what the person is already using.
+function browserTimezone() {
+  if (!import.meta.client) return ''
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  return TIMEZONE_OPTIONS.some((option) => option.value === zone) ? zone : ''
+}
 const { onFormError, watchError } = useFormFeedback()
 watchError(error)
 const {
@@ -49,12 +52,14 @@ const {
   audience: data.value.brand.audience,
   goals: [...data.value.brand.goals],
   facts: data.value.brand.facts.map((fact) => ({ ...fact })),
-  timezone: data.value.preferences.timezone,
+  timezone: browserTimezone() || data.value.preferences.timezone,
   // The language the person is already reading is the one they chose; a new
   // workspace's stored default must not contradict the screen.
   locale: activeLocale.value,
 })
 watchError(localError, 'warning')
+// One fact is needed before AI planning can start, so the first screen has one.
+if (!form.facts.length) addFact()
 watch(
   () => form.locale,
   (value) => {
@@ -62,34 +67,6 @@ watch(
   },
 )
 const steps = computed(() => [t('onboarding.business'), t('onboarding.networks'), t('onboarding.firstStep')])
-const goalOptions = [
-  'Rrit njohjen e biznesit',
-  'Gjej kliente te rinj',
-  'Promovo produkte ose sherbime',
-  'Nderto marredhenie me komunitetin',
-]
-const goalLabelKeys: Record<string, string> = {
-  'Rrit njohjen e biznesit': 'onboarding.goalAwareness',
-  'Gjej kliente te rinj': 'onboarding.goalNewCustomers',
-  'Promovo produkte ose sherbime': 'onboarding.goalPromote',
-  'Nderto marredhenie me komunitetin': 'onboarding.goalCommunity',
-}
-function goalLabel(goal: string) { return t(goalLabelKeys[goal] || goal) }
-// Computed, so the labels follow the language picked a few fields below.
-const timezoneOptions = computed(() =>
-  TIMEZONE_OPTIONS.map(zone => ({ label: t(zone.labelKey), value: zone.value })))
-const localeOptions = computed(() => [
-  { label: t('settings.albanianKosovo'), value: 'sq-XK' },
-  { label: t('settings.englishUnitedStates'), value: 'en-US' },
-  { label: t('settings.germanSwitzerland'), value: 'de-CH' },
-  { label: t('settings.italianSwitzerland'), value: 'it-CH' },
-  { label: t('settings.frenchSwitzerland'), value: 'fr-CH' },
-  { label: t('settings.turkishTurkey'), value: 'tr-TR' },
-])
-function toggleGoal(goal: string, checked: boolean) {
-  if (checked && !form.goals.includes(goal)) form.goals.push(goal)
-  if (!checked) form.goals = form.goals.filter((item) => item !== goal)
-}
 function addFact() {
   form.facts.push({
     id: crypto.randomUUID(),
@@ -104,10 +81,15 @@ async function next() {
   busy.value = true
   try {
     if (step.value === 0) {
+      const fact = form.facts[0]
       if (
         form.name.trim().length < 2 ||
         form.city.trim().length < 2 ||
-        form.description.trim().length < 10
+        !form.industry.trim() ||
+        form.description.trim().length < 10 ||
+        !form.audience.trim() ||
+        !fact?.text.trim() ||
+        !fact.verified
       ) {
         error.value = t('onboarding.requiredBusinessFields')
         return
@@ -235,7 +217,6 @@ async function finishLater() {
     <span role="status" class="sr-only">{{ t('onboarding.stepStatus', { step: step + 1 }) }}: {{ steps[step] }}</span>
     <UForm :state="form" class="space-y-5" @submit="next" @error="onFormError">
       <template v-if="step === 0">
-        <LogoUpload v-if="hadWorkspace" />
         <UFormField :label="t('onboarding.businessName')" name="name" required
           ><UInput
             v-model="form.name"
@@ -254,104 +235,54 @@ async function finishLater() {
               maxlength="120"
               :placeholder="t('onboarding.cityPlaceholder')"
               class="w-full" /></UFormField
-          ><UFormField :label="t('onboarding.industry')" name="industry"
+          ><UFormField :label="t('onboarding.industry')" name="industry" required
             ><UInput
               v-model="form.industry"
+              required
               maxlength="200"
               :placeholder="t('onboarding.industryPlaceholder')"
               class="w-full"
           /></UFormField>
         </div>
-        <UFormField
-          :label="t('onboarding.offer')"
-          name="description"
-          :description="t('onboarding.offerDescription')"
-          required
+        <UFormField :label="t('onboarding.offer')" name="description" required
           ><UTextarea
             v-model="form.description"
             required
             minlength="10"
             maxlength="2000"
-            :rows="4"
+            :rows="3"
+            :placeholder="t('onboarding.offerDescription')"
             class="w-full"
         /></UFormField>
-        <UFormField :label="t('onboarding.voice')" name="voice"
+        <UFormField :label="t('brand.audience')" name="audience" required
           ><UTextarea
-            v-model="form.voice"
+            v-model="form.audience"
+            required
             maxlength="1000"
             :rows="2"
-            :placeholder="t('onboarding.voicePlaceholder')"
+            :placeholder="t('brand.audiencePlaceholder')"
             class="w-full"
         /></UFormField>
-        <div class="grid sm:grid-cols-2 gap-4">
-          <UFormField :label="t('onboarding.timezone')" name="timezone"
-            ><USelect v-model="form.timezone" :items="timezoneOptions" class="w-full" /></UFormField
-          ><UFormField :label="t('onboarding.language')" name="locale"
-            ><USelect v-model="form.locale" :items="localeOptions" class="w-full"
-          /></UFormField>
-        </div>
-        <UFormField
-          :label="t('onboarding.goals')"
-          :description="t('onboarding.goalsDescription')"
-        >
-          <div class="grid sm:grid-cols-2 gap-3">
-            <UCheckbox
-              v-for="goal in goalOptions"
-              :key="goal"
-              :model-value="form.goals.includes(goal)"
-              :label="goalLabel(goal)"
-              @update:model-value="toggleGoal(goal, $event === true)"
-              @keydown.enter.prevent="toggleGoal(goal, !form.goals.includes(goal))"
+        <UFormField v-if="form.facts[0]" :label="t('onboarding.firstFact')" required>
+          <div class="space-y-2">
+            <UInput
+              v-model="form.facts[0].text"
+              required
+              maxlength="1000"
+              class="w-full"
+              :placeholder="t('onboarding.firstFactPlaceholder')"
             />
-          </div>
-        </UFormField>
-        <UFormField
-          :label="t('onboarding.facts')"
-          :description="t('onboarding.factsDescription')"
-        >
-          <div class="space-y-3">
-            <UCard
-              v-for="(fact, index) in form.facts"
-              :key="fact.id"
-              variant="outline"
-              :ui="{ body: 'p-4 space-y-3' }"
-            >
-              <UTextarea
-                v-model="fact.text"
-                :rows="2"
-                maxlength="1000"
-                class="w-full"
-                :placeholder="t('onboarding.factPlaceholder', { index: index + 1 })"
-              />
-              <UInput
-                v-model="fact.source"
-                maxlength="500"
-                class="w-full"
-                :placeholder="t('onboarding.factSource')"
-              />
-              <div class="flex items-center justify-between gap-3">
-                <UCheckbox v-model="fact.verified" :label="t('onboarding.factChecked')" />
-                <UButton
-                  type="button"
-                  color="neutral"
-                  variant="ghost"
-                  icon="i-lucide-trash-2"
-                  :aria-label="t('onboarding.removeFact', { index: index + 1 })"
-                  @click="form.facts.splice(index, 1)"
-                />
-              </div>
-            </UCard>
-            <UButton type="button" color="neutral" variant="outline" icon="i-lucide-plus" @click="addFact"
-              >{{ t('onboarding.addFact') }}</UButton
-            >
+            <UCheckbox v-model="form.facts[0].verified" :label="t('onboarding.factChecked')" />
           </div>
         </UFormField>
       </template>
       <template v-else-if="step === 1">
-        <LogoUpload v-if="!hadWorkspace" />
-        <SocialConnections compact />
-        <InstagramConnection />
-        <TikTokConnection />
+        <LogoUpload />
+        <div class="grid gap-3 sm:grid-cols-2">
+          <SocialConnections compact />
+          <InstagramConnection />
+          <TikTokConnection />
+        </div>
       </template>
       <template v-else>
         <UCard :ui="{ body: 'p-5 space-y-4' }"
@@ -391,7 +322,6 @@ async function finishLater() {
         ><UButton
           :loading="busy"
           type="submit"
-          variant="outline"
           trailing-icon="i-lucide-arrow-right"
           class="flex-1 justify-center"
           >{{
@@ -399,7 +329,7 @@ async function finishLater() {
           }}</UButton
         >
       </div>
-      <UButton v-if="context" type="button" variant="link" color="neutral" block @click="finishLater"
+      <UButton v-if="context" type="button" variant="ghost" color="neutral" block @click="finishLater"
         >{{ t('onboarding.finishLater') }}</UButton
       >
     </UForm>

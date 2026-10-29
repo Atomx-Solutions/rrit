@@ -103,11 +103,19 @@ function onOfferAfterLeave() {
 watch(() => billingDetailsData.value?.details, (details) => {
   if (details) Object.assign(detailsForm, details)
 }, { immediate: true })
+// Pages are kept alive, so this page's watchers keep running after leaving it.
+// The usage the header refreshes elsewhere (or that fails on onboarding, where
+// there is no business yet) must not raise this page's warning there.
+const pageActive = ref(true)
+onActivated(() => { pageActive.value = true })
+onDeactivated(() => { pageActive.value = false })
 watch(usageError, (value) => {
-  if (value) showError(t('billing.usageLoadError'), 'warning')
+  if (value && pageActive.value) showError(t('billing.usageLoadError'), 'warning')
 }, { immediate: true })
 
 const customPackage = computed(() => billing.value?.customPackage || null)
+const { data: headerUsage } = useHeaderUsage()
+const creditBalance = computed(() => headerUsage.value?.credits?.remaining)
 const serverPackageProposal = computed(() => billing.value?.packageProposal || null)
 // Videos and credits are only sold on top of a running package, so without one
 // only an offer with posts is shown.
@@ -144,7 +152,6 @@ const proposalSummary = computed(() => {
     }))
   return parts.join(' · ')
 })
-const postsUsage = computed(() => usage.value?.usage.find((item: { key: string }) => item.key === 'posts_per_month'))
 const creditPrice = computed(() => billing.value?.creditPrice || 0)
 // Credits are bought for the package that is running, so the offer only makes
 // sense to someone who has one.
@@ -198,7 +205,7 @@ watch(billing, (value) => {
   }
 }, { immediate: true })
 async function refreshLiveProposal() {
-  if (document.visibilityState !== 'visible') return
+  if (document.visibilityState !== 'visible' || !pageActive.value) return
   await Promise.all([refreshBilling(), refreshCreditBalance(), refreshUsage()])
   const proposal = billing.value?.packageProposal
   const proposalId = proposal ? `${proposal.name}:${proposal.startsAt}:${proposal.endsAt}` : null
@@ -222,15 +229,25 @@ async function refreshAfterPayment() {
     }
   }, 500)
 }
-onMounted(() => {
+// The page is kept alive after leaving it, so its polling starts when it is
+// shown and stops when it is left; otherwise it kept asking the server from
+// other pages, and for a business that no longer exists, every few seconds.
+function startPolling() {
+  if (packageRefreshTimer) return
   packageRefreshTimer = setInterval(() => { void refreshLiveProposal() }, 5000)
   window.addEventListener('focus', refreshLiveProposal)
-})
-onBeforeUnmount(() => {
+}
+function stopPolling() {
   if (packageRefreshTimer) clearInterval(packageRefreshTimer)
+  packageRefreshTimer = undefined
   if (paymentRefreshTimer) clearInterval(paymentRefreshTimer)
+  paymentRefreshTimer = undefined
   window.removeEventListener('focus', refreshLiveProposal)
-})
+}
+onMounted(startPolling)
+onActivated(startPolling)
+onDeactivated(stopPolling)
+onBeforeUnmount(stopPolling)
 
 function formatPeriodDate(value: string) {
   return new Intl.DateTimeFormat('sq-XK', {
@@ -266,10 +283,6 @@ function usageState(item: { key: string; current: number; limit: number }) {
   if (limit > 0 && item.current / limit >= 0.8) return 'warning'
   return 'normal'
 }
-const postsRemaining = computed(() => {
-  if (!postsUsage.value) return 0
-  return Math.max(0, usageLimit(postsUsage.value) - postsUsage.value.current)
-})
 const usageLabels: Record<string, string> = {
   posts_per_month: 'billing.usagePosts', videos_per_month: 'billing.usageVideos', ai_requests_per_day: 'billing.usageAi',
   media_storage_bytes: 'billing.usageStorage', social_accounts: 'billing.usageSocial', members: 'billing.usageMembers',
@@ -389,119 +402,109 @@ async function declineProposal() {
       </template>
     </UModal>
 
-    <UCard v-if="customPackage" :ui="{ body: 'p-4 sm:p-5 flex items-start gap-4' }">
-      <UIcon name="i-lucide-handshake" class="size-5 shrink-0 text-primary mt-0.5" />
-      <div class="space-y-1">
-        <h2 class="text-sm font-semibold">{{ t('billing.customPackageActive') }}</h2>
-        <p class="text-sm font-medium">{{ customPackage.name }}</p>
-        <p v-if="customPackage.postsIncluded > 0" class="text-sm text-muted">{{ t('billing.customPackagePosts', { count: customPackage.postsIncluded }) }}</p>
-        <p v-if="(customPackage.videosIncluded ?? 0) > 0" class="text-sm text-muted">{{ t('billing.proposalVideos', { count: customPackage.videosIncluded }) }}</p>
-        <p class="text-xs text-muted" data-testid="custom-package-end">
-          {{ t('billing.customPackagePeriod', { start: formatPeriodDate(customPackage.startsAt), end: formatPeriodDate(customPackage.endsAt) }) }}
-        </p>
-        <p class="text-xs text-muted" data-testid="custom-package-days-remaining">
-          {{ t('billing.customPackageDaysRemaining', { count: customPackage.remainingDays }) }}
-        </p>
-        <p class="text-xs text-muted">{{ t('billing.customPackageContact') }}</p>
+    <!-- What the business has comes first: its package, its credits and how
+         much of the package is used. What it can add follows. -->
+    <UCard as="section" :ui="{ body: 'p-4 sm:p-6 space-y-5' }">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="flex min-w-0 gap-3">
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-package" class="size-5" />
+          </div>
+          <div class="min-w-0 space-y-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-base font-semibold">{{ customPackage ? customPackage.name : t('billing.noPackage') }}</h2>
+              <UBadge v-if="customPackage" :color="customPackage.remainingDays <= 7 ? 'warning' : 'success'" variant="subtle" size="sm">
+                {{ t('billing.customPackageDaysRemaining', { count: customPackage.remainingDays }) }}
+              </UBadge>
+            </div>
+            <p v-if="customPackage" class="text-sm text-muted" data-testid="custom-package-end">
+              {{ t('billing.customPackagePeriod', { start: formatPeriodDate(customPackage.startsAt), end: formatPeriodDate(customPackage.endsAt) }) }}
+            </p>
+            <p v-else class="text-sm text-muted">{{ t('request.appBody') }}</p>
+            <span v-if="customPackage" class="sr-only" data-testid="custom-package-days-remaining">{{ t('billing.customPackageDaysRemaining', { count: customPackage.remainingDays }) }}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-4 sm:flex-col sm:items-end sm:gap-2">
+          <div v-if="creditBalance !== undefined" class="text-start sm:text-end">
+            <p class="text-2xl font-semibold tabular-nums leading-none">{{ creditBalance }}</p>
+            <p class="mt-1 text-xs text-muted">{{ t('billing.credits') }}</p>
+          </div>
+          <UModal
+            v-model:open="requestOpen"
+            :dismissible="false"
+            :close="true"
+            :title="customPackage ? t('request.appRenewTitle') : t('request.appTitle')"
+          >
+            <UButton
+              trailing-icon="i-lucide-arrow-right"
+              :label="customPackage ? t('request.appRenewCta') : t('request.appCta')"
+              class="ml-auto justify-center whitespace-nowrap sm:ml-0"
+            />
+            <template #body>
+              <PackageRequestForm
+                endpoint="/api/billing/package-request"
+                compact
+                contact-known
+                :currency="(billing?.currency === 'EUR' ? 'EUR' : 'CHF')"
+                :exchange-rate="billing?.exchangeRate || 1"
+                @sent="requestOpen = false"
+              />
+            </template>
+          </UModal>
+        </div>
+      </div>
+      <!-- Each allowance as a tile: what is used of what is included, and a
+           bar that turns amber when it runs low and red when it is used up. -->
+      <div v-if="usage" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div v-for="item in usage.usage" :key="item.key" class="space-y-2 rounded-lg border border-default p-3">
+          <p class="truncate text-xs text-muted">{{ t(usageLabels[item.key] || item.key) }}</p>
+          <p class="text-lg font-semibold tabular-nums leading-none">
+            {{ usageValue(item.key, item.current) }}<span class="text-sm font-normal text-muted"> / {{ usageValue(item.key, usageLimit(item)) }}</span>
+          </p>
+          <UProgress :model-value="usagePercentage(item)" size="sm" :color="usageState(item) === 'exhausted' ? 'error' : usageState(item) === 'warning' ? 'warning' : 'primary'" />
+        </div>
       </div>
     </UCard>
 
-    <!-- Packages are activated by the team, so the invitation lives here as
-         a real card and the form opens in a modal on demand. -->
-    <UCard as="section" :ui="{ body: 'p-4 sm:p-5' }">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex min-w-0 gap-3">
-          <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <UIcon name="i-lucide-package-plus" class="size-5" />
+    <!-- What can be added to a running package, side by side where there is room. -->
+    <div v-if="customPackage" class="grid gap-3 sm:grid-cols-2">
+      <UCard as="section" :ui="{ body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
+        <div class="flex gap-3">
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-clapperboard" class="size-5" />
           </div>
-          <div class="min-w-0 space-y-1.5">
-            <h2 class="text-base font-semibold">
-              {{ customPackage ? t('request.appRenewTitle') : t('request.appTitle') }}
-            </h2>
-            <p class="text-sm font-medium">{{ t('request.appLede') }}</p>
-            <p class="text-sm text-muted leading-5">{{ t('request.appBody') }}</p>
-            <p class="pt-1 text-xs text-muted flex items-center gap-1.5">
-              <UIcon name="i-lucide-clock-3" class="size-3.5" />
-              {{ t('request.appNote') }}
-            </p>
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold">{{ t('billing.videos') }}</h2>
+            <p class="mt-0.5 text-sm text-muted">{{ t('billing.videosDescription') }}</p>
           </div>
         </div>
-        <UModal
-          v-model:open="requestOpen"
-          :dismissible="false"
-          :close="true"
-          :title="customPackage ? t('request.appRenewTitle') : t('request.appTitle')"
-        >
-          <UButton
-            color="primary"
-            variant="solid"
-            trailing-icon="i-lucide-arrow-right"
-            :label="customPackage ? t('request.appRenewCta') : t('request.appCta')"
-            class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
-          />
-          <template #body>
-            <PackageRequestForm
-              endpoint="/api/billing/package-request"
-              compact
-              contact-known
-              :currency="(billing?.currency === 'EUR' ? 'EUR' : 'CHF')"
-              :exchange-rate="billing?.exchangeRate || 1"
-              @sent="requestOpen = false"
-            />
-          </template>
-        </UModal>
-      </div>
-      <!-- Videos, like credits, are only added to a package that is running. -->
-      <template v-if="customPackage">
-        <USeparator class="my-5" />
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex min-w-0 gap-3">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <UIcon name="i-lucide-clapperboard" class="size-5" />
-            </div>
-            <div class="min-w-0 space-y-1.5">
-              <h2 class="text-base font-semibold">{{ t('billing.videos') }}</h2>
-              <p class="text-sm font-medium">{{ t('billing.needMoreVideos') }}</p>
-              <p class="text-sm text-muted leading-relaxed">{{ t('billing.videosDescription') }}</p>
-            </div>
+        <UButton
+          variant="outline"
+          icon="i-lucide-clapperboard"
+          :label="t('billing.requestVideos')"
+          class="mt-auto w-full justify-center"
+          @click="videoRequestOpen = true"
+        />
+      </UCard>
+      <UCard v-if="canBuyCredits" as="section" :ui="{ body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
+        <div class="flex gap-3">
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-coins" class="size-5" />
           </div>
-          <UButton
-            color="primary"
-            variant="outline"
-            icon="i-lucide-clapperboard"
-            :label="t('billing.requestVideos')"
-            class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
-            @click="videoRequestOpen = true"
-          />
-        </div>
-      </template>
-      <!-- Credits are bought the same way a package is, so the two live in one
-           card. The balance is not repeated here: the header already carries
-           it on every page. -->
-      <template v-if="canBuyCredits">
-        <USeparator class="my-5" />
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex min-w-0 gap-3">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <UIcon name="i-lucide-coins" class="size-5" />
-            </div>
-            <div class="min-w-0 space-y-1.5">
-              <h2 class="text-base font-semibold">{{ t('billing.credits') }}</h2>
-              <p class="text-sm font-medium">{{ t('billing.buyCreditsLede') }}</p>
-              <p class="text-sm text-muted leading-relaxed">{{ t('billing.creditsDescription') }}</p>
-            </div>
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold">{{ t('billing.credits') }}</h2>
+            <p class="mt-0.5 text-sm text-muted">{{ t('billing.creditsDescription') }}</p>
           </div>
-          <UButton
-            color="primary"
-            variant="outline"
-            icon="i-lucide-coins"
-            :label="t('billing.buyCredits')"
-            class="w-full justify-center whitespace-nowrap sm:w-52 sm:self-auto"
-            @click="creditRequestOpen = true"
-          />
         </div>
-      </template>
-    </UCard>
+        <UButton
+          variant="outline"
+          icon="i-lucide-coins"
+          :label="t('billing.buyCredits')"
+          class="mt-auto w-full justify-center"
+          @click="creditRequestOpen = true"
+        />
+      </UCard>
+    </div>
 
     <UModal v-model:open="creditRequestOpen" :title="t('billing.buyCreditsTitle')" :description="t('billing.buyCreditsDescription')">
       <template #body>
@@ -536,17 +539,6 @@ async function declineProposal() {
       <template #footer><div class="flex w-full justify-end gap-2"><UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="videoRequestOpen = false" /><UButton :loading="sendingVideoRequest" :disabled="videosRequested < 1" :label="t('billing.requestVideosSubmit')" @click="sendVideoRequest" /></div></template>
     </UModal>
 
-    <template v-if="usage">
-      <UCard as="section" :ui="{ body: 'p-4' }">
-        <div class="mb-5"><h2 class="text-sm font-semibold">{{ t('billing.currentUsage') }}</h2><p class="text-sm text-muted mt-1">{{ t('billing.currentUsageDescription') }}</p><p v-if="postsUsage" class="text-sm font-medium mt-2">{{ t('billing.postsRemaining', { count: usageValue('posts_per_month', postsRemaining) }) }}</p></div>
-        <div class="grid gap-5 sm:grid-cols-2">
-          <div v-for="item in usage.usage" :key="item.key" class="space-y-2">
-            <div class="flex items-center justify-between gap-3 text-sm"><span>{{ t(usageLabels[item.key] || item.key) }}</span><span class="tabular-nums text-muted">{{ usageValue(item.key, item.current) }} / {{ usageValue(item.key, usageLimit(item)) }}</span></div>
-            <UProgress :model-value="usagePercentage(item)" :color="usageState(item) === 'exhausted' ? 'error' : usageState(item) === 'warning' ? 'warning' : 'primary'" />
-          </div>
-        </div>
-      </UCard>
-    </template>
 
     <UCard id="billing-details" as="section" :ui="{ body: 'p-4 sm:p-5', header: 'px-5 py-4' }">
       <template #header><h2 class="text-sm font-semibold">{{ t('billing.detailsTitle') }}</h2><p class="text-xs text-muted mt-1">{{ t('billing.detailsDescription') }}</p></template>

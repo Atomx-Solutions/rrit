@@ -1505,7 +1505,7 @@ describe('Meta transport and token security', () => {
     expect(publicationFailureDisposition('failed', 'meta_authentication_190')).toBe('blocked')
     expect(publicationFailureDisposition('failed', 'meta_permission_200')).toBe('blocked')
     expect(publicationFailureDisposition('failed', 'meta_media_36003')).toBe('terminal')
-    expect(publicationRemediation('meta_authentication_190')).toContain('Rilidhe')
+    expect(publicationRemediation('meta_authentication_190')).toBe('publication.fixAuthentication')
   })
 
   it('binds encrypted tokens to their business and detects modification', () => {

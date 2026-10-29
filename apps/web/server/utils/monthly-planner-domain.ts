@@ -999,6 +999,12 @@ export const plannerMessages: Record<string, string> = {
     'Kostoja e shërbima bazohet i rezervimin. Platforma duhet të rishikojë kufijtë përpara vazhdimit.',
 }
 
+// The translation key a planner code is shown with, so the business reads it
+// in its own language; a code without a message falls back to the given key.
+export function plannerMessageKey(code: string, fallback: string) {
+  return plannerMessages[code] ? `planner.${code}` : fallback
+}
+
 /**
  * Posts the package still allows this month (3 / 14 / 30 / 60). With Pako 1
  * and 14 posts created it returns 0, so the 15th generation is blocked.

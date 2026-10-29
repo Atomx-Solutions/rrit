@@ -132,6 +132,19 @@ select {
   outline: 3px solid var(--rrit-color-focus);
   outline-offset: 4px;
 }
+/* An option in an open list is shown by its highlight; the focus outline would
+   be clipped by the list into stray lines above and below it. */
+[role='option']:focus-visible {
+  outline: none;
+}
+/* A select or menu button gets focus back when its list closes, even after a
+   click, which drew the thick outline as if it were still selected. It shows
+   focus with the same thin border as an input instead. */
+[role='combobox']:focus-visible,
+[aria-haspopup]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--rrit-color-focus);
+}
 /* Nuxt UI applies a second hard outline; inputs use one border and a soft halo. */
 input:focus-visible,
 textarea:focus-visible {

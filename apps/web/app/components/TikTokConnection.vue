@@ -22,9 +22,9 @@ async function disconnect() {
 }
 </script>
 <template>
-  <UCard :ui="{ body: 'p-4 sm:p-5' }">
+  <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
     <div class="flex items-center gap-3">
-      <UAvatar :ui="{ root: 'bg-elevated text-default rounded-xl' }">
+      <UAvatar :ui="{ root: 'bg-inverted/10 text-highlighted rounded-xl' }">
         <template #default><TikTokMark class="size-5 text-highlighted" /></template>
       </UAvatar>
       <div class="min-w-0 flex-1">
@@ -43,31 +43,34 @@ async function disconnect() {
         color="success"
       >{{ t('tiktok.connected') }}</UBadge>
     </div>
-  </UCard>
-  <div class="flex flex-wrap gap-2 mt-3">
+    <p v-if="error" class="text-sm text-error">{{ error }}</p>
+    <div class="mt-auto flex gap-2">
       <UButton
         type="button"
         :loading="busy"
         :disabled="!status?.configured"
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-link"
-        class="rounded-lg px-3 font-medium"
+        :color="status?.connection?.status === 'connected' ? 'neutral' : 'primary'"
+        :variant="status?.connection?.status === 'connected' ? 'soft' : 'solid'"
+        :icon="status?.connection?.status === 'connected' ? 'i-lucide-refresh-cw' : 'i-lucide-plug-zap'"
+        size="sm"
+        class="flex-1 justify-center"
         @click="connect"
       >{{ status?.connection?.status === 'connected' ? t('social.changeConnection') : t('tiktok.connect') }}</UButton>
       <UButton
         v-if="status?.connection?.status === 'connected'"
         type="button"
-        color="neutral"
-        variant="outline"
+        color="error"
+        variant="soft"
         icon="i-lucide-unplug"
-        class="rounded-lg px-3 font-medium"
+        size="sm"
+        class="flex-1 justify-center"
         @click="disconnecting = true"
       >{{ t('social.disconnect') }}</UButton>
-  </div>
-  <p v-if="error" class="mt-3 text-sm text-error">{{ error }}</p>
+    </div>
+  </UCard>
     <UModal
       v-model:open="disconnecting"
+      :dismissible="false"
       :title="t('tiktok.disconnectTitle')"
       :description="t('tiktok.disconnectDescription')"
     >

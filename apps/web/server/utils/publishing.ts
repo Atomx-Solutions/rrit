@@ -314,24 +314,24 @@ export function publicationFailureDisposition(status: string, code: string | nul
 
 export function publicationRemediation(code: string | null) {
   if (code?.startsWith('meta_authentication_'))
-    return 'Rilidhe llogarinë Meta; token-i aktual nuk është më i vlefshëm.'
+    return 'publication.fixAuthentication'
   if (code?.startsWith('meta_permission_'))
-    return 'Rilidhe llogarinë Meta dhe mirato lejet e kërkuara për publikim.'
+    return 'publication.fixPermission'
   if (code?.startsWith('meta_media_') || code === 'container_rejected')
-    return 'Kontrollo formatin dhe madhësinë e fotografisë, pastaj valido postimin sërish.'
+    return 'publication.fixMedia'
   if (
     code?.startsWith('meta_rate_limit_') ||
     code?.startsWith('meta_server_') ||
     code?.startsWith('meta_network_')
   )
-    return 'Meta është përkohësisht e zënë; sistemi do të provojë sërish automatikisht.'
+    return 'publication.busy'
   if (code?.startsWith('retry_exhausted_'))
-    return 'Tentimet automatike përfunduan. Kontrollo lidhjen dhe nise publikimin sërish.'
+    return 'publication.retryExhausted'
   if (code === 'version_changed')
-    return 'Postimi ndryshoi pas planifikimit. Kontrollo dhe mirato versionin aktual.'
+    return 'publication.versionChanged'
   if (code === 'preflight_failed' || code === 'publication_check_failed')
-    return 'Kontrollo lidhjen, përmbajtjen dhe fotografinë, pastaj valido postimin sërish.'
-  return 'Kontrollo gjendjen e lidhjes dhe postimin përpara një tentimi të ri.'
+    return 'publication.checkFailed'
+  return 'publication.checkConnection'
 }
 
 async function schedulePublicationRetry(job: Job, error: MetaFailure, db: Pool) {
@@ -412,9 +412,9 @@ async function finishJob(
       post.status = state === 'published' ? 'published' : 'failed'
       post.policyReason =
         state === 'published'
-          ? 'Meta e konfirmoi publikimin.'
+          ? 'publication.confirmed'
           : state === 'uncertain'
-            ? 'Meta nuk dha konfirmim të plotë. Kontrollo profilin përpara çdo riprovimi; postimi nuk ridërgohet automatikisht.'
+            ? 'publication.uncertain'
             : publicationRemediation(code)
       if (state === 'published') {
         post.providerPostId = providerId
