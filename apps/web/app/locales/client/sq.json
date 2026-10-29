@@ -2264,5 +2264,7 @@
   "content.removedFromNetwork": "Postimi u fshi nga {{channel}}. Mund ta publikosh përsëri.",
   "server.POST_REMOVED_FROM_NETWORK": "Postimi u fshi nga rrjeti pas publikimit. Mund të publikohet përsëri.",
   "content.removedFromNetworkCount": "{{count}} postime u fshinë nga rrjetet dhe mund të publikohen përsëri.",
-  "server.PAYMENT_BELOW_MINIMUM": "Kjo ofertë është nën shumën minimale që pranon procesori i pagesave. Kontakto ekipin për një ofertë të re."
+  "server.PAYMENT_BELOW_MINIMUM": "Kjo ofertë është nën shumën minimale që pranon procesori i pagesave. Kontakto ekipin për një ofertë të re.",
+  "content.repostedBadge": "Ripostuar",
+  "content.deletedBadge": "Fshirë në rrjet"
 }

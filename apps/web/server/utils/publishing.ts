@@ -190,6 +190,15 @@ export function uniquePublicationMatch(candidates: ProviderPublication[], post: 
 export function instagramContainerTimedOut(startedAt: Date, now = Date.now()) {
   return now - startedAt.getTime() > 3600000
 }
+// Instagram usually finishes an image container within seconds and a Reel
+// within a few minutes, so a fresh container is asked about often and an old
+// one less often.
+export function instagramContainerPollSeconds(startedAt: Date, now = Date.now()) {
+  const elapsed = now - startedAt.getTime()
+  if (elapsed < 60000) return 5
+  if (elapsed < 300000) return 15
+  return 60
+}
 
 export function publishingMaxAttempts(value = process.env.PUBLISHING_MAX_ATTEMPTS) {
   const parsed = Number(value || 5)
@@ -351,13 +360,13 @@ async function schedulePublicationRetry(job: Job, error: MetaFailure, db: Pool) 
   }
 }
 
-async function deferPublicationJob(job: Job, db: Pool) {
+async function deferPublicationJob(job: Job, db: Pool, seconds: number) {
   const client = await db.connect()
   try {
     await client.query('BEGIN')
     const result = await client.query(
-      "UPDATE publication_jobs SET status='pending',run_at=now()+interval '1 minute',locked_at=null,updated_at=now() WHERE id=$1 AND status='processing' RETURNING id",
-      [job.id],
+      "UPDATE publication_jobs SET status='pending',run_at=now()+make_interval(secs => $2),locked_at=null,updated_at=now() WHERE id=$1 AND status='processing' RETURNING id",
+      [job.id, seconds],
     )
     if (result.rowCount) await recordPublicationAttempt(client, job, 'deferred')
     await client.query('COMMIT')
@@ -661,7 +670,7 @@ async function runOnePublishingJob(db: Pool) {
         const startedAt = job.container_started_at
         if (!startedAt) throw new Error('container_start_missing')
         if (instagramContainerTimedOut(startedAt)) throw new Error('container_timeout')
-        await deferPublicationJob(job, db)
+        await deferPublicationJob(job, db, instagramContainerPollSeconds(startedAt))
         return { processed: 1 }
       }
       if (status.status_code !== 'FINISHED') throw new Error('container_rejected')

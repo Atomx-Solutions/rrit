@@ -559,6 +559,7 @@ onBeforeUnmount(() => {
           <div class="actions" style="justify-content: space-between">
             <h2>{{ t('content.contentDetails') }}</h2>
             <StatusBadge v-if="post" :status="post.status" />
+            <RepostBadge v-if="post" :post="post" />
           </div>
           <UFormField
             :label="t('content.postName')"

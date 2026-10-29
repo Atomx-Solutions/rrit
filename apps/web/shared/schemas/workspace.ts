@@ -89,6 +89,9 @@ export const postSchema = z.object({
   campaignId: z.string().optional(),
   providerPostId: z.string().optional(),
   publishedAt: z.string().optional(),
+  // Each time the post was found deleted on Facebook or Instagram after
+  // publishing; kept so a post published again is marked as reposted.
+  networkRemovals: z.array(z.object({ providerPostId: z.string(), at: z.iso.datetime() })).optional(),
   // How the post was last handed to TikTok: sent to the account holder's
   // inbox as a draft, or left ready for manual publishing because TikTok would
   // not take it from this app (the reason is TikTok's own error code).

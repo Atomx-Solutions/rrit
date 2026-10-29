@@ -2264,5 +2264,7 @@
   "content.removedFromNetwork": "Gönderi {{channel}} üzerinden silindi. Yeniden yayınlayabilirsiniz.",
   "server.POST_REMOVED_FROM_NETWORK": "Gönderi yayınlandıktan sonra ağdan silindi. Yeniden yayınlanabilir.",
   "content.removedFromNetworkCount": "{{count}} gönderi ağlardan silindi ve yeniden yayınlanabilir.",
-  "server.PAYMENT_BELOW_MINIMUM": "Bu teklif, ödeme sağlayıcısının kabul ettiği minimum tutarın altında. Yeni bir teklif için ekiple iletişime geçin."
+  "server.PAYMENT_BELOW_MINIMUM": "Bu teklif, ödeme sağlayıcısının kabul ettiği minimum tutarın altında. Yeni bir teklif için ekiple iletişime geçin.",
+  "content.repostedBadge": "Yeniden yayınlandı",
+  "content.deletedBadge": "Ağda silindi"
 }
