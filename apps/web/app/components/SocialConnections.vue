@@ -107,17 +107,16 @@ onMounted(async () => {
 })
 </script>
 <template>
-  <div class="space-y-4">
-    <div :class="compact ? 'space-y-3' : 'grid sm:grid-cols-2 gap-4'">
+  <div class="h-full">
       <UCard
         v-for="channel in ['Facebook']"
         :key="channel"
-        :ui="{ body: 'p-4 sm:p-5' }"
+        :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }"
       >
         <div class="flex items-center gap-3">
           <UAvatar
             :icon="channel === 'Facebook' ? 'i-lucide-facebook' : 'i-lucide-instagram'"
-            :ui="{ root: 'bg-elevated text-default rounded-xl' }"
+            :ui="{ root: 'bg-blue-500/10 text-blue-500 rounded-xl', icon: 'size-5' }"
           />
           <div class="min-w-0 flex-1">
             <h3 class="font-semibold text-sm">{{ channel }}</h3>
@@ -141,42 +140,47 @@ onMounted(async () => {
             >{{ t('social.connected') }}</UBadge
           >
         </div>
+        <p v-if="!status?.configured && !statusError" class="text-sm text-muted">
+          {{ t('social.preparing') }}
+        </p>
+        <div class="mt-auto flex flex-wrap gap-2">
+          <UButton
+            type="button"
+            :loading="busy"
+            :disabled="!status?.configured"
+            :color="connected ? 'neutral' : 'primary'"
+            :variant="connected ? 'soft' : 'solid'"
+            :icon="connected ? 'i-lucide-refresh-cw' : 'i-lucide-plug-zap'"
+            size="sm"
+            class="flex-1 justify-center"
+            @click="connect"
+            >{{ connected ? t('social.changeConnection') : t('social.connectMeta') }}</UButton
+          >
+          <UButton
+            v-if="status?.connection?.status === 'pending'"
+            type="button"
+            :loading="busy"
+            variant="soft"
+            color="neutral"
+            icon="i-lucide-list-checks"
+            size="sm"
+            class="flex-1 justify-center"
+            @click="loadPages()"
+            >{{ t('social.choosePage') }}</UButton
+          >
+          <UButton
+            v-if="connected"
+            type="button"
+            color="error"
+            variant="soft"
+            icon="i-lucide-unplug"
+            size="sm"
+            class="flex-1 justify-center"
+            @click="disconnecting = true"
+            >{{ t('social.disconnect') }}</UButton
+          >
+        </div>
       </UCard>
-    </div>
-    <p v-if="!status?.configured && !statusError" class="text-sm text-muted">
-      {{ t('social.preparing') }}
-    </p>
-    <div class="flex flex-wrap gap-2">
-      <UButton
-        type="button"
-        :loading="busy"
-        :disabled="!status?.configured"
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-link"
-        @click="connect"
-        >{{ connected ? t('social.changeConnection') : t('social.connectMeta') }}</UButton
-      >
-      <UButton
-        v-if="status?.connection?.status === 'pending'"
-        type="button"
-        :loading="busy"
-        variant="outline"
-        color="neutral"
-        @click="loadPages()"
-        >{{ t('social.choosePage') }}</UButton
-      >
-      <UButton
-        v-if="connected"
-        type="button"
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-unplug"
-        class="rounded-lg px-3 font-medium"
-        @click="disconnecting = true"
-        >{{ t('social.disconnect') }}</UButton
-      >
-    </div>
     <UModal
       v-model:open="selecting"
       :title="t('social.chooseBusiness')"
@@ -239,6 +243,7 @@ onMounted(async () => {
     </UModal>
     <UModal
       v-model:open="disconnecting"
+      :dismissible="false"
       :title="t('social.disconnectTitle')"
       :description="t('social.disconnectDescription')"
     >

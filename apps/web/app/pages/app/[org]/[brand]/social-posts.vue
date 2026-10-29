@@ -94,6 +94,14 @@ async function sync(more = false) {
     importing.value = false
   }
 }
+// Network and import source wait in a side panel, as on the posts list.
+const filtersOpen = ref(false)
+const networkFilters = computed(() => [
+  { label: t('content.filterAll'), value: 'all' as const, icon: 'i-lucide-globe' },
+  { label: 'Facebook', value: 'Facebook' as const, icon: 'i-lucide-facebook' },
+  { label: 'Instagram', value: 'Instagram' as const, icon: 'i-lucide-instagram' },
+  { label: 'TikTok', value: 'TikTok' as const, icon: undefined },
+])
 </script>
 <template>
   <DashboardPage
@@ -102,64 +110,91 @@ async function sync(more = false) {
     :description="t('legacy.socialPostsDescription')"
     :toolbar-border="false"
   >
-    <SocialConnections />
-    <div class="mt-6"><InstagramConnection /></div>
-    <div class="mt-6"><TikTokConnection /></div>
-    <div class="mt-6 border-t border-default pt-6">
-      <div class="flex flex-wrap items-end gap-3">
-      <UFormField :label="t('social.importFrom')" size="sm" class="w-32 shrink-0">
-        <USelect
-          v-model="importChannel"
-          size="md"
-          class="h-10 min-h-10 w-full"
-          :items="['Facebook', 'Instagram', 'TikTok']"
-          :disabled="importing"
-        />
-      </UFormField>
-      <UButton
-        size="md"
-        class="h-10 min-h-10 shrink-0 px-4"
-        variant="outline"
-        color="neutral"
-        icon="i-lucide-refresh-cw"
-        :loading="importing"
-        :disabled="!canImport"
-        @click="sync()"
-        >{{ t('social.refreshPosts') }}</UButton
-      >
-      <UButton
-        v-if="hasMore"
-        variant="outline"
-        color="neutral"
-        size="md"
-        class="h-10 min-h-10 shrink-0 px-4"
-        :loading="importing"
-        @click="sync(true)"
-        >{{ t('social.loadOlder') }}</UButton
-      >
-      </div>
+    <!-- One card per network: side by side where there is room, stacked on a phone. -->
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <SocialConnections />
+      <InstagramConnection />
+      <TikTokConnection />
     </div>
-    <div class="flex flex-wrap gap-3 justify-between my-5">
+    <!-- The same toolbar as the posts list: search on the left, the filters
+         behind one button and the main action beside it. -->
+    <div class="mt-6 flex items-center gap-2 border-t border-default pt-6 sm:gap-3">
       <UInput
         v-model="search"
         icon="i-lucide-search"
         :aria-label="t('social.searchImported')"
         :placeholder="t('social.searchText')"
         :maxlength="200"
+        class="min-w-0 flex-1 sm:w-72 sm:flex-none"
       />
-      <UTabs
-        v-model="channel"
-        :content="false"
-        variant="link"
-        :items="[
-          { label: 'Facebook', value: 'Facebook' },
-          { label: 'Instagram', value: 'Instagram' },
-          { label: 'TikTok', value: 'TikTok' },
-          { label: t('common.all'), value: 'all' },
-        ]"
-        :aria-label="t('social.filterNetwork')"
-      />
+      <UButton
+        variant="outline"
+        icon="i-lucide-sliders-horizontal"
+        class="shrink-0 sm:ml-auto"
+        :aria-label="t('content.filters')"
+        @click="filtersOpen = true"
+      >
+        <span class="hidden sm:inline">{{ t('content.filters') }}</span>
+      </UButton>
+      <UButton
+        variant="outline"
+        icon="i-lucide-refresh-cw"
+        class="shrink-0"
+        :loading="importing"
+        :disabled="!canImport"
+        :aria-label="t('social.refreshPosts')"
+        @click="sync()"
+      >
+        <span class="hidden sm:inline">{{ t('social.refreshPosts') }}</span>
+      </UButton>
     </div>
+    <div v-if="hasMore" class="flex justify-end">
+      <UButton variant="outline" color="neutral" size="sm" :loading="importing" @click="sync(true)">{{ t('social.loadOlder') }}</UButton>
+    </div>
+    <USlideover v-model:open="filtersOpen" :title="t('content.filters')" :ui="{ content: 'max-w-sm' }">
+      <template #body>
+        <div class="space-y-6">
+          <fieldset class="space-y-2">
+            <legend class="mb-2 text-sm font-semibold text-highlighted">{{ t('content.networkHeading') }}</legend>
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                v-for="item in networkFilters"
+                :key="item.value"
+                :icon="item.icon"
+                size="sm"
+                :color="channel === item.value ? 'primary' : 'neutral'"
+                :variant="channel === item.value ? 'soft' : 'outline'"
+                :aria-pressed="channel === item.value"
+                @click="channel = item.value"
+              >
+                <TikTokMark v-if="item.value === 'TikTok'" class="size-4" />{{ item.label }}
+              </UButton>
+            </div>
+          </fieldset>
+          <fieldset class="space-y-2">
+            <legend class="mb-2 text-sm font-semibold text-highlighted">{{ t('social.importFrom') }}</legend>
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                v-for="item in networkFilters.filter((entry) => entry.value !== 'all')"
+                :key="item.value"
+                :icon="item.icon"
+                size="sm"
+                :disabled="importing"
+                :color="importChannel === item.value ? 'primary' : 'neutral'"
+                :variant="importChannel === item.value ? 'soft' : 'outline'"
+                :aria-pressed="importChannel === item.value"
+                @click="importChannel = item.value"
+              >
+                <TikTokMark v-if="item.value === 'TikTok'" class="size-4" />{{ item.label }}
+              </UButton>
+            </div>
+          </fieldset>
+        </div>
+      </template>
+      <template #footer>
+        <UButton class="w-full justify-center" @click="filtersOpen = false">{{ t('content.showResults', { count: result?.total ?? 0 }) }}</UButton>
+      </template>
+    </USlideover>
     <UCard
       v-if="result?.posts.length"
       :ui="{ body: 'p-0 sm:p-0' }"
@@ -224,7 +259,7 @@ async function sync(more = false) {
       icon="i-lucide-images"
       :title="t('social.emptyTitle')"
       :description="t('social.emptyDescription')"
-      :actions="[{ label: t('content.createPost'), to: base + '/monthly-planner' }]"
+      :actions="[{ label: t('content.createPost'), to: base + '/monthly-planner', color: 'primary', icon: 'i-lucide-plus' }]"
     />
     <USlideover
       :open="!!selected"

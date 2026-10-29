@@ -305,15 +305,30 @@ const generateMoreLabel = computed(() => {
 // month's whole quota: asking for one post and being shown "0 / 11" reports a
 // job eleven times larger than the one running.
 const batchTotal = computed(() => plan.value?.batch?.total || plan.value?.requested || plan.value?.total || 0)
-const batchVideos = computed(() => Math.min(plan.value?.batch?.videos || 0, batchTotal.value))
-const batchPosts = computed(() => batchTotal.value - batchVideos.value)
 // Names what is waiting by kind: a video-only batch is not "posts".
+// The card counts this plan's posts as they are now, by the same rule as the
+// posts list: one whose video failed, or whose publishing failed, is failed;
+// a draft or a post sent for approval is waiting for the business.
+const planPosts = computed(() =>
+  workspace.value.posts.filter((post) => plan.value && post.aiProvenance?.planId === plan.value.id),
+)
+const isFailed = (post: (typeof workspace.value.posts)[number]) => post.video?.status === 'failed' || post.status === 'failed'
+const waitingPosts = computed(() =>
+  planPosts.value.filter((post) => ['draft', 'review'].includes(post.status) && !isFailed(post)),
+)
+const waitingVideos = computed(() => waitingPosts.value.filter((post) => post.video).length)
+const waitingStills = computed(() => waitingPosts.value.length - waitingVideos.value)
+const failedPlanPosts = computed(() => planPosts.value.filter(isFailed).length)
+const onlyFailedVideos = computed(() => !waitingPosts.value.length && failedPlanPosts.value > 0)
+const reviewPath = computed(() => `${base.value}/content${onlyFailedVideos.value ? '?status=failed' : ''}`)
 const awaitingTitle = computed(() => {
   if (videosRendering.value) return t('monthly.videoRenderingTitle', { count: videosRendering.value })
-  if (batchVideos.value && batchPosts.value)
-    return t('monthly.mixedAwaitingApproval', { posts: batchPosts.value, videos: batchVideos.value })
-  if (batchVideos.value) return t('monthly.videosAwaitingApproval', { count: batchVideos.value })
-  return t('monthly.postsAwaitingApproval', { count: batchTotal.value })
+  if (onlyFailedVideos.value) return t('monthly.videosFailedTitle', { count: failedPlanPosts.value })
+  if (waitingVideos.value && waitingStills.value)
+    return t('monthly.mixedAwaitingApproval', { posts: waitingStills.value, videos: waitingVideos.value })
+  if (waitingVideos.value) return t('monthly.videosAwaitingApproval', { count: waitingVideos.value })
+  if (waitingStills.value) return t('monthly.postsAwaitingApproval', { count: waitingStills.value })
+  return t('monthly.batchReady')
 })
 // Produced within the running request, so a second request for one post starts
 // again at zero instead of continuing the month's running total.
@@ -402,7 +417,7 @@ const failureCopy = computed(() => {
   return (
     failures[plan.value?.errorCode || ''] || {
       title: t('monthly.failureDefaultTitle'),
-      description: plan.value?.error || t('monthly.failureDefaultDescription'),
+      description: t(plan.value?.error || 'monthly.failureDefaultDescription'),
     }
   )
 })
@@ -499,12 +514,12 @@ onBeforeUnmount(() => clearInterval(timer))
 <template>
   <UCard :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden">
     <div class="p-4">
-      <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="flex items-start justify-between gap-3">
         <div class="flex min-w-0 items-start gap-3.5">
           <div
             class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
           >
-            <UIcon name="i-lucide-sparkles" class="size-4" />
+            <UIcon name="i-lucide-calendar-range" class="size-4" />
           </div>
           <div class="min-w-0">
             <UBadge color="neutral" variant="subtle" size="sm">{{ t('monthly.title') }}</UBadge>
@@ -517,12 +532,14 @@ onBeforeUnmount(() => clearInterval(timer))
             <p v-else class="mt-1 text-sm text-muted">{{ t('monthly.checkingService') }}</p>
           </div>
         </div>
-        <div v-if="plan && plan.status !== 'cancelled'" class="flex flex-wrap gap-1">
+        <!-- Small and to the side: starting over clears drafts, so it stays
+             at hand without leading the page. -->
+        <div v-if="plan && plan.status !== 'cancelled'" class="flex shrink-0 flex-col items-end gap-1 sm:flex-row">
           <UButton
             v-if="active"
             color="neutral"
-            variant="ghost"
-            size="sm"
+            variant="outline"
+            size="xs"
             icon="i-lucide-pause"
             :loading="busy"
             @click="act('pause')"
@@ -531,9 +548,10 @@ onBeforeUnmount(() => clearInterval(timer))
           </UButton>
           <UButton
             color="neutral"
-            variant="ghost"
-            size="sm"
+            variant="outline"
+            size="xs"
             icon="i-lucide-rotate-ccw"
+            class="hover:text-error"
             :disabled="busy"
             @click="resetOpen = true"
           >
@@ -838,63 +856,24 @@ onBeforeUnmount(() => clearInterval(timer))
     </div>
 
     <div v-else-if="settled && plan && !configuringMore" class="border-t border-default p-4">
-      <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
-        <div class="flex items-start gap-3">
-          <div
-            class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success"
-          >
-            <UIcon
-              :name="videosRendering ? 'i-lucide-loader' : 'i-lucide-circle-check'"
-              :class="['size-5', videosRendering && 'animate-spin']"
-            />
+      <!-- Two cards, each with its own job: asking for more on one side, what
+           is ready on the other. Side by side on a wide screen, stacked on a
+           phone with "generate more" first. -->
+      <div class="grid gap-3 lg:grid-cols-2">
+        <section
+          v-if="extendable && !videosRendering"
+          class="flex flex-col gap-4 rounded-xl border border-primary/20 bg-primary/5 p-4"
+        >
+          <div class="flex items-start gap-3">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UIcon name="i-lucide-wand-sparkles" class="size-4" />
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm font-semibold text-highlighted">{{ t('monthly.generateMoreTitle') }}</h3>
+              <p class="mt-0.5 text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
+            </div>
           </div>
-          <div>
-            <UBadge :color="videosRendering ? 'neutral' : 'success'" variant="subtle">
-              {{ videosRendering ? t('monthly.videoRendering') : t('monthly.batchReady') }}
-            </UBadge>
-            <h3 class="mt-2 text-base font-semibold text-highlighted">
-              {{ awaitingTitle }}
-            </h3>
-            <p class="mt-1 text-sm text-muted">
-              {{ videosRendering ? t('monthly.videoRenderingDescription') : t('monthly.batchReadyDescription') }}
-            </p>
-          </div>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <UButton
-            v-if="plan.research"
-            variant="outline"
-            color="neutral"
-            icon="i-lucide-book-open"
-            @click="researchOpen = true"
-          >
-            {{ t('legacy.viewStrategyResearch') }}
-          </UButton>
-          <UButton
-            v-if="!videosRendering"
-            :to="`${base}/content`"
-            icon="i-lucide-eye"
-            trailing-icon="i-lucide-arrow-right"
-          >
-            {{ t('monthly.viewGeneratedPosts', { count: plan.completed }) }}
-          </UButton>
-        </div>
-      </div>
-      <div
-        v-if="extendable && !videosRendering"
-        class="mt-3 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between"
-      >
-        <div class="flex min-w-0 items-center gap-2.5">
-          <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <UIcon name="i-lucide-sparkles" class="size-4" />
-          </div>
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-highlighted">{{ t('monthly.generateMoreTitle') }}</p>
-            <p class="text-xs leading-5 text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
-          </div>
-        </div>
-        <div class="flex w-full flex-col gap-2 lg:flex-row lg:items-end xl:w-auto xl:shrink-0">
-          <div class="grid w-full grid-cols-2 gap-2 rounded-xl border border-primary/10 bg-default/70 p-2 sm:w-[28rem] lg:shrink-0">
+          <div class="grid grid-cols-2 gap-2">
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
               <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
@@ -909,7 +888,7 @@ onBeforeUnmount(() => clearInterval(timer))
             </UFormField>
           </div>
           <UButton
-            class="w-full justify-center whitespace-nowrap lg:mb-2 lg:w-80 lg:shrink-0"
+            class="mt-auto w-full justify-center whitespace-nowrap"
             :loading="busy"
             :disabled="selectedQuantity + selectedVideoQuantity < 1"
             icon="i-lucide-plus"
@@ -917,9 +896,67 @@ onBeforeUnmount(() => clearInterval(timer))
           >
             {{ generateMoreLabel }}
           </UButton>
-        </div>
+        </section>
+        <section
+          v-else
+          class="flex items-center gap-3 rounded-xl border border-default p-4 text-sm text-muted"
+        >
+          <UIcon name="i-lucide-package-check" class="size-5 shrink-0" />
+          {{ t('monthly.quotaUsedUp') }}
+        </section>
+
+        <section class="flex flex-col gap-4 rounded-xl border border-success/20 bg-success/5 p-4">
+          <div class="flex items-start gap-3">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success">
+              <UIcon
+                :name="videosRendering ? 'i-lucide-loader' : 'i-lucide-circle-check'"
+                :class="['size-5', videosRendering && 'animate-spin']"
+              />
+            </div>
+            <div class="min-w-0">
+              <UBadge :color="videosRendering ? 'neutral' : onlyFailedVideos ? 'warning' : 'success'" variant="subtle" size="sm">
+                {{ videosRendering ? t('monthly.videoRendering') : onlyFailedVideos ? t('status.videoFailed') : t('monthly.batchReady') }}
+              </UBadge>
+              <h3 class="mt-2 text-base font-semibold text-highlighted">
+                {{ awaitingTitle }}
+              </h3>
+              <p class="mt-0.5 text-sm text-muted">
+                {{ videosRendering ? t('monthly.videoRenderingDescription') : onlyFailedVideos ? t('video.failedBlocksDescription') : t('monthly.batchReadyDescription') }}
+              </p>
+              <ULink
+                v-if="!videosRendering && !onlyFailedVideos && failedPlanPosts"
+                :to="`${base}/content?status=failed`"
+                class="mt-1 inline-flex items-center gap-1 text-sm font-medium text-warning"
+              >
+                <UIcon name="i-lucide-video-off" class="size-4" />{{ t('monthly.someFailed', { count: failedPlanPosts }) }}
+              </ULink>
+            </div>
+          </div>
+          <div class="mt-auto flex gap-2">
+            <UButton
+              v-if="plan.research"
+              variant="outline"
+              color="success"
+              icon="i-lucide-book-open"
+              size="sm"
+              class="flex-1 justify-center whitespace-nowrap rounded-md bg-default"
+              @click="researchOpen = true"
+            >
+              {{ t('legacy.viewStrategyResearch') }}
+            </UButton>
+            <UButton
+              v-if="!videosRendering"
+              class="flex-1 justify-center whitespace-nowrap"
+              :color="onlyFailedVideos ? 'warning' : 'success'"
+              :to="reviewPath"
+              size="sm"
+              trailing-icon="i-lucide-arrow-right"
+            >
+              {{ t('legacy.reviewPosts') }}
+            </UButton>
+          </div>
+        </section>
       </div>
-      <p v-else class="mt-3 text-sm text-muted">{{ t('monthly.quotaUsedUp') }}</p>
     </div>
     <div v-else-if="ready && plan && !configuringMore" class="border-t border-default p-4">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
@@ -1484,17 +1521,30 @@ onBeforeUnmount(() => clearInterval(timer))
 
     <UModal
       v-model:open="resetOpen"
+      :dismissible="false"
       :title="t('monthly.resetTitle')"
-      :description="t('monthly.resetDescription')"
+      :description="t('monthly.resetCannotUndo')"
     >
       <template #body>
-        <UAlert
-          color="warning"
-          variant="subtle"
-          icon="i-lucide-shield-alert"
-          :title="t('monthly.resetWarningTitle')"
-          :description="t('monthly.resetWarningDescription')"
-        />
+        <!-- What starting over does, matching resetMonthlyPlan on the server. -->
+        <ul class="space-y-3 text-sm">
+          <li class="flex gap-3">
+            <UIcon name="i-lucide-trash-2" class="mt-0.5 size-4 shrink-0 text-error" />
+            <span>{{ t('monthly.resetDeletes') }}</span>
+          </li>
+          <li class="flex gap-3">
+            <UIcon name="i-lucide-eraser" class="mt-0.5 size-4 shrink-0 text-error" />
+            <span>{{ t('monthly.resetClears') }}</span>
+          </li>
+          <li class="flex gap-3">
+            <UIcon name="i-lucide-coins" class="mt-0.5 size-4 shrink-0 text-warning" />
+            <span>{{ t('monthly.resetNoRefund') }}</span>
+          </li>
+          <li class="flex gap-3">
+            <UIcon name="i-lucide-shield-check" class="mt-0.5 size-4 shrink-0 text-success" />
+            <span>{{ t('monthly.resetKeeps') }}</span>
+          </li>
+        </ul>
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">

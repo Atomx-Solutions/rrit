@@ -331,9 +331,9 @@ const summaries = computed(() => [
         </p>
       </div>
     </UCard>
-    <UPageGrid class="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-      <UCard :ui="{ body: 'p-5 sm:p-6' }">
-        <div class="flex justify-between items-center gap-3 mb-5">
+    <UPageGrid class="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
+      <UCard :ui="{ body: 'p-4 sm:p-6' }">
+        <div class="flex justify-between items-center gap-3 mb-3 sm:mb-5">
           <h2 class="text-sm font-semibold">{{ t('overview.nextCalendarPost') }}</h2>
           <UIcon name="i-lucide-calendar-days" class="size-4 text-muted" />
         </div>
@@ -366,24 +366,24 @@ const summaries = computed(() => [
           variant="link"
           color="neutral"
           size="sm"
-          class="mt-4 min-h-11 px-0 sm:min-h-0"
+          class="mt-2 min-h-11 px-0 sm:mt-4 sm:min-h-0"
           trailing-icon="i-lucide-arrow-right"
           >{{ t('nav.calendar') }}</UButton
         >
       </UCard>
-      <UCard :ui="{ body: 'p-5 sm:p-6' }">
-        <div class="flex justify-between items-center gap-3 mb-4">
+      <UCard :ui="{ body: 'p-4 sm:p-6' }">
+        <div class="flex justify-between items-center gap-3 mb-2 sm:mb-4">
           <div class="flex items-center gap-2"><TikTokMark class="size-5" /><h2 class="text-sm font-semibold">TikTok</h2></div>
-          <UBadge color="neutral" variant="outline" size="sm">{{ tiktok?.connection?.status === 'connected' ? t('tiktok.connected') : t('tiktok.notConnected') }}</UBadge>
+          <UBadge :color="tiktok?.connection?.status === 'connected' ? 'success' : 'neutral'" variant="outline" size="sm">{{ tiktok?.connection?.status === 'connected' ? t('tiktok.connected') : t('tiktok.notConnected') }}</UBadge>
         </div>
         <p class="text-sm text-muted leading-relaxed max-w-lg">{{ tiktok?.connection?.status === 'connected' ? t('overview.tiktokConnected') : t('overview.tiktokDescription') }}</p>
-        <UButton :to="`${base}/social-posts?channel=TikTok`" variant="outline" color="neutral" size="sm" class="mt-5" trailing-icon="i-lucide-arrow-right">{{ t('nav.viewPosts') }}</UButton>
+        <UButton :to="`${base}/social-posts?channel=TikTok`" variant="outline" color="neutral" size="sm" class="mt-3 sm:mt-5" trailing-icon="i-lucide-arrow-right">{{ tiktok?.connection?.status === 'connected' ? t('nav.viewPosts') : t('overview.connectAction') }}</UButton>
       </UCard>
       <!-- Two columns on a tablet leave the third card alone, so it takes both. -->
-      <UCard :ui="{ body: 'p-5 sm:p-6' }" class="md:col-span-2 xl:col-span-1">
-        <div class="flex justify-between items-center gap-3 mb-4">
+      <UCard :ui="{ body: 'p-4 sm:p-6' }" class="md:col-span-2 xl:col-span-1">
+        <div class="flex justify-between items-center gap-3 mb-2 sm:mb-4">
           <h2 class="text-sm font-semibold">{{ t('overview.metaCardTitle') }}</h2>
-          <UBadge color="neutral" variant="outline" size="sm">{{
+          <UBadge :color="connectionView === 'connected' ? 'success' : 'neutral'" variant="outline" size="sm">{{
             connectionView === 'loading'
               ? t('common.loading')
               : connectionView === 'unavailable'
@@ -401,10 +401,7 @@ const summaries = computed(() => [
                 ? t('overview.connectionCheckFailed')
                 : connectionView === 'connected'
                   ? t('overview.connectedPage', { page: meta?.connection?.pageName || '' })
-              : /* : 'Faqja e lidhur: ' +
-                meta.connection.pageName +
-                '. Përditëso postimet për të parë historikun e biznesit.' */
-                t('overview.connectDescription')
+                  : t('overview.connectDescription')
           }}
         </p>
         <UButton
@@ -412,9 +409,9 @@ const summaries = computed(() => [
           variant="outline"
           color="neutral"
           size="sm"
-          class="mt-5"
+          class="mt-3 sm:mt-5"
           trailing-icon="i-lucide-arrow-right"
-          >{{ t('nav.viewPosts') }}</UButton
+          >{{ connectionView === 'connected' ? t('nav.viewPosts') : t('overview.connectAction') }}</UButton
         >
       </UCard>
     </UPageGrid>

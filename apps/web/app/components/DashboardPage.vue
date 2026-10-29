@@ -17,10 +17,11 @@ const chrome = inject(dashboardKey)
 if (!chrome) throw new Error('DashboardPage requires the dashboard layout')
 const { sidebarOpen, notificationsOpen } = chrome
 const { base, storageError, syncing } = useWorkspace()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const { watchError } = useFormFeedback()
 watchError(storageError, 'error')
 const { data: headerUsage } = useHeaderUsage()
+const { unread: unreadNotifications } = useNotifications()
 // Show settled customer credits in the global header. `spendable` subtracts
 // temporary reservations and can rise again when a cheaper AI run settles,
 // which makes the balance look like credits were returned during generation.
@@ -40,16 +41,27 @@ let creditTimer: ReturnType<typeof setInterval>
 function refreshWhenVisible() {
   if (document.visibilityState === 'visible') void refreshCreditBalance()
 }
-onMounted(() => {
+// Pages are kept alive, so each one's balance refresh runs only while it is
+// shown; otherwise every page visited kept refreshing it in the background.
+let creditTimerRunning = false
+function startCreditRefresh() {
+  if (creditTimerRunning) return
+  creditTimerRunning = true
   creditTimer = setInterval(() => refreshCreditBalance(), 30_000)
   document.addEventListener('visibilitychange', refreshWhenVisible)
   window.addEventListener('focus', refreshWhenVisible)
-})
-onBeforeUnmount(() => {
+}
+function stopCreditRefresh() {
+  if (!creditTimerRunning) return
+  creditTimerRunning = false
   clearInterval(creditTimer)
   document.removeEventListener('visibilitychange', refreshWhenVisible)
   window.removeEventListener('focus', refreshWhenVisible)
-})
+}
+onMounted(startCreditRefresh)
+onActivated(startCreditRefresh)
+onDeactivated(stopCreditRefresh)
+onBeforeUnmount(stopCreditRefresh)
 </script>
 <template>
   <UDashboardPanel
@@ -63,7 +75,7 @@ onBeforeUnmount(() => {
         :ui="{
           root: 'min-h-[52px] h-auto flex-wrap gap-y-1 px-3 py-1.5 md:py-0 md:h-[52px]',
           left: 'min-w-0 flex-1',
-          title: 'text-sm font-semibold truncate',
+          title: 'text-sm font-semibold tracking-normal truncate',
           right: 'gap-1 sm:gap-1.5',
         }"
       >
@@ -124,13 +136,17 @@ onBeforeUnmount(() => {
             </UButton>
           </UTooltip>
           <UColorModeButton :aria-label="t('dashboard.changeAppearance')" color="neutral" variant="ghost" />
-          <UButton
-            icon="i-lucide-bell"
-            :aria-label="t('nav.notifications')"
-            color="neutral"
-            variant="ghost"
-            @click="notificationsOpen = true"
-          />
+          <!-- The bell carries how many things need attention; package, credit
+               and trial reminders are listed there instead of on every page. -->
+          <UChip :text="unreadNotifications" :show="unreadNotifications > 0" size="3xl" color="error" inset>
+            <UButton
+              icon="i-lucide-bell"
+              :aria-label="t('nav.notifications')"
+              color="neutral"
+              variant="ghost"
+              @click="notificationsOpen = true"
+            />
+          </UChip>
         </template>
       </UDashboardNavbar>
       <!-- Below xl the navbar has no room for the page actions. They share the
@@ -157,13 +173,6 @@ onBeforeUnmount(() => {
     </template>
     <template #body>
       <div class="page dashboard-page-body space-y-4">
-        <TrialBanner :key="locale" />
-        <PackageExpiryBanner :package-expiry="headerUsage?.packageExpiry" />
-        <LowCreditBanner
-          :credits="credits"
-          :threshold="headerUsage?.lowCredit.threshold"
-          :has-active-package="headerUsage?.lowCredit.hasActivePackage"
-        />
         <slot />
       </div>
     </template>

@@ -12,21 +12,14 @@ function validationMessage(check: { key: string; message: string; params?: Recor
 }
 function policyDescription(reason?: string, channel?: Post['channel']) {
   if (!reason) return t('content.verifyDescription')
-  const knownKeys = [
-    'server.SOURCE_MATERIAL_CHANGED',
-    'server.AI_QUALITY_REVIEW_NEEDED',
-    'server.VIDEO_QA_PENDING',
-    'server.VIDEO_QA_UNAVAILABLE',
-    'server.IMAGE_CHANNEL_FORMAT_MISMATCH',
-    'server.VIDEO_CHANNEL_FORMAT_MISMATCH',
-    'server.POST_REMOVED_FROM_NETWORK',
-    'validation.aiQualityPassed',
-  ]
+  // The stored reason keeps only translation keys, one or several; anything
+  // else is an older free-text reason and is shown as it was written.
+  const isKey = (part: string) => /^(server|validation|publication)\.[A-Za-z_.]+$/.test(part)
   // The stored reason keeps only the keys; the format keys name the post's
   // channel and its canvas, which the post itself still carries.
   const params: Record<string, string> = channel ? { channel, format: channelFormat(channel) } : {}
   const parts = reason.split(/\s+/).filter(Boolean)
-  if (parts.length && parts.every((part) => knownKeys.includes(part)))
+  if (parts.length && parts.every(isKey))
     return parts.map((part) => t(part, params)).join(' ')
   return reason
 }
@@ -35,6 +28,11 @@ const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' }
 const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
 const { data: instagramStatus } = await useFetch('/api/instagram/status', { key: 'instagram-status' })
 const existing = computed(() => data.value.posts.find((p) => p.id === props.id))
+// A post whose video could not be made, or whose content the checks blocked,
+// has nothing that may be published: it cannot go for approval, be approved,
+// scheduled or published until it is fixed.
+const videoFailed = computed(() => existing.value?.video?.status === 'failed')
+const publishBlocked = computed(() => videoFailed.value || existing.value?.policy === 'block')
 if (props.id && !existing.value)
   throw createError({ statusCode: 404, statusMessage: t('content.postNotFound') })
 const {
@@ -233,21 +231,6 @@ async function refreshVideo() {
     videoRender.value = result.render || null
   } catch {
     // Video state is optional; do not interrupt normal post editing.
-  }
-}
-async function prepareVideo() {
-  if (!post.value || videoBusy.value || dirty.value) return
-  videoBusy.value = true
-  error.value = ''
-  try {
-    await $fetch(`/api/posts/${post.value.id}/video`, { method: 'POST', body: {}, retry: 0 })
-    await initLive()
-    await refreshVideo()
-    notify(t('video.prepared'))
-  } catch (problem) {
-    error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
-  } finally {
-    videoBusy.value = false
   }
 }
 async function renderVideo() {
@@ -511,39 +494,44 @@ onBeforeUnmount(() => {
 <template>
   <DashboardPage
     :title="props.id ? t('content.editPost') : t('content.createPost')"
-    :description="t('content.editorDescription')"
   >
-    <PostProvenance v-if="post?.aiProvenance" :post="post" :disabled="dirty || syncing" />
-    <template #actions
-      ><span role="status" class="small muted">{{
-        saving
-          ? t('content.saving')
-          : dirty
-            ? t('content.unsavedChanges')
-            : savedAt
-              ? t('content.savedAt', { time: savedAt })
-              : post
-                ? t('content.savedOnServer')
-                : t('content.serverSaving')
-      }}</span
-      ><UButton :to="`${base}/content`" variant="outline" color="neutral" icon="i-lucide-arrow-left"
-        >{{ t('nav.posts') }}</UButton
-      ><UButton
-        v-if="editable"
-        variant="outline"
-        :loading="saving"
-        :disabled="!dirty"
-        icon="i-lucide-save"
-        @click="save(false)"
-        >{{ t('content.saveDraft') }}</UButton
-      ></template
-    >
+    <!-- The page's actions share one row with "Why this post?" instead of a
+         header band of their own, on every screen size. -->
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <PostProvenance v-if="post?.aiProvenance" :post="post" :disabled="dirty || syncing" />
+      <div class="ml-auto flex items-center gap-2">
+        <span role="status" class="small muted hidden sm:inline">{{
+          saving
+            ? t('content.saving')
+            : dirty
+              ? t('content.unsavedChanges')
+              : savedAt
+                ? t('content.savedAt', { time: savedAt })
+                : post
+                  ? t('content.savedOnServer')
+                  : t('content.serverSaving')
+        }}</span>
+        <UButton :to="`${base}/content`" variant="outline" color="neutral" size="sm" icon="i-lucide-arrow-left">{{
+          t('nav.posts')
+        }}</UButton>
+        <UButton
+          v-if="editable"
+          variant="outline"
+          size="sm"
+          :loading="saving"
+          :disabled="!dirty"
+          icon="i-lucide-save"
+          @click="save(false)"
+          >{{ t('content.saveDraft') }}</UButton
+        >
+      </div>
+    </div>
     <UStepper
       :model-value="workflowStep"
       :items="[
-        { title: 'Shkruaj', value: 0, icon: 'i-lucide-pencil' },
-        { title: 'Kontrollo', value: 1, icon: 'i-lucide-check-check' },
-        { title: 'Zgjidh orarin', value: 2, icon: 'i-lucide-calendar-days' },
+        { title: t('content.write'), value: 0, icon: 'i-lucide-pencil' },
+        { title: t('content.check'), value: 1, icon: 'i-lucide-check-check' },
+        { title: t('content.chooseSchedule'), value: 2, icon: 'i-lucide-calendar-days' },
       ]"
       disabled
       size="sm"
@@ -625,19 +613,13 @@ onBeforeUnmount(() => {
                 :disabled="!editable || dirty || syncing"
                 @saved="creativeSaved"
               />
-              <PhotoUpload v-if="editable" @uploaded="form.image = $event" />
+              <!-- A video post keeps the photo its video was made from, and its
+                   video is made again through "Edit video with AI". -->
+              <PhotoUpload v-if="editable && !post?.video" @uploaded="form.image = $event" />
+              <!-- Only a video never made yet is generated here; a failed one is
+                   made again through "Edit video with AI". -->
               <UButton
-                v-if="post && !post.video"
-                size="sm"
-                variant="outline"
-                color="neutral"
-                icon="i-lucide-clapperboard"
-                :loading="videoBusy"
-                :disabled="dirty || syncing || !editable"
-                @click="prepareVideo"
-              >{{ t('video.prepare') }}</UButton>
-              <UButton
-                v-else-if="post?.video && post.video.status !== 'ready'"
+                v-if="post?.video?.status === 'brief_ready'"
                 size="sm"
                 icon="i-lucide-play"
                 :loading="videoBusy"
@@ -684,14 +666,6 @@ onBeforeUnmount(() => {
             icon="i-lucide-hourglass"
             :title="t('video.qualityPendingTitle')"
             :description="t('video.qualityPending')"
-          />
-          <UAlert
-            v-if="post?.video?.status === 'failed'"
-            color="error"
-            variant="subtle"
-            icon="i-lucide-circle-alert"
-            :title="t('video.failedTitle')"
-            :description="t('video.failedGeneric')"
           />
           <div
             v-if="form.image"
@@ -776,7 +750,7 @@ onBeforeUnmount(() => {
             variant="outline"
             color="info"
             :title="t('coverage.publicationRetry')"
-            :description="`${publication.remediation} ${t('content.retryAttempt', { attempt: publication.attempt, maxAttempts: publication.maxAttempts })}`"
+            :description="`${t(publication.remediation)} ${t('content.retryAttempt', { attempt: publication.attempt, maxAttempts: publication.maxAttempts })}`"
           />
           <UAlert
             v-else-if="publication?.status === 'failed'"
@@ -787,7 +761,7 @@ onBeforeUnmount(() => {
                 ? t('coverage.publicationAction')
                 : t('coverage.publicationFailed')
             "
-            :description="publication.remediation"
+            :description="t(publication.remediation)"
           />
           <div v-if="publication?.status === 'uncertain'" class="actions">
             <UButton
@@ -800,7 +774,17 @@ onBeforeUnmount(() => {
               >{{ t('content.checkConnection') }}</UButton
             >
           </div>
+          <!-- A published post has passed every check; it shows what the network
+               confirmed instead of the review it no longer needs. -->
           <UAlert
+            v-if="post?.status === 'published'"
+            color="success"
+            icon="i-lucide-circle-check"
+            :title="t('status.published')"
+            :description="policyDescription(post.policyReason, post.channel)"
+          />
+          <UAlert
+            v-else
             :color="
               post?.policy === 'block'
                 ? 'error'
@@ -820,17 +804,25 @@ onBeforeUnmount(() => {
           /><ULink :to="`${base}/brand`" class="text-primary small"
             >{{ t('content.businessFacts') }}</ULink
           >
+          <UAlert
+            v-if="videoFailed"
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-video-off"
+            :title="t('video.failedBlocksTitle')"
+            :description="t('video.failedBlocksDescription')"
+          />
           <div class="actions">
             <UButton
               v-if="!post || post.status === 'draft'"
               variant="outline"
-              :disabled="!form.title || !form.caption"
+              :disabled="!form.title || !form.caption || publishBlocked"
               @click="setStatus('review')"
               >{{ t('content.submitApproval') }}</UButton
             ><template v-if="post?.status === 'review'"
               ><UButton
                 variant="outline"
-                :disabled="!confirmed || checking || syncing"
+                :disabled="!confirmed || checking || syncing || publishBlocked"
                 :loading="checking"
                 icon="i-lucide-check"
                 @click="setStatus('approved')"
@@ -839,9 +831,9 @@ onBeforeUnmount(() => {
                 >{{ t('content.returnDraft') }}</UButton
               ></template
             ><template v-if="post?.status === 'approved'"
-              ><UButton variant="outline" icon="i-lucide-send" @click="publishOpen = true"
+              ><UButton variant="outline" icon="i-lucide-send" :disabled="publishBlocked" @click="publishOpen = true"
                 >{{ form.channel === 'TikTok' ? t('content.sendToTikTok') : t('content.publishNow') }}</UButton
-              ><UButton variant="outline" icon="i-lucide-calendar-plus" @click="scheduleOpen = true"
+              ><UButton variant="outline" icon="i-lucide-calendar-plus" :disabled="publishBlocked" @click="scheduleOpen = true"
                 >{{ t('content.schedulePost') }}</UButton
               ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
                 >{{ t('content.reopenEditing') }}</UButton
@@ -849,7 +841,7 @@ onBeforeUnmount(() => {
             ><template v-if="post?.status === 'failed'"
               ><UButton
                 variant="outline"
-                :disabled="!confirmed || checking || syncing"
+                :disabled="!confirmed || checking || syncing || publishBlocked"
                 :loading="checking"
                 icon="i-lucide-rotate-ccw"
                 @click="setStatus('approved')"
@@ -880,7 +872,7 @@ onBeforeUnmount(() => {
                 : t('content.calendarOnlyDescription')
             "
           />
-          <p v-if="form.channel !== 'TikTok'" class="small muted">
+          <p v-if="form.channel !== 'TikTok' && post?.status !== 'published'" class="small muted">
             {{ t('content.approvalCalendarNote') }}
           </p>
           <UAlert

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { reviewPostQuality } from '../../../utils/post-quality'
-import { PlannerFailure, plannerMessages } from '../../../utils/monthly-planner-domain'
+import { PlannerFailure, plannerMessageKey } from '../../../utils/monthly-planner-domain'
 
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -25,16 +25,16 @@ export default defineEventHandler(async (event) => {
         statusCode:
           error.code === 'POST_NOT_FOUND' ? 404 : error.code === 'POST_CHANGED' ? 409 : 422,
         message:
-          plannerMessages[error.code] ||
-          (
-            {
-              POST_CHANGED: 'Postimi ndryshoi gjatë rishikimit. Ngarko versionin e fundit.',
-              POST_NOT_EDITABLE: 'Rihap postimin si draft.',
-              CONTENT_CHECKS_REQUIRED:
-                'Korrigjo faktet dhe kontrollet e përmbajtjes përpara rishikimit AI.',
-            } as Record<string, string>
-          )[error.code] ||
-          'Rishikimi nuk u përfundua. Provo kontrollin përsëri.',
+          plannerMessageKey(
+            error.code,
+            (
+              {
+                POST_CHANGED: 'planner.reviewPostChanged',
+                POST_NOT_EDITABLE: 'planner.reviewNotEditable',
+                CONTENT_CHECKS_REQUIRED: 'planner.reviewChecksRequired',
+              } as Record<string, string>
+            )[error.code] || 'planner.reviewFailed',
+          ),
       })
     throw error
   }

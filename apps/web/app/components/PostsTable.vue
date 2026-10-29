@@ -128,7 +128,8 @@ const columns = computed<TableColumn<Post>[]>(() => [
         <!-- Status, channel and date share one line: as three stacked lines they
              made every row taller than the phone needed for a list. -->
         <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-          <StatusBadge :status="post.status" />
+          <UBadge v-if="post.video?.status === 'failed'" color="error" variant="subtle" size="sm" icon="i-lucide-video-off">{{ t('status.videoFailed') }}</UBadge>
+          <StatusBadge v-else :status="post.status" />
           <RepostBadge :post="post" />
           <span>{{ post.channel }}</span>
           <template v-if="post.scheduledAt">
@@ -195,7 +196,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
         />{{ row.original.channel }}</span
       >
     </template>
-    <template #status-cell="{ row }"><span class="inline-flex flex-wrap gap-1"><StatusBadge :status="row.original.status" /><RepostBadge :post="row.original" /></span></template>
+    <template #status-cell="{ row }"><span class="inline-flex flex-wrap gap-1"><UBadge v-if="row.original.video?.status === 'failed'" color="error" variant="subtle" size="sm" icon="i-lucide-video-off">{{ t('status.videoFailed') }}</UBadge><StatusBadge v-else :status="row.original.status" /><RepostBadge :post="row.original" /></span></template>
     <template #scheduledAt-cell="{ row }"
       ><span class="text-xs text-muted">{{
         row.original.scheduledAt
@@ -212,8 +213,10 @@ const columns = computed<TableColumn<Post>[]>(() => [
       ><UButton
         :to="`${base}/content/${row.original.id}`"
         color="neutral"
-        variant="ghost"
+        variant="outline"
+        size="sm"
         icon="i-lucide-arrow-up-right"
+        class="hover:bg-primary/10 hover:text-primary hover:ring-primary/40"
         :aria-label="t('content.openPost', { title: row.original.title })"
     /></template>
   </UTable>

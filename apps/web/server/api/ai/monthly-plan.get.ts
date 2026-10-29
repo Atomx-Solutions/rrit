@@ -7,7 +7,7 @@ import {
   plannerPrerequisites,
   planningMonth,
   PlannerFailure,
-  plannerMessages,
+  plannerMessageKey,
   resumableContentFailureCode,
 } from '../../utils/monthly-planner-domain'
 import { getBrandForBusiness } from '../../utils/brands'
@@ -108,7 +108,7 @@ export default defineEventHandler(async (event) => {
       },
       workerAlive: worker.rows[0]?.alive === true,
       prerequisite: prerequisite
-        ? plannerMessages[prerequisite] || 'Complete your Business profile.'
+        ? plannerMessageKey(prerequisite, 'planner.prerequisiteDefault')
         : null,
       prerequisiteCode: prerequisite,
       prerequisites,
@@ -139,8 +139,7 @@ export default defineEventHandler(async (event) => {
               (row.status === 'review' && row.completed_count < row.target_count),
             errorCode: (row.error_code as string | null) || null,
             error: row.error_code
-              ? plannerMessages[row.error_code] ||
-                'Preparation needs review by the platform. Your saved drafts are available.'
+              ? plannerMessageKey(row.error_code, 'planner.needsReview')
               : null,
             restartable:
               row.status === 'blocked' &&

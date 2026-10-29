@@ -56,9 +56,9 @@ onMounted(() => {
 })
 </script>
 <template>
-  <UCard :ui="{ body: 'p-4 sm:p-5' }">
+  <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
     <div class="flex items-center gap-3">
-      <UAvatar icon="i-lucide-instagram" :ui="{ root: 'bg-elevated text-default rounded-xl' }" />
+      <UAvatar icon="i-lucide-instagram" :ui="{ root: 'bg-pink-500/10 text-pink-500 rounded-xl', icon: 'size-5' }" />
       <div class="min-w-0 flex-1">
         <h3 class="font-semibold text-sm">Instagram</h3>
         <p class="text-xs text-muted mt-1 truncate">{{ summary }}</p>
@@ -67,34 +67,37 @@ onMounted(() => {
         t('social.connected')
       }}</UBadge>
     </div>
+    <p v-if="!status?.configured" class="text-sm text-muted">{{ t('instagram.notConfigured') }}</p>
+    <p v-if="error" class="text-sm text-error">{{ error }}</p>
+    <div class="mt-auto flex gap-2">
+      <UButton
+        type="button"
+        :loading="busy"
+        :disabled="!status?.configured"
+        :color="connected ? 'neutral' : 'primary'"
+        :variant="connected ? 'soft' : 'solid'"
+        :icon="connected ? 'i-lucide-refresh-cw' : 'i-lucide-plug-zap'"
+        size="sm"
+        class="flex-1 justify-center"
+        @click="connect"
+        >{{ connected ? t('social.changeConnection') : t('instagram.connect') }}</UButton
+      >
+      <UButton
+        v-if="status?.connection"
+        type="button"
+        color="error"
+        variant="soft"
+        icon="i-lucide-unplug"
+        size="sm"
+        class="flex-1 justify-center"
+        @click="disconnecting = true"
+        >{{ t('social.disconnect') }}</UButton
+      >
+    </div>
   </UCard>
-  <p v-if="!status?.configured" class="mt-3 text-sm text-muted">{{ t('instagram.notConfigured') }}</p>
-  <div class="flex flex-wrap gap-2 mt-3">
-    <UButton
-      type="button"
-      :loading="busy"
-      :disabled="!status?.configured"
-      color="neutral"
-      variant="outline"
-      icon="i-lucide-link"
-      class="rounded-lg px-3 font-medium"
-      @click="connect"
-      >{{ connected ? t('social.changeConnection') : t('instagram.connect') }}</UButton
-    >
-    <UButton
-      v-if="status?.connection"
-      type="button"
-      color="neutral"
-      variant="outline"
-      icon="i-lucide-unplug"
-      class="rounded-lg px-3 font-medium"
-      @click="disconnecting = true"
-      >{{ t('social.disconnect') }}</UButton
-    >
-  </div>
-  <p v-if="error" class="mt-3 text-sm text-error">{{ error }}</p>
   <UModal
     v-model:open="disconnecting"
+    :dismissible="false"
     :title="t('instagram.disconnectTitle')"
     :description="t('instagram.disconnectDescription')"
   >

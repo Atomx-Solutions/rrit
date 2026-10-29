@@ -34,6 +34,15 @@ const route = useRoute()
 // badge costs no extra request.
 const { data: billingSnapshot } = useHeaderUsage()
 const pendingProposals = computed(() => billingSnapshot.value?.pendingProposals || 0)
+const {
+  items: notificationItems,
+  unread: unreadCount,
+  markRead,
+  toggleRead,
+  markAllRead,
+  remove: removeNotification,
+  removeAll,
+} = useNotifications()
 // Use a new preference key so every existing workspace starts with the compact
 // icon rail, then retain the navigation width chosen by that user.
 const collapsed = useCookie('rrit-sidebar-collapsed-v2', { default: () => true })
@@ -381,49 +390,70 @@ onBeforeUnmount(removeNavigationGuard)
       v-model:open="notificationsOpen"
       :title="t('nav.notifications')"
       :description="t('nav.notificationsDescription')"
-      ><template #body
-        ><div class="space-y-5">
-          <template v-if="billingSnapshot?.packageExpiry">
-            <UAlert
-              color="warning"
-              :title="t('packageExpiry.title')"
-              :description="t('packageExpiry.description', { package: billingSnapshot.packageExpiry.packageName })"
-              icon="i-lucide-circle-alert"
-            />
-            <UButton
-              :to="`${base}/billing`"
-              color="warning"
-              variant="outline"
-              @click="requestPackage('package'); notificationsOpen = false"
-              >{{ t('packageExpiry.requestPackage') }}</UButton
-            ><USeparator />
-          </template>
-          <UAlert
-            :title="t('nav.approvalPosts')"
-            :description="t('nav.approvalPostsDescription', { count: data.posts.filter((p) => p.status === 'review').length })"
-            icon="i-lucide-file-check"
-          /><UButton
-            variant="outline"
-            :to="`${base}/content?status=review`"
-            @click="notificationsOpen = false"
-            >{{ t('nav.viewPosts') }}</UButton
-          ><USeparator /><UAlert
-            color="warning"
-            :title="t('nav.meta')"
-            :description="t('nav.metaDescription')"
-          /><UButton
-            :to="`${base}/social-posts`"
-            color="neutral"
-            variant="outline"
-            @click="notificationsOpen = false"
-            >{{ t('nav.viewConnections') }}</UButton
-          ><UButton
-            :to="`${base}/settings?tab=notifications`"
-            variant="link"
-            @click="notificationsOpen = false"
-            >{{ t('nav.notificationSettings') }}</UButton
-          >
-        </div></template
+      ><template #body>
+        <!-- Like a mail inbox: an unread notice is bold with a closed envelope,
+             a read one is quiet with an open one. The envelope toggles it,
+             the bin removes it; tapping the row opens where it leads. -->
+        <div v-if="notificationItems.length" class="space-y-2">
+          <div class="flex items-center justify-end gap-1">
+            <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-mail-open" :disabled="!unreadCount" @click="markAllRead">{{ t('nav.markAllRead') }}</UButton>
+            <UButton color="error" variant="ghost" size="xs" icon="i-lucide-trash-2" @click="removeAll">{{ t('nav.clearAll') }}</UButton>
+          </div>
+          <div class="-mx-2 divide-y divide-default">
+            <div
+              v-for="note in notificationItems"
+              :key="note.key"
+              class="group flex items-center gap-1 rounded-lg px-2 py-3 hover:bg-elevated/60"
+            >
+              <ULink
+                :to="note.to"
+                class="flex min-w-0 flex-1 items-start gap-3"
+                @click="markRead(note); note.request && requestPackage(note.request); notificationsOpen = false"
+              >
+                <span
+                  class="flex size-9 shrink-0 items-center justify-center rounded-lg"
+                  :class="note.read ? 'bg-elevated text-muted' : {
+                    'bg-error/10 text-error': note.tone === 'error',
+                    'bg-warning/10 text-warning': note.tone === 'warning',
+                    'bg-primary/10 text-primary': note.tone === 'primary',
+                    'bg-elevated text-muted': note.tone === 'neutral',
+                  }"
+                >
+                  <UIcon :name="note.icon" class="size-4" />
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2 text-sm" :class="note.read ? 'text-muted' : 'font-semibold text-highlighted'">
+                    <span v-if="!note.read" class="size-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                    {{ note.title }}
+                  </span>
+                  <span class="mt-0.5 block text-xs text-muted">{{ note.description }}</span>
+                </span>
+              </ULink>
+              <UButton
+                :color="note.read ? 'neutral' : 'primary'"
+                variant="ghost"
+                size="xs"
+                :icon="note.read ? 'i-lucide-mail-open' : 'i-lucide-mail'"
+                :aria-label="note.read ? t('nav.markUnread') : t('nav.markRead')"
+                @click="toggleRead(note)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-trash-2"
+                class="hover:text-error"
+                :aria-label="t('nav.removeNotification')"
+                @click="removeNotification(note)"
+              />
+            </div>
+          </div>
+        </div>
+        <div v-else class="flex flex-col items-center gap-2 py-10 text-center">
+          <UIcon name="i-lucide-bell-off" class="size-6 text-muted" />
+          <p class="text-sm text-muted">{{ t('nav.noNotifications') }}</p>
+        </div>
+      </template
       ></USlideover
     >
     <USlideover

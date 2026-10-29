@@ -6,6 +6,9 @@ import {
   type CreateOffer,
 } from '../../shared/schemas/business-brain'
 
+// The tab of "My business" this editor is shown in; each tab shows its own
+// sections, and all of them stay mounted so nothing typed is lost on a switch.
+const props = defineProps<{ section: 'audience' | 'facts' | 'rules'; embedded?: boolean }>()
 const route = useRoute()
 const { t } = useI18n()
 const { data, canonicalBrand, ready } = useWorkspace()
@@ -29,7 +32,7 @@ const newOfferOpen = ref(false)
 const editingOffer = ref<string | null>(null)
 const offerSaving = ref(false)
 const expandedBrainSections = reactive({
-  facts: 'facts' as string | undefined,
+  facts: undefined as string | undefined,
   voice: undefined as string | undefined,
   audiences: undefined as string | undefined,
   offers: undefined as string | undefined,
@@ -77,6 +80,12 @@ function displayDefaultSource(source?: string) {
   return !source || source === 'brain.defaultSource' ? t('brain.defaultSource') : source
 }
 
+// What the settings were when last loaded, to tell whether they changed.
+const settingsBaseline = ref('')
+const settingsDirty = computed(() => !!brain.value && JSON.stringify(settings) !== settingsBaseline.value)
+function resetSettings() {
+  if (brain.value) syncSettings(brain.value)
+}
 function syncSettings(value: BusinessBrain) {
   const activeVoice = value.voiceVersions.find((item) => item.active)
   settings.voice.text = activeVoice?.text || data.value.brand.voice || ''
@@ -87,6 +96,7 @@ function syncSettings(value: BusinessBrain) {
   settings.guardrails = value.guardrails
     .filter((item) => item.status === 'active')
     .map((item) => ({ id: item.id, text: item.text, source: displayDefaultSource(item.source) }))
+  settingsBaseline.value = JSON.stringify(settings)
 }
 
 async function load() {
@@ -357,86 +367,32 @@ async function deleteFact(factId: string) {
 }
 
 watch([ready, organizationId, brandId], load, { immediate: true })
+defineExpose({ saveSettings, settingsDirty, resetSettings })
 </script>
 
 <template>
-  <UCard class="mt-6" :ui="{ body: 'p-0' }">
-    <div class="border-b border-default px-5 py-5 sm:px-7 sm:py-6">
+  <!-- Inside "My business" the editor sits in the tab's own card, without a
+       card or heading of its own. -->
+  <UCard :ui="props.embedded ? { root: 'ring-0 shadow-none bg-transparent rounded-none', body: 'p-0 sm:p-0' } : { body: 'p-0' }">
+    <div v-if="!props.embedded" class="border-b border-default px-5 py-5 sm:px-7 sm:py-6">
       <h2 class="text-base font-semibold">{{ t('brain.title') }}</h2>
       <p class="mt-1 text-sm text-muted">{{ t('brain.description') }}</p>
     </div>
-    <div class="space-y-8 p-5 sm:p-7">
-      <div class="space-y-3"></div>
+    <div :class="props.embedded ? '' : 'space-y-8 p-5 sm:p-7'">
       <div v-if="loading" role="status" class="text-sm text-muted">{{ t('brain.loading') }}</div>
       <template v-else-if="brain">
         <UAccordion
+          v-show="props.section === 'facts'"
           v-model="expandedBrainSections.facts"
+          class="border-b border-default"
           collapsible
-          :items="[{ label: t('brain.facts'), slot: 'facts' }]"
+          :items="[{ label: t('brain.facts'), slot: 'facts', value: 'facts' }]"
         >
           <template #facts>
-            <div class="mt-4 space-y-4">
+            <!-- Laid out like the profile's own sections: the hint, the facts,
+                 then the add button and its form under them. -->
+            <div class="space-y-3 pb-4">
               <p class="text-sm text-muted">{{ t('brain.factsDescription') }}</p>
-              <div class="flex justify-end">
-                <UButton
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  icon="i-lucide-plus"
-                  @click.prevent.stop="newFactOpen = !newFactOpen"
-                  >{{ t('brain.addFact') }}</UButton
-                >
-              </div>
-              <div
-                v-if="newFactOpen"
-                class="rounded-lg border border-default bg-elevated/20 p-4 space-y-4"
-              >
-                <div class="grid gap-4 sm:grid-cols-2">
-                  <UFormField :label="t('brain.factType')">
-                    <USelect
-                      v-model="newFact.kind"
-                      :items="[
-                        { label: t('brain.candidate'), value: 'candidate' },
-                        { label: t('brain.explicit'), value: 'explicit' },
-                      ]"
-                      :aria-label="t('brain.factType')"
-                      class="w-full"
-                    />
-                  </UFormField>
-                  <UFormField :label="t('brain.factSource')" required>
-                    <UInput
-                      v-model="newFact.source"
-                      :placeholder="t('brain.factSourcePlaceholder')"
-                      :aria-label="t('brain.factSource')"
-                      class="w-full"
-                    />
-                  </UFormField>
-                </div>
-                <UFormField :label="t('brain.factText')" required>
-                  <UTextarea
-                    v-model="newFact.text"
-                    :placeholder="t('brain.factTextPlaceholder')"
-                    :aria-label="t('brain.factText')"
-                    :rows="3"
-                    class="w-full"
-                  />
-                </UFormField>
-                <div class="flex justify-end">
-                  <UButton
-                    type="button"
-                    size="sm"
-                    :loading="saving"
-                    @click.prevent.stop="createFact"
-                    >{{ t('brain.saveFact') }}</UButton
-                  >
-                </div>
-              </div>
-              <div
-                v-if="!brain.facts.length"
-                class="rounded-lg border border-dashed border-default p-4 text-sm text-muted"
-              >
-                {{ t('brain.noFacts') }}
-              </div>
               <div
                 v-for="fact in brain.facts"
                 :key="fact.id"
@@ -551,15 +507,69 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                   </template>
                 </div>
               </div>
+              <div class="flex justify-end">
+                <UButton
+                  type="button"
+                  variant="outline"
+                  icon="i-lucide-plus"
+                  @click.prevent.stop="newFactOpen = !newFactOpen"
+                  >{{ t('brain.addFact') }}</UButton
+                >
+              </div>
+              <div
+                v-if="newFactOpen"
+                class="rounded-lg border border-default bg-elevated/20 p-4 space-y-4"
+              >
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <UFormField :label="t('brain.factType')">
+                    <USelect
+                      v-model="newFact.kind"
+                      :items="[
+                        { label: t('brain.candidate'), value: 'candidate' },
+                        { label: t('brain.explicit'), value: 'explicit' },
+                      ]"
+                      :aria-label="t('brain.factType')"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField :label="t('brain.factSource')" required>
+                    <UInput
+                      v-model="newFact.source"
+                      :placeholder="t('brain.factSourcePlaceholder')"
+                      :aria-label="t('brain.factSource')"
+                      class="w-full"
+                    />
+                  </UFormField>
+                </div>
+                <UFormField :label="t('brain.factText')" required>
+                  <UTextarea
+                    v-model="newFact.text"
+                    :placeholder="t('brain.factTextPlaceholder')"
+                    :aria-label="t('brain.factText')"
+                    :rows="3"
+                    class="w-full"
+                  />
+                </UFormField>
+                <div class="flex justify-end">
+                  <UButton
+                    type="button"
+                    size="sm"
+                    :loading="saving"
+                    @click.prevent.stop="createFact"
+                    >{{ t('brain.saveFact') }}</UButton
+                  >
+                </div>
+              </div>
             </div>
           </template>
         </UAccordion>
 
         <UAccordion
+          v-show="props.section === 'audience'"
           v-model="expandedBrainSections.voice"
           collapsible
-          :items="[{ label: t('brain.voice'), slot: 'voice' }]"
-          class="border-t border-default pt-6"
+          :items="[{ label: t('brain.voice'), slot: 'voice', value: 'voice' }]"
+          class="border-b border-default"
         >
           <template #voice>
             <div class="mt-4 space-y-4 pb-2">
@@ -585,23 +595,15 @@ watch([ready, organizationId, brandId], load, { immediate: true })
         </UAccordion>
 
         <UAccordion
+          v-show="props.section === 'audience'"
           v-model="expandedBrainSections.audiences"
           collapsible
-          :items="[{ label: t('brain.audiences'), slot: 'audiences' }]"
-          class="border-t border-default pt-6"
+          :items="[{ label: t('brain.audiences'), slot: 'audiences', value: 'audiences' }]"
+          class="border-b border-default"
         >
           <template #audiences>
-            <div class="mt-4 space-y-4 pb-2">
+            <div class="space-y-3 pb-4">
               <p class="text-sm text-muted">{{ t('brain.audiencesDescription') }}</p>
-              <div class="flex justify-end">
-                <UButton
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  @click.prevent.stop="addAudience"
-                  >{{ t('brain.addAudience') }}</UButton
-                >
-              </div>
               <div
                 v-for="(audience, index) in settings.audiences"
                 :key="audience.id || index"
@@ -626,106 +628,34 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                   color="error"
                   variant="ghost"
                   icon="i-lucide-trash-2"
+                  class="w-fit justify-self-end"
                   :aria-label="`${t('common.delete')} ${t('brain.audienceName', { index: index + 1 })}`"
                   @click.prevent.stop="removeAudience(index)"
                 />
               </div>
-              <p
-                v-if="!settings.audiences.length"
-                class="rounded-lg border border-dashed border-default p-4 text-sm text-muted"
-              >
-                {{ t('brain.noAudiences') }}
-              </p>
+              <div class="flex justify-end">
+                <UButton
+                  type="button"
+                  variant="outline"
+                  icon="i-lucide-plus"
+                  @click.prevent.stop="addAudience"
+                  >{{ t('brain.addAudience') }}</UButton
+                >
+              </div>
             </div>
           </template>
         </UAccordion>
 
         <UAccordion
+          v-show="props.section === 'facts'"
           v-model="expandedBrainSections.offers"
           collapsible
-          :items="[{ label: t('brain.offers'), slot: 'offers' }]"
-          class="border-t border-default pt-6"
+          :items="[{ label: t('brain.offers'), slot: 'offers', value: 'offers' }]"
+          class="border-b border-default"
         >
           <template #offers>
-            <div class="mt-4 space-y-4 pb-2">
+            <div class="space-y-3 pb-4">
               <p class="text-sm text-muted">{{ t('brain.offersDescription') }}</p>
-              <div class="flex justify-end">
-                <UButton
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  @click.prevent.stop="newOfferOpen = !newOfferOpen"
-                  >{{ t('brain.addOffer') }}</UButton
-                >
-              </div>
-              <div
-                v-if="newOfferOpen"
-                class="rounded-lg border border-default bg-elevated/20 p-4 space-y-4"
-              >
-                <div class="grid gap-4 sm:grid-cols-2">
-                  <UFormField :label="t('brain.offerName')" required
-                    ><UInput
-                      v-model="offer.name"
-                      :placeholder="t('brain.offerNamePlaceholder')"
-                      :aria-label="t('brain.offerName')"
-                      class="w-full" /></UFormField
-                  ><UFormField :label="t('brain.source')" required
-                    ><UInput
-                      v-model="offer.source"
-                      :placeholder="t('brain.offerSourcePlaceholder')"
-                      :aria-label="t('brain.offerSource')"
-                      class="w-full"
-                  /></UFormField>
-                </div>
-                <UFormField :label="t('brain.descriptionLabel')" required
-                  ><UTextarea
-                    v-model="offer.description"
-                    :placeholder="t('brain.offerDescriptionPlaceholder')"
-                    :aria-label="t('brain.offerDescription')"
-                    :rows="3"
-                    class="w-full"
-                /></UFormField>
-                <div class="grid gap-4 sm:grid-cols-4">
-                  <UFormField :label="t('brain.currency')"
-                    ><USelect
-                      v-model="offer.currency"
-                      :items="['EUR', 'ALL']"
-                      :aria-label="t('brain.currency')"
-                      class="w-full" /></UFormField
-                  ><UFormField :label="t('brain.price')"
-                    ><UInput
-                      v-model="offer.amount"
-                      type="number"
-                      :placeholder="t('brain.optional')"
-                      :aria-label="t('brain.price')"
-                      class="w-full" /></UFormField
-                  ><UFormField :label="t('brain.validFrom')" required
-                    ><UInput
-                      v-model="offer.validFrom"
-                      type="date"
-                      class="w-full"
-                      :aria-label="t('brain.validFrom')" /></UFormField
-                  ><UFormField
-                    :label="t('brand.validUntil')"
-                    :hint="t('brain.offerValidUntilHint')"
-                    ><UInput
-                      :model-value="offer.validUntil || ''"
-                      type="date"
-                      class="w-full"
-                      :aria-label="t('brand.validUntil')"
-                      @update:model-value="offer.validUntil = ($event as string) || null"
-                  /></UFormField>
-                </div>
-                <div class="flex justify-end">
-                  <UButton
-                    type="button"
-                    size="sm"
-                    :loading="offerSaving"
-                    @click.prevent.stop="createOffer"
-                    >{{ t('brain.saveDraft') }}</UButton
-                  >
-                </div>
-              </div>
               <div
                 v-for="item in brain.offers"
                 :key="item.id"
@@ -827,34 +757,99 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                   </div>
                 </div>
               </div>
-              <p
-                v-if="!brain.offers.length"
-                class="rounded-lg border border-dashed border-default p-4 text-sm text-muted"
+              <div class="flex justify-end">
+                <UButton
+                  type="button"
+                  variant="outline"
+                  icon="i-lucide-plus"
+                  @click.prevent.stop="newOfferOpen = !newOfferOpen"
+                  >{{ t('brain.addOffer') }}</UButton
+                >
+              </div>
+              <div
+                v-if="newOfferOpen"
+                class="rounded-lg border border-default bg-elevated/20 p-4 space-y-4"
               >
-                {{ t('brain.noOffers') }}
-              </p>
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <UFormField :label="t('brain.offerName')" required
+                    ><UInput
+                      v-model="offer.name"
+                      :placeholder="t('brain.offerNamePlaceholder')"
+                      :aria-label="t('brain.offerName')"
+                      class="w-full" /></UFormField
+                  ><UFormField :label="t('brain.source')" required
+                    ><UInput
+                      v-model="offer.source"
+                      :placeholder="t('brain.offerSourcePlaceholder')"
+                      :aria-label="t('brain.offerSource')"
+                      class="w-full"
+                  /></UFormField>
+                </div>
+                <UFormField :label="t('brain.descriptionLabel')" required
+                  ><UTextarea
+                    v-model="offer.description"
+                    :placeholder="t('brain.offerDescriptionPlaceholder')"
+                    :aria-label="t('brain.offerDescription')"
+                    :rows="3"
+                    class="w-full"
+                /></UFormField>
+                <div class="grid gap-4 sm:grid-cols-4">
+                  <UFormField :label="t('brain.currency')"
+                    ><USelect
+                      v-model="offer.currency"
+                      :items="['EUR', 'ALL']"
+                      :aria-label="t('brain.currency')"
+                      class="w-full" /></UFormField
+                  ><UFormField :label="t('brain.price')"
+                    ><UInput
+                      v-model="offer.amount"
+                      type="number"
+                      :placeholder="t('brain.optional')"
+                      :aria-label="t('brain.price')"
+                      class="w-full" /></UFormField
+                  ><UFormField :label="t('brain.validFrom')" required
+                    ><UInput
+                      v-model="offer.validFrom"
+                      type="date"
+                      class="w-full"
+                      :aria-label="t('brain.validFrom')" /></UFormField
+                  ><UFormField
+                    :label="t('brand.validUntil')"
+                    :hint="t('brain.offerValidUntilHint')"
+                    ><UInput
+                      :model-value="offer.validUntil || ''"
+                      type="date"
+                      class="w-full"
+                      :aria-label="t('brand.validUntil')"
+                      @update:model-value="offer.validUntil = ($event as string) || null"
+                  /></UFormField>
+                </div>
+                <div class="flex justify-end">
+                  <UButton
+                    type="button"
+                    size="sm"
+                    :loading="offerSaving"
+                    @click.prevent.stop="createOffer"
+                    >{{ t('brain.saveDraft') }}</UButton
+                  >
+                </div>
+              </div>
             </div>
           </template>
         </UAccordion>
 
         <UAccordion
+          v-show="props.section === 'rules'"
           v-model="expandedBrainSections.guardrails"
           collapsible
-          :items="[{ label: t('brain.guardrails'), slot: 'guardrails' }]"
-          class="border-t border-default pt-6"
+          :items="[{ label: t('brain.guardrails'), slot: 'guardrails', value: 'guardrails' }]"
+          class="border-b border-default"
         >
           <template #guardrails>
-            <div class="mt-4 space-y-4 pb-2">
+            <!-- Laid out like the profile's own guidance above: the hint, the
+                 rules, then the add button under them. -->
+            <div class="space-y-3 pb-4">
               <p class="text-sm text-muted">{{ t('brain.guardrailsDescription') }}</p>
-              <div class="flex justify-end">
-                <UButton
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  @click.prevent.stop="addGuardrail"
-                  >{{ t('brain.addRule') }}</UButton
-                >
-              </div>
               <div
                 v-for="(guardrail, index) in settings.guardrails"
                 :key="guardrail.id || index"
@@ -878,21 +873,25 @@ watch([ready, organizationId, brandId], load, { immediate: true })
                   color="error"
                   variant="ghost"
                   icon="i-lucide-trash-2"
+                  class="w-fit justify-self-end"
                   :aria-label="`${t('common.delete')} ${t('brain.rule', { index: index + 1 })}`"
                   @click.prevent.stop="removeGuardrail(index)"
                 />
               </div>
-              <p
-                v-if="!settings.guardrails.length"
-                class="rounded-lg border border-dashed border-default p-4 text-sm text-muted"
-              >
-                {{ t('brain.noGuardrails') }}
-              </p>
+              <div class="flex justify-end">
+                <UButton
+                  type="button"
+                  variant="outline"
+                  icon="i-lucide-plus"
+                  @click.prevent.stop="addGuardrail"
+                  >{{ t('brain.addRule') }}</UButton
+                >
+              </div>
             </div>
           </template>
         </UAccordion>
 
-        <div class="flex justify-end border-t border-default pt-6">
+        <div v-if="!props.embedded" v-show="props.section !== 'facts'" class="flex justify-end border-t border-default pt-6">
           <UButton
             type="button"
             class="w-full sm:w-auto"

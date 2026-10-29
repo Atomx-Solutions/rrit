@@ -10,7 +10,7 @@ import {
 import {
   PlannerFailure,
   plannerChannelCountsSchema,
-  plannerMessages,
+  plannerMessageKey,
 } from '../../utils/monthly-planner-domain'
 
 export default defineEventHandler(async (event) => {
@@ -132,7 +132,7 @@ export default defineEventHandler(async (event) => {
     if (error instanceof PlannerFailure)
       throw createError({
         statusCode: error.code === 'CONFIGURATION_REQUIRED' ? 503 : 422,
-        message: plannerMessages[error.code] || 'Plani nuk mund të përgatitet tani.',
+        message: plannerMessageKey(error.code, 'planner.prepareFailed'),
         data: { code: error.code },
       })
     throw createError({

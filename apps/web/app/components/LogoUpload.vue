@@ -112,11 +112,13 @@ watch(rights, (confirmed) => {
     v-bind="$attrs"
     type="button"
     variant="outline"
-    icon="i-lucide-image-plus"
+    icon="i-lucide-shapes"
     class="whitespace-nowrap"
+    :aria-label="currentLogo ? t('logo.replace') : t('logo.upload')"
     @click="start"
   >
-    {{ currentLogo ? t('logo.replace') : t('logo.upload') }}
+    <!-- On a phone the compact button shows only its icon. -->
+    <span class="hidden sm:inline">{{ currentLogo ? t('logo.replace') : t('logo.upload') }}</span>
   </UButton>
 
   <UModal

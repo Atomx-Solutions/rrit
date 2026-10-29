@@ -6,7 +6,7 @@ import { audienceLanguageFromResearch } from '../../../utils/audience-language'
 import { normalizeGeneratedCreative } from '../../../utils/image-processing'
 import { monthlyImageCall, postImageEditPrompt } from '../../../utils/monthly-ai'
 import { loadBrandLogo } from '../../../utils/brand-assets'
-import { evidenceHash, PlannerFailure, plannerMessages } from '../../../utils/monthly-planner-domain'
+import { evidenceHash, PlannerFailure, plannerMessageKey } from '../../../utils/monthly-planner-domain'
 import { postContentVersion, postContentSnapshot, postFingerprint } from '../../../utils/post-validation'
 import {
   assetStorageFolder,
@@ -191,7 +191,7 @@ export default defineEventHandler(async (event) => {
     if (error instanceof PlannerFailure)
       throw createError({
         statusCode: ['QUOTA_EXCEEDED', 'BUDGET_EXCEEDED'].includes(error.code) ? 429 : 502,
-        message: plannerMessages[error.code] || 'Fotografia nuk u rigjenerua. Versioni aktual mbeti i paprekur.',
+        message: plannerMessageKey(error.code, 'planner.creativeFailed'),
         data: { code: error.code },
       })
     throw error
