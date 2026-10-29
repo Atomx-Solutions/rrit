@@ -37,6 +37,7 @@ import {
 } from '../../server/utils/post-validation'
 import {
   instagramContainerTimedOut,
+  instagramContainerPollSeconds,
   publishingBatchSize,
   uniquePublicationMatch,
   reconnectionMatchesTargets,
@@ -906,6 +907,12 @@ describe('optional Meta calendar', () => {
     const now = Date.parse('2026-09-07T12:00:00.000Z')
     expect(instagramContainerTimedOut(new Date(now - 59 * 60 * 1000), now)).toBe(false)
     expect(instagramContainerTimedOut(new Date(now - 61 * 60 * 1000), now)).toBe(true)
+  })
+  it('asks about a fresh Instagram container often and an old one less often', () => {
+    const now = Date.parse('2026-09-07T12:00:00.000Z')
+    expect(instagramContainerPollSeconds(new Date(now - 10 * 1000), now)).toBe(5)
+    expect(instagramContainerPollSeconds(new Date(now - 2 * 60 * 1000), now)).toBe(15)
+    expect(instagramContainerPollSeconds(new Date(now - 10 * 60 * 1000), now)).toBe(60)
   })
   it('keeps publisher throughput configuration bounded', () => {
     expect(publishingBatchSize()).toBe(5)

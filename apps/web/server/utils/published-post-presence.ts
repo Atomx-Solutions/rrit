@@ -100,6 +100,7 @@ export async function checkPublishedPost(userId: string, postId: string) {
     post.providerPostId = undefined
     post.publishedAt = undefined
     post.policyReason = 'server.POST_REMOVED_FROM_NETWORK'
+    post.networkRemovals = [...(post.networkRemovals ?? []), { providerPostId: snapshot.providerPostId, at: new Date().toISOString() }]
     post.version++
     await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2', [JSON.stringify(post), post.id])
     const revision = await client.query<{ revision: number }>(

@@ -129,6 +129,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
              made every row taller than the phone needed for a list. -->
         <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           <StatusBadge :status="post.status" />
+          <RepostBadge :post="post" />
           <span>{{ post.channel }}</span>
           <template v-if="post.scheduledAt">
             <span aria-hidden="true">·</span>
@@ -194,7 +195,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
         />{{ row.original.channel }}</span
       >
     </template>
-    <template #status-cell="{ row }"><StatusBadge :status="row.original.status" /></template>
+    <template #status-cell="{ row }"><span class="inline-flex flex-wrap gap-1"><StatusBadge :status="row.original.status" /><RepostBadge :post="row.original" /></span></template>
     <template #scheduledAt-cell="{ row }"
       ><span class="text-xs text-muted">{{
         row.original.scheduledAt

@@ -2264,5 +2264,7 @@
   "content.removedFromNetwork": "Il post è stato eliminato da {{channel}}. Puoi pubblicarlo di nuovo.",
   "server.POST_REMOVED_FROM_NETWORK": "Il post è stato eliminato dalla rete dopo la pubblicazione. Può essere pubblicato di nuovo.",
   "content.removedFromNetworkCount": "{{count}} post sono stati eliminati dalle reti e possono essere pubblicati di nuovo.",
-  "server.PAYMENT_BELOW_MINIMUM": "Questa offerta è inferiore all’importo minimo accettato dal fornitore di pagamento. Contatta il team per una nuova offerta."
+  "server.PAYMENT_BELOW_MINIMUM": "Questa offerta è inferiore all’importo minimo accettato dal fornitore di pagamento. Contatta il team per una nuova offerta.",
+  "content.repostedBadge": "Ripubblicato",
+  "content.deletedBadge": "Eliminato dal social"
 }
