@@ -703,5 +703,6 @@
   "admin.invitations.acceptedOn": "pranuar më {{date}}",
   "admin.invitations.nameTooLong": "Emri lejon deri në 120 shenja.",
   "admin.invitations.slugTooLong": "Slug-u lejon deri në 80 shenja.",
-  "admin.invitations.expiresInvalid": "Zgjidh një vlerë nga 1 deri 30 ditë."
+  "admin.invitations.expiresInvalid": "Zgjidh një vlerë nga 1 deri 30 ditë.",
+  "admin.packages.paddleMinimum": "Paddle nuk pranon pagesa nën {{price}}. Vendos një çmim të paktën {{price}}."
 }

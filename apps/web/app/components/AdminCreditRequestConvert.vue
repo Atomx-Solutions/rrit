@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { belowPaddleMinimum, paddleMinimumCents } from '~~/shared/utils/paddle-minimum'
 import { formatMoney } from '~~/shared/utils/format'
 import type { AdminPackageRequest } from './AdminPackageRequestDetails.vue'
 
@@ -32,6 +33,13 @@ const creditPriceCents = computed(() => Math.round(form.creditPrice * 100))
 const suggestedCents = computed(() => form.credits * creditPriceCents.value)
 const priceCents = computed(() => Math.round(form.price * 100))
 const overridden = computed(() => priceCents.value !== suggestedCents.value)
+// Paddle cannot charge less than its minimum, so such an offer could never be paid.
+const priceBelowMinimum = computed(() => belowPaddleMinimum(priceCents.value, currency.value))
+const minimumPriceMessage = computed(() =>
+  priceBelowMinimum.value
+    ? t('admin.packages.paddleMinimum', { price: formatMoney(paddleMinimumCents(currency.value)! / 100, currency.value) })
+    : undefined,
+)
 const organizationId = computed(() => props.request?.organization_id || '')
 
 const saving = ref(false)
@@ -190,6 +198,7 @@ async function submit() {
         <UFormField
           name="price"
           :label="t('admin.packages.price')"
+          :error="minimumPriceMessage"
           :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, currency) })"
           required
         >
@@ -208,7 +217,7 @@ async function submit() {
           <UTextarea v-model="form.notes" :rows="3" :maxlength="2000" class="w-full" />
         </UFormField>
         <p class="text-xs text-muted">{{ t('admin.requests.creditJoinsPackage') }}</p>
-        <UButton type="submit" block :loading="saving || !rateReady" :disabled="!organizationId || !rateReady || priceCents <= 0">
+        <UButton type="submit" block :loading="saving || !rateReady" :disabled="!organizationId || !rateReady || priceCents <= 0 || priceBelowMinimum">
           {{ t('admin.requests.convertSubmit') }}
         </UButton>
       </UForm>

@@ -703,5 +703,6 @@
   "admin.invitations.acceptedOn": "accepted on {{date}}",
   "admin.invitations.nameTooLong": "The name allows up to 120 characters.",
   "admin.invitations.slugTooLong": "The slug allows up to 80 characters.",
-  "admin.invitations.expiresInvalid": "Choose a value between 1 and 30 days."
+  "admin.invitations.expiresInvalid": "Choose a value between 1 and 30 days.",
+  "admin.packages.paddleMinimum": "Paddle cannot charge less than {{price}}. Set a price of at least {{price}}."
 }

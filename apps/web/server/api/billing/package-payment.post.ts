@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { createPaddleTransaction, paddleEnabled } from '../../utils/paddle'
+import { belowPaddleMinimum } from '../../../shared/utils/paddle-minimum'
 
 const bodySchema = z.object({ packageId: z.uuid() }).strict()
 
@@ -26,6 +27,8 @@ export default defineEventHandler(async (event) => {
     const packageRow = result.rows[0]
     if (!packageRow) throw createError({ statusCode: 404, message: 'server.PACKAGE_NOT_FOUND' })
     if (packageRow.price_cents <= 0) throw createError({ statusCode: 422, message: 'server.PACKAGE_PRICE_INVALID' })
+    if (belowPaddleMinimum(packageRow.price_cents, packageRow.currency))
+      throw createError({ statusCode: 422, message: 'server.PAYMENT_BELOW_MINIMUM', data: { code: 'PAYMENT_BELOW_MINIMUM' } })
 
     const activePackage = await client.query<{ id: string }>(
       `SELECT id FROM custom_packages WHERE organization_id=$1 AND status='active' LIMIT 1`,
