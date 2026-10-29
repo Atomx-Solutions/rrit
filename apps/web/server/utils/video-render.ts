@@ -20,7 +20,8 @@ import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-d
 import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
 import { directedTakes, videoChargeCredits } from './video-takes'
 import { maxVideoPhotos, storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
-import { composeBrandedVideo, extractVideoFrames, joinClips, videoDuration } from './video-compose'
+import { addMusicToVideo, composeBrandedVideo, extractVideoFrames, joinClips, videoDuration } from './video-compose'
+import { generateVideoMusic, videoMusicConfigured } from './video-music'
 import { generateStoryboardShots } from './video-shots'
 import { reviewVideoQuality, verifySamePhotographedSubject } from './video-subject-check'
 
@@ -405,11 +406,33 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // Compose before upload. The provider MP4 is an in-memory intermediate;
     // only the branded MP4 becomes the ready render's canonical storage path.
     failureReason = 'composition_failed'
-    const bytes = await composeBrandedVideo({
+    let bytes = await composeBrandedVideo({
       motion,
       target: snapshot.canvas,
       overlays,
     })
+    // Frames of the finished video, read by both the music and the review.
+    const frames = await extractVideoFrames(bytes, [0.1, 0.4, 0.7, 0.95])
+    // One track for the whole video, made from what it shows. Music that
+    // cannot be made leaves the video silent, as videos were before; it never
+    // costs the business the video itself.
+    let musicCostUsd: number | null = 0
+    if (videoMusicConfigured()) {
+      try {
+        const music = await generateVideoMusic({
+          frames,
+          caption: snapshot.caption,
+          brandName: snapshot.brandName,
+          durationSeconds: motionSeconds,
+        })
+        if (music) {
+          musicCostUsd = music.costUsd
+          bytes = await addMusicToVideo(bytes, music.audio)
+        }
+      } catch (error) {
+        console.warn('Video music was unavailable; the video stays silent', { postId, error: error instanceof Error ? error.message : 'unknown' })
+      }
+    }
     // The finished video is reviewed like a post's still image: against the
     // photograph, the verified facts, the Business Brain commitments, the
     // business's restrictions, the approved copy, the channel frame and the
@@ -422,7 +445,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       const review = await reviewVideoQuality({
         photograph: snapshot.source,
         extraPhotographs: extraFitted,
-        frames: await extractVideoFrames(bytes, [0.1, 0.4, 0.7, 0.95]),
+        frames,
         caption: snapshot.caption,
         brandName: snapshot.brandName,
         locale: snapshot.locale,
@@ -454,7 +477,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       // leaves the reservation as the charge, because guessing lower would give
       // the generation away and guessing higher would overcharge.
       const charged = videoChargeCredits({
-        costUsd: costUsd === null ? null : costUsd + reviewCostUsd,
+        costUsd: costUsd === null || musicCostUsd === null ? null : costUsd + reviewCostUsd + musicCostUsd,
         reservedCredits,
         usdMicroEur: usdMicroEurRate(),
         providerCostPerCreditMicroEur: (await creditPricing(client)).providerCostPerCreditMicroEur,

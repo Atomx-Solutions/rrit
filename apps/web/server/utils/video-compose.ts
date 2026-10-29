@@ -153,6 +153,44 @@ export async function extractVideoFrames(video: Buffer, fractions: number[]) {
   }
 }
 
+// How the music enters and leaves the finished video.
+const MUSIC_FADE_IN_SECONDS = 0.5
+const MUSIC_FADE_OUT_SECONDS = 1.5
+
+/**
+ * The finished video with a music track laid under it: the track is cut to
+ * the video's length, faded in and out and brought to a steady loudness. The
+ * picture is copied untouched.
+ */
+export async function addMusicToVideo(video: Buffer, music: Buffer) {
+  const directory = await mkdtemp(join(tmpdir(), 'rrit-music-'))
+  try {
+    const videoPath = join(directory, 'video.mp4')
+    const musicPath = join(directory, 'music.mp3')
+    const outputPath = join(directory, 'scored.mp4')
+    await Promise.all([writeFile(videoPath, video), writeFile(musicPath, music)])
+    const source = await probe(videoPath)
+    const fadeOut = Math.min(MUSIC_FADE_OUT_SECONDS, source.duration / 2)
+    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+      '-i', videoPath, '-i', musicPath,
+      '-filter_complex',
+      `[1:a]atrim=0:${source.duration},asetpts=PTS-STARTPTS,`
+        + `afade=t=in:st=0:d=${MUSIC_FADE_IN_SECONDS},afade=t=out:st=${source.duration - fadeOut}:d=${fadeOut},`
+        + 'loudnorm=I=-16:TP=-1.5:LRA=11[music]',
+      '-map', '0:v', '-map', '[music]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000',
+      '-t', String(source.duration), '-movflags', '+faststart', outputPath,
+    ], { timeout: 120_000, maxBuffer: 2 * 1024 * 1024 })
+    const scored = await probe(outputPath)
+    if (Math.abs(scored.duration - source.duration) > 0.2) throw new Error('Scored video duration is invalid')
+    const bytes = await readFile(outputPath)
+    if (bytes.length > MAX_FINAL_VIDEO_BYTES) throw new Error('Scored video exceeds delivery size limit')
+    return bytes
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+}
+
 // How a designed overlay layer arrives: it fades in while rising this far.
 const OVERLAY_REVEAL_SECONDS = 0.5
 const OVERLAY_RISE_RATIO = 0.016
