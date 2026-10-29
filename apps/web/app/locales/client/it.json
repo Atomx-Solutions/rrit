@@ -2263,5 +2263,6 @@
   "policy.refundRequestDescription": "Invia la richiesta via e-mail con il nome della tua azienda e il numero della fattura. I rimborsi approvati vengono effettuati da Paddle sul metodo di pagamento originale.",
   "content.removedFromNetwork": "Il post è stato eliminato da {{channel}}. Puoi pubblicarlo di nuovo.",
   "server.POST_REMOVED_FROM_NETWORK": "Il post è stato eliminato dalla rete dopo la pubblicazione. Può essere pubblicato di nuovo.",
-  "content.removedFromNetworkCount": "{{count}} post sono stati eliminati dalle reti e possono essere pubblicati di nuovo."
+  "content.removedFromNetworkCount": "{{count}} post sono stati eliminati dalle reti e possono essere pubblicati di nuovo.",
+  "server.PAYMENT_BELOW_MINIMUM": "Questa offerta è inferiore all’importo minimo accettato dal fornitore di pagamento. Contatta il team per una nuova offerta."
 }

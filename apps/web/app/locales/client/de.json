@@ -2263,5 +2263,6 @@
   "policy.refundRequestDescription": "Sende deine Anfrage per E-Mail mit dem Namen deines Unternehmens und der Rechnungsnummer. Genehmigte Rückerstattungen zahlt Paddle über die ursprüngliche Zahlungsmethode aus.",
   "content.removedFromNetwork": "Der Beitrag wurde auf {{channel}} gelöscht. Du kannst ihn erneut veröffentlichen.",
   "server.POST_REMOVED_FROM_NETWORK": "Der Beitrag wurde nach der Veröffentlichung im Netzwerk gelöscht. Er kann erneut veröffentlicht werden.",
-  "content.removedFromNetworkCount": "{{count}} Beiträge wurden in den Netzwerken gelöscht und können erneut veröffentlicht werden."
+  "content.removedFromNetworkCount": "{{count}} Beiträge wurden in den Netzwerken gelöscht und können erneut veröffentlicht werden.",
+  "server.PAYMENT_BELOW_MINIMUM": "Dieses Angebot liegt unter dem Mindestbetrag des Zahlungsanbieters. Kontaktiere das Team für ein neues Angebot."
 }

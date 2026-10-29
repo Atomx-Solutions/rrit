@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 import { z } from 'zod'
+import { belowPaddleMinimum, paddleMinimumCents } from '~~/shared/utils/paddle-minimum'
 
 export type AdminCustomPackage = {
   id: string
@@ -186,6 +187,13 @@ const creditsInput = computed({
   },
 })
 const overridden = computed(() => form.price_cents !== suggestedCents.value)
+// Paddle cannot charge less than its minimum, so such an offer could never be paid.
+const priceBelowMinimum = computed(() => belowPaddleMinimum(form.price_cents, displayCurrency.value))
+const minimumPriceMessage = computed(() =>
+  priceBelowMinimum.value
+    ? t('admin.packages.paddleMinimum', { price: formatPackageMoney(paddleMinimumCents(displayCurrency.value)!, displayCurrency.value) })
+    : undefined,
+)
 // How the suggested price adds up, one line per kind of deliverable.
 const priceLines = computed(() => [
   { label: `${form.posts_included} × ${t('admin.packages.posts')} · ${formatPackageMoney(form.post_price_cents, displayCurrency.value)}`, cents: form.posts_included * form.post_price_cents },
@@ -288,6 +296,7 @@ function useSuggestion() {
 }
 
 async function submit() {
+  if (priceBelowMinimum.value) return
   saving.value = true
   error.value = ''
   const notes = form.notes.trim()
@@ -561,7 +570,7 @@ const listUi = {
               <span class="tabular-nums">{{ formatPackageMoney(suggestedCents, displayCurrency) }}</span>
             </div>
           </div>
-          <UFormField name="price_cents" :label="t('admin.packages.price')" required>
+          <UFormField name="price_cents" :label="t('admin.packages.price')" :error="minimumPriceMessage" required>
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
               <LiveInputNumber
                 v-model="priceEuro"
@@ -599,7 +608,7 @@ const listUi = {
           :label="t('admin.packages.cancel')"
           @click="creating = false; editing = null"
         />
-        <UButton type="submit" form="custom-package-form" :loading="saving" :label="t('admin.packages.save')" />
+        <UButton type="submit" form="custom-package-form" :loading="saving" :disabled="priceBelowMinimum" :label="t('admin.packages.save')" />
       </div>
     </template>
   </UModal>

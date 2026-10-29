@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { belowPaddleMinimum, paddleMinimumCents } from '~~/shared/utils/paddle-minimum'
 import { formatMoney } from '~~/shared/utils/format'
 import type { AdminPackageRequest } from './AdminPackageRequestDetails.vue'
 
@@ -82,6 +83,13 @@ const priceCents = computed(() => Math.round(form.priceEuro * 100))
 // The rate cannot always divide the total evenly, so an agreed total keeps its
 // figure and shows the nearest rate beside it.
 const overridden = computed(() => priceCents.value !== suggestedCents.value)
+// Paddle cannot charge less than its minimum, so such an offer could never be paid.
+const priceBelowMinimum = computed(() => belowPaddleMinimum(priceCents.value, currency.value))
+const minimumPriceMessage = computed(() =>
+  priceBelowMinimum.value
+    ? t('admin.packages.paddleMinimum', { price: formatMoney(paddleMinimumCents(currency.value)! / 100, currency.value) })
+    : undefined,
+)
 
 function dayToIso(value: string) {
   return new Date(`${value}T00:00:00.000Z`).toISOString()
@@ -248,6 +256,7 @@ async function submit() {
         <UFormField
           name="priceEuro"
           :label="t('admin.packages.price')"
+          :error="minimumPriceMessage"
           :hint="t('admin.packages.suggested', { price: formatMoney(suggestedCents / 100, currency) })"
           required
         >
@@ -273,7 +282,7 @@ async function submit() {
         <UFormField name="notes" :label="t('admin.packages.notes')">
           <UTextarea v-model="form.notes" :rows="2" :maxlength="2000" class="w-full" />
         </UFormField>
-        <UButton type="submit" :loading="saving || !rateReady" :disabled="!rateReady || priceCents <= 0" :label="t('admin.requests.sendProposal')" block />
+        <UButton type="submit" :loading="saving || !rateReady" :disabled="!rateReady || priceCents <= 0 || priceBelowMinimum" :label="t('admin.requests.sendProposal')" block />
       </UForm>
     </template>
   </UModal>

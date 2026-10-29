@@ -2263,5 +2263,6 @@
   "policy.refundRequestDescription": "Dërgo kërkesën me email, me emrin e biznesit dhe numrin e faturës. Rimbursimet e aprovuara i kryen Paddle në mënyrën origjinale të pagesës.",
   "content.removedFromNetwork": "Postimi u fshi nga {{channel}}. Mund ta publikosh përsëri.",
   "server.POST_REMOVED_FROM_NETWORK": "Postimi u fshi nga rrjeti pas publikimit. Mund të publikohet përsëri.",
-  "content.removedFromNetworkCount": "{{count}} postime u fshinë nga rrjetet dhe mund të publikohen përsëri."
+  "content.removedFromNetworkCount": "{{count}} postime u fshinë nga rrjetet dhe mund të publikohen përsëri.",
+  "server.PAYMENT_BELOW_MINIMUM": "Kjo ofertë është nën shumën minimale që pranon procesori i pagesave. Kontakto ekipin për një ofertë të re."
 }

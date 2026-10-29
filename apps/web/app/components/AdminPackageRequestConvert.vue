@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { belowPaddleMinimum, paddleMinimumCents } from '~~/shared/utils/paddle-minimum'
 import type { AdminPackageRequest } from './AdminPackageRequestDetails.vue'
 
 /**
@@ -105,6 +106,13 @@ const form = reactive({
 const postPriceCents = computed(() => Math.round(form.postPriceEuro * 100))
 const videoPriceCents = computed(() => Math.round(form.videoPriceEuro * 100))
 const suggestedCents = computed(() => form.postsIncluded * postPriceCents.value + form.videosIncluded * videoPriceCents.value)
+// Paddle cannot charge less than its minimum, so such an offer could never be paid.
+const priceBelowMinimum = computed(() => belowPaddleMinimum(Math.round(form.priceEuro * 100), currency.value))
+const minimumPriceMessage = computed(() =>
+  priceBelowMinimum.value
+    ? t('admin.packages.paddleMinimum', { price: formatMoney(paddleMinimumCents(currency.value)! / 100, currency.value) })
+    : undefined,
+)
 watch(platformSettings, (settings) => {
   if (!settings) return
   form.postPriceEuro = settings.custom_package_post_price_cents / 100
@@ -160,7 +168,7 @@ const pricingReady = computed(() => {
 
 async function submit() {
   if (!props.request) return
-  if (!pricingReady.value || Math.round(form.priceEuro * 100) <= 0) return
+  if (!pricingReady.value || Math.round(form.priceEuro * 100) <= 0 || priceBelowMinimum.value) return
   if (!form.organizationId) {
     error.value = t('admin.requests.convertNeedsOrganization')
     return
@@ -279,6 +287,7 @@ async function copyInvitationLink() {
         </div>
         <UFormField
           name="priceEuro"
+          :error="minimumPriceMessage"
           label="Offer price"
           :hint="`Calculated from the configured post and video prices. VAT is added on the invoice.`"
           required
@@ -301,7 +310,7 @@ async function copyInvitationLink() {
         <UFormField name="notes" :label="t('admin.packages.notes')">
           <UTextarea v-model="form.notes" :rows="2" :maxlength="2000" class="w-full" />
         </UFormField>
-        <UButton type="submit" :loading="saving || !pricingReady" :disabled="!pricingReady || Math.round(form.priceEuro * 100) <= 0" :label="t('admin.requests.sendProposal')" block />
+        <UButton type="submit" :loading="saving || !pricingReady" :disabled="!pricingReady || Math.round(form.priceEuro * 100) <= 0 || priceBelowMinimum" :label="t('admin.requests.sendProposal')" block />
       </UForm>
     </template>
   </UModal>
