@@ -45,12 +45,40 @@ let touchInputMedia: MediaQueryList | undefined
 function updateTouchInput() {
   touchInput.value = !!touchInputMedia?.matches
 }
+// A post deleted on Facebook or Instagram stops showing as published within
+// a minute or two: Meta sends no notice, so the published posts are checked
+// while the workspace is open and on each page change.
+const publishedCheckIntervalMs = 90_000
+let publishedCheckTimer: ReturnType<typeof setInterval> | undefined
+let lastPublishedCheck = 0
+async function checkPublishedPosts() {
+  if (!ready.value || Date.now() - lastPublishedCheck < 30_000) return
+  lastPublishedCheck = Date.now()
+  try {
+    const result = await $fetch('/api/posts/publication-check', { method: 'POST', body: {}, retry: 0 })
+    if (result.removed.length) {
+      await reload()
+      toast.add({ title: t('content.removedFromNetworkCount', { count: result.removed.length }), color: 'warning' })
+    }
+  } catch {
+    /* Posts stay as they are when the networks cannot be asked. */
+  }
+}
+watch(() => route.path, () => void checkPublishedPosts())
+watch(ready, (isReady) => {
+  if (isReady) void checkPublishedPosts()
+})
 onMounted(() => {
   touchInputMedia = window.matchMedia('(hover: none), (pointer: coarse)')
   updateTouchInput()
   touchInputMedia.addEventListener('change', updateTouchInput)
+  void checkPublishedPosts()
+  publishedCheckTimer = setInterval(() => void checkPublishedPosts(), publishedCheckIntervalMs)
 })
-onBeforeUnmount(() => touchInputMedia?.removeEventListener('change', updateTouchInput))
+onBeforeUnmount(() => {
+  touchInputMedia?.removeEventListener('change', updateTouchInput)
+  clearInterval(publishedCheckTimer)
+})
 // A mobile drawer closing must not overwrite the desktop preference.
 watch(sidebarOpen, (open) => {
   if (import.meta.client && !window.matchMedia('(max-width: 1023px)').matches) {

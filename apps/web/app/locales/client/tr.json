@@ -2260,5 +2260,8 @@
   "policy.refundExpiryTitle": "Süresi dolan krediler",
   "policy.refundExpiryDescription": "Kullanılmayan krediler paketlerinin bitiminde sona erer ve bundan sonra iade edilmez.",
   "policy.refundRequestTitle": "İade talebi",
-  "policy.refundRequestDescription": "Talebinizi işletme adınız ve fatura numaranızla e-posta ile gönderin. Onaylanan iadeler Paddle tarafından orijinal ödeme yöntemine yapılır."
+  "policy.refundRequestDescription": "Talebinizi işletme adınız ve fatura numaranızla e-posta ile gönderin. Onaylanan iadeler Paddle tarafından orijinal ödeme yöntemine yapılır.",
+  "content.removedFromNetwork": "Gönderi {{channel}} üzerinden silindi. Yeniden yayınlayabilirsiniz.",
+  "server.POST_REMOVED_FROM_NETWORK": "Gönderi yayınlandıktan sonra ağdan silindi. Yeniden yayınlanabilir.",
+  "content.removedFromNetworkCount": "{{count}} gönderi ağlardan silindi ve yeniden yayınlanabilir."
 }

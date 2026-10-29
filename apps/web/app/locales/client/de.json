@@ -2260,5 +2260,8 @@
   "policy.refundExpiryTitle": "Abgelaufene Credits",
   "policy.refundExpiryDescription": "Ungenutzte Credits verfallen mit dem Ende ihres Pakets und werden danach nicht erstattet.",
   "policy.refundRequestTitle": "Rückerstattung anfragen",
-  "policy.refundRequestDescription": "Sende deine Anfrage per E-Mail mit dem Namen deines Unternehmens und der Rechnungsnummer. Genehmigte Rückerstattungen zahlt Paddle über die ursprüngliche Zahlungsmethode aus."
+  "policy.refundRequestDescription": "Sende deine Anfrage per E-Mail mit dem Namen deines Unternehmens und der Rechnungsnummer. Genehmigte Rückerstattungen zahlt Paddle über die ursprüngliche Zahlungsmethode aus.",
+  "content.removedFromNetwork": "Der Beitrag wurde auf {{channel}} gelöscht. Du kannst ihn erneut veröffentlichen.",
+  "server.POST_REMOVED_FROM_NETWORK": "Der Beitrag wurde nach der Veröffentlichung im Netzwerk gelöscht. Er kann erneut veröffentlicht werden.",
+  "content.removedFromNetworkCount": "{{count}} Beiträge wurden in den Netzwerken gelöscht und können erneut veröffentlicht werden."
 }

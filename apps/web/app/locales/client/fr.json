@@ -2260,5 +2260,8 @@
   "policy.refundExpiryTitle": "Crédits expirés",
   "policy.refundExpiryDescription": "Les crédits non utilisés expirent à la fin de leur forfait et ne sont plus remboursés ensuite.",
   "policy.refundRequestTitle": "Demander un remboursement",
-  "policy.refundRequestDescription": "Envoyez votre demande par e-mail avec le nom de votre entreprise et le numéro de facture. Les remboursements approuvés sont effectués par Paddle sur le moyen de paiement d’origine."
+  "policy.refundRequestDescription": "Envoyez votre demande par e-mail avec le nom de votre entreprise et le numéro de facture. Les remboursements approuvés sont effectués par Paddle sur le moyen de paiement d’origine.",
+  "content.removedFromNetwork": "La publication a été supprimée de {{channel}}. Vous pouvez la republier.",
+  "server.POST_REMOVED_FROM_NETWORK": "La publication a été supprimée du réseau après sa publication. Elle peut être republiée.",
+  "content.removedFromNetworkCount": "{{count}} publications ont été supprimées des réseaux et peuvent être republiées."
 }

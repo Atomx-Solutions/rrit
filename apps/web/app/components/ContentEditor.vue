@@ -19,6 +19,7 @@ function policyDescription(reason?: string, channel?: Post['channel']) {
     'server.VIDEO_QA_UNAVAILABLE',
     'server.IMAGE_CHANNEL_FORMAT_MISMATCH',
     'server.VIDEO_CHANNEL_FORMAT_MISMATCH',
+    'server.POST_REMOVED_FROM_NETWORK',
     'validation.aiQualityPassed',
   ]
   // The stored reason keeps only the keys; the format keys name the post's
@@ -32,6 +33,7 @@ function policyDescription(reason?: string, channel?: Post['channel']) {
 const { data: capabilities } = await useFetch('/api/capabilities')
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
+const { data: instagramStatus } = await useFetch('/api/instagram/status', { key: 'instagram-status' })
 const existing = computed(() => data.value.posts.find((p) => p.id === props.id))
 if (props.id && !existing.value)
   throw createError({ statusCode: 404, statusMessage: t('content.postNotFound') })
@@ -301,7 +303,22 @@ async function sendVideoToTikTok() {
     videoBusy.value = false
   }
 }
+// A published post deleted on Facebook or Instagram returns to approved, ready
+// to be published again.
+async function checkPublishedPost() {
+  if (post.value?.status !== 'published' || !post.value.providerPostId || post.value.channel === 'TikTok') return
+  try {
+    const result = await $fetch(`/api/posts/${post.value.id}/publication-check`, { method: 'POST', body: {}, retry: 0 })
+    if (result.removed) {
+      await initLive()
+      notify(t('content.removedFromNetwork', { channel: form.channel }))
+    }
+  } catch {
+    /* The post stays published when the network cannot be asked. */
+  }
+}
 onMounted(() => {
+  void checkPublishedPost()
   publicationTimer = setInterval(refreshPublication, 10000)
   void refreshPublication()
   void refreshVideo()
@@ -336,6 +353,9 @@ const canPublish = computed(() => {
   if (!capabilities.value?.publishing) return false
   if (form.channel === 'TikTok')
     return tiktokStatus.value?.connection?.status === 'connected'
+  // An account connected through Instagram Login publishes without a Facebook page.
+  if (form.channel === 'Instagram' && instagramStatus.value?.connection?.status === 'connected')
+    return instagramStatus.value.connection.canPublish
   return (
     meta.value?.connection?.status === 'connected' &&
     (form.channel === 'Facebook'
