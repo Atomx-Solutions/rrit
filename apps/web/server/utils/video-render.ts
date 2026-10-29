@@ -541,7 +541,9 @@ async function markPostVideoFailed(
 ) {
   const current = await client.query<{ payload: unknown }>('SELECT payload FROM posts WHERE id=$1 AND business_id=$2 FOR UPDATE', [postId, businessId])
   const currentPost = current.rows[0] && postSchema.parse(current.rows[0].payload)
-  if (currentPost?.video) {
+  // A post whose video is already made keeps it: a later render that fails,
+  // for example one started without credits left, made nothing to replace it.
+  if (currentPost?.video && currentPost.video.status !== 'ready') {
     currentPost.video.status = 'failed'
     if (failure) currentPost.video.failure = { ...failure, detail: failure.detail?.slice(0, 400), at: new Date().toISOString() }
     await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(currentPost), postId, businessId])
