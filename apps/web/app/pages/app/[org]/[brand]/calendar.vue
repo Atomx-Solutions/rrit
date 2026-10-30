@@ -29,9 +29,15 @@ const monthNames = computed(() => [
   t('calendar.months.december'),
 ])
 const period = computed(() => calendarPeriod(anchor.value, view.value, monthNames.value))
+// The calendar holds only what is fixed: posts scheduled to go out, and posts
+// already out, on the day they went out. A suggested time is not a booking.
 const posts = computed(() =>
   data.value.posts
-    .map((p) => ({ ...p, scheduledAt: p.scheduledAt || p.proposedAt || null }))
+    .filter((p) => p.status === 'scheduled' || p.status === 'published')
+    .map((p) => ({
+      ...p,
+      scheduledAt: (p.status === 'published' ? p.publishedAt || p.scheduledAt : p.scheduledAt) || null,
+    }))
     .filter((p) => p.scheduledAt)
     .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!)),
 )
@@ -226,8 +232,8 @@ function move(direction: number) {
                 }}</span></span
               ><span class="line-clamp-2 leading-relaxed">{{ post.title }}</span
               ><span class="block text-muted mt-1">{{
-                ['draft', 'review'].includes(post.status)
-                  ? t('calendar.proposalAwaitingApproval')
+                post.status === 'published'
+                  ? t('status.published')
                   : post.publicationMode === 'automatic'
                     ? t('calendar.automaticPublication')
                     : t('calendar.calendarOnly')

@@ -119,7 +119,9 @@ export function useWorkspace() {
       syncing.value = false
     }
   }
-  function reload() {
+  // Fetches the latest workspace in place, so the person keeps the page and
+  // never sees the app start again. Only if that fails does the page reload.
+  async function reload() {
     try {
       const prefix = `rrit:draft:${base.value}:`
       const keys = Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.key(i))
@@ -127,7 +129,12 @@ export function useWorkspace() {
     } catch {
       /* Committed data still reloads. */
     }
-    window.location.reload()
+    try {
+      await initLive()
+      await refreshNuxtData()
+    } catch {
+      window.location.reload()
+    }
   }
   async function transition(
     id: string,

@@ -22,16 +22,20 @@ const filter = computed({
     )
   },
 })
-const channel = ref('all')
-const format = ref<'all' | 'video' | 'post'>('all')
+// Format and network are toggles: nothing chosen filters nothing, and each
+// chosen option widens what is shown within its group.
+const channels = ref<string[]>([])
+const formats = ref<('video' | 'post')[]>([])
+const toggled = <T,>(list: T[], value: T) =>
+  list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
 const hasFilters = computed(
-  () => !!search.value.trim() || filter.value !== 'all' || channel.value !== 'all' || format.value !== 'all',
+  () => !!search.value.trim() || filter.value !== 'all' || channels.value.length > 0 || formats.value.length > 0,
 )
 function resetFilters() {
   search.value = ''
   filter.value = 'all'
-  channel.value = 'all'
-  format.value = 'all'
+  channels.value = []
+  formats.value = []
 }
 // A post whose video could not be made is not ready, whatever its own status,
 // so it is listed with the failed posts and nowhere else.
@@ -47,33 +51,31 @@ const tabs = computed(() => [
 const filtersOpen = ref(false)
 // Short labels with an icon each; the panel's headings say what they filter.
 const formatItems = computed(() => [
-  { label: t('content.filterAll'), value: 'all' as const, icon: 'i-lucide-layers' },
   { label: t('content.filterPosts'), value: 'post' as const, icon: 'i-lucide-image' },
   { label: t('content.filterVideos'), value: 'video' as const, icon: 'i-lucide-circle-play' },
 ])
 const networkIcons: Record<string, string> = { Facebook: 'i-lucide-facebook', Instagram: 'i-lucide-instagram' }
 const networkItems = computed(() => [
-  { label: t('content.filterAll'), value: 'all', icon: 'i-lucide-globe' },
-  ...postSchema.shape.channel.options.map((value) => ({ label: value, value, icon: networkIcons[value] })),
+  ...postSchema.shape.channel.options.map((value) => ({ label: value, value: value as string, icon: networkIcons[value] })),
 ])
-const activeFilterCount = computed(() => (format.value !== 'all' ? 1 : 0) + (channel.value !== 'all' ? 1 : 0))
+const activeFilterCount = computed(() => formats.value.length + channels.value.length)
 function clearPanelFilters() {
-  format.value = 'all'
-  channel.value = 'all'
+  formats.value = []
+  channels.value = []
 }
 const posts = computed(() =>
   data.value.posts.filter(
     (p) =>
       inTab(p, filter.value) &&
-      (channel.value === 'all' || p.channel === channel.value) &&
-      (format.value === 'all' || (format.value === 'video' ? !!p.video : !p.video)) &&
+      (!channels.value.length || channels.value.includes(p.channel)) &&
+      (!formats.value.length || formats.value.includes(p.video ? 'video' : 'post')) &&
       `${p.title} ${p.caption}`
         .toLocaleLowerCase('sq')
         .includes(search.value.trim().toLocaleLowerCase('sq')),
   ),
 )
 const { page, pageSize, total, paginated } = usePagination(posts)
-watch([search, filter, channel, format], () => {
+watch([search, filter, channels, formats], () => {
   page.value = 1
 })
 </script>
@@ -122,10 +124,10 @@ watch([search, filter, channel, format], () => {
                 :key="item.value"
                 :icon="item.icon"
                 size="sm"
-                :color="format === item.value ? 'primary' : 'neutral'"
-                :variant="format === item.value ? 'soft' : 'outline'"
-                :aria-pressed="format === item.value"
-                @click="format = item.value"
+                :color="formats.includes(item.value) ? 'primary' : 'neutral'"
+                :variant="formats.includes(item.value) ? 'soft' : 'outline'"
+                :aria-pressed="formats.includes(item.value)"
+                @click="formats = toggled(formats, item.value)"
                 >{{ item.label }}</UButton
               >
             </div>
@@ -138,10 +140,10 @@ watch([search, filter, channel, format], () => {
                 :key="item.value"
                 :icon="item.icon"
                 size="sm"
-                :color="channel === item.value ? 'primary' : 'neutral'"
-                :variant="channel === item.value ? 'soft' : 'outline'"
-                :aria-pressed="channel === item.value"
-                @click="channel = item.value"
+                :color="channels.includes(item.value) ? 'primary' : 'neutral'"
+                :variant="channels.includes(item.value) ? 'soft' : 'outline'"
+                :aria-pressed="channels.includes(item.value)"
+                @click="channels = toggled(channels, item.value)"
               >
                 <TikTokMark v-if="item.value === 'TikTok'" class="size-4" />{{ item.label }}
               </UButton>

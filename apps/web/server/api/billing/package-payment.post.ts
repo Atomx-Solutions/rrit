@@ -59,17 +59,19 @@ export default defineEventHandler(async (event) => {
       && packageRow.videos_included === 0
       && packageRow.credits_included === 0
     const invoiceUnitAmount = packageRow.price_cents / invoiceLineQuantity
+    // Each line names one unit: the invoice already shows how many in its Qty
+    // column, so a count in the name reads as a second, conflicting quantity.
     const lineItems = [
       packageRow.posts_included > 0 ? {
         quantity: packageRow.posts_included,
         unitAmountCents: packageRow.post_price_cents,
-        name: `Framic — ${packageRow.posts_included === 1 ? '1 post' : `${packageRow.posts_included} posts`}`,
+        name: 'Framic — Post',
         description: 'Framic posts',
       } : null,
       packageRow.videos_included > 0 ? {
         quantity: packageRow.videos_included,
         unitAmountCents: packageRow.video_price_cents,
-        name: `Framic — ${packageRow.videos_included === 1 ? '1 video' : `${packageRow.videos_included} videos`}`,
+        name: 'Framic — Video',
         description: 'Framic videos',
       } : null,
     ].filter((item): item is { quantity: number; unitAmountCents: number; name: string; description: string } => !!item)

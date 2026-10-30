@@ -5,22 +5,35 @@ export default defineEventHandler(async (event) => {
     .object({
       page: z.coerce.number().int().min(1).max(100000).default(1),
       pageSize: z.coerce.number().int().min(1).max(50).default(10),
-      channel: z.enum(['all', 'Facebook', 'Instagram', 'TikTok']).default('all'),
+      // 'all', or one or more networks separated by commas.
+      channel: z
+        .string()
+        .max(40)
+        .default('all')
+        .transform((value) => (value === 'all' ? [] : value.split(',')))
+        .pipe(z.array(z.enum(['Facebook', 'Instagram', 'TikTok'])).max(3)),
       search: z.string().trim().max(200).default(''),
+      // 'all', or 'image' and/or 'video' separated by commas.
+      format: z
+        .string()
+        .max(20)
+        .default('all')
+        .transform((value) => (value === 'all' ? [] : value.split(',')))
+        .pipe(z.array(z.enum(['image', 'video'])).max(2)),
     })
     .safeParse(getQuery(event))
   if (!input.success) throw createError({ statusCode: 422, message: 'server.FILTER_INVALID_SHORT' })
-  const { page, pageSize, channel, search } = input.data
+  const { page, pageSize, channel, search, format } = input.data
   const result = await withBusinessTransaction(user.id, async (client, business) => {
-    const values = [business.id, channel, search]
+    const values = [business.id, channel, search, format]
     const where =
-      "sp.business_id=$1 AND ($2='all' OR sp.channel=$2) AND ($3='' OR strpos(lower(sp.caption),lower($3))>0) AND (EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) OR EXISTS (SELECT 1 FROM instagram_connections ic WHERE ic.business_id=sp.business_id AND ic.status='connected' AND sp.channel='Instagram' AND sp.source_account_id=ic.instagram_user_id) OR EXISTS (SELECT 1 FROM tiktok_connections tc WHERE tc.business_id=sp.business_id AND tc.status='connected' AND sp.channel='TikTok' AND sp.source_account_id=tc.open_id))"
+      "sp.business_id=$1 AND (cardinality($2::text[])=0 OR sp.channel=ANY($2::text[])) AND ($3='' OR strpos(lower(sp.caption),lower($3))>0) AND (cardinality($4::text[])=0 OR (CASE WHEN upper(sp.media_type) LIKE '%VIDEO%' OR upper(sp.media_type)='REELS' THEN 'video' ELSE 'image' END)=ANY($4::text[])) AND (EXISTS (SELECT 1 FROM meta_connections mc WHERE mc.business_id=sp.business_id AND mc.status='connected' AND ((sp.channel='Facebook' AND sp.source_account_id=mc.page_id) OR (sp.channel='Instagram' AND sp.source_account_id=mc.instagram_id))) OR EXISTS (SELECT 1 FROM instagram_connections ic WHERE ic.business_id=sp.business_id AND ic.status='connected' AND sp.channel='Instagram' AND sp.source_account_id=ic.instagram_user_id) OR EXISTS (SELECT 1 FROM tiktok_connections tc WHERE tc.business_id=sp.business_id AND tc.status='connected' AND sp.channel='TikTok' AND sp.source_account_id=tc.open_id))"
     const count = await client.query(
       `SELECT count(*)::integer AS total FROM social_posts sp WHERE ${where}`,
       values,
     )
     const rows = await client.query(
-      `SELECT sp.id::text, sp.channel, sp.caption, sp.media_url AS image, sp.permalink, sp.published_at AS "publishedAt", sp.media_type AS "mediaType" FROM social_posts sp WHERE ${where} ORDER BY sp.published_at DESC, sp.id DESC LIMIT $4 OFFSET $5`,
+      `SELECT sp.id::text, sp.channel, sp.caption, sp.media_url AS image, sp.permalink, sp.published_at AS "publishedAt", sp.media_type AS "mediaType" FROM social_posts sp WHERE ${where} ORDER BY sp.published_at DESC, sp.id DESC LIMIT $5 OFFSET $6`,
       [...values, pageSize, (page - 1) * pageSize],
     )
     return { rows, total: count.rows[0].total as number }

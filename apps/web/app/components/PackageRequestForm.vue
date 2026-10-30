@@ -240,7 +240,7 @@ async function submit() {
       @submit="submit"
       @error="onFormError"
     >
-    <div class="divide-y divide-default rounded-xl border border-default">
+    <div class="divide-y divide-default rounded-lg border border-default">
       <UFormField
         v-for="item in volumeItems"
         :key="item.name"
@@ -356,7 +356,7 @@ async function submit() {
     </div>
     <div
       v-if="(displayPostPrice > 0 || displayVideoPrice > 0) && !lean"
-      class="rounded-xl bg-primary/10 p-4 ring-1 ring-primary/20 ring-inset"
+      class="rounded-lg bg-primary/10 p-4 ring-1 ring-primary/20 ring-inset"
     >
       <p class="text-xs font-medium uppercase tracking-wide text-muted">{{ t('request.estimateLabel') }}</p>
       <p class="mt-1 text-3xl font-semibold tabular-nums text-highlighted">{{ money(estimatedTotal) }}</p>
@@ -374,7 +374,6 @@ async function submit() {
       trailing-icon="i-lucide-send"
       size="lg"
       block
-      class="rounded-xl"
     />
     </UForm>
   </Transition>

@@ -10,6 +10,7 @@ type RemoteSocialPost = {
   caption?: string
   full_picture?: string
   media_url?: string
+  thumbnail_url?: string
   permalink_url?: string
   permalink?: string
   created_time?: string
@@ -54,7 +55,7 @@ async function syncChannel(
       token,
       {
         fields: instagram
-          ? 'id,caption,media_type,media_url,permalink,timestamp'
+          ? 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp'
           : 'id,message,full_picture,permalink_url,created_time',
         limit: latestPosts ? String(Math.min(latestPosts, 100)) : pageSize,
         ...(after ? { after } : {}),
@@ -85,7 +86,7 @@ async function syncChannel(
           sourceAccountId,
           post.id,
           post.caption || post.message || '',
-          safeUrl(post.media_url || post.full_picture),
+          safeUrl(post.thumbnail_url || post.media_url || post.full_picture),
           safeUrl(post.permalink || post.permalink_url),
           timestamp,
           post.media_type || 'POST',

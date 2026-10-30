@@ -1,4 +1,4 @@
-import { paddleEnabled, paddleWebhookSecret, verifyPaddleSignature, type PaddleWebhookEnvelope } from '../../utils/paddle'
+import { paddleEnabled, paddleTransactionBuyer, paddleWebhookSecret, verifyPaddleSignature, type PaddleWebhookEnvelope } from '../../utils/paddle'
 import { database } from '../../utils/database'
 
 export default defineEventHandler(async (event) => {
@@ -32,6 +32,10 @@ export default defineEventHandler(async (event) => {
     items?: Array<{ quantity?: number }>
   }
 
+  // Read before the database transaction opens, so no lock waits on Paddle.
+  const paid = payload.event_type === 'transaction.paid' || payload.event_type === 'transaction.completed'
+  const buyer = paid && data.id ? await paddleTransactionBuyer(data.id) : null
+
   const client = await database().connect()
   try {
     await client.query('BEGIN')
@@ -41,7 +45,7 @@ export default defineEventHandler(async (event) => {
        VALUES($1,$2,$3,$4) ON CONFLICT(event_id) DO NOTHING RETURNING event_id`,
       [payload.event_id, payload.event_type, payload.occurred_at, payload],
     )
-    if (payload.event_type === 'transaction.paid' || payload.event_type === 'transaction.completed') {
+    if (paid) {
       if (!data.id || !data.custom_data?.orderId)
         throw createError({ statusCode: 400, message: 'server.PADDLE_PAYMENT_REFERENCE_INVALID' })
       await client.query(
@@ -57,7 +61,7 @@ export default defineEventHandler(async (event) => {
       // app.issue_paddle_invoice with the transaction id issues it later.
       await client.query('SAVEPOINT paddle_invoice')
       try {
-        await client.query(`SELECT app.issue_paddle_invoice($1)`, [data.id])
+        await client.query(`SELECT app.issue_paddle_invoice($1,$2)`, [data.id, buyer])
         await client.query('RELEASE SAVEPOINT paddle_invoice')
       } catch (error) {
         await client.query('ROLLBACK TO SAVEPOINT paddle_invoice')

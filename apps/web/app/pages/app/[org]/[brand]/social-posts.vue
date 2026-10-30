@@ -7,14 +7,17 @@ useSeoMeta({ title: () => `${t('nav.socialPosts')} · Framic` })
 const page = ref(1)
 const pageSize = ref(10)
 const requestedChannel = route.query.channel
-const channel = ref<'all' | 'Facebook' | 'Instagram' | 'TikTok'>(
-  requestedChannel === 'TikTok' ? 'TikTok' : 'Facebook',
-)
+// Networks are toggles: none chosen shows every network.
+const channels = ref<string[]>(requestedChannel === 'TikTok' ? ['TikTok'] : [])
+const formats = ref<string[]>([])
+const toggled = <T,>(list: T[], value: T) =>
+  list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
 const search = ref('')
 const query = computed(() => ({
   page: page.value,
   pageSize: pageSize.value,
-  channel: channel.value,
+  channel: channels.value.join(',') || 'all',
+  format: formats.value.join(',') || 'all',
   search: search.value,
 }))
 const {
@@ -28,18 +31,6 @@ const selected = ref<NonNullable<typeof result.value>['posts'][number] | null>(n
 const importing = ref(false)
 const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { lazy: true, key: 'tiktok-status' })
 const { data: instagramStatus } = await useFetch('/api/instagram/status', { lazy: true, key: 'instagram-status' })
-// Instagram imports from its own connection or from the account linked to the page.
-const canImport = computed(() =>
-  importChannel.value === 'TikTok'
-    ? tiktokStatus.value?.connection?.status === 'connected'
-    : connection.value?.connection?.status === 'connected' ||
-      (importChannel.value === 'Instagram' && instagramStatus.value?.connection?.status === 'connected'),
-)
-const importChannel = ref<'Facebook' | 'Instagram' | 'TikTok'>(
-  requestedChannel === 'TikTok' ? 'TikTok' : 'Facebook',
-)
-const cursor = ref<string | undefined>()
-const hasMore = ref(false)
 const message = ref('')
 const error = ref('')
 const { showError, showSuccess, watchError } = useFormFeedback()
@@ -47,57 +38,54 @@ watchError(error)
 watch(loadError, (value) => {
   if (value) showError(t('social.loadError'))
 }, { immediate: true })
-watch([channel, search, pageSize], () => {
+watch([channels, formats, search, pageSize], () => {
   page.value = 1
 })
-watch(importChannel, () => {
-  cursor.value = undefined
-  hasMore.value = false
-  message.value = ''
-  // Switch the visible results immediately; importing the selected channel
-  // should not leave the previous platform highlighted while it loads.
-  channel.value = importChannel.value
-  page.value = 1
+// Refresh brings in every connected network at once, so posts from all of them
+// show together. A network that cannot be read is skipped, not fatal.
+const connectedChannels = computed(() => {
+  const metaConnected = connection.value?.connection?.status === 'connected'
+  return [
+    ...(metaConnected ? ['Facebook' as const] : []),
+    ...(metaConnected || instagramStatus.value?.connection?.status === 'connected' ? ['Instagram' as const] : []),
+    ...(tiktokStatus.value?.connection?.status === 'connected' ? ['TikTok' as const] : []),
+  ]
 })
-async function sync(more = false) {
+async function refreshAll() {
   importing.value = true
   error.value = ''
   message.value = ''
-  try {
-    const isTikTok = importChannel.value === 'TikTok'
-    const response = await $fetch<{ imported: number; nextCursor?: string | null }>(isTikTok ? '/api/tiktok/sync' : '/api/meta/sync', {
-      method: 'POST',
-      body: isTikTok
-        ? { ...(more && cursor.value ? { cursor: cursor.value } : {}) }
-        : { channel: importChannel.value, ...(more && cursor.value ? { after: cursor.value } : {}) },
-      retry: 0,
-    })
-    cursor.value = response.nextCursor || undefined
-    hasMore.value = !!cursor.value
-    // Keep the imported channel and visible results in sync after refresh.
-    channel.value = importChannel.value
-    page.value = 1
-    message.value = t('social.importedMessage', { count: response.imported, channel: importChannel.value })
-    showSuccess(message.value)
-    await refresh()
-    await refreshNuxtData(isTikTok ? 'tiktok-status' : 'meta-status')
-  } catch (problem) {
-    const details = problem as { data?: { code?: string; message?: string; data?: { code?: string } } }
-    const code = details.data?.code || details.data?.data?.code
-    const msg = details.data?.message || ''
-    error.value = code === 'PAGE_ALREADY_CONNECTED'
-      ? t('social.pageAlreadyConnected')
-      : msg.includes('SCOPE_MISSING') || msg.includes('TOKEN_EXPIRED')
-        ? t('social.tiktokReconnectRequired')
-        : t('social.importError')
-  } finally {
-    importing.value = false
+  let imported = 0
+  const done: string[] = []
+  for (const network of connectedChannels.value) {
+    try {
+      const response = await $fetch<{ imported: number }>(network === 'TikTok' ? '/api/tiktok/sync' : '/api/meta/sync', {
+        method: 'POST',
+        body: network === 'TikTok' ? {} : { channel: network },
+        retry: 0,
+      })
+      imported += response.imported
+      done.push(network)
+    } catch {
+      /* The other networks still refresh. */
+    }
   }
+  if (done.length) {
+    message.value = t('social.importedMessage', { count: imported, channel: done.join(', ') })
+    showSuccess(message.value)
+  } else error.value = t('social.importError')
+  page.value = 1
+  await refresh()
+  await refreshNuxtData(['meta-status', 'tiktok-status', 'instagram-status'])
+  importing.value = false
 }
 // Network and import source wait in a side panel, as on the posts list.
 const filtersOpen = ref(false)
+const formatFilters = computed(() => [
+  { label: t('content.filterPosts'), value: 'image', icon: 'i-lucide-image' },
+  { label: t('content.filterVideos'), value: 'video', icon: 'i-lucide-circle-play' },
+])
 const networkFilters = computed(() => [
-  { label: t('content.filterAll'), value: 'all' as const, icon: 'i-lucide-globe' },
   { label: 'Facebook', value: 'Facebook' as const, icon: 'i-lucide-facebook' },
   { label: 'Instagram', value: 'Instagram' as const, icon: 'i-lucide-instagram' },
   { label: 'TikTok', value: 'TikTok' as const, icon: undefined },
@@ -141,19 +129,32 @@ const networkFilters = computed(() => [
         icon="i-lucide-refresh-cw"
         class="shrink-0"
         :loading="importing"
-        :disabled="!canImport"
+        :disabled="!connectedChannels.length"
         :aria-label="t('social.refreshPosts')"
-        @click="sync()"
+        @click="refreshAll()"
       >
         <span class="hidden sm:inline">{{ t('social.refreshPosts') }}</span>
       </UButton>
     </div>
-    <div v-if="hasMore" class="flex justify-end">
-      <UButton variant="outline" color="neutral" size="sm" :loading="importing" @click="sync(true)">{{ t('social.loadOlder') }}</UButton>
-    </div>
     <USlideover v-model:open="filtersOpen" :title="t('content.filters')" :ui="{ content: 'max-w-sm' }">
       <template #body>
         <div class="space-y-6">
+          <fieldset class="space-y-2">
+            <legend class="mb-2 text-sm font-semibold text-highlighted">{{ t('content.formatHeading') }}</legend>
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                v-for="item in formatFilters"
+                :key="item.value"
+                :icon="item.icon"
+                size="sm"
+                :color="formats.includes(item.value) ? 'primary' : 'neutral'"
+                :variant="formats.includes(item.value) ? 'soft' : 'outline'"
+                :aria-pressed="formats.includes(item.value)"
+                @click="formats = toggled(formats, item.value)"
+                >{{ item.label }}</UButton
+              >
+            </div>
+          </fieldset>
           <fieldset class="space-y-2">
             <legend class="mb-2 text-sm font-semibold text-highlighted">{{ t('content.networkHeading') }}</legend>
             <div class="flex flex-wrap gap-2">
@@ -162,28 +163,10 @@ const networkFilters = computed(() => [
                 :key="item.value"
                 :icon="item.icon"
                 size="sm"
-                :color="channel === item.value ? 'primary' : 'neutral'"
-                :variant="channel === item.value ? 'soft' : 'outline'"
-                :aria-pressed="channel === item.value"
-                @click="channel = item.value"
-              >
-                <TikTokMark v-if="item.value === 'TikTok'" class="size-4" />{{ item.label }}
-              </UButton>
-            </div>
-          </fieldset>
-          <fieldset class="space-y-2">
-            <legend class="mb-2 text-sm font-semibold text-highlighted">{{ t('social.importFrom') }}</legend>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                v-for="item in networkFilters.filter((entry) => entry.value !== 'all')"
-                :key="item.value"
-                :icon="item.icon"
-                size="sm"
-                :disabled="importing"
-                :color="importChannel === item.value ? 'primary' : 'neutral'"
-                :variant="importChannel === item.value ? 'soft' : 'outline'"
-                :aria-pressed="importChannel === item.value"
-                @click="importChannel = item.value"
+                :color="channels.includes(item.value) ? 'primary' : 'neutral'"
+                :variant="channels.includes(item.value) ? 'soft' : 'outline'"
+                :aria-pressed="channels.includes(item.value)"
+                @click="channels = toggled(channels, item.value)"
               >
                 <TikTokMark v-if="item.value === 'TikTok'" class="size-4" />{{ item.label }}
               </UButton>
@@ -285,7 +268,7 @@ const networkFilters = computed(() => [
             :name="data.brand.name"
             :image="selected.image || ''"
             :caption="selected.caption"
-            :video-url="selected.channel !== 'Facebook' && selected.mediaType.toUpperCase().includes('VIDEO') ? selected.image : null"
+            :video-url="selected.image && /\.(mp4|mov)(\?|$)/i.test(selected.image) ? selected.image : null"
           /><UButton
             v-if="selected.permalink"
             :to="selected.permalink"
