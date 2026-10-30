@@ -1,3 +1,4 @@
+import { sceneDressingRule } from '../../server/utils/scene-dressing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import sharp from 'sharp'
 import { randomUUID } from 'node:crypto'
@@ -505,6 +506,16 @@ describe('monthly evidence and provider boundaries', () => {
       ),
     ).toThrow('REPETITIVE_PLAN')
   })
+  it('moves a slot that takes a channel minute already planned to the next free minute', () => {
+    const evidence = plannerEvidence(createDemo(), now)
+    const research = researchFromResponse(researchFixture(), now)
+    const plan = editorialFixture()
+    const earlier = { ...plan.slots[0]!, topic: 'An earlier, different topic', hook: 'An earlier, different hook.' }
+    const validated = validateEditorialPlan(plan, evidence, research, '2026-09', 1, undefined, [earlier])
+    expect(validated.slots[0]!.day).toBe(earlier.day)
+    expect(validated.slots[0]!.channel).toBe(earlier.channel)
+    expect(validated.slots[0]!.time).not.toBe(earlier.time)
+  })
   it('repairs provider-only contract noise without weakening factual grounding', () => {
     const evidence = plannerEvidence(createDemo(), now)
     const research = researchFromResponse(researchFixture(), now)
@@ -727,7 +738,8 @@ describe('AI creative generation', () => {
     expect(edited).toContain('Instagram feed')
     expect(edited).toContain('Shto dritë të ngrohtë')
     expect(edited).toContain('center-cropped to the final 1080x1350')
-    expect(edited).toContain('Never duplicate, fuse, warp, replace or invent material objects')
+    expect(edited).toContain('Never duplicate, fuse, warp or replace photographed material objects')
+    expect(edited).toContain(sceneDressingRule)
     expect(edited).toContain('typographic designer')
     expect(edited).toContain('no more than two weights')
   })
@@ -818,7 +830,7 @@ describe('AI creative generation', () => {
     const prompt = monthlyImagePrompt(imagePromptInput())
 
     expect(prompt).toContain(
-      'never fill a reserved text zone or its negative space with an added element',
+      'never place an added element where the type sits',
     )
     expect(prompt).toContain(
       'A typographic gesture never grows until the real subject becomes secondary',

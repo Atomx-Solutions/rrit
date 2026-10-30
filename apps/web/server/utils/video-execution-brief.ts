@@ -1,4 +1,5 @@
 import type { Storyboard } from '../../shared/schemas/storyboard'
+import { sceneDressingRule } from './scene-dressing'
 
 // What every motion prompt says about the photographed subject, whoever
 // directed the video.
@@ -7,6 +8,7 @@ const subjectRules = [
   'Keep the subject identical in every frame: the same make, model, generation, body shape, colour, wheels, lights, badges, proportions and details. Never morph, replace, restyle or swap it for a similar subject.',
   'Show only what the photograph shows. Never reveal or invent a side, angle, interior or part of the subject that is not visible in the frames.',
   'Never draw, write or animate any letters, words, numbers, captions or titles anywhere in the video; the application sets all text afterwards.',
+  sceneDressingRule,
 ]
 
 const subjectMotion: Record<Storyboard['shots'][number]['subject']['motion'], string> = {
@@ -59,7 +61,7 @@ export function buildShotExecutionBrief(input: {
       'EFFECTS',
       clip(shot.effects),
       'AVOID',
-      'No cuts, scene changes, invented people or objects, subject distortion, flicker, watermarks, padding, letterboxing or black bars. Fill the prepared frame edge to edge.',
+      'No cuts, scene changes, invented people, changes to anything photographed, subject distortion, flicker, watermarks, padding, letterboxing or black bars. Fill the prepared frame edge to edge.',
       'Do not generate typography, marketing copy, business name, logos, new signage or an end-card; Framic adds exact branding and text later.',
       ...(guardrails.length ? [`Business restrictions take precedence over all creative direction: ${guardrails.join('; ')}`] : []),
     ].join('\n')

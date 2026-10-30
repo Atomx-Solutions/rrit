@@ -274,9 +274,6 @@ watch(selectedQuantity, (quantity) => {
 const active = computed(() => ['queued', 'running'].includes(plan.value?.status || ''))
 const blocked = computed(() => plan.value?.status === 'blocked')
 const ready = computed(() => plan.value?.status === 'review')
-const tiktokTargetPost = computed(() =>
-  workspace.value.posts.find((post) => ['draft', 'review'].includes(post.status) && post.image),
-)
 // Everything the customer asked for is produced, and the package still owes
 // posts. This is a resting state with two next steps: look at what arrived, or
 // ask for more.
@@ -896,8 +893,10 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ generateMoreLabel }}
           </UButton>
         </section>
+        <!-- Only an exhausted package says so; while a video is still being
+             made the package may well have more left. -->
         <section
-          v-else
+          v-else-if="!videosRendering && remainingPosts < 1 && remainingVideos < 1"
           class="flex items-center gap-3 rounded-xl border border-default p-4 text-sm text-muted"
         >
           <UIcon name="i-lucide-package-check" class="size-5 shrink-0" />
@@ -987,15 +986,6 @@ onBeforeUnmount(() => clearInterval(timer))
           </UButton>
           <UButton :to="`${base}/content`" trailing-icon="i-lucide-arrow-right">
             {{ t('legacy.reviewPosts') }}
-          </UButton>
-          <UButton
-            v-if="tiktokTargetPost"
-            :to="`${base}/content/${tiktokTargetPost.id}?tiktok=1`"
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-clapperboard"
-          >
-            {{ t('video.generate') }}
           </UButton>
         </div>
       </div>

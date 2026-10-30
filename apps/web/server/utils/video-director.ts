@@ -19,6 +19,7 @@ import {
   aiProviderStructuredRouting,
 } from './ai-provider'
 import { parseMonthlyProviderResponse, responseText } from './monthly-ai'
+import { sceneDressingRule } from './scene-dressing'
 
 function seconds(variable: string, fallback: number) {
   const value = Number(process.env[variable])
@@ -30,8 +31,8 @@ function seconds(variable: string, fallback: number) {
 export function videoLengthLimits(durations: number[]): StoryboardLimits {
   return {
     durations,
-    minSeconds: seconds('VIDEO_MIN_SECONDS', 6),
-    maxSeconds: seconds('VIDEO_MAX_SECONDS', 12),
+    minSeconds: seconds('VIDEO_MIN_SECONDS', 4),
+    maxSeconds: seconds('VIDEO_MAX_SECONDS', 8),
   }
 }
 
@@ -106,6 +107,7 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
       : 'Give every shot a shotSize (wide, medium, close or detail) and never give two consecutive shots the same one, so each scene has its own framing: for example a wide establishing scene, then a close one on a detail of the subject. Changing only the direction of the same move is not a new scene.',
     'Set subjectFrame to where the subject spans vertically in the supplied photograph, as shares of its height from the top (0 is the top edge, 1 the bottom). The application places its headline and call to action in the free space above or below that band, so judge it honestly from the photograph.',
     `Write cta (a short call to action, at most ${ctaMaxLength} characters) and caption in ${contentLanguageForLocale(input.locale)}, in the brand voice, from the supplied post. Do not invent prices, offers, facts or claims.`,
+    `${sceneDressingRule} Plan such props where they make the scene feel alive and in use.`,
     'Make this concept your own for this post: do not fall back on a generic slow push-in unless it is truly the best idea for this photograph.',
     'Edit it like a senior short-form ad editor. Give every shot a role: shot 1 is the hook, the most arresting moment of the video, with a strong camera move that stops the scroll inside its first second; then build shots that show the product from their own angle and detail; then a payoff that lands the idea; the final shot is the close, settling on the main photograph so the call to action can land. Energy rises towards the payoff and settles in the close.',
     `Every shot except the close moves the camera visibly and with intent: a dolly in or out, a lateral slide or tracking move, a crane rise or drop, a push through foreground elements, a parallax move that separates the subject from its background, or a small turn within the allowed degrees. A locked, tripod, static or fixed camera, or a barely perceptible digital zoom, is not a move. ${singlePhoto ? 'Set motion to strong for the hook only, medium for build and payoff, and subtle for the close; let light and atmosphere carry the rest of the energy.' : 'Set motion to strong for the hook, medium or strong for build and payoff, and subtle only for the close.'} Vary the kind of move from shot to shot, and let each move carry into the next shot the way a match cut or a motivated transition would.`,

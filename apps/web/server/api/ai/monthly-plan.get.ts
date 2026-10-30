@@ -1,5 +1,5 @@
 import { monthSchema } from '../../../shared/schemas/monthly-plan'
-import { monthlyAiConfigured } from '../../utils/monthly-ai'
+import { monthlyAiConfigured, retryableMonthlyGenerationFailureCode } from '../../utils/monthly-ai'
 import { plannerAccess } from '../../utils/monthly-planner'
 import { postsCountedForLimit, videosCountedForLimit } from '../../utils/trials'
 import {
@@ -131,12 +131,11 @@ export default defineEventHandler(async (event) => {
               // names what is waiting instead of calling every one a post.
               videos: row.batch_video_count as number,
             },
-            // Posts are drawn on request, so the panel needs to know the plan
-            // is alive and still owes the customer posts it has not been asked
-            // for yet.
-            extendable:
-              row.status === 'idle' ||
-              (row.status === 'review' && row.completed_count < row.target_count),
+            // Posts and videos are drawn on request, so the panel needs to know
+            // the plan can take another request. What is left to ask for comes
+            // from the package allowances above, not from the plan's target,
+            // which never counts videos that have not been asked for yet.
+            extendable: row.status === 'idle' || row.status === 'review',
             errorCode: (row.error_code as string | null) || null,
             error: row.error_code
               ? plannerMessageKey(row.error_code, 'planner.needsReview')
@@ -147,7 +146,8 @@ export default defineEventHandler(async (event) => {
                 row.error_code || '',
               ) &&
               (row.completed_count === 0 ||
-                (row.stage === 'content' && resumableContentFailureCode(row.error_code))) &&
+                (row.stage === 'content' && resumableContentFailureCode(row.error_code)) ||
+                (row.stage === 'planning' && retryableMonthlyGenerationFailureCode(row.error_code))) &&
               row.error_code !== 'BUDGET_ESTIMATE_EXCEEDED',
             research: row.research as
               import('../../../shared/schemas/monthly-plan').Research | null,

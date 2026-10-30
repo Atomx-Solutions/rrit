@@ -530,14 +530,16 @@ export async function restartMonthlyPlan(
     !['EVIDENCE_CHANGED', 'BUDGET_ESTIMATE_EXCEEDED', 'PROVIDER_RETRY_EXHAUSTED'].includes(
       prior.error_code || '',
     )
+  // A later batch keeps the month's editorial plan and its drafts, so its
+  // strategy can be asked for again on its own.
   const resumePlanning =
     prior.stage === 'planning' &&
     prior.has_research &&
-    !prior.has_editorial_plan &&
+    (!prior.has_editorial_plan || prior.completed_count > 0) &&
     !['EVIDENCE_CHANGED', 'BUDGET_ESTIMATE_EXCEEDED', 'PROVIDER_RETRY_EXHAUSTED'].includes(
       prior.error_code || '',
     )
-  if (prior.completed_count > 0 && !resumeContent) throw new PlannerFailure('PLAN_HAS_DRAFTS')
+  if (prior.completed_count > 0 && !resumeContent && !resumePlanning) throw new PlannerFailure('PLAN_HAS_DRAFTS')
   // An explicit user restart is allowed after an interrupted provider call. A
   // fresh evidence capture creates new stage keys while the ambiguous run stays
   // retained for cost/audit reconciliation. Estimated-cost overruns still need

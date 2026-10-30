@@ -782,6 +782,12 @@ export function validateEditorialPlan(
     slot.channel = soleChannel(channelCounts) || slot.channel
   }
   for (const [index, slot] of plan.slots.entries()) {
+    // Two posts cannot go out on one channel in the same minute. When the
+    // model picks a minute already taken, the slot moves to the next free
+    // minute of that day rather than blocking the whole plan: the time is a
+    // scheduling detail, not part of the strategy.
+    for (let shift = 0; used.has(`${slot.day}:${slot.time}:${slot.channel}`) && shift < 24 * 60; shift++)
+      slot.time = nextMinute(slot.time)
     const key = `${slot.day}:${slot.time}:${slot.channel}`
     const date = `${month}-${String(slot.day).padStart(2, '0')}T${slot.time}`
     const topic = normalizedIdea(slot.topic)
@@ -1035,6 +1041,12 @@ export function plannerFailureCode(error: unknown) {
   const code = /^server\.([A-Z_]+)$/.exec(message)?.[1]
   return code && plannerMessages[code] ? code : 'GENERATION_FAILED'
 }
+function nextMinute(time: string) {
+  const [hours, minutes] = time.split(':').map(Number) as [number, number]
+  const next = (hours * 60 + minutes + 1) % (24 * 60)
+  return `${String(Math.floor(next / 60)).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}`
+}
+
 export function resumableContentFailureCode(code: string | null | undefined) {
   return [
     'QUALITY_BLOCKED',
