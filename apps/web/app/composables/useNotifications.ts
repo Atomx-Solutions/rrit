@@ -22,14 +22,33 @@ type Marks = { read: Record<string, string>; removed: Record<string, string> }
  * reminders live here instead of as banners on every page.
  */
 export function useNotifications() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const { data, base } = useWorkspace()
   const { data: usage } = useHeaderUsage()
   const { data: meta } = useFetch('/api/meta/status', { key: 'meta-status', lazy: true, server: false })
+  // Same request and key as the billing page, so paying or declining there
+  // clears the offer here as well.
+  const { data: billing } = useFetch('/api/billing/subscription', { lazy: true, key: 'billing-subscription-currency-v2' })
 
   const all = computed(() => {
     const list: Omit<NotificationItem, 'read'>[] = []
     const snapshot = usage.value
+    const offer = billing.value?.packageProposal
+    // The billing page hides an offer of only videos or credits until a package
+    // runs, because it cannot be bought before then; the notice does the same.
+    if (offer && (offer.postsIncluded > 0 || snapshot?.lowCredit?.hasActivePackage))
+      list.push({
+        key: 'package-offer',
+        icon: 'i-lucide-handshake',
+        tone: 'primary',
+        title: t('billing.packageProposalTitle'),
+        description: `${offer.name} · ${new Intl.NumberFormat(locale.value, {
+          style: 'currency',
+          currency: billing.value!.currency,
+        }).format(offer.price)}`,
+        to: `${base.value}/billing`,
+        signature: offer.id,
+      })
     if (snapshot?.packageExpiry)
       list.push({
         key: 'package-expiry',

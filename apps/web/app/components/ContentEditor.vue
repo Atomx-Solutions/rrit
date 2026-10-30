@@ -358,8 +358,17 @@ const versionOpen = ref(false)
 const leaving = ref(false)
 let resolveLeave: ((allow: boolean) => void) | undefined
 const editable = computed(() => !post.value || ['draft', 'review'].includes(post.value.status))
+const workflowSteps = computed(() => [
+  { title: t('content.write'), value: 0, icon: 'i-lucide-pencil' },
+  { title: t('content.check'), value: 1, icon: 'i-lucide-check-check' },
+  { title: t('content.chooseSchedule'), value: 2, icon: 'i-lucide-calendar-days' },
+])
+// A published post has been through every step, reposts included, so the
+// stepper moves past the last one and shows them all as done.
 const workflowStep = computed(() =>
-  post.value?.status === 'scheduled'
+  post.value?.status === 'published'
+    ? workflowSteps.value.length
+    : post.value?.status === 'scheduled'
     ? 2
     : post.value && ['review', 'approved'].includes(post.value.status)
       ? 1
@@ -528,18 +537,14 @@ onBeforeUnmount(() => {
     </div>
     <UStepper
       :model-value="workflowStep"
-      :items="[
-        { title: t('content.write'), value: 0, icon: 'i-lucide-pencil' },
-        { title: t('content.check'), value: 1, icon: 'i-lucide-check-check' },
-        { title: t('content.chooseSchedule'), value: 2, icon: 'i-lucide-calendar-days' },
-      ]"
+      :items="workflowSteps"
       disabled
       size="sm"
       class="mb-8 max-w-2xl"
       :aria-label="t('content.editorSteps')"
     />
     <span class="sr-only" role="status"
-      >{{ t('content.stepStatus', { step: workflowStep + 1, title: [t('content.write'), t('content.check'), t('content.chooseSchedule')][workflowStep] || '' }) }}</span
+      >{{ t('content.stepStatus', { step: Math.min(workflowStep + 1, workflowSteps.length), title: workflowSteps[Math.min(workflowStep, workflowSteps.length - 1)]?.title || '' }) }}</span
     >
     <div class="editor-layout">
       <div class="stack">

@@ -33,6 +33,45 @@ export function paddlePackagePriceId() {
   return process.env.PADDLE_PACKAGE_PRICE_ID?.trim() || null
 }
 
+/**
+ * The buyer as Paddle collected it at checkout, shaped like an invoice buyer.
+ * Null when Paddle cannot be reached, so the invoice falls back to the
+ * organization rather than holding up the payment.
+ */
+export async function paddleTransactionBuyer(transactionId: string) {
+  const apiKey = paddleApiKey()
+  if (!apiKey) return null
+  try {
+    const response = await fetch(
+      `${paddleApiBaseUrl()}/transactions/${encodeURIComponent(transactionId)}?include=customer,address,business`,
+      { headers: { Authorization: `Bearer ${apiKey}` } },
+    )
+    if (!response.ok) return null
+    const payload = await response.json() as {
+      data?: {
+        customer?: { name?: string | null; email?: string | null } | null
+        address?: {
+          first_line?: string | null; second_line?: string | null; postal_code?: string | null
+          city?: string | null; region?: string | null; country_code?: string | null
+        } | null
+        business?: { name?: string | null; tax_identifier?: string | null } | null
+      }
+    }
+    const { customer, address, business } = payload.data || {}
+    const name = business?.name || customer?.name || customer?.email
+    if (!name) return null
+    return {
+      name,
+      address: [address?.first_line, address?.second_line].filter(Boolean).join(', '),
+      city: [address?.postal_code, address?.city, address?.region].filter(Boolean).join(' '),
+      country: address?.country_code || '',
+      fiscalNumber: business?.tax_identifier || '',
+    }
+  } catch {
+    return null
+  }
+}
+
 let paddleTaxCategoryCache: { productId: string; taxCategory: string } | null = null
 
 export async function createPaddleTransaction(input: {

@@ -7,6 +7,7 @@ type RemotePost = {
   caption?: string
   full_picture?: string
   media_url?: string
+  thumbnail_url?: string
   permalink_url?: string
   permalink?: string
   created_time?: string
@@ -53,7 +54,7 @@ export default defineEventHandler(async (event) => {
       source.target ? source.target.token : decryptMetaToken(source.page!.page_token_ciphertext, business.id),
       {
         fields: instagram
-          ? 'id,caption,media_type,media_url,permalink,timestamp'
+          ? 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp'
           : 'id,message,full_picture,permalink_url,created_time,attachments{media_type,type,url,media}',
         limit: '25',
         ...(input.data.after ? { after: input.data.after } : {}),
@@ -117,10 +118,13 @@ export default defineEventHandler(async (event) => {
           sourceAccountId,
           post.id,
           post.caption || post.message || '',
+          // Always a picture the page can show: an attachment's `url` is the
+          // post's page on Facebook and a video's `source` is the film, so a
+          // video shows its thumbnail instead.
           safeUrl(
-            post.media_url ||
-              post.attachments?.data?.[0]?.media?.source ||
-              post.attachments?.data?.[0]?.url ||
+            post.thumbnail_url ||
+              post.media_url ||
+              post.attachments?.data?.[0]?.media?.image?.src ||
               post.full_picture,
           ),
           safeUrl(post.permalink || post.permalink_url),

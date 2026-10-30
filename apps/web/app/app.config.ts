@@ -48,5 +48,8 @@ export default defineAppConfig({
     modal: { slots: { header: 'pe-16' } },
     slideover: { slots: { header: 'pe-16' } },
     stepper: { slots: { root: '[&>[role=status]]:hidden' } },
+    // The close button skips the field-height minimum every default button
+    // has, so a toast with only a title is no taller than its text.
+    toast: { slots: { close: 'p-0.5 min-h-0 sm:min-h-0', root: 'items-center' } },
   },
 })

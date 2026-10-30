@@ -80,16 +80,6 @@ export async function billingDetails(client: Pick<PoolClient, 'query'>, organiza
     fiscalNumber: row?.fiscal_number || '',
   }
 }
-export async function saveBillingDetails(client: Pick<PoolClient, 'query'>, organizationId: string, details: BillingDetails) {
-  await client.query(
-    `INSERT INTO organization_billing_details(organization_id,legal_name,address,city,country,fiscal_number)
-     VALUES($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (organization_id) DO UPDATE SET legal_name=EXCLUDED.legal_name,address=EXCLUDED.address,
-       city=EXCLUDED.city,country=EXCLUDED.country,fiscal_number=EXCLUDED.fiscal_number,updated_at=now()`,
-    [organizationId, details.legalName, details.address, details.city, details.country, details.fiscalNumber],
-  )
-  return billingDetails(client, organizationId)
-}
 
 /**
  * Issues an invoice inside the purchase transaction. The source reference

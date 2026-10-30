@@ -711,27 +711,6 @@ td {
 }
 
 /* Shared package-request form: used on the public landing page and in billing. */
-.request-estimate {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: var(--ui-bg-elevated);
-  box-shadow: inset 0 0 0 1px var(--ui-border);
-}
-.request-estimate-label {
-  font-size: 13px;
-  font-weight: 550;
-  color: var(--ui-text-highlighted);
-}
-.request-estimate-total {
-  font-size: 20px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-text-highlighted);
-}
 .package-request-enter-active,
 .package-request-leave-active {
   transition: opacity 220ms ease, transform 220ms ease;

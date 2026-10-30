@@ -97,6 +97,10 @@ const estimatedTotal = computed(() =>
   displayPostPrice.value * form.postsRequested
   + displayVideoPrice.value * form.videosRequested,
 )
+const volumeItems = computed(() => [
+  { name: 'postsRequested' as const, label: t('request.posts'), icon: 'i-lucide-image', price: displayPostPrice.value },
+  { name: 'videosRequested' as const, label: t('request.videos'), icon: 'i-lucide-clapperboard', price: displayVideoPrice.value },
+])
 const money = (value: number) =>
   new Intl.NumberFormat('sq-XK', {
     style: 'currency',
@@ -236,9 +240,35 @@ async function submit() {
       @submit="submit"
       @error="onFormError"
     >
-    <UFormField name="postsRequested" :label="t('request.posts')">
-      <div class="space-y-2">
-        <div v-if="!contactKnown && !lean && postOptions.length" class="flex flex-wrap gap-2">
+    <div class="divide-y divide-default rounded-lg border border-default">
+      <UFormField
+        v-for="item in volumeItems"
+        :key="item.name"
+        :name="item.name"
+        class="p-3.5"
+      >
+        <div class="flex items-center gap-3">
+          <span class="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+            <UIcon :name="item.icon" class="size-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-highlighted">{{ item.label }}</p>
+            <p v-if="item.price > 0" class="text-xs text-muted tabular-nums">{{ money(item.price) }}</p>
+          </div>
+          <LiveInputNumber
+            v-model="form[item.name]"
+            :min="0"
+            :max="1000"
+            :aria-label="item.label"
+            variant="soft"
+            class="w-32 shrink-0"
+            :ui="{ base: 'text-base font-semibold tabular-nums' }"
+          />
+        </div>
+        <div
+          v-if="item.name === 'postsRequested' && !contactKnown && !lean && postOptions.length"
+          class="mt-3 flex flex-wrap gap-2"
+        >
           <UButton
             v-for="amount in postOptions"
             :key="amount"
@@ -247,27 +277,12 @@ async function submit() {
             :variant="form.postsRequested === amount ? 'solid' : 'outline'"
             :aria-pressed="form.postsRequested === amount"
             :label="String(amount)"
+            class="rounded-full"
             @click="form.postsRequested = amount"
           />
         </div>
-        <LiveInputNumber
-          v-model="form.postsRequested"
-          :min="0"
-          :max="1000"
-          :aria-label="t('request.posts')"
-          class="w-full"
-        />
-      </div>
-    </UFormField>
-      <UFormField name="videosRequested" :label="t('request.videos')">
-        <LiveInputNumber
-          v-model="form.videosRequested"
-          :min="0"
-          :max="1000"
-          :aria-label="t('request.videos')"
-          class="w-full"
-        />
       </UFormField>
+    </div>
     <UFormField v-if="contactKnown" name="message" :label="t('request.message')">
       <UTextarea
         v-model="form.message"
@@ -339,11 +354,27 @@ async function submit() {
         />
       </UFormField>
     </div>
-    <div v-if="(displayPostPrice > 0 || displayVideoPrice > 0) && !lean" class="request-estimate">
-      <p class="request-estimate-label">{{ t('request.estimateLabel') }}</p>
-      <p class="request-estimate-total">{{ money(estimatedTotal) }}</p>
+    <div
+      v-if="(displayPostPrice > 0 || displayVideoPrice > 0) && !lean"
+      class="rounded-lg bg-primary/10 p-4 ring-1 ring-primary/20 ring-inset"
+    >
+      <p class="text-xs font-medium uppercase tracking-wide text-muted">{{ t('request.estimateLabel') }}</p>
+      <p class="mt-1 text-3xl font-semibold tabular-nums text-highlighted">{{ money(estimatedTotal) }}</p>
+      <div class="mt-3 space-y-1 border-t border-primary/20 pt-3 text-xs text-muted tabular-nums">
+        <p v-for="item in volumeItems" :key="item.name" class="flex justify-between gap-2">
+          <span>{{ form[item.name] }} × {{ money(item.price) }}</span>
+          <span>{{ money(form[item.name] * item.price) }}</span>
+        </p>
+      </div>
     </div>
-    <UButton type="submit" :loading="sending" :label="t(props.submitLabelKey || 'request.submit')" block />
+    <UButton
+      type="submit"
+      :loading="sending"
+      :label="t(props.submitLabelKey || 'request.submit')"
+      trailing-icon="i-lucide-send"
+      size="lg"
+      block
+    />
     </UForm>
   </Transition>
 </template>

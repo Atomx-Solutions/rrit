@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
+
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 
 const { t } = useI18n()
@@ -37,17 +39,17 @@ onMounted(() => {
   }
 })
 const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'CHF' }).format(value)
-const { showError, showSuccess, onFormError } = useFormFeedback()
+const { showError, showSuccess } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
 
 const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { lazy: true, key: 'usage' })
 const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { lazy: true, key: 'billing-subscription-currency-v2' })
-const { data: billingDetailsData, refresh: refreshDetails } = await useFetch('/api/billing/details', { lazy: true, key: 'billing-details' })
-const { data: platformPricing } = await useFetch<{ videoPriceCents: number }>('/api/package-requests', { lazy: true, key: 'package-pricing' })
+const { data: platformPricing } = await useFetch<{ videoPriceCents: number; postPriceCents: number }>('/api/package-requests', { lazy: true, key: 'package-pricing' })
 
-const detailsForm = reactive({ legalName: '', address: '', city: '', country: '', fiscalNumber: '' })
-const savingDetails = ref(false)
 const requestOpen = ref(false)
+const postRequestOpen = ref(false)
+const postsRequested = ref(DEFAULT_PACKAGE_REQUEST.posts)
+const sendingPostRequest = ref(false)
 const videoRequestOpen = ref(false)
 const videosRequested = ref(1)
 const sendingVideoRequest = ref(false)
@@ -100,9 +102,6 @@ function onOfferAfterLeave() {
   offerCloseResolve?.()
   offerCloseResolve = null
 }
-watch(() => billingDetailsData.value?.details, (details) => {
-  if (details) Object.assign(detailsForm, details)
-}, { immediate: true })
 // Pages are kept alive, so this page's watchers keep running after leaving it.
 // The usage the header refreshes elsewhere (or that fails on onboarding, where
 // there is no business yet) must not raise this page's warning there.
@@ -133,32 +132,47 @@ watch(serverPackageProposal, (proposal) => {
 }, { immediate: true })
 // The offer names only what it actually carries, so a video offer never reads
 // as a credit top-up and a post package never claims videos it does not have.
-const proposalSummary = computed(() => {
+// The translations carry no plural rules, so one item takes its own key.
+const countLabel = (one: string, many: string, count: number) => t(count === 1 ? one : many, { count })
+const proposalParts = computed(() => {
   const proposal = packageProposal.value
-  if (!proposal) return ''
-  const parts: string[] = []
+  if (!proposal) return []
+  const parts: { icon: string; label: string }[] = []
   if (proposal.postsIncluded > 0)
-    parts.push(t('billing.customPackagePosts', { count: proposal.postsIncluded }))
+    parts.push({ icon: 'i-lucide-image', label: countLabel('billing.proposalPost', 'billing.proposalPosts', proposal.postsIncluded) })
   if ((proposal.videosIncluded ?? 0) > 0)
-    parts.push(t('billing.proposalVideos', { count: proposal.videosIncluded }))
+    parts.push({ icon: 'i-lucide-clapperboard', label: countLabel('billing.proposalVideo', 'billing.proposalVideos', proposal.videosIncluded) })
   if (proposal.creditsIncluded > 0)
-    parts.push(t('billing.proposalCredits', { count: proposal.creditsIncluded }))
+    parts.push({ icon: 'i-lucide-coins', label: t('billing.proposalCredits', { count: proposal.creditsIncluded }) })
   // Only posts and videos carry a period of their own; credits join the package
   // that is already running, so dates would be misleading on a pure top-up.
   if ((proposal.postsIncluded > 0 || (proposal.videosIncluded ?? 0) > 0) && proposal.startsAt && proposal.endsAt)
-    parts.push(t('billing.customPackagePeriod', {
+    parts.push({ icon: 'i-lucide-calendar-range', label: t('billing.customPackagePeriod', {
       start: formatPeriodDate(proposal.startsAt),
       end: formatPeriodDate(proposal.endsAt),
-    }))
-  return parts.join(' · ')
+    }) })
+  return parts
 })
+const proposalSummary = computed(() => proposalParts.value.map(part => part.label).join(' · '))
 const creditPrice = computed(() => billing.value?.creditPrice || 0)
 // Credits are bought for the package that is running, so the offer only makes
 // sense to someone who has one.
 const canBuyCredits = computed(() => !!customPackage.value)
-const creditEstimate = computed(() => creditsRequested.value * creditPrice.value)
 const videoPrice = computed(() => ((platformPricing.value?.videoPriceCents ?? 200) / 100) * (billing.value?.exchangeRate || 1))
-const videoEstimate = computed(() => videosRequested.value * videoPrice.value)
+const postPrice = computed(() => ((platformPricing.value?.postPriceCents ?? 0) / 100) * (billing.value?.exchangeRate || 1))
+// With a package running, posts are added to it rather than asking for a new
+// package, so this request carries posts only.
+async function sendPostRequest() {
+  if (sendingPostRequest.value || postsRequested.value < 1) return
+  sendingPostRequest.value = true
+  postRequestOpen.value = false
+  try {
+    await $fetch('/api/billing/package-request', { method: 'POST', body: { postsRequested: postsRequested.value, videosRequested: 0 } })
+    showSuccess(t('billing.postRequestSent'))
+  } catch (error) {
+    showError((error as { data?: { message?: string } }).data?.message || t('billing.postRequestFailed'))
+  } finally { sendingPostRequest.value = false }
+}
 async function sendVideoRequest() {
   if (sendingVideoRequest.value || videosRequested.value < 1) return
   sendingVideoRequest.value = true
@@ -287,18 +301,6 @@ const usageLabels: Record<string, string> = {
   posts_per_month: 'billing.usagePosts', videos_per_month: 'billing.usageVideos', ai_requests_per_day: 'billing.usageAi',
   media_storage_bytes: 'billing.usageStorage', social_accounts: 'billing.usageSocial', members: 'billing.usageMembers',
 }
-async function saveDetails() {
-  savingDetails.value = true
-  try {
-    await $fetch('/api/billing/details', { method: 'PUT', body: { ...detailsForm } })
-    await refreshDetails()
-    showSuccess(t('billing.detailsSaved'))
-  } catch {
-    showError(t('billing.detailsFailed'))
-  } finally {
-    savingDetails.value = false
-  }
-}
 async function payForProposal() {
   if (!packageProposal.value || payingProposal.value) return
   // Close the app's offer dialog before opening Paddle. Keeping two modal
@@ -360,17 +362,36 @@ async function declineProposal() {
     :description="t('billing.description')"
     :toolbar-border="false"
   >
-    <UCard v-if="packageProposal" color="primary" variant="subtle" :ui="{ body: 'p-4 sm:p-5' }" class="cursor-pointer transition-shadow hover:shadow-md" @click="offerOpen = true">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div class="space-y-1">
-          <div class="flex items-center gap-2"><UIcon name="i-lucide-handshake" class="size-5 text-primary" /><h2 class="text-sm font-semibold">{{ t('billing.packageProposalTitle') }}</h2></div>
-          <p class="text-sm font-medium">{{ packageProposal.name }} · {{ formatMoney(packageProposal.price) }}</p>
-          <p class="text-xs text-muted">{{ proposalSummary }}</p>
+    <UCard
+      v-if="packageProposal"
+      :ui="{ body: 'p-0 sm:p-0' }"
+      class="cursor-pointer overflow-hidden ring-primary/30 transition-shadow hover:shadow-lg"
+      @click="offerOpen = true"
+    >
+      <div class="bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-4 sm:p-5">
+        <div class="flex items-center gap-3">
+          <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-inverted">
+            <UIcon name="i-lucide-handshake" class="size-5" />
+          </span>
+          <div class="min-w-0">
+            <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('billing.packageProposalTitle') }}</p>
+            <h2 class="truncate text-base font-semibold text-highlighted">{{ packageProposal.name }}</h2>
+          </div>
         </div>
-        <div class="flex gap-2">
-          <UButton color="neutral" variant="outline" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click.stop="declineProposal" />
-          <UButton icon="i-lucide-credit-card" :loading="payingProposal" :label="t('billing.payNow')" @mouseenter="prepareProposalPayment" @focus="prepareProposalPayment" @click.stop="payForProposal" />
-        </div>
+        <p class="mt-4 text-3xl font-semibold tabular-nums text-highlighted">{{ formatMoney(packageProposal.price) }}</p>
+        <ul class="mt-4 flex flex-wrap gap-2">
+          <li
+            v-for="part in proposalParts"
+            :key="part.icon"
+            class="inline-flex items-center gap-1.5 rounded-full bg-default/70 px-2.5 py-1 text-xs text-toned ring-1 ring-default ring-inset"
+          >
+            <UIcon :name="part.icon" class="size-3.5 text-primary" />{{ part.label }}
+          </li>
+        </ul>
+      </div>
+      <div class="grid grid-cols-[auto_1fr] gap-2 border-t border-default p-3 sm:flex sm:justify-end sm:p-4">
+        <UButton color="neutral" variant="ghost" size="lg" :loading="decliningProposal" :label="t('billing.packageProposalDecline')" @click.stop="declineProposal" />
+        <UButton icon="i-lucide-credit-card" size="lg" block class="sm:w-auto" :loading="payingProposal" :label="t('billing.payNow')" @mouseenter="prepareProposalPayment" @focus="prepareProposalPayment" @click.stop="payForProposal" />
       </div>
     </UCard>
 
@@ -383,11 +404,11 @@ async function declineProposal() {
           </div>
           <div class="space-y-3 text-sm">
             <div v-if="packageProposal.postsIncluded > 0" class="flex justify-between gap-4 border-b border-default pb-2">
-              <span>{{ t('billing.customPackagePosts', { count: packageProposal.postsIncluded }) }}</span>
+              <span>{{ countLabel('billing.proposalPost', 'billing.proposalPosts', packageProposal.postsIncluded) }}</span>
               <UIcon name="i-lucide-check" class="size-5 text-primary" />
             </div>
             <div v-if="(packageProposal.videosIncluded ?? 0) > 0" class="flex justify-between gap-4 border-b border-default pb-2">
-              <span>{{ t('billing.proposalVideos', { count: packageProposal.videosIncluded }) }}</span>
+              <span>{{ countLabel('billing.proposalVideo', 'billing.proposalVideos', packageProposal.videosIncluded) }}</span>
               <UIcon name="i-lucide-check" class="size-5 text-primary" />
             </div>
             <p class="text-muted">{{ proposalSummary }}</p>
@@ -435,7 +456,10 @@ async function declineProposal() {
             :close="true"
             :title="customPackage ? t('request.appRenewTitle') : t('request.appTitle')"
           >
+            <!-- A running package grows through the add-on cards below rather
+                 than being replaced, so the button shows only without one. -->
             <UButton
+              v-if="!customPackage"
               trailing-icon="i-lucide-arrow-right"
               :label="customPackage ? t('request.appRenewCta') : t('request.appCta')"
               class="ml-auto justify-center whitespace-nowrap sm:ml-0"
@@ -468,6 +492,24 @@ async function declineProposal() {
 
     <!-- What can be added to a running package, side by side where there is room. -->
     <div v-if="customPackage" class="grid gap-3 sm:grid-cols-2">
+      <UCard as="section" :ui="{ body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
+        <div class="flex gap-3">
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-image" class="size-5" />
+          </div>
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold">{{ t('billing.posts') }}</h2>
+            <p class="mt-0.5 text-sm text-muted">{{ t('billing.postsDescription') }}</p>
+          </div>
+        </div>
+        <UButton
+          variant="outline"
+          icon="i-lucide-image"
+          :label="t('billing.requestPosts')"
+          class="mt-auto w-full justify-center"
+          @click="postRequestOpen = true"
+        />
+      </UCard>
       <UCard as="section" :ui="{ body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
         <div class="flex gap-3">
           <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -506,50 +548,48 @@ async function declineProposal() {
       </UCard>
     </div>
 
-    <UModal v-model:open="creditRequestOpen" :title="t('billing.buyCreditsTitle')" :description="t('billing.buyCreditsDescription')">
-      <template #body>
-        <div class="space-y-4">
-          <UFormField :label="t('billing.buyCreditsAmount')" required>
-            <LiveInputNumber v-model="creditsRequested" :min="0" :max="1000000" :step="1" class="w-44" />
-          </UFormField>
-          <p class="text-sm text-muted">
-            {{ t('billing.buyCreditsEstimate', { amount: formatMoney(creditEstimate) }) }}
-          </p>
-          <UFormField :label="t('billing.buyCreditsMessage')">
-            <UTextarea v-model="creditMessage" :rows="3" maxlength="2000" class="w-full" />
-          </UFormField>
-          <p class="text-xs text-muted">{{ t('billing.buyCreditsNote') }}</p>
-        </div>
-      </template>
-      <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="creditRequestOpen = false" />
-          <UButton :loading="sendingCreditRequest" :disabled="creditsRequested < 1" :label="t('billing.buyCreditsSubmit')" @click="sendCreditRequest" />
-        </div>
-      </template>
-    </UModal>
-
-    <UModal v-model:open="videoRequestOpen" :title="t('billing.requestVideosTitle')" :description="t('billing.requestVideosDescription')">
-      <template #body>
-        <div class="space-y-4">
-          <UFormField :label="t('billing.videoQuantity')" required><LiveInputNumber v-model="videosRequested" :min="1" :max="1000" class="w-44" /></UFormField>
-          <p class="text-sm text-muted">{{ t('billing.videoPriceEstimate', { amount: formatMoney(videoEstimate) }) }}</p>
-        </div>
-      </template>
-      <template #footer><div class="flex w-full justify-end gap-2"><UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="videoRequestOpen = false" /><UButton :loading="sendingVideoRequest" :disabled="videosRequested < 1" :label="t('billing.requestVideosSubmit')" @click="sendVideoRequest" /></div></template>
-    </UModal>
-
-
-    <UCard id="billing-details" as="section" :ui="{ body: 'p-4 sm:p-5', header: 'px-5 py-4' }">
-      <template #header><h2 class="text-sm font-semibold">{{ t('billing.detailsTitle') }}</h2><p class="text-xs text-muted mt-1">{{ t('billing.detailsDescription') }}</p></template>
-      <UForm :state="detailsForm" class="grid gap-3 sm:grid-cols-2" @submit="saveDetails" @error="onFormError">
-        <UFormField name="legalName" :label="t('billing.detailsLegalName')" required><UInput v-model="detailsForm.legalName" class="w-full" maxlength="160" /></UFormField>
-        <UFormField name="fiscalNumber" :label="t('billing.detailsFiscalNumber')" :hint="t('billing.detailsOptional')"><UInput v-model="detailsForm.fiscalNumber" class="w-full" maxlength="40" /></UFormField>
-        <UFormField name="address" :label="t('billing.detailsAddress')" class="sm:col-span-2"><UInput v-model="detailsForm.address" class="w-full" maxlength="240" /></UFormField>
-        <UFormField name="city" :label="t('billing.detailsCity')"><UInput v-model="detailsForm.city" class="w-full" maxlength="120" /></UFormField>
-        <UFormField name="country" :label="t('billing.detailsCountry')"><UInput v-model="detailsForm.country" class="w-full" maxlength="120" /></UFormField>
-        <div class="sm:col-span-2"><UButton type="submit" :loading="savingDetails" icon="i-lucide-save">{{ t('billing.detailsSave') }}</UButton></div>
-      </UForm>
-    </UCard>
+    <BillingAddOnModal
+      v-model:open="postRequestOpen"
+      v-model:amount="postsRequested"
+      :title="t('billing.requestPostsTitle')"
+      :description="t('billing.requestPostsDescription')"
+      icon="i-lucide-image"
+      :label="t('billing.posts')"
+      :unit-price="postPrice"
+      :submit-label="t('billing.requestPostsSubmit')"
+      :format-money="formatMoney"
+      :loading="sendingPostRequest"
+      @submit="sendPostRequest"
+    />
+    <BillingAddOnModal
+      v-model:open="videoRequestOpen"
+      v-model:amount="videosRequested"
+      :title="t('billing.requestVideosTitle')"
+      :description="t('billing.requestVideosDescription')"
+      icon="i-lucide-clapperboard"
+      :label="t('billing.videoQuantity')"
+      :unit-price="videoPrice"
+      :submit-label="t('billing.requestVideosSubmit')"
+      :format-money="formatMoney"
+      :loading="sendingVideoRequest"
+      @submit="sendVideoRequest"
+    />
+    <BillingAddOnModal
+      v-model:open="creditRequestOpen"
+      v-model:amount="creditsRequested"
+      v-model:message="creditMessage"
+      :title="t('billing.buyCreditsTitle')"
+      :description="t('billing.buyCreditsDescription')"
+      icon="i-lucide-coins"
+      :label="t('billing.buyCreditsAmount')"
+      :unit-price="creditPrice"
+      :max="1000000"
+      :submit-label="t('billing.buyCreditsSubmit')"
+      :format-money="formatMoney"
+      :loading="sendingCreditRequest"
+      with-message
+      :note="t('billing.buyCreditsNote')"
+      @submit="sendCreditRequest"
+    />
   </DashboardPage>
 </template>

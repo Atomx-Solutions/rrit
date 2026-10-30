@@ -547,11 +547,10 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ t('legacy.pause') }}
           </UButton>
           <UButton
-            color="neutral"
-            variant="outline"
-            size="xs"
+            color="error"
+            variant="soft"
+            size="sm"
             icon="i-lucide-rotate-ccw"
-            class="hover:text-error"
             :disabled="busy"
             @click="resetOpen = true"
           >
