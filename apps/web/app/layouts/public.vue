@@ -10,15 +10,15 @@ useHead({
   meta: [{ property: 'og:url', content: canonicalUrl }],
 })
 const publicLanguages = [
-  { value: 'de-CH', code: 'DE-CH', key: 'public.german', flag: 'i-flag-ch-4x3' },
-  { value: 'fr-CH', code: 'FR-CH', key: 'public.french', flag: 'i-flag-ch-4x3' },
-  { value: 'it-CH', code: 'IT-CH', key: 'public.italian', flag: 'i-flag-ch-4x3' },
+  { value: 'de-CH', code: 'DE-CH', key: 'public.german', flag: 'i-flag-de-4x3' },
+  { value: 'fr-CH', code: 'FR-CH', key: 'public.french', flag: 'i-flag-fr-4x3' },
+  { value: 'it-CH', code: 'IT-CH', key: 'public.italian', flag: 'i-flag-it-4x3' },
   { value: 'en-US', code: 'EN', key: 'public.english', flag: 'i-flag-gb-4x3' },
   { value: 'tr-TR', code: 'TR', key: 'public.turkish', flag: 'i-flag-tr-4x3' },
   { value: 'sq-XK', code: 'SQ', key: 'public.albanian', flag: 'i-flag-al-4x3' },
 ] as const
 const languageOptions = computed(() =>
-  publicLanguages.map(item => ({ label: `${item.code} ${t(item.key)}`, value: item.value })))
+  publicLanguages.map(item => ({ label: `${item.code} ${t(item.key)}`, value: item.value, icon: item.flag })))
 const activeLanguage = computed(() =>
   publicLanguages.find(item => item.value === locale.value) ?? publicLanguages[0])
 const languageLabel = computed(() => t(activeLanguage.value.key))
@@ -96,38 +96,44 @@ const year = new Date().getFullYear()
           >
         </div></template
       ><template #body
-        ><div class="grid grid-cols-[auto_1fr] items-center gap-3 border-b border-default pb-[18px] mb-4 sm:hidden">
-          <UColorModeButton
-            :aria-label="t('public.changeAppearance')"
-            color="neutral"
-            variant="ghost"
-            class="min-h-9 min-w-9"
-          /><USelect
-            v-model="language"
-            :items="languageOptions"
-            variant="ghost"
-            :aria-label="t('public.language')"
-            class="w-40 sm:w-32"
-            :ui="{ base: 'ps-2.5 sm:ps-9' }"
-          >
-            <template #leading><UIcon name="i-lucide-languages" class="size-5 hidden sm:block" /></template>
-            <template #default>
-              <span class="inline-flex items-center gap-1.5">
-                <UIcon :name="languageFlag" class="size-4 sm:hidden" />
-                {{ languageLabel }}
-              </span>
-            </template>
-          </USelect><UButton
-            :to="offerCtaPath"
-            trailing-icon="i-lucide-arrow-up-right"
-            size="lg"
-            block
-            class="col-span-2 w-full rounded-lg"
-            >{{ t(offerCtaLabelKey) }}</UButton
-          >
-        </div><UNavigationMenu
-          :items="[...links, { label: t('public.loginAccount'), to: '/login' }]"
-          orientation="vertical" /></template></UHeader
+        ><div class="flex flex-col gap-6 sm:hidden">
+          <nav class="flex flex-col divide-y divide-default">
+            <ULink
+              v-for="link in links"
+              :key="link.to"
+              :to="link.to"
+              class="flex items-center justify-between py-3.5 text-base font-medium text-highlighted"
+            >
+              {{ link.label }}
+              <UIcon name="i-lucide-chevron-right" class="size-4 text-muted" />
+            </ULink>
+          </nav>
+          <div class="flex items-center gap-2 rounded-lg bg-elevated p-1.5">
+            <USelect
+              v-model="language"
+              :items="languageOptions"
+              variant="ghost"
+              color="neutral"
+              size="lg"
+              :aria-label="t('public.language')"
+              class="flex-1"
+            >
+              <template #leading><UIcon :name="languageFlag" class="size-5" /></template>
+              <template #default>{{ languageLabel }}</template>
+            </USelect><UColorModeButton
+              :aria-label="t('public.changeAppearance')"
+              color="neutral"
+              variant="ghost"
+              size="lg"
+            />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <UButton to="/login" variant="outline" color="neutral" size="lg" block>{{
+              t('public.login')
+            }}</UButton
+            ><UButton :to="offerCtaPath" size="lg" block>{{ t(offerCtaLabelKey) }}</UButton>
+          </div>
+        </div></template></UHeader
     ><UMain id="main"><slot /></UMain
     ><UFooter
       class="bg-[var(--rrit-color-marketing-footer)] pt-14 text-[var(--rrit-color-marketing-text)] [--ui-text-muted:var(--rrit-color-marketing-footer-muted)] max-sm:pt-10"
