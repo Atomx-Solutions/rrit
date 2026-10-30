@@ -105,6 +105,11 @@ function openHelp() {
   if (window.matchMedia('(max-width: 1023px)').matches) sidebarOpen.value = false
   copilotOpen.value = true
 }
+const feedbackOpen = ref(false)
+function openFeedback() {
+  if (window.matchMedia('(max-width: 1023px)').matches) sidebarOpen.value = false
+  feedbackOpen.value = true
+}
 function item(n: (typeof navigation)[number]): NavigationMenuItem {
   return {
     label: t(n.label),
@@ -187,6 +192,7 @@ const profileMenu = computed(() => [
     { label: data.value.preferences.name, type: 'label' as const },
     { label: t('nav.myProfile'), icon: 'i-lucide-user-round', to: `${base.value}/settings` },
     { label: t('nav.stepHelp'), icon: 'i-lucide-circle-help', onSelect: openHelp },
+    { label: t('nav.feedback'), icon: 'i-lucide-message-square-heart', onSelect: openFeedback },
   ],
   [
     {
@@ -343,6 +349,7 @@ onBeforeUnmount(removeNavigationGuard)
             :items="[
               ...footerMenu,
               { label: t('nav.help'), icon: 'i-lucide-circle-help', onSelect: openHelp },
+              { label: t('nav.feedback'), icon: 'i-lucide-message-square-heart', onSelect: openFeedback },
             ]"
             orientation="vertical"
             :collapsed="state === 'collapsed'"
@@ -462,6 +469,7 @@ onBeforeUnmount(removeNavigationGuard)
       :description="t('nav.copilotDescription')"
       ><template #body><LazyCopilotPanel @navigate="copilotOpen = false" /></template
     ></USlideover>
+    <LazyFeedbackForm v-model:open="feedbackOpen" />
     <UModal
       :open="conflict"
       :dismissible="false"

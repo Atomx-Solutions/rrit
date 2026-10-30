@@ -13,15 +13,60 @@ const { data: packageRequestSummary, refresh: refreshPackageRequestSummary } = a
   { key: 'admin-package-request-count', lazy: true },
 )
 
+const { data: feedbackSummary, refresh: refreshFeedbackSummary } = await useFetch<{
+  feedback: { created_at: string }[]
+}>('/api/admin/feedback', { key: 'admin-feedback-count', lazy: true })
+
 const openPackageRequestCount = computed(() => packageRequestSummary.value?.open_count || 0)
 let packageRequestCountTimer: ReturnType<typeof setInterval> | undefined
 
+// Feedback has no status, so "new" means arrived since this browser last
+// opened the feedback page.
+const feedbackSeenKey = 'rrit-admin-feedback-seen-at'
+const feedbackSeenAt = ref('')
+const newFeedbackCount = computed(() =>
+  (feedbackSummary.value?.feedback || []).filter(entry => entry.created_at > feedbackSeenAt.value).length,
+)
+function markFeedbackSeen() {
+  const latest = feedbackSummary.value?.feedback[0]?.created_at
+  if (!latest || latest <= feedbackSeenAt.value) return
+  feedbackSeenAt.value = latest
+  try {
+    localStorage.setItem(feedbackSeenKey, latest)
+  } catch {
+    // Storage may be blocked; the badge then only lasts for this visit.
+  }
+}
+const onFeedbackPage = computed(() => route.path.startsWith('/admin/feedback'))
+watch([feedbackSummary, onFeedbackPage], () => {
+  if (onFeedbackPage.value) markFeedbackSeen()
+})
+watch(newFeedbackCount, (count, previous) => {
+  if (count > previous && !onFeedbackPage.value)
+    toast.add({
+      title: t('admin.feedback.newNotification'),
+      description: t('admin.feedback.newNotificationDescription', { count }),
+      color: 'info',
+      actions: [{ label: t('admin.feedback.open'), to: '/admin/feedback' }],
+    })
+})
+
 async function refreshPackageRequestCount() {
   if (document.visibilityState !== 'visible') return
-  await refreshPackageRequestSummary()
+  await Promise.all([refreshPackageRequestSummary(), refreshFeedbackSummary()])
 }
 
 onMounted(() => {
+  // Without a stored mark everything already here counts as seen, so the
+  // first visit does not announce the whole history.
+  let stored: string | null = null
+  try {
+    stored = localStorage.getItem(feedbackSeenKey)
+  } catch {
+    // Storage may be blocked; the mark then only lasts for this visit.
+  }
+  feedbackSeenAt.value = stored || feedbackSummary.value?.feedback[0]?.created_at || new Date().toISOString()
+  if (onFeedbackPage.value) markFeedbackSeen()
   packageRequestCountTimer = setInterval(refreshPackageRequestCount, 5000)
   window.addEventListener('focus', refreshPackageRequestCount)
 })
@@ -60,6 +105,14 @@ const menu = computed<NavigationMenuItem[]>(() =>
       label: t('admin.nav.packageRequests'),
       icon: 'i-lucide-inbox',
       badge: openPackageRequestCount.value || undefined,
+    },
+    {
+      to: '/admin/feedback',
+      label: t('admin.nav.feedback'),
+      icon: 'i-lucide-message-square-heart',
+      // Feedback is deleted once handled, so every entry still here is open,
+      // the same way the requests badge counts open requests.
+      badge: feedbackSummary.value?.feedback.length || undefined,
     },
     { to: '/admin/users', label: t('admin.nav.users'), icon: 'i-lucide-users' },
     { to: '/admin/plans', label: t('admin.nav.billingSettings'), icon: 'i-lucide-receipt-text' },
