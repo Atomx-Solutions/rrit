@@ -144,6 +144,23 @@ describe('generating a storyboard shot by shot', () => {
     expect(deps.onCost).toHaveBeenCalledTimes(4)
   })
 
+  it('shoots a shot that changed the subject once more on its own before giving up the take', async () => {
+    const deps = { ...fakes(), reserveRetry: vi.fn(async () => true) }
+    deps.verify.mockResolvedValueOnce({ sameSubject: false, reason: 'different cup' })
+    const result = await generateStoryboardShots({ storyboard: board([shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
+    expect(result.clips).toHaveLength(2)
+    expect(deps.generate).toHaveBeenCalledTimes(3)
+    expect(deps.reserveRetry).toHaveBeenCalledWith(4, 1)
+  })
+
+  it('gives up the take when the shot shot again still changed the subject', async () => {
+    const deps = { ...fakes(), reserveRetry: vi.fn(async () => true) }
+    deps.verify.mockResolvedValue({ sameSubject: false, reason: 'different cup' })
+    const result = generateStoryboardShots({ storyboard: board([shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
+    await expect(result).rejects.toMatchObject({ shot: 1, reason: 'different cup' })
+    expect(deps.generate).toHaveBeenCalledTimes(2)
+  })
+
   it('on the delivered take, keeps every shot and reports which changed the subject', async () => {
     const deps = fakes()
     deps.verify.mockResolvedValueOnce({ sameSubject: false, reason: 'different grille' })

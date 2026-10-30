@@ -192,7 +192,7 @@ export async function addMusicToVideo(video: Buffer, music: Buffer) {
 }
 
 // How a designed overlay layer arrives: it fades in while rising this far.
-const OVERLAY_REVEAL_SECONDS = 0.5
+const OVERLAY_REVEAL_SECONDS = 0.7
 const OVERLAY_RISE_RATIO = 0.016
 
 /**
@@ -233,13 +233,13 @@ export async function composeBrandedVideo(input: {
         + `[subject]scale=${width}:-2[placed];`
         + `[blurred][placed]overlay=x=0:y='max(0,min(H-h,${Math.round(input.placement.y)}))',setsar=1,format=yuv420p[motion];`
       : `[0:v]${frame('setpts=PTS-STARTPTS')}[motion];`
-    // Each layer fades in while sliding up into place, then stays until the
-    // motion ends.
+    // Each layer fades in while sliding up into place, easing out so it lands
+    // softly, then stays until the motion ends.
     const layered = overlays.map((overlay, index) => {
       const start = Math.max(0, Math.min(overlay.start, source.duration))
       const end = start + OVERLAY_REVEAL_SECONDS
       return `[${index + 1}:v]format=rgba,fade=in:st=${start}:d=${OVERLAY_REVEAL_SECONDS}:alpha=1[o${index}];`
-        + `[${index ? `m${index}` : 'motion'}][o${index}]overlay=x=0:y='if(lt(t,${end}),${rise}*(1-max(0,t-${start})/${OVERLAY_REVEAL_SECONDS}),0)':eval=frame:shortest=1,format=yuv420p[m${index + 1}];`
+        + `[${index ? `m${index}` : 'motion'}][o${index}]overlay=x=0:y='if(lt(t,${end}),${rise}*pow(1-max(0,t-${start})/${OVERLAY_REVEAL_SECONDS},3),0)':eval=frame:shortest=1,format=yuv420p[m${index + 1}];`
     }).join('')
     const composed = overlays.length ? `m${overlays.length}` : 'motion'
     await run(process.env.FFMPEG_PATH || 'ffmpeg', [

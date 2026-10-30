@@ -893,8 +893,10 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ generateMoreLabel }}
           </UButton>
         </section>
+        <!-- Only an exhausted package says so; while a video is still being
+             made the package may well have more left. -->
         <section
-          v-else
+          v-else-if="!videosRendering && remainingPosts < 1 && remainingVideos < 1"
           class="flex items-center gap-3 rounded-xl border border-default p-4 text-sm text-muted"
         >
           <UIcon name="i-lucide-package-check" class="size-5 shrink-0" />

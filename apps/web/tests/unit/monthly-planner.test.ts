@@ -506,6 +506,16 @@ describe('monthly evidence and provider boundaries', () => {
       ),
     ).toThrow('REPETITIVE_PLAN')
   })
+  it('moves a slot that takes a channel minute already planned to the next free minute', () => {
+    const evidence = plannerEvidence(createDemo(), now)
+    const research = researchFromResponse(researchFixture(), now)
+    const plan = editorialFixture()
+    const earlier = { ...plan.slots[0]!, topic: 'An earlier, different topic', hook: 'An earlier, different hook.' }
+    const validated = validateEditorialPlan(plan, evidence, research, '2026-09', 1, undefined, [earlier])
+    expect(validated.slots[0]!.day).toBe(earlier.day)
+    expect(validated.slots[0]!.channel).toBe(earlier.channel)
+    expect(validated.slots[0]!.time).not.toBe(earlier.time)
+  })
   it('repairs provider-only contract noise without weakening factual grounding', () => {
     const evidence = plannerEvidence(createDemo(), now)
     const research = researchFromResponse(researchFixture(), now)

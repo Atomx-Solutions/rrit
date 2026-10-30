@@ -18,6 +18,10 @@ export type ShotDependencies = {
   onCost: (costUsd: number | null) => void
   // Told how long each step of a shot took, so slow renders can be traced.
   onTiming: (step: string, ms: number) => void
+  // Holds the cost of shooting a shot once more after it changed the subject,
+  // and says whether that can be paid for. A shot shot again costs one shot,
+  // where a new take costs a new direction and every shot of it.
+  reserveRetry: (seconds: number, shot: number) => Promise<boolean>
   generate: typeof generateAiVideo
   verify: typeof verifyVideoSubject
   lastFrameOf: typeof extractLastFrame
@@ -27,6 +31,7 @@ export type ShotDependencies = {
 const defaults: ShotDependencies = {
   onCost: () => undefined,
   onTiming: () => undefined,
+  reserveRetry: async () => false,
   generate: generateAiVideo,
   verify: verifyVideoSubject,
   lastFrameOf: extractLastFrame,
@@ -95,29 +100,37 @@ export async function generateStoryboardShots(input: {
       canvas: input.provider.canvas,
       aspectRatio: input.provider.aspectRatio,
     })
-    let generated
-    const generationStarted = Date.now()
-    try {
-      generated = await request(start, firstFrame)
-    } catch (error) {
-      // A model that will not take a closing frame alone gets the photograph
-      // as its opening frame too, rather than losing the shot.
-      if (start !== 'free') throw error
-      generated = await request('photograph', photograph)
+    const shoot = async () => {
+      let generated
+      const generationStarted = Date.now()
+      try {
+        generated = await request(start, firstFrame)
+      } catch (error) {
+        // A model that will not take a closing frame alone gets the photograph
+        // as its opening frame too, rather than losing the shot.
+        if (start !== 'free') throw error
+        generated = await request('photograph', photograph)
+      }
+      if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
+      deps.onTiming(`shot_${index + 1}_generate`, Date.now() - generationStarted)
+      costUsd = costUsd === null || generated.costUsd === null ? null : costUsd + generated.costUsd
+      deps.onCost(generated.costUsd)
+      const checkStarted = Date.now()
+      const check = await deps.verify({ photograph, frames: await deps.framesOf(generated.bytes, [0.3, 0.6, 0.95]) })
+      deps.onTiming(`shot_${index + 1}_check`, Date.now() - checkStarted)
+      deps.onCost(check.costUsd ?? 0)
+      return { bytes: generated.bytes, check }
     }
-    if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
-    deps.onTiming(`shot_${index + 1}_generate`, Date.now() - generationStarted)
-    costUsd = costUsd === null || generated.costUsd === null ? null : costUsd + generated.costUsd
-    deps.onCost(generated.costUsd)
-    const checkStarted = Date.now()
-    const check = await deps.verify({ photograph, frames: await deps.framesOf(generated.bytes, [0.3, 0.6, 0.95]) })
-    deps.onTiming(`shot_${index + 1}_check`, Date.now() - checkStarted)
-    deps.onCost(check.costUsd ?? 0)
-    if (!check.sameSubject) {
-      if (input.onSubjectChange !== 'record') throw new ShotSubjectChanged(index + 1, check.reason)
-      subjectChanges.push({ shot: index + 1, reason: check.reason })
+    let taken = await shoot()
+    // A shot that changed the subject is shot once more on its own before the
+    // whole take is given up, when that one shot can still be paid for.
+    if (!taken.check.sameSubject && await deps.reserveRetry(shot.durationSeconds, index + 1))
+      taken = await shoot()
+    if (!taken.check.sameSubject) {
+      if (input.onSubjectChange !== 'record') throw new ShotSubjectChanged(index + 1, taken.check.reason)
+      subjectChanges.push({ shot: index + 1, reason: taken.check.reason })
     }
-    clips.push(generated.bytes)
+    clips.push(taken.bytes)
   }
   return { clips, costUsd, subjectChanges }
 }

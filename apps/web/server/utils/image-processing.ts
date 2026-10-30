@@ -620,18 +620,21 @@ export async function buildVideoOverlayLayers(input: {
   }
   // The largest size at which the whole approved headline fits in three lines;
   // the copy is never cut to make it fit. A video is read in a glance, so the
-  // block stays short enough to leave most of the frame to the motion.
-  const headlineText = input.headline.trim().toLocaleUpperCase()
-  let headlineSize = Math.round(width * 0.115)
-  let headlineLines = wrap(headlineText, headlineSize, 0.62)
-  while (headlineSize > 40 && (headlineLines.length > 3 || headlineLines.some((part) => part.length * headlineSize * 0.62 > textWidth))) {
+  // block stays short enough to leave most of the frame to the motion. It is
+  // set as the still posts are: sentence case, heavy and tight, with its
+  // closing words in the brand's accent.
+  const headlineText = input.headline.trim()
+  const headlineFactor = 0.54
+  let headlineSize = Math.round(width * 0.105)
+  let headlineLines = wrap(headlineText, headlineSize, headlineFactor)
+  while (headlineSize > 40 && (headlineLines.length > 3 || headlineLines.some((part) => part.length * headlineSize * headlineFactor > textWidth))) {
     headlineSize -= 4
-    headlineLines = wrap(headlineText, headlineSize, 0.62)
+    headlineLines = wrap(headlineText, headlineSize, headlineFactor)
   }
   const brandSize = Math.round(width * 0.04)
-  const eyebrowSize = Math.round(width * 0.03)
+  const eyebrowSize = Math.round(width * 0.032)
   const eyebrow = input.eyebrow?.trim().toLocaleUpperCase() || ''
-  const sublineSize = Math.round(width * 0.052)
+  const sublineSize = Math.round(width * 0.048)
   // A headline that already fills three lines carries the message alone.
   let sublineLines = input.subline?.trim() && headlineLines.length < 3
     ? wrap(input.subline.trim(), sublineSize, 0.52).slice(0, 2)
@@ -639,27 +642,29 @@ export async function buildVideoOverlayLayers(input: {
   // A call to action reads as a button only while it is button-sized.
   const cta = input.cta?.trim() && input.cta.trim().length <= 40 ? input.cta.trim() : ''
   const ctaSize = Math.round(width * 0.04)
-  const ctaHeight = Math.round(ctaSize * 2.3)
-  const ctaWidth = Math.min(textWidth, Math.round(Array.from(cta).length * ctaSize * 0.56 + ctaSize * 2.2))
+  const ctaHeight = Math.round(ctaSize * 2.4)
+  const ctaWidth = Math.min(textWidth, Math.round(Array.from(cta).length * ctaSize * 0.56 + ctaSize * 2.6))
+  // The accent the headline's closing words and the eyebrow rule take.
+  const accent = liftForDark(primary)
 
-  const gap = Math.round(height * 0.02)
-  const ruleHeight = Math.max(4, Math.round(brandSize * 0.18))
-  let headlineStep = Math.round(headlineSize * 1.02)
+  const gap = Math.round(height * 0.018)
+  const ruleHeight = Math.max(4, Math.round(eyebrowSize * 0.16))
+  let headlineStep = Math.round(headlineSize * 1.04)
   const sublineStep = Math.round(sublineSize * 1.25)
-  // Every row's height in reading order, so the block can be placed from
-  // either edge of the safe area with the same arithmetic.
-  // The brand line: the logo cut from its background and trimmed to its
-  // artwork, or the business name when there is no logo.
+  // The brand signs the frame from the far edge of the type, as on the posts:
+  // the logo cut from its background and trimmed to its artwork, or the
+  // business name when there is no logo.
   const brandMark = input.logo
     ? await sharp(await sharp(await removeLogoBackground(input.logo)).trim().png().toBuffer())
-      .resize(Math.round(width * 0.4), Math.round(brandSize * 3.4), { fit: 'inside', kernel: sharp.kernel.lanczos3 })
+      .resize(Math.round(width * 0.32), Math.round(brandSize * 2.6), { fit: 'inside', kernel: sharp.kernel.lanczos3 })
       .png()
       .toBuffer()
     : undefined
   const brandHeight = brandMark ? (await sharp(brandMark).metadata()).height || brandSize : brandSize
+  // Every row's height in reading order, so the block can be placed from
+  // either edge of the safe area with the same arithmetic.
   const measure = () => [
-    brandHeight, gap, ruleHeight, gap,
-    ...(eyebrow ? [eyebrowSize, gap] : []),
+    ...(eyebrow ? [eyebrowSize, gap, ruleHeight, Math.round(gap * 1.4)] : []),
     headlineLines.length * headlineStep, gap,
     ...(sublineLines.length ? [sublineLines.length * sublineStep, gap] : []),
     cta ? ctaHeight : 0,
@@ -676,47 +681,61 @@ export async function buildVideoOverlayLayers(input: {
     const room = Math.max(above, below)
     while (blockHeight > room && headlineSize > 40) {
       headlineSize -= 4
-      headlineLines = wrap(headlineText, headlineSize, 0.62)
-      headlineStep = Math.round(headlineSize * 1.02)
+      headlineLines = wrap(headlineText, headlineSize, headlineFactor)
+      headlineStep = Math.round(headlineSize * 1.04)
       sublineLines = headlineLines.length < 3 ? sublineLines : []
       blockHeight = measure()
     }
   }
   let y = zone === 'top' ? safeTop : safeBottom - blockHeight
   const top = y
-  const brandTop = y
-  const brandY = (y += brandHeight)
-  const ruleY = (y += gap)
-  y += ruleHeight + gap
-  const eyebrowY = eyebrow ? (y += eyebrowSize) : y
-  if (eyebrow) y += gap
-  const headlineY = y + headlineSize
+  const eyebrowY = y + eyebrowSize
+  if (eyebrow) y += eyebrowSize + gap
+  const ruleY = y
+  if (eyebrow) y += ruleHeight + Math.round(gap * 1.4)
+  const headlineY = Math.round(y + headlineSize * 0.86)
   y += headlineLines.length * headlineStep + gap
-  const sublineY = y + sublineSize
+  const sublineY = Math.round(y + sublineSize * 0.86)
   if (sublineLines.length) y += sublineLines.length * sublineStep + gap
   const ctaY = y
+  // The brand sits at the opposite edge of the safe area from the type.
+  const brandTop = zone === 'top' ? safeBottom - brandHeight : safeTop
+  const brandY = brandTop + brandHeight
 
   // A soft scrim behind the type keeps it legible on any photograph without
-  // boxing the motion in.
+  // boxing the motion in, and a lighter one does the same for the brand.
+  const fade = (from: 'top' | 'bottom', strength: number) => from === 'top'
+    ? `<stop offset="0" stop-color="#000" stop-opacity="${strength}"/><stop offset="0.7" stop-color="#000" stop-opacity="${strength * 0.58}"/><stop offset="1" stop-color="#000" stop-opacity="0"/>`
+    : `<stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="0.3" stop-color="#000" stop-opacity="${strength * 0.58}"/><stop offset="1" stop-color="#000" stop-opacity="${strength}"/>`
   const reach = Math.round(height * 0.12)
   const scrimStart = zone === 'top' ? 0 : Math.max(0, top - reach)
   const scrimEnd = zone === 'top' ? Math.min(height, top + blockHeight + reach) : height
-  const scrim = zone === 'top'
-    ? '<stop offset="0" stop-color="#000" stop-opacity="0.66"/><stop offset="0.7" stop-color="#000" stop-opacity="0.38"/><stop offset="1" stop-color="#000" stop-opacity="0"/>'
-    : '<stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="0.3" stop-color="#000" stop-opacity="0.38"/><stop offset="1" stop-color="#000" stop-opacity="0.66"/>'
+  const brandReach = Math.round(height * 0.1)
+  const brandScrimStart = zone === 'top' ? Math.max(0, brandTop - brandReach) : 0
+  const brandScrimEnd = zone === 'top' ? height : Math.min(height, brandY + brandReach)
   const layer = (body: string) => sharp(Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${body}</svg>`)).png().toBuffer()
   const lines = (parts: string[], first: number, step: number) =>
     parts.map((part, index) => `<tspan x="${margin}" y="${first + index * step}">${escapeXml(part)}</tspan>`).join('')
+  // About the last third of the headline's words take the accent.
+  const wordCount = headlineLines.join(' ').split(' ').length
+  const accentFrom = wordCount > 2 ? wordCount - Math.max(1, Math.round(wordCount / 3)) : wordCount
+  let wordIndex = 0
+  const headlineSpans = headlineLines.map((part, index) => {
+    const words = part.split(' ').map((word) => `<tspan${wordIndex++ >= accentFrom ? ` fill="${accent}"` : ''}>${escapeXml(word)}</tspan>`).join(' ')
+    return `<tspan x="${margin}" y="${headlineY + index * headlineStep}">${words}</tspan>`
+  }).join('')
+  const shadow = `<filter id="t" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="${Math.max(1, Math.round(width * 0.002))}" stdDeviation="${Math.max(2, Math.round(width * 0.006))}" flood-color="#000" flood-opacity="0.35"/></filter>`
 
   const layers = await Promise.all([
-    layer(`<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1">${scrim}</linearGradient></defs>
+    layer(`<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1">${fade(zone, 0.62)}</linearGradient><linearGradient id="b" x1="0" y1="0" x2="0" y2="1">${fade(zone === 'top' ? 'bottom' : 'top', 0.42)}</linearGradient>${shadow}</defs>
   <rect x="0" y="${scrimStart}" width="${width}" height="${scrimEnd - scrimStart}" fill="url(#s)"/>
-  ${brandMark ? '' : `<text font-family="${font}" font-size="${brandSize}" font-weight="${weightCta}" fill="#ffffff">${lines([input.businessName.trim()], brandY, 0)}</text>`}
-  <rect x="${margin}" y="${ruleY}" width="${Math.round(width * 0.12)}" height="${ruleHeight}" rx="2" fill="${primary}"/>
-  ${eyebrow ? `<text font-family="${font}" font-size="${eyebrowSize}" font-weight="${weightCta}" fill="#ffffff" fill-opacity="0.85" letter-spacing="3">${lines([eyebrow], eyebrowY, 0)}</text>` : ''}`),
-    layer(`<text font-family="${font}" font-size="${headlineSize}" font-weight="${weightHook}" fill="#ffffff" letter-spacing="-1">${lines(headlineLines, headlineY, headlineStep)}</text>`),
-    layer(`${sublineLines.length ? `<text font-family="${font}" font-size="${sublineSize}" font-weight="600" fill="#ffffff" fill-opacity="0.94">${lines(sublineLines, sublineY, sublineStep)}</text>` : ''}
+  <rect x="0" y="${brandScrimStart}" width="${width}" height="${brandScrimEnd - brandScrimStart}" fill="url(#b)"/>
+  ${brandMark ? '' : `<text font-family="${font}" font-size="${brandSize}" font-weight="${weightCta}" fill="#ffffff" filter="url(#t)">${lines([input.businessName.trim()], brandY - Math.round(brandSize * 0.2), 0)}</text>`}
+  ${eyebrow ? `<text font-family="${font}" font-size="${eyebrowSize}" font-weight="500" fill="#ffffff" letter-spacing="${Math.round(eyebrowSize * 0.18)}" filter="url(#t)">${lines([eyebrow], eyebrowY, 0)}</text>
+  <rect x="${margin}" y="${ruleY}" width="${Math.round(width * 0.11)}" height="${ruleHeight}" rx="${Math.round(ruleHeight / 2)}" fill="${accent}"/>` : ''}`),
+    layer(`<defs>${shadow}</defs><text font-family="${font}" font-size="${headlineSize}" font-weight="${weightHook}" fill="#ffffff" letter-spacing="${-Math.round(headlineSize * 0.03)}" filter="url(#t)">${headlineSpans}</text>`),
+    layer(`<defs>${shadow}</defs>${sublineLines.length ? `<text font-family="${font}" font-size="${sublineSize}" font-weight="500" fill="#ffffff" fill-opacity="0.94" filter="url(#t)">${lines(sublineLines, sublineY, sublineStep)}</text>` : ''}
   ${cta ? `<rect x="${margin}" y="${ctaY}" width="${ctaWidth}" height="${ctaHeight}" rx="${Math.round(ctaHeight / 2)}" fill="${primary}"/>
   <text x="${margin + Math.round(ctaWidth / 2)}" y="${ctaY + Math.round(ctaHeight / 2 + ctaSize * 0.36)}" font-family="${font}" font-size="${ctaSize}" font-weight="${weightCta}" fill="${onPrimary}" text-anchor="middle">${escapeXml(cta)}</text>` : ''}`),
   ])
@@ -752,6 +771,24 @@ function sanitizeHex(value?: string) {
   if (!match) return undefined
   const hex = match[1]!
   return `#${hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex}`.toLowerCase()
+}
+
+// A brand colour made bright enough to read on a dark scrim while keeping its
+// hue, so a deep brand green becomes the vivid green of its accent words.
+function liftForDark(hex: string) {
+  const [r, g, b] = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16) / 255) as [number, number, number]
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const delta = max - min
+  const hue = delta === 0 ? 0 : max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4
+  const lightness = Math.max((max + min) / 2, 0.55)
+  const saturation = delta === 0 ? 0 : Math.max(delta / (1 - Math.abs(max + min - 1)), 0.65)
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
+  const x = chroma * (1 - Math.abs((hue % 2) - 1))
+  const sector = Math.floor(((hue % 6) + 6) % 6)
+  const [r1, g1, b1] = [[chroma, x, 0], [x, chroma, 0], [0, chroma, x], [0, x, chroma], [x, 0, chroma], [chroma, 0, x]][sector]!
+  const m = lightness - chroma / 2
+  return `#${[r1, g1, b1].map((value) => Math.round((value! + m) * 255).toString(16).padStart(2, '0')).join('')}`
 }
 
 function readableOn(hex: string) {

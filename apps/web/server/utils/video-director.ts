@@ -31,8 +31,8 @@ function seconds(variable: string, fallback: number) {
 export function videoLengthLimits(durations: number[]): StoryboardLimits {
   return {
     durations,
-    minSeconds: seconds('VIDEO_MIN_SECONDS', 6),
-    maxSeconds: seconds('VIDEO_MAX_SECONDS', 12),
+    minSeconds: seconds('VIDEO_MIN_SECONDS', 4),
+    maxSeconds: seconds('VIDEO_MAX_SECONDS', 8),
   }
 }
 

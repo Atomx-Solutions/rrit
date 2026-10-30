@@ -16,6 +16,7 @@ import { aiVideoCanvas, aiVideoCapabilities, aiVideoConfigured, aiVideoPromptLim
 import { buildVideoOverlayLayers } from './image-processing'
 import { approvedVideoCopy, videoPostEvidence } from './video-quality'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
+import { dressVideoScene } from './video-scene'
 import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
 import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
 import { directedTakes, videoChargeCredits } from './video-takes'
@@ -285,6 +286,16 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // The AI creative director invents this video's concept and storyboard
     // from the fitted photograph. Without a valid storyboard the strategy's
     // own shot direction is rendered as before.
+    // The video moves through the scene its still post shows: the photograph
+    // dressed with the props that belong to this business, without type.
+    const dressed = await timed('dress_scene', () => dressVideoScene({
+      photograph: snapshot.fitted!,
+      channel: snapshot.channel,
+      brand: snapshot.director.brand,
+      post: snapshot.director.post,
+    }))
+    fitCostUsd += dressed.costUsd
+    snapshot.fitted = dressed.bytes
     const capabilities = await aiVideoCapabilities(snapshot.canvas)
     let limits = { ...videoLengthLimits(capabilities.durations), photos: 1 + extraFitted.length }
     // The video is planned within what the business can pay for: the model's
@@ -313,7 +324,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // Holds enough for every take planned so far before the next is
     // generated; a take the business cannot pay for is never started.
     let plannedSeconds = 0
-    const reserveFor = async (seconds: number, attempt: number) => {
+    const reserveFor = async (seconds: number, attempt: number | string) => {
       plannedSeconds += seconds
       seconds = plannedSeconds
       if (!pricing) return
@@ -350,7 +361,19 @@ export async function renderVideoForPost(userId: string, postId: string) {
         guardrails: snapshot.director.guardrails,
         maxLength: aiVideoPromptLimit(),
         onSubjectChange,
-      }, { onCost: addCost, onTiming: (step, ms) => timings.push({ step, ms }) })
+      }, {
+        onCost: addCost,
+        onTiming: (step, ms) => timings.push({ step, ms }),
+        reserveRetry: async (seconds, shot) => {
+          if (pricing && affordableVideoSeconds(pricing.spendable + snapshot.videoCredits, pricing.rates) < plannedSeconds + seconds) return false
+          try {
+            await reserveFor(seconds, `shot-${shot}-${plannedSeconds}`)
+            return true
+          } catch {
+            return false
+          }
+        },
+      })
       return {
         subjectChanges: shots.subjectChanges,
         motion: await timed('join_clips', () => joinClips(shots.clips, provider.canvas, crossfade)),
@@ -434,7 +457,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // cannot be made leaves the video silent, as videos were before; it never
     // costs the business the video itself.
     let musicCostUsd: number | null = 0
-    if (videoMusicConfigured()) {
+    const addMusic = async () => {
+      if (!videoMusicConfigured()) return
       try {
         const music = await timed('music', () => generateVideoMusic({
           frames,
@@ -458,28 +482,33 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // business the video it has already paid for.
     let quality: Awaited<ReturnType<typeof reviewVideoQuality>>['quality'] | null = null
     let reviewCostUsd = 0
-    try {
-      const review = await timed('quality_review', () => reviewVideoQuality({
-        photograph: snapshot.source,
-        extraPhotographs: extraFitted,
-        frames,
-        caption: snapshot.caption,
-        brandName: snapshot.brandName,
-        locale: snapshot.locale,
-        verifiedFacts: snapshot.verifiedFacts,
-        targetChannel: snapshot.channel,
-        context: {
-          businessBrain: snapshot.businessBrain,
-          guardrails: snapshot.director.guardrails,
-          approvedCopy: snapshot.approvedCopy,
-          storyboard: storyboard || undefined,
-        },
-      }))
-      quality = review.quality
-      reviewCostUsd = review.costUsd
-    } catch (error) {
-      console.warn('Video QA was unavailable; the review stays pending', { postId, error: error instanceof Error ? error.message : 'unknown' })
+    const review = async () => {
+      try {
+        const result = await timed('quality_review', () => reviewVideoQuality({
+          photograph: snapshot.source,
+          extraPhotographs: extraFitted,
+          frames,
+          caption: snapshot.caption,
+          brandName: snapshot.brandName,
+          locale: snapshot.locale,
+          verifiedFacts: snapshot.verifiedFacts,
+          targetChannel: snapshot.channel,
+          context: {
+            businessBrain: snapshot.businessBrain,
+            guardrails: snapshot.director.guardrails,
+            approvedCopy: snapshot.approvedCopy,
+            storyboard: storyboard || undefined,
+          },
+        }))
+        quality = result.quality
+        reviewCostUsd = result.costUsd
+      } catch (error) {
+        console.warn('Video QA was unavailable; the review stays pending', { postId, error: error instanceof Error ? error.message : 'unknown' })
+      }
     }
+    // Both read the same frames of the video before its music, so neither
+    // waits for the other.
+    await Promise.all([addMusic(), review()])
     const folder = assetStorageFolder(snapshot.business.slug, snapshot.business.id)
     const path = `${folder}/video-${postId}-${randomUUID()}.mp4`
     failureReason = 'storage_failed'
