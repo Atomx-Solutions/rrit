@@ -496,7 +496,8 @@ export async function renderVideoForPost(userId: string, postId: string) {
         if (quality) {
           currentPost.video.quality = quality
           currentPost.video.qualityContentVersion = snapshot.contentVersion
-          currentPost.policy = quality.factuality ? 'warn' : 'block'
+          // The finding is shown as a warning: the person decides, not the review.
+          currentPost.policy = 'warn'
           currentPost.policyReason = quality.reasons.join(' ') || 'validation.aiQualityPassed'
         } else {
           // Pending: validation runs the review again before publishing.

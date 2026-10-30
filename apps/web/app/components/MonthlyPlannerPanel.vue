@@ -857,8 +857,9 @@ onBeforeUnmount(() => clearInterval(timer))
     <div v-else-if="settled && plan && !configuringMore" class="border-t border-default p-4">
       <!-- Two cards, each with its own job: asking for more on one side, what
            is ready on the other. Side by side on a wide screen, stacked on a
-           phone with "generate more" first. -->
-      <div class="grid gap-3 lg:grid-cols-2">
+           phone with "generate more" first. While a video is still being
+           made only its progress shows; the rest returns once it is done. -->
+      <div :class="['grid gap-3', !videosRendering && 'lg:grid-cols-2']">
         <section
           v-if="extendable && !videosRendering"
           class="flex flex-col gap-4 rounded-xl border border-primary/20 bg-primary/5 p-4"
@@ -897,7 +898,7 @@ onBeforeUnmount(() => clearInterval(timer))
           </UButton>
         </section>
         <section
-          v-else
+          v-else-if="!videosRendering"
           class="flex items-center gap-3 rounded-xl border border-default p-4 text-sm text-muted"
         >
           <UIcon name="i-lucide-package-check" class="size-5 shrink-0" />

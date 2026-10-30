@@ -204,7 +204,8 @@ export async function localPostChecks(
     aiChecks.push({
       key: 'ai_quality',
       passed: !!quality && quality.factuality && quality.brandFit && quality.visualQuality,
-      advisory: post.video ? quality?.factuality !== false : true,
+      // A video's AI review informs the person; it never stops publishing.
+      advisory: true,
       message: quality?.reasons.join(' ') || (quality ? 'validation.aiQualityPassed' : 'server.AI_QUALITY_REVIEW_NEEDED'),
     })
   }
@@ -213,7 +214,7 @@ export async function localPostChecks(
     aiChecks.push({
       key: 'ai_quality',
       passed: !!quality && quality.factuality && quality.brandFit && quality.visualQuality,
-      advisory: quality?.factuality !== false,
+      advisory: true,
       message: quality?.reasons.join(' ') || (quality ? 'validation.aiQualityPassed' : 'server.AI_QUALITY_REVIEW_NEEDED'),
     })
   }
