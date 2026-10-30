@@ -131,12 +131,11 @@ export default defineEventHandler(async (event) => {
               // names what is waiting instead of calling every one a post.
               videos: row.batch_video_count as number,
             },
-            // Posts are drawn on request, so the panel needs to know the plan
-            // is alive and still owes the customer posts it has not been asked
-            // for yet.
-            extendable:
-              row.status === 'idle' ||
-              (row.status === 'review' && row.completed_count < row.target_count),
+            // Posts and videos are drawn on request, so the panel needs to know
+            // the plan can take another request. What is left to ask for comes
+            // from the package allowances above, not from the plan's target,
+            // which never counts videos that have not been asked for yet.
+            extendable: row.status === 'idle' || row.status === 'review',
             errorCode: (row.error_code as string | null) || null,
             error: row.error_code
               ? plannerMessageKey(row.error_code, 'planner.needsReview')

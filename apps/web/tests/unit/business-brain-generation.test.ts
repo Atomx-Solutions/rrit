@@ -1,3 +1,4 @@
+import { sceneDressingRule } from '../../server/utils/scene-dressing'
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { createDemo } from '../fixtures/workspace'
@@ -477,6 +478,7 @@ describe('image prompt', () => {
   it('never carries facts or offer prices into the image', () => {
     const prompt = monthlyImagePrompt({ brand, creative, slot, guardrails: [] })
     expect(prompt).not.toContain('2.5')
-    expect(prompt).toContain('never invent a product, person, venue feature, sign, offer')
+    expect(prompt).toContain('never invent a branded product, person, venue feature, sign, offer')
+    expect(prompt).toContain(sceneDressingRule)
   })
 })

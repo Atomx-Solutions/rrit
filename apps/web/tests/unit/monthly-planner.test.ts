@@ -1,3 +1,4 @@
+import { sceneDressingRule } from '../../server/utils/scene-dressing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import sharp from 'sharp'
 import { randomUUID } from 'node:crypto'
@@ -727,7 +728,8 @@ describe('AI creative generation', () => {
     expect(edited).toContain('Instagram feed')
     expect(edited).toContain('Shto dritë të ngrohtë')
     expect(edited).toContain('center-cropped to the final 1080x1350')
-    expect(edited).toContain('Never duplicate, fuse, warp, replace or invent material objects')
+    expect(edited).toContain('Never duplicate, fuse, warp or replace photographed material objects')
+    expect(edited).toContain(sceneDressingRule)
     expect(edited).toContain('typographic designer')
     expect(edited).toContain('no more than two weights')
   })

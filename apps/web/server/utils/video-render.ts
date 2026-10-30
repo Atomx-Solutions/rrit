@@ -224,6 +224,23 @@ export async function renderVideoForPost(userId: string, postId: string) {
   // the director has planned the video and its cost can be estimated.
   let reservedCredits = snapshot.videoCredits
   let failureReason = 'render_failed'
+  // How long each step took, logged once the render ends, to trace slow renders.
+  const timings: { step: string; ms: number }[] = []
+  const renderStarted = Date.now()
+  const timed = async <T>(step: string, run: () => Promise<T>) => {
+    const started = Date.now()
+    try {
+      return await run()
+    } finally {
+      timings.push({ step, ms: Date.now() - started })
+    }
+  }
+  const logTimings = (outcome: string) => console.info('Video render timings', {
+    postId,
+    outcome,
+    totalMs: Date.now() - renderStarted,
+    steps: timings,
+  })
   try {
     // Both ends of the motion are cut from one photograph, so the subject
     // stays the subject that was photographed.
@@ -234,10 +251,10 @@ export async function renderVideoForPost(userId: string, postId: string) {
     let fitCostUsd = 0
     if (!snapshot.fitted) {
       failureReason = 'photo_fit_failed'
-      const fit = await fitPhotoToChannel(snapshot.source, snapshot.channel, {
+      const fit = await timed('photo_fit', () => fitPhotoToChannel(snapshot.source, snapshot.channel, {
         outpaint: (guide, prompt) => requestOutpaint(guide, prompt, snapshot.channel),
         review: reviewExtension,
-      })
+      }))
       fitCostUsd = fit.costUsd
       if (fit.mode === 'crop_fallback' && fit.reasons.length)
         console.warn('A photograph could not be extended and was cropped instead', { postId, reasons: fit.reasons })
@@ -250,14 +267,14 @@ export async function renderVideoForPost(userId: string, postId: string) {
     const extraFitted: Buffer[] = []
     if (snapshot.extraSources.length) {
       failureReason = 'photo_fit_failed'
-      const extras = await Promise.all(snapshot.extraSources.map(async (source) => {
+      const extras = await timed('extra_photos_fit', () => Promise.all(snapshot.extraSources.map(async (source) => {
         const fit = await fitPhotoToChannel(source, snapshot.channel, {
           outpaint: (guide, prompt) => requestOutpaint(guide, prompt, snapshot.channel),
           review: reviewExtension,
         })
         const check = await verifySamePhotographedSubject({ main: snapshot.fitted!, other: fit.bytes })
         return { fit, check }
-      }))
+      })))
       failureReason = 'render_failed'
       for (const [index, { fit, check }] of extras.entries()) {
         fitCostUsd += fit.costUsd + check.costUsd
@@ -333,10 +350,10 @@ export async function renderVideoForPost(userId: string, postId: string) {
         guardrails: snapshot.director.guardrails,
         maxLength: aiVideoPromptLimit(),
         onSubjectChange,
-      }, { onCost: addCost })
+      }, { onCost: addCost, onTiming: (step, ms) => timings.push({ step, ms }) })
       return {
         subjectChanges: shots.subjectChanges,
-        motion: await joinClips(shots.clips, provider.canvas, crossfade),
+        motion: await timed('join_clips', () => joinClips(shots.clips, provider.canvas, crossfade)),
         shotStarts: storyboard.shots.reduce<number[]>((starts, _shot, index) => {
           starts.push(index ? starts[index - 1]! + storyboard.shots[index - 1]!.durationSeconds - crossfade : 0)
           return starts
@@ -352,7 +369,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     const takes = await directedTakes({
       direct: async (previousAttempt) => {
         failureReason = 'direction_failed'
-        const direction = await directVideo({
+        const direction = await timed('direct', () => directVideo({
           photograph: snapshot.fitted!,
           extraPhotographs: extraFitted,
           channel: snapshot.channel,
@@ -360,7 +377,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
           locale: snapshot.locale,
           ...snapshot.director,
           ...(previousAttempt ? { previousAttempt } : {}),
-        })
+        }))
         // Every video is directed: without a valid storyboard nothing is shot,
         // so no motion is paid for and the held credits are released.
         if (!direction.storyboard) {
@@ -406,28 +423,28 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // Compose before upload. The provider MP4 is an in-memory intermediate;
     // only the branded MP4 becomes the ready render's canonical storage path.
     failureReason = 'composition_failed'
-    let bytes = await composeBrandedVideo({
+    let bytes = await timed('compose', () => composeBrandedVideo({
       motion,
       target: snapshot.canvas,
       overlays,
-    })
+    }))
     // Frames of the finished video, read by both the music and the review.
-    const frames = await extractVideoFrames(bytes, [0.1, 0.4, 0.7, 0.95])
+    const frames = await timed('extract_frames', () => extractVideoFrames(bytes, [0.1, 0.4, 0.7, 0.95]))
     // One track for the whole video, made from what it shows. Music that
     // cannot be made leaves the video silent, as videos were before; it never
     // costs the business the video itself.
     let musicCostUsd: number | null = 0
     if (videoMusicConfigured()) {
       try {
-        const music = await generateVideoMusic({
+        const music = await timed('music', () => generateVideoMusic({
           frames,
           caption: snapshot.caption,
           brandName: snapshot.brandName,
           durationSeconds: motionSeconds,
-        })
+        }))
         if (music) {
           musicCostUsd = music.costUsd
-          bytes = await addMusicToVideo(bytes, music.audio)
+          bytes = await timed('add_music', () => addMusicToVideo(bytes, music.audio))
         }
       } catch (error) {
         console.warn('Video music was unavailable; the video stays silent', { postId, error: error instanceof Error ? error.message : 'unknown' })
@@ -442,7 +459,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     let quality: Awaited<ReturnType<typeof reviewVideoQuality>>['quality'] | null = null
     let reviewCostUsd = 0
     try {
-      const review = await reviewVideoQuality({
+      const review = await timed('quality_review', () => reviewVideoQuality({
         photograph: snapshot.source,
         extraPhotographs: extraFitted,
         frames,
@@ -457,7 +474,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
           approvedCopy: snapshot.approvedCopy,
           storyboard: storyboard || undefined,
         },
-      })
+      }))
       quality = review.quality
       reviewCostUsd = review.costUsd
     } catch (error) {
@@ -466,7 +483,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
     const folder = assetStorageFolder(snapshot.business.slug, snapshot.business.id)
     const path = `${folder}/video-${postId}-${randomUUID()}.mp4`
     failureReason = 'storage_failed'
-    await uploadBinaryAsset(path, bytes, 'video/mp4')
+    await timed('upload', () => uploadBinaryAsset(path, bytes, 'video/mp4'))
     uploadedPaths.push(path)
     failureReason = 'render_failed'
     await withBusinessTransaction(userId, async (client, business) => {
@@ -531,8 +548,10 @@ export async function renderVideoForPost(userId: string, postId: string) {
         await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(currentPost), postId, business.id])
       }
     })
+    logTimings('ready')
     return { renderId: snapshot.renderId, status: 'ready' }
   } catch (error) {
+    logTimings(failureReason)
     for (const uploadedPath of uploadedPaths) {
       try {
         await removeAsset(uploadedPath)

@@ -274,9 +274,6 @@ watch(selectedQuantity, (quantity) => {
 const active = computed(() => ['queued', 'running'].includes(plan.value?.status || ''))
 const blocked = computed(() => plan.value?.status === 'blocked')
 const ready = computed(() => plan.value?.status === 'review')
-const tiktokTargetPost = computed(() =>
-  workspace.value.posts.find((post) => ['draft', 'review'].includes(post.status) && post.image),
-)
 // Everything the customer asked for is produced, and the package still owes
 // posts. This is a resting state with two next steps: look at what arrived, or
 // ask for more.
@@ -987,15 +984,6 @@ onBeforeUnmount(() => clearInterval(timer))
           </UButton>
           <UButton :to="`${base}/content`" trailing-icon="i-lucide-arrow-right">
             {{ t('legacy.reviewPosts') }}
-          </UButton>
-          <UButton
-            v-if="tiktokTargetPost"
-            :to="`${base}/content/${tiktokTargetPost.id}?tiktok=1`"
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-clapperboard"
-          >
-            {{ t('video.generate') }}
           </UButton>
         </div>
       </div>

@@ -16,6 +16,8 @@ export type ShotDependencies = {
   // Told what every generated shot cost as soon as it is paid for, so a take
   // stopped by a changed subject is still charged for what it made.
   onCost: (costUsd: number | null) => void
+  // Told how long each step of a shot took, so slow renders can be traced.
+  onTiming: (step: string, ms: number) => void
   generate: typeof generateAiVideo
   verify: typeof verifyVideoSubject
   lastFrameOf: typeof extractLastFrame
@@ -24,6 +26,7 @@ export type ShotDependencies = {
 
 const defaults: ShotDependencies = {
   onCost: () => undefined,
+  onTiming: () => undefined,
   generate: generateAiVideo,
   verify: verifyVideoSubject,
   lastFrameOf: extractLastFrame,
@@ -93,6 +96,7 @@ export async function generateStoryboardShots(input: {
       aspectRatio: input.provider.aspectRatio,
     })
     let generated
+    const generationStarted = Date.now()
     try {
       generated = await request(start, firstFrame)
     } catch (error) {
@@ -102,9 +106,12 @@ export async function generateStoryboardShots(input: {
       generated = await request('photograph', photograph)
     }
     if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
+    deps.onTiming(`shot_${index + 1}_generate`, Date.now() - generationStarted)
     costUsd = costUsd === null || generated.costUsd === null ? null : costUsd + generated.costUsd
     deps.onCost(generated.costUsd)
+    const checkStarted = Date.now()
     const check = await deps.verify({ photograph, frames: await deps.framesOf(generated.bytes, [0.3, 0.6, 0.95]) })
+    deps.onTiming(`shot_${index + 1}_check`, Date.now() - checkStarted)
     deps.onCost(check.costUsd ?? 0)
     if (!check.sameSubject) {
       if (input.onSubjectChange !== 'record') throw new ShotSubjectChanged(index + 1, check.reason)
