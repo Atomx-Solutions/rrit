@@ -820,7 +820,7 @@ describe('AI creative generation', () => {
     const prompt = monthlyImagePrompt(imagePromptInput())
 
     expect(prompt).toContain(
-      'never fill a reserved text zone or its negative space with an added element',
+      'never place an added element where the type sits',
     )
     expect(prompt).toContain(
       'A typographic gesture never grows until the real subject becomes secondary',
