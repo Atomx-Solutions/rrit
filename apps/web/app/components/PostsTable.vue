@@ -21,6 +21,15 @@ const viewerVideoUrl = computed(() => {
   if (!post || post.video?.status !== 'ready') return null
   return videoPreviews.value[post.id] ?? null
 })
+async function playWithSound(event: Event) {
+  const video = event.target as HTMLVideoElement
+  try {
+    await video.play()
+  } catch {
+    video.muted = true
+    await video.play().catch(() => {})
+  }
+}
 async function resolveViewerVideo() {
   const post = viewerPost.value
   if (!post || post.video?.status !== 'ready') return
@@ -242,18 +251,18 @@ const columns = computed<TableColumn<Post>[]>(() => [
             :aria-label="t('content.previousPostPhoto')"
             @click="moveViewer(-1)"
           />
-          <!-- The video starts on its own when opened; browsers only allow that
-               muted, and the controls turn the sound on. -->
+          <!-- The video starts on its own with sound when opened. Opening it is a
+               click, so browsers normally allow that; one that still refuses
+               gets it muted rather than not playing. -->
           <template v-if="viewerVideoUrl">
             <video
               :key="`video-${viewerPost.id}`"
               :src="viewerVideoUrl"
               :poster="viewerPost.image"
-              autoplay
-              muted
               controls
               playsinline
               class="h-full w-auto max-w-full rounded-xl bg-black ring-1 ring-default"
+              @loadeddata="playWithSound"
             />
           </template>
           <div v-if="!viewerVideoUrl" class="h-full max-w-full min-w-0" :style="viewerFrame">
