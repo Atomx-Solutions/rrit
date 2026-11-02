@@ -82,7 +82,7 @@ jobs:
         run: >-
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At
           -c "SELECT file_size_limit = 52428800
-          AND allowed_mime_types = ARRAY['image/jpeg', 'video/mp4']::text[]
+          AND allowed_mime_types = ARRAY['image/jpeg', 'video/mp4', 'audio/mpeg']::text[]
           FROM storage.buckets WHERE id = 'assets'"
           | grep -qx t
       - run: npm run test:integration

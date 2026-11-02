@@ -1,4 +1,5 @@
 import { monthSchema } from '../../../shared/schemas/monthly-plan'
+import { plannerVideoMusicSchema } from '../../../shared/schemas/music'
 import { monthlyAiConfigured, retryableMonthlyGenerationFailureCode } from '../../utils/monthly-ai'
 import { plannerAccess } from '../../utils/monthly-planner'
 import { postsCountedForLimit, videosCountedForLimit } from '../../utils/trials'
@@ -29,7 +30,7 @@ export default defineEventHandler(async (event) => {
       client,
     )
     const settings = await client.query(
-      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,video_music,configured_at FROM monthly_planner_settings WHERE business_id=$1',
       [business.id],
     )
     let prerequisite: string | null = null
@@ -89,6 +90,8 @@ export default defineEventHandler(async (event) => {
         selectedVideoAssetIds: (settings.rows[0]?.preferred_video_asset_ids || []) as string[],
         // Further photographs of each video's subject, keyed by its main one.
         videoExtraAssetIds: (settings.rows[0]?.preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
+        // The music the last request's videos were made with, one per video.
+        videoMusic: plannerVideoMusicSchema.safeParse(settings.rows[0]?.video_music).data,
       },
       paid: access?.paid || false,
       package: access?.plan || null,

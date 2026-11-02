@@ -158,9 +158,10 @@ const MUSIC_FADE_IN_SECONDS = 0.5
 const MUSIC_FADE_OUT_SECONDS = 1.5
 
 /**
- * The finished video with a music track laid under it: the track is cut to
- * the video's length, faded in and out and brought to a steady loudness. The
- * picture is copied untouched.
+ * The finished video with a music track laid under it: the track is repeated
+ * when it is shorter than the video, cut to the video's length, faded in and
+ * out and brought to a steady loudness. The picture is copied untouched, and
+ * any sound the video already had is replaced.
  */
 export async function addMusicToVideo(video: Buffer, music: Buffer) {
   const directory = await mkdtemp(join(tmpdir(), 'rrit-music-'))
@@ -173,7 +174,7 @@ export async function addMusicToVideo(video: Buffer, music: Buffer) {
     const fadeOut = Math.min(MUSIC_FADE_OUT_SECONDS, source.duration / 2)
     await run(process.env.FFMPEG_PATH || 'ffmpeg', [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
-      '-i', videoPath, '-i', musicPath,
+      '-i', videoPath, '-stream_loop', '-1', '-i', musicPath,
       '-filter_complex',
       `[1:a]atrim=0:${source.duration},asetpts=PTS-STARTPTS,`
         + `afade=t=in:st=0:d=${MUSIC_FADE_IN_SECONDS},afade=t=out:st=${source.duration - fadeOut}:d=${fadeOut},`
@@ -186,6 +187,23 @@ export async function addMusicToVideo(video: Buffer, music: Buffer) {
     const bytes = await readFile(outputPath)
     if (bytes.length > MAX_FINAL_VIDEO_BYTES) throw new Error('Scored video exceeds delivery size limit')
     return bytes
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+}
+
+/** The finished video without its sound; the picture is copied untouched. */
+export async function removeMusicFromVideo(video: Buffer) {
+  const directory = await mkdtemp(join(tmpdir(), 'rrit-silent-'))
+  try {
+    const videoPath = join(directory, 'video.mp4')
+    const outputPath = join(directory, 'silent.mp4')
+    await writeFile(videoPath, video)
+    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+      '-i', videoPath, '-map', '0:v', '-c:v', 'copy', '-an', '-movflags', '+faststart', outputPath,
+    ], { timeout: 120_000, maxBuffer: 2 * 1024 * 1024 })
+    return await readFile(outputPath)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

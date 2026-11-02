@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { publishingChannels, type PublishingChannel } from '~~/shared/schemas/channel-format'
+import type { PublishingChannel } from '~~/shared/schemas/channel-format'
 import { maxVideoPhotos } from '~~/shared/schemas/storyboard'
+import type { PlannerRequestChoice } from './PlannerRequestModal.vue'
 const props = defineProps<{ month: string }>()
 const { t } = useI18n()
 const { data: workspace, base, initLive, syncing } = useWorkspace()
@@ -152,28 +153,27 @@ const plan = computed(() => planner.value?.plan)
 // reserve a static photo post before the customer chooses its quantity.
 const selectedQuantity = ref(0)
 const selectedVideoQuantity = ref(0)
-// Which platforms this request is for. Posts and videos reach the same three,
-// each on its own channel's canvas.
-type PlannerChannel = PublishingChannel
-const channelOptions = publishingChannels.map((channel) => ({
-  value: channel,
-  label: channel,
-  icon: channelIcon(channel),
-}))
-const emptySplit = () =>
-  Object.fromEntries(publishingChannels.map((channel) => [channel, 0])) as Record<PlannerChannel, number>
-const channelSplit = reactive(emptySplit())
-type VideoChannel = PlannerChannel
-const videoChannelOptions = channelOptions
-const videoChannelSplit = reactive(emptySplit())
 const requestOpen = ref(false)
 const requestAction = ref<'prepare' | 'generate'>('prepare')
-const splitAssigned = computed(() => Object.values(channelSplit).reduce((sum, count) => sum + count, 0))
-// A single post is a choice between platforms, not an allocation across them.
-const singlePost = computed(() => selectedQuantity.value === 1)
-const splitComplete = computed(() => splitAssigned.value === selectedQuantity.value)
-const videoSplitAssigned = computed(() => Object.values(videoChannelSplit).reduce((sum, count) => sum + count, 0))
-const videoSplitComplete = computed(() => videoSplitAssigned.value === selectedVideoQuantity.value)
+// What the business chose in the request window: each post's and video's
+// platform, and each video's music.
+const requestChoice = ref<PlannerRequestChoice>({ posts: [], videos: [] })
+// Platforms with no posts are left out entirely: zero is the absence of a
+// request for that platform, not a request for none.
+function channelCounts(channels: PublishingChannel[]) {
+  const counts: Partial<Record<PublishingChannel, number>> = {}
+  for (const channel of channels) counts[channel] = (counts[channel] || 0) + 1
+  return counts
+}
+// When the business chooses the photographs, every post and every video it
+// asks for needs one of its own: a request is not sent with deliverables left
+// for photographs nobody picked.
+const postPhotosMissing = computed(() =>
+  photoMode.value === 'selected' ? Math.max(0, selectedQuantity.value - selectedPhotoIds.value.length) : 0)
+const videoPhotosMissing = computed(() => photoMode.value === 'selected'
+  ? Array.from({ length: selectedVideoQuantity.value }, (_, index) => index)
+    .filter((index) => !videoGroups.value[index]?.length).length
+  : 0)
 function openRequest(action: 'prepare' | 'generate') {
   // A video-only batch does not need a post photo; a post-only batch does not
   // need a video photo. The guard fires only when the user is in `selected`
@@ -188,63 +188,10 @@ function openRequest(action: 'prepare' | 'generate') {
     return
   }
   requestAction.value = action
-  // Start from everything on Instagram for one post, and an even split
-  // otherwise, so the common case needs no arithmetic from the customer.
-  const half = Math.floor(selectedQuantity.value / 2)
-  Object.assign(channelSplit, emptySplit(), {
-    Instagram: selectedQuantity.value - half,
-    Facebook: half,
-  })
-  Object.assign(videoChannelSplit, emptySplit(), { Instagram: selectedVideoQuantity.value })
   requestOpen.value = true
 }
-function chooseSingle(split: Record<PlannerChannel, number>, channel: PlannerChannel) {
-  for (const option of channelOptions) split[option.value] = option.value === channel ? 1 : 0
-}
-// Keeps a split consistent with the number being requested, so the customer
-// adjusts one platform rather than solving for all of them.
-function setCount(split: Record<PlannerChannel, number>, total: number, channel: PlannerChannel, value: number) {
-  const assigned = () => Object.values(split).reduce((sum, count) => sum + count, 0)
-  split[channel] = Math.max(0, Math.min(value, total))
-  let excess = assigned() - total
-  for (const option of channelOptions) {
-    if (option.value === channel || excess <= 0) continue
-    const removed = Math.min(excess, split[option.value])
-    split[option.value] -= removed
-    excess -= removed
-  }
-  const missing = total - assigned()
-  const receiver = channelOptions.find((option) => option.value !== channel)
-  if (missing > 0 && receiver) split[receiver.value] += missing
-}
-function chooseSingleChannel(channel: PlannerChannel) {
-  chooseSingle(channelSplit, channel)
-}
-function setChannelCount(channel: PlannerChannel, value: number) {
-  setCount(channelSplit, selectedQuantity.value, channel, value)
-}
-function chooseSingleVideoChannel(channel: VideoChannel) {
-  chooseSingle(videoChannelSplit, channel)
-}
-function setVideoChannelCount(channel: VideoChannel, value: number) {
-  setCount(videoChannelSplit, selectedVideoQuantity.value, channel, value)
-}
-// Platforms with no posts are left out entirely: zero is the absence of a
-// request for that platform, not a request for none.
-function requestedChannelCounts() {
-  return Object.fromEntries(
-    channelOptions.flatMap((option) =>
-      channelSplit[option.value] > 0 ? [[option.value, channelSplit[option.value]]] : [],
-    ),
-  )
-}
-function requestedVideoChannelCounts() {
-  return Object.fromEntries(videoChannelOptions.flatMap((option) =>
-    videoChannelSplit[option.value] > 0 ? [[option.value, videoChannelSplit[option.value]]] : [],
-  ))
-}
-async function confirmRequest() {
-  if (!splitComplete.value || !videoSplitComplete.value) return
+async function confirmRequest(choice: PlannerRequestChoice) {
+  requestChoice.value = choice
   requestOpen.value = false
   await act(requestAction.value)
 }
@@ -457,9 +404,10 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
                 photoMode.value === 'selected' ? selectedVideoPhotoIds.value : [],
               videoExtraAssetIds: photoMode.value === 'selected' ? videoExtraAssetIds.value : {},
               quantity: selectedQuantity.value,
-              channelCounts: requestedChannelCounts(),
-              videoChannelCounts: requestedVideoChannelCounts(),
+              channelCounts: channelCounts(requestChoice.value.posts),
+              videoChannelCounts: channelCounts(requestChoice.value.videos.map((video) => video.channel)),
               videoQuantity: selectedVideoQuantity.value,
+              ...(selectedVideoQuantity.value ? { videoMusic: requestChoice.value.videos } : {}),
             }
           : {}),
       },
@@ -511,16 +459,15 @@ onBeforeUnmount(() => clearInterval(timer))
 <template>
   <UCard :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden">
     <div class="p-4">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex min-w-0 items-start gap-3.5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="flex min-w-0 flex-1 basis-64 items-start gap-3.5">
           <div
             class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
           >
             <UIcon name="i-lucide-calendar-range" class="size-4" />
           </div>
           <div class="min-w-0">
-            <UBadge color="neutral" variant="subtle" size="sm">{{ t('monthly.title') }}</UBadge>
-            <h2 class="mt-2 text-base font-semibold text-highlighted">
+            <h2 class="text-base font-semibold text-highlighted">
               {{ t('monthly.heading') }}
             </h2>
             <p v-if="planner" class="mt-1 max-w-2xl text-xs leading-5 text-muted">
@@ -531,12 +478,12 @@ onBeforeUnmount(() => clearInterval(timer))
         </div>
         <!-- Small and to the side: starting over clears drafts, so it stays
              at hand without leading the page. -->
-        <div v-if="plan && plan.status !== 'cancelled'" class="flex shrink-0 flex-col items-end gap-1 sm:flex-row">
+        <div v-if="plan && plan.status !== 'cancelled'" class="flex shrink-0 items-center gap-2">
           <UButton
             v-if="active"
             color="neutral"
             variant="outline"
-            size="xs"
+            size="sm"
             icon="i-lucide-pause"
             :loading="busy"
             @click="act('pause')"
@@ -545,7 +492,7 @@ onBeforeUnmount(() => clearInterval(timer))
           </UButton>
           <UButton
             color="error"
-            variant="soft"
+            variant="outline"
             size="sm"
             icon="i-lucide-rotate-ccw"
             :disabled="busy"
@@ -1031,64 +978,67 @@ onBeforeUnmount(() => clearInterval(timer))
     </div>
 
     <div v-else class="border-t border-default p-4">
-      <div>
-        <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('monthly.monthPhotos') }}</p>
-        <div class="mt-1 flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-base font-semibold text-highlighted">{{ t('legacy.choosePhotoQuestion') }}</h3>
-          <UButton
-            v-if="configuringMore"
-            type="button"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-x"
-            @click="configuringMore = false"
-          >
-            {{ t('common.cancel') }}
-          </UButton>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-highlighted">
+            {{ extendable ? t('monthly.generateMoreTitle') : t('monthly.readyToPrepare') }}
+          </h3>
+          <p class="mt-1 max-w-xl text-sm leading-6 text-muted">
+            {{ t('legacy.monthlyProcess') }}
+          </p>
         </div>
-        <p class="mt-1 max-w-2xl text-sm leading-6 text-muted">
-          {{ t('legacy.originalsDescription') }}
-        </p>
-        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+        <UButton
+          v-if="configuringMore"
+          type="button"
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-x"
+          @click="configuringMore = false"
+        >
+          {{ t('common.cancel') }}
+        </UButton>
+      </div>
+      <div class="mt-3 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+        <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-sparkles" class="size-4" />
+          </div>
+          <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
+          <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
+        </div>
+        <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-clapperboard" class="size-4" />
+          </div>
+          <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('video.include') }}</p>
+          <LiveInputNumber
+            v-model="selectedVideoQuantity"
+            :min="0"
+            :max="maxVideosThisBatch"
+            class="w-24 shrink-0"
+            :aria-label="t('video.quantity')"
+          />
+        </div>
+      </div>
+      <div class="mt-4 border-t border-default pt-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('monthly.monthPhotos') }}</p>
+        <h3 class="mt-1 text-base font-semibold text-highlighted">{{ t('legacy.choosePhotoQuestion') }}</h3>
+        <div class="mt-3 grid grid-cols-2 gap-2">
           <UButton
-            type="button"
-            color="neutral"
-            variant="outline"
-            class="rounded-xl border p-4 text-left transition"
-            :class="
-              photoMode === 'auto'
-                ? 'border-primary/40 bg-primary/5'
-                : 'border-default hover:bg-elevated/50'
-            "
-            @click="photoMode = 'auto'"
-          >
-            <span class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-              <UIcon name="i-lucide-sparkles" class="size-4 text-primary" /> {{ t('legacy.letAiChoose') }}
-            </span>
-            <span class="mt-1.5 block text-xs leading-5 text-muted">
-              {{ t('legacy.aiChoosesDescription') }}
-            </span>
-          </UButton>
-          <UButton
-            type="button"
-            color="neutral"
-            variant="outline"
-            class="rounded-xl border p-4 text-left transition"
-            :class="
-              photoMode === 'selected'
-                ? 'border-primary/40 bg-primary/5'
-                : 'border-default hover:bg-elevated/50'
-            "
-            @click="photoMode = 'selected'"
-          >
-            <span class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-              <UIcon name="i-lucide-image-check" class="size-4 text-primary" /> {{ t('legacy.choosePhotos') }}
-            </span>
-            <span class="mt-1.5 block text-xs leading-5 text-muted">
-              {{ t('legacy.selectedPhotoDescription') }}
-            </span>
-          </UButton>
+            v-for="option in [
+              { value: 'auto' as const, icon: 'i-lucide-sparkles', label: t('legacy.letAiChoose') },
+              { value: 'selected' as const, icon: 'i-lucide-image', label: t('legacy.choosePhotos') },
+            ]"
+            :key="option.value"
+            block
+            :icon="option.icon"
+            :color="photoMode === option.value ? 'primary' : 'neutral'"
+            :variant="photoMode === option.value ? 'soft' : 'outline'"
+            :aria-pressed="photoMode === option.value"
+            class="justify-center py-2.5 text-sm"
+            @click="photoMode = option.value"
+          >{{ option.label }}</UButton>
         </div>
         <div class="mt-4">
           <div
@@ -1159,23 +1109,11 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
           </div>
 
-          <div v-else class="rounded-xl border border-default bg-elevated/30 p-3.5">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="flex min-w-0 items-start gap-2.5">
-                <UIcon name="i-lucide-hand-pointer" class="mt-0.5 size-4 shrink-0 text-primary" />
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-highlighted">
-                    {{ t('monthly.chooseGalleryPhotosTitle') }}
-                  </p>
-                  <p class="mt-1 text-xs leading-5 text-muted">
-                    {{ t('monthly.chooseGalleryPhotosDescription') }}
-                  </p>
-                </div>
-              </div>
-              <UBadge color="neutral" variant="subtle" class="shrink-0">
-                {{ t('monthly.clickToSelect') }}
-              </UBadge>
-            </div>
+          <div v-else class="rounded-xl border border-default bg-elevated/30 p-3">
+            <p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+              <UIcon name="i-lucide-image" class="size-4 shrink-0 text-primary" />
+              {{ t('monthly.chooseGalleryPhotosTitle') }}
+            </p>
             <!--
               The two choices sit under the photograph rather than on top of it:
               a phone tile is small enough that overlaid controls cover the very
@@ -1187,41 +1125,28 @@ onBeforeUnmount(() => clearInterval(timer))
               join the active card; the first in a card is the main one.
             -->
             <div v-if="originalPhotos.length && selectedVideoQuantity > 0" class="mt-3">
-              <p class="text-xs font-semibold text-highlighted">{{ t('monthly.videoCardsTitle') }}</p>
-              <p class="mt-0.5 text-xs text-muted">{{ t('monthly.videoCardsHelp', { max: maxVideoPhotos }) }}</p>
-              <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 <div
                   v-for="card in selectedVideoQuantity"
                   :key="card"
                   role="button"
                   tabindex="0"
-                  class="relative block h-auto cursor-pointer rounded-xl border border-default p-2.5 text-left transition hover:bg-elevated/80"
+                  class="flex cursor-pointer items-center gap-2 rounded-xl border border-default p-2 text-left transition hover:bg-elevated/80"
                   :class="activeVideo === card - 1 ? 'ring-2 ring-primary' : ''"
                   :aria-pressed="activeVideo === card - 1"
                   @click="activeVideo = card - 1"
                   @keydown.enter="activeVideo = card - 1"
                   @keydown.space.prevent="activeVideo = card - 1"
                 >
-                  <UButton
-                    type="button"
-                    color="neutral"
-                    variant="ghost"
-                    size="xs"
-                    icon="i-lucide-x"
-                    class="absolute right-1.5 top-1.5"
-                    :aria-label="t('monthly.removeVideoCard', { number: card })"
-                    :title="t('monthly.removeVideoCard', { number: card })"
-                    @click.stop="removeVideoCard(card - 1)"
-                  />
-                  <span class="flex items-center gap-1.5 text-xs font-semibold">
+                  <span class="flex shrink-0 items-center gap-1 text-xs font-semibold">
                     <UIcon name="i-lucide-clapperboard" class="size-3.5 text-primary" />
                     {{ t('monthly.videoCardTitle', { number: card }) }}
                   </span>
-                  <span class="mt-2 flex gap-1.5">
+                  <span class="flex min-w-0 gap-1.5">
                     <span
                       v-for="(id, index) in videoGroups[card - 1] || []"
                       :key="id"
-                      class="relative size-12 overflow-hidden rounded-lg border border-default"
+                      class="relative size-10 shrink-0 overflow-hidden rounded-lg border border-default"
                     >
                       <MediaImage
                         :src="originalPhotos.find((asset) => asset.id === id)?.url || ''"
@@ -1242,20 +1167,26 @@ onBeforeUnmount(() => clearInterval(timer))
                     </span>
                     <span
                       v-if="(videoGroups[card - 1]?.length || 0) < maxVideoPhotos"
-                      class="flex size-12 items-center justify-center rounded-lg border border-dashed border-default text-muted"
+                      class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-default text-muted"
                     >+</span>
                   </span>
-                  <span class="mt-1.5 block text-[11px] text-muted">
-                    {{ (videoGroups[card - 1]?.length || 0) > 1
-                      ? t('monthly.videoCardScenes', { count: videoGroups[card - 1]!.length })
-                      : t('monthly.videoCardOneAngle') }}
-                  </span>
+                  <UButton
+                    type="button"
+                    color="neutral"
+                    variant="ghost"
+                    size="xs"
+                    icon="i-lucide-x"
+                    class="ml-auto shrink-0"
+                    :aria-label="t('monthly.removeVideoCard', { number: card })"
+                    :title="t('monthly.removeVideoCard', { number: card })"
+                    @click.stop="removeVideoCard(card - 1)"
+                  />
                 </div>
               </div>
             </div>
             <div
               v-if="originalPhotos.length"
-              class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
+              class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
             >
               <div
                 v-for="asset in paginatedOriginalPhotos"
@@ -1273,15 +1204,15 @@ onBeforeUnmount(() => clearInterval(timer))
                   fit="cover"
                   class="aspect-square w-full bg-elevated"
                 />
-                <span class="block truncate px-2 pt-1.5 text-[11px] font-medium">{{ asset.name }}</span>
-                <div class="grid grid-cols-2 gap-1 p-1.5">
+                <div class="grid grid-cols-2 gap-1 p-1">
                   <UButton
                     v-for="kind in (['post', 'video'] as const)"
                     :key="kind"
                     type="button"
                     block
                     size="xs"
-                    class="justify-center py-2 sm:py-1.5"
+                    class="min-w-0 justify-center gap-0.5 px-0.5 py-1.5 text-[11px] sm:gap-1 sm:px-1.5 sm:text-xs"
+                    :ui="{ leadingIcon: 'size-3.5 sm:size-4' }"
                     :color="photoChosen(asset.id, kind) ? 'primary' : 'neutral'"
                     :variant="photoChosen(asset.id, kind) ? 'solid' : 'soft'"
                     :icon="kind === 'video' ? 'i-lucide-clapperboard' : 'i-lucide-image'"
@@ -1343,170 +1274,37 @@ onBeforeUnmount(() => clearInterval(timer))
           </p>
         </div>
       </div>
-
-      <div
-        class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-default pt-4"
-      >
-        <div>
-          <h3 class="text-sm font-semibold text-highlighted">
-            {{ extendable ? t('monthly.generateMoreTitle') : t('monthly.readyToPrepare') }}
-          </h3>
-          <p class="mt-1 max-w-xl text-sm leading-6 text-muted">
-            {{ t('legacy.monthlyProcess') }}
-          </p>
-        </div>
-        <div class="grid w-full gap-3 md:grid-cols-3">
-          <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
-            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <UIcon name="i-lucide-sparkles" class="size-4" />
-            </div>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
-              <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
-            </div>
-            <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
-          </div>
-          <div class="flex min-w-0 items-center gap-3 rounded-xl border border-default bg-default px-4 py-3">
-            <UIcon name="i-lucide-clapperboard" class="size-5 shrink-0 text-primary" />
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-highlighted">{{ t('video.include') }}</p>
-              <p class="truncate text-xs text-muted">{{ t('video.remaining', { count: remainingVideos }) }}</p>
-            </div>
-            <LiveInputNumber
-              v-model="selectedVideoQuantity"
-              :min="0"
-              :max="maxVideosThisBatch"
-              class="w-24 shrink-0"
-              :aria-label="t('video.quantity')"
-            />
-          </div>
-          <div class="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-            <div class="min-w-0">
-              <p class="text-sm font-medium text-highlighted">{{ t('monthly.readyToPrepare') }}</p>
-              <p class="text-xs text-muted">{{ t('monthly.quantityRemaining', { count: remainingPosts }) }}</p>
-            </div>
-            <UButton :loading="busy" :disabled="selectedQuantity + selectedVideoQuantity < 1" icon="i-lucide-calendar-plus" @click="openRequest(configuringMore ? 'generate' : 'prepare')">
-              {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
-            </UButton>
-          </div>
-        </div>
+      <div class="mt-4 border-t border-default pt-4">
+        <UButton
+          block
+          size="lg"
+          :loading="busy"
+          :disabled="selectedQuantity + selectedVideoQuantity < 1 || postPhotosMissing > 0 || videoPhotosMissing > 0"
+          icon="i-lucide-calendar-plus"
+          class="justify-center rounded-xl"
+          @click="openRequest(configuringMore ? 'generate' : 'prepare')"
+        >
+          {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
+        </UButton>
+        <p v-if="postPhotosMissing || videoPhotosMissing" class="mt-2 flex items-start gap-1.5 text-xs text-error">
+          <UIcon name="i-lucide-circle-alert" class="mt-px size-3.5 shrink-0" />
+          <span>
+            <template v-if="postPhotosMissing">{{ t('monthly.postPhotosMissing', { count: postPhotosMissing }) }}</template>
+            <template v-if="postPhotosMissing && videoPhotosMissing"> · </template>
+            <template v-if="videoPhotosMissing">{{ t('monthly.videoPhotosMissing', { count: videoPhotosMissing }) }}</template>
+          </span>
+        </p>
       </div>
     </div>
 
-    <UModal
+    <PlannerRequestModal
       v-model:open="requestOpen"
-      :title="selectedVideoQuantity ? t('monthly.requestMixedTitle') : singlePost ? t('monthly.requestSingleTitle') : t('monthly.requestSplitTitle')"
-      :description="
-        selectedVideoQuantity
-          ? t('monthly.requestMixedDescription')
-          : singlePost
-          ? t('monthly.requestSingleDescription')
-          : t('monthly.requestSplitDescription', { count: selectedQuantity })
-      "
-    >
-      <template #body>
-        <h3 v-if="selectedVideoQuantity" class="mb-3 text-sm font-semibold text-highlighted">{{ t('monthly.postPlatforms') }}</h3>
-        <div v-if="singlePost" class="grid grid-cols-3 gap-3">
-          <UButton
-            v-for="option in channelOptions"
-            :key="option.value"
-            block
-            size="xl"
-            :color="channelSplit[option.value] === 1 ? 'primary' : 'neutral'"
-            :variant="channelSplit[option.value] === 1 ? 'soft' : 'outline'"
-            :aria-pressed="channelSplit[option.value] === 1"
-            class="h-auto flex-col gap-3 py-6"
-            @click="chooseSingleChannel(option.value)"
-          >
-            <TikTokMark v-if="option.value === 'TikTok'" class="size-12" />
-            <UIcon v-else :name="option.icon" class="size-12" />
-            <span class="text-sm font-semibold">{{ option.label }}</span>
-          </UButton>
-        </div>
-        <div v-else class="grid grid-cols-3 gap-3">
-          <UCard
-            v-for="option in channelOptions"
-            :key="option.value"
-            :ui="{ body: 'p-4' }"
-            :class="channelSplit[option.value] > 0 ? 'ring-1 ring-primary' : ''"
-          >
-            <div class="flex flex-col items-center gap-3 text-center">
-              <TikTokMark v-if="option.value === 'TikTok'" class="size-8" />
-              <UIcon v-else :name="option.icon" class="size-8" />
-              <span class="text-sm font-semibold text-highlighted">{{ option.label }}</span>
-              <LiveInputNumber
-                :model-value="channelSplit[option.value]"
-                :min="0"
-                :max="selectedQuantity"
-                class="w-24"
-                :aria-label="t('monthly.postsForChannel', { channel: option.label })"
-                @update:model-value="setChannelCount(option.value, Number($event))"
-              />
-            </div>
-          </UCard>
-        </div>
-        <p
-          v-if="!singlePost"
-          class="mt-3 text-sm"
-          :class="splitComplete ? 'text-muted' : 'text-error'"
-        >
-          {{ t('monthly.splitAssigned', { assigned: splitAssigned, total: selectedQuantity }) }}
-        </p>
-        <div v-if="selectedVideoQuantity" class="mt-5 border-t border-default pt-4">
-          <h3 class="mb-1 text-sm font-semibold text-highlighted">{{ t('monthly.videoPlatforms') }}</h3>
-          <p class="mb-3 text-xs text-muted">{{ t('monthly.videoPlatformsDescription') }}</p>
-          <div v-if="selectedVideoQuantity === 1" class="grid grid-cols-3 gap-2">
-            <UButton
-              v-for="option in videoChannelOptions"
-              :key="option.value"
-              block
-              size="lg"
-              :color="videoChannelSplit[option.value] === 1 ? 'primary' : 'neutral'"
-              :variant="videoChannelSplit[option.value] === 1 ? 'soft' : 'outline'"
-              :aria-pressed="videoChannelSplit[option.value] === 1"
-              class="h-auto flex-col gap-2 py-4"
-              @click="chooseSingleVideoChannel(option.value)"
-            >
-              <TikTokMark v-if="option.value === 'TikTok'" class="size-8" />
-              <UIcon v-else :name="option.icon" class="size-8" />
-              <span class="text-sm font-semibold">{{ option.label }}</span>
-            </UButton>
-          </div>
-          <div v-else class="grid grid-cols-3 gap-2">
-            <div v-for="option in videoChannelOptions" :key="option.value" class="flex flex-col items-center gap-2 rounded-xl border border-default p-3">
-              <TikTokMark v-if="option.value === 'TikTok'" class="size-6" />
-              <UIcon v-else :name="option.icon" class="size-6" />
-              <span class="text-xs font-semibold">{{ option.label }}</span>
-              <LiveInputNumber
-                :model-value="videoChannelSplit[option.value]"
-                :min="0"
-                :max="selectedVideoQuantity"
-                class="w-24"
-                :aria-label="t('monthly.videosForChannel', { channel: option.label })"
-                @update:model-value="setVideoChannelCount(option.value, Number($event))"
-              />
-            </div>
-          </div>
-          <p v-if="selectedVideoQuantity > 1" class="mt-3 text-sm" :class="videoSplitComplete ? 'text-muted' : 'text-error'">
-            {{ t('monthly.videoSplitAssigned', { assigned: videoSplitAssigned, total: selectedVideoQuantity }) }}
-          </p>
-        </div>
-      </template>
-      <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton color="neutral" variant="outline" @click="requestOpen = false">
-            {{ t('common.cancel') }}
-          </UButton>
-          <UButton :loading="busy" :disabled="!splitComplete || !videoSplitComplete" @click="confirmRequest">
-            {{
-              requestAction === 'prepare'
-                ? t('legacy.prepareMonth')
-                : generateMoreLabel
-            }}
-          </UButton>
-        </div>
-      </template>
-    </UModal>
+      :post-count="selectedQuantity"
+      :video-count="selectedVideoQuantity"
+      :busy="busy"
+      :submit-label="requestAction === 'prepare' ? t('legacy.prepareMonth') : generateMoreLabel"
+      @submit="confirmRequest"
+    />
 
     <UModal
       v-model:open="resetOpen"

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
 import { channelFormat, matchesChannelCanvas } from '../../shared/schemas/channel-format'
 import { contentLocaleForPreferences, DEFAULT_TIMEZONE, type Post } from '../../shared/schemas/workspace'
+import { publishedCaption } from '../../shared/schemas/music'
 import { factIsUsable, sameFactContent, type BrandFact } from '../../shared/schemas/business-brain'
 import { dayInZone } from '../../shared/utils/calendar'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
@@ -22,7 +23,7 @@ const limitsSchema = z.object({
   daily_ai_requests: z.number().int().positive(),
 })
 // `params` fills the translated message, such as the limit a check enforces.
-export type PostCheck = { key: string; passed: boolean; message: string; advisory?: boolean; params?: Record<string, string | number> }
+export type PostCheck = { key: string; passed: boolean; message: string; advisory?: boolean; critical?: boolean; params?: Record<string, string | number> }
 export function blockingPostChecks(checks: PostCheck[]) {
   return checks.filter((check) => !check.advisory)
 }
@@ -204,7 +205,8 @@ export async function localPostChecks(
     aiChecks.push({
       key: 'ai_quality',
       passed: !!quality && quality.factuality && quality.brandFit && quality.visualQuality,
-      advisory: post.video ? quality?.factuality !== false : true,
+      advisory: true,
+      critical: quality?.factuality === false,
       message: quality?.reasons.join(' ') || (quality ? 'validation.aiQualityPassed' : 'server.AI_QUALITY_REVIEW_NEEDED'),
     })
   }
@@ -213,7 +215,8 @@ export async function localPostChecks(
     aiChecks.push({
       key: 'ai_quality',
       passed: !!quality && quality.factuality && quality.brandFit && quality.visualQuality,
-      advisory: quality?.factuality !== false,
+      advisory: true,
+      critical: quality?.factuality === false,
       message: quality?.reasons.join(' ') || (quality ? 'validation.aiQualityPassed' : 'server.AI_QUALITY_REVIEW_NEEDED'),
     })
   }
@@ -221,7 +224,7 @@ export async function localPostChecks(
     ...aiChecks,
     {
       key: 'caption',
-      passed: !!post.caption.trim() && [...post.caption].length <= limits.caption_characters,
+      passed: !!post.caption.trim() && [...publishedCaption(post)].length <= limits.caption_characters,
       message: 'server.CAPTION_LENGTH',
       params: { max: limits.caption_characters },
     },

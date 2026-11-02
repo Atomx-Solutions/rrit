@@ -114,6 +114,7 @@ const menu = computed<NavigationMenuItem[]>(() =>
       // the same way the requests badge counts open requests.
       badge: feedbackSummary.value?.feedback.length || undefined,
     },
+    { to: '/admin/music', label: t('admin.nav.music'), icon: 'i-lucide-music' },
     { to: '/admin/users', label: t('admin.nav.users'), icon: 'i-lucide-users' },
     { to: '/admin/plans', label: t('admin.nav.billingSettings'), icon: 'i-lucide-receipt-text' },
     { to: '/admin/subscriptions', label: t('admin.nav.subscriptions'), icon: 'i-lucide-repeat' },

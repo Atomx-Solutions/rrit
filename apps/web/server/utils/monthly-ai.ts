@@ -760,6 +760,9 @@ export async function monthlyProviderCall(
     images?: string[]
     tenant?: TenantContext
     language?: AppLocaleValue
+    // The workspace's interface language. Quality reasons are read by the
+    // business, not its customers, so they follow the app, not the content.
+    reasonLanguage?: AppLocaleValue
   },
 ) {
   const config = monthlyAiConfig()
@@ -768,7 +771,11 @@ export async function monthlyProviderCall(
   const languageName = args.language
     ? contentLanguageForLocale(args.language)
     : 'the language determined from the audience and local market'
-  const localizedLanguageInstruction = `All research, strategy, copy and quality explanations must be written in ${languageName}.`
+  const reasonLanguageName =
+    args.capability === 'quality' && args.reasonLanguage ? contentLanguageForLocale(args.reasonLanguage) : languageName
+  const localizedLanguageInstruction = reasonLanguageName === languageName
+    ? `All research, strategy, copy and quality explanations must be written in ${languageName}.`
+    : `The copy under review is in ${languageName}; write every reason (reasons, sourceFidelityReasons, styleReasons, distinctnessReasons) in ${reasonLanguageName}.`
   const hasPreviousPageStyle =
     typeof args.input === 'object' &&
     args.input !== null &&
@@ -809,8 +816,8 @@ export async function monthlyProviderCall(
     .replace(/Write in Albanian\./g, `Write in ${languageName}.`)
     .replace(/Albanian copywriter/g, `${languageName} copywriter`)
     .replace(/Format the Albanian research/g, `Format the ${languageName} research`)
-    .replace(/in Albanian that the user can use/g, `in ${languageName} that the user can use`)
-    .replace(/reasons in Albanian that the user can use/g, `reasons in ${languageName} that the user can use`)
+    .replace(/in Albanian that the user can use/g, `in ${reasonLanguageName} that the user can use`)
+    .replace(/reasons in Albanian that the user can use/g, `reasons in ${reasonLanguageName} that the user can use`)
     .replace(
       /There is no universal best posting time: if account-level activity data is absent, label every timing choice as a testable hypothesis instead of inventing certainty\./g,
       'Use only observed timingEvidence timestamps. If no timingEvidence exists, report that no observed timing data is available and do not recommend an optimal hour.',

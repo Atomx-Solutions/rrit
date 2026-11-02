@@ -12,6 +12,7 @@
     "db:configure-roles": "node --env-file-if-exists=../../.env scripts/configure-database-roles.mjs",
     "db:verify-runtime": "node --env-file-if-exists=../../.env scripts/verify-runtime-role.mjs",
     "db:verify-worker": "node --env-file-if-exists=../../.env scripts/verify-worker-role.mjs",
+    "music:import": "node --env-file-if-exists=../../.env scripts/import-music-library.mjs",
     "build": "nuxt build",
     "preview": "nuxt preview",
     "ai:evaluate": "node --experimental-strip-types scripts/evaluate-monthly-ai.ts",

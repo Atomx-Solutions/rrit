@@ -121,6 +121,7 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
         contentLocaleForPreferences(workspace.preferences),
         post.aiProvenance?.locale,
       ),
+      reasonLocale: workspace.preferences.locale,
       verifiedFacts: evidence.verifiedFacts.length
         ? evidence.verifiedFacts
         : workspace.brand.facts.filter((fact) => factIds.has(fact.id)).map((fact) => fact.text),
@@ -135,6 +136,7 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
     caption: snapshot.caption,
     brandName: snapshot.brandName,
     locale: snapshot.locale,
+    reasonLocale: snapshot.reasonLocale,
     verifiedFacts: snapshot.verifiedFacts,
     targetChannel: snapshot.targetChannel,
     context: snapshot.context,
@@ -153,7 +155,7 @@ export async function reviewExistingVideoQuality(userId: string, postId: string)
       throw createError({ statusCode: 409, message: 'server.POST_CHANGED_DURING_VALIDATION' })
     post.video.quality = quality
     post.video.qualityContentVersion = snapshot.version
-    post.policy = quality.factuality ? 'warn' : 'block'
+    post.policy = 'warn'
     post.policyReason = quality.reasons.join(' ') || 'validation.aiQualityPassed'
     await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(post), postId, business.id])
     await client.query('UPDATE businesses SET revision=revision+1 WHERE id=$1', [business.id])

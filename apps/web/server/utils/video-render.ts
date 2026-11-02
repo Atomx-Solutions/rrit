@@ -23,6 +23,7 @@ import { directedTakes, videoChargeCredits } from './video-takes'
 import { maxVideoPhotos, storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
 import { addMusicToVideo, composeBrandedVideo, extractVideoFrames, joinClips, videoDuration } from './video-compose'
 import { generateVideoMusic, videoMusicConfigured } from './video-music'
+import { downloadMusicTrack, findMusicTrack } from './music-library'
 import { generateStoryboardShots } from './video-shots'
 import { reviewVideoQuality, verifySamePhotographedSubject } from './video-subject-check'
 
@@ -160,10 +161,19 @@ export async function renderVideoForPost(userId: string, postId: string) {
       covered: channelUiInsets(post.channel),
     }
     const overlay = await buildVideoOverlayLayers(overlayInput)
+    // The music the business chose. A library track taken out of the library
+    // since leaves the video silent rather than paying for AI music instead.
+    const musicChoice = post.video.music?.source || 'ai'
+    const musicTrack = post.video.music?.source === 'library'
+      ? await findMusicTrack(client, post.video.music.trackId)
+      : null
     return {
+      musicSource: musicChoice === 'library' && !musicTrack ? 'none' as const : musicChoice,
+      musicTrackPath: musicTrack?.storagePath,
       business,
       brandName: workspace.brand.name,
       locale,
+      reasonLocale: workspace.preferences.locale,
       channel: post.channel,
       caption: post.caption,
       verifiedFacts,
@@ -457,7 +467,20 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // cannot be made leaves the video silent, as videos were before; it never
     // costs the business the video itself.
     let musicCostUsd: number | null = 0
+    // The AI track itself, kept with the post so the business can return to it
+    // after trying a library track, without paying for it again.
+    let aiMusic: Buffer | null = null
     const addMusic = async () => {
+      if (snapshot.musicSource === 'none') return
+      if (snapshot.musicSource === 'library') {
+        try {
+          const track = await timed('library_music', () => downloadMusicTrack(snapshot.musicTrackPath!))
+          bytes = await timed('add_music', () => addMusicToVideo(bytes, track))
+        } catch (error) {
+          console.warn('Library music was unavailable; the video stays silent', { postId, error: error instanceof Error ? error.message : 'unknown' })
+        }
+        return
+      }
       if (!videoMusicConfigured()) return
       try {
         const music = await timed('music', () => generateVideoMusic({
@@ -469,6 +492,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
         if (music) {
           musicCostUsd = music.costUsd
           bytes = await timed('add_music', () => addMusicToVideo(bytes, music.audio))
+          aiMusic = music.audio
         }
       } catch (error) {
         console.warn('Video music was unavailable; the video stays silent', { postId, error: error instanceof Error ? error.message : 'unknown' })
@@ -491,6 +515,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
           caption: snapshot.caption,
           brandName: snapshot.brandName,
           locale: snapshot.locale,
+          reasonLocale: snapshot.reasonLocale,
           verifiedFacts: snapshot.verifiedFacts,
           targetChannel: snapshot.channel,
           context: {
@@ -514,6 +539,14 @@ export async function renderVideoForPost(userId: string, postId: string) {
     failureReason = 'storage_failed'
     await timed('upload', () => uploadBinaryAsset(path, bytes, 'video/mp4'))
     uploadedPaths.push(path)
+    const aiMusicPath = aiMusic ? `${folder}/music-${postId}-${randomUUID()}.mp3` : null
+    if (aiMusic && aiMusicPath) {
+      await timed('upload_music', () => uploadBinaryAsset(aiMusicPath, aiMusic!, 'audio/mpeg'))
+      uploadedPaths.push(aiMusicPath)
+    }
+    // The AI track of the video this render replaces, removed once the new
+    // one is recorded.
+    let replacedAiMusicPath: string | undefined
     failureReason = 'render_failed'
     await withBusinessTransaction(userId, async (client, business) => {
       // The video occupies the same storage allowance as the photos, so it is
@@ -560,12 +593,15 @@ export async function renderVideoForPost(userId: string, postId: string) {
         if (subjectWarning) currentPost.video.subjectWarning = { detail: subjectWarning, at: new Date().toISOString() }
         else delete currentPost.video.subjectWarning
         currentPost.video.format = snapshot.format
+        replacedAiMusicPath = currentPost.video.aiMusicPath
+        if (aiMusicPath) currentPost.video.aiMusicPath = aiMusicPath
+        else delete currentPost.video.aiMusicPath
         if (storyboard) currentPost.video.storyboard = storyboard
         else delete currentPost.video.storyboard
         if (quality) {
           currentPost.video.quality = quality
           currentPost.video.qualityContentVersion = snapshot.contentVersion
-          currentPost.policy = quality.factuality ? 'warn' : 'block'
+          currentPost.policy = 'warn'
           currentPost.policyReason = quality.reasons.join(' ') || 'validation.aiQualityPassed'
         } else {
           // Pending: validation runs the review again before publishing.
@@ -577,6 +613,9 @@ export async function renderVideoForPost(userId: string, postId: string) {
         await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(currentPost), postId, business.id])
       }
     })
+    if (replacedAiMusicPath)
+      await removeAsset(replacedAiMusicPath).catch((error) =>
+        console.error('Failed to remove the AI music of a replaced video', { storagePath: replacedAiMusicPath, error }))
     logTimings('ready')
     return { renderId: snapshot.renderId, status: 'ready' }
   } catch (error) {

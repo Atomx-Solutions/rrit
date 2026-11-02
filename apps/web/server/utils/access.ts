@@ -21,7 +21,9 @@ export async function requireUser(event: H3Event) {
   }
 }
 
-export function requireSameOrigin(event: H3Event) {
+// A file upload cannot be JSON; a route that takes one accepts a multipart
+// form instead, still only from a trusted origin.
+export function requireSameOrigin(event: H3Event, options: { multipart?: boolean } = {}) {
   const origin = getHeader(event, 'origin')
   let localDevOrigin = false
   if (origin && process.env.NODE_ENV !== 'production') {
@@ -42,7 +44,8 @@ export function requireSameOrigin(event: H3Event) {
       message: 'server.REQUEST_DENIED',
       data: { code: 'ORIGIN_REJECTED' },
     })
-  if (!getHeader(event, 'content-type')?.startsWith('application/json'))
+  const contentType = getHeader(event, 'content-type') || ''
+  if (!contentType.startsWith('application/json') && !(options.multipart && contentType.startsWith('multipart/form-data')))
     throw createError({
       statusCode: 415,
       message: 'server.JSON_REQUEST_REQUIRED',
