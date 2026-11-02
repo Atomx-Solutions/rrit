@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { publishingChannels, type PublishingChannel } from '~~/shared/schemas/channel-format'
+import type { PublishingChannel } from '~~/shared/schemas/channel-format'
 import { maxVideoPhotos } from '~~/shared/schemas/storyboard'
-import type { VideoMusicChoice as MusicChoice } from '~~/shared/schemas/music'
+import type { PlannerRequestChoice } from './PlannerRequestModal.vue'
 const props = defineProps<{ month: string }>()
 const { t } = useI18n()
 const { data: workspace, base, initLive, syncing } = useWorkspace()
@@ -153,26 +153,18 @@ const plan = computed(() => planner.value?.plan)
 // reserve a static photo post before the customer chooses its quantity.
 const selectedQuantity = ref(0)
 const selectedVideoQuantity = ref(0)
-// Which platforms this request is for. Posts and videos reach the same three,
-// each on its own channel's canvas.
-type PlannerChannel = PublishingChannel
-const channelOptions = publishingChannels.map((channel) => ({
-  value: channel,
-  label: channel,
-  icon: channelIcon(channel),
-}))
-const emptySplit = () =>
-  Object.fromEntries(publishingChannels.map((channel) => [channel, 0])) as Record<PlannerChannel, number>
-const channelSplit = reactive(emptySplit())
-type VideoChannel = PlannerChannel
-const videoChannelOptions = channelOptions
-const videoChannelSplit = reactive(emptySplit())
 const requestOpen = ref(false)
 const requestAction = ref<'prepare' | 'generate'>('prepare')
-const splitAssigned = computed(() => Object.values(channelSplit).reduce((sum, count) => sum + count, 0))
-const splitComplete = computed(() => splitAssigned.value === selectedQuantity.value)
-const videoSplitAssigned = computed(() => Object.values(videoChannelSplit).reduce((sum, count) => sum + count, 0))
-const videoSplitComplete = computed(() => videoSplitAssigned.value === selectedVideoQuantity.value)
+// What the business chose in the request window: each post's and video's
+// platform, and each video's music.
+const requestChoice = ref<PlannerRequestChoice>({ posts: [], videos: [] })
+// Platforms with no posts are left out entirely: zero is the absence of a
+// request for that platform, not a request for none.
+function channelCounts(channels: PublishingChannel[]) {
+  const counts: Partial<Record<PublishingChannel, number>> = {}
+  for (const channel of channels) counts[channel] = (counts[channel] || 0) + 1
+  return counts
+}
 // When the business chooses the photographs, every post and every video it
 // asks for needs one of its own: a request is not sent with deliverables left
 // for photographs nobody picked.
@@ -198,54 +190,8 @@ function openRequest(action: 'prepare' | 'generate') {
   requestAction.value = action
   requestOpen.value = true
 }
-// Each post of the request names its own platform, and none is named for
-// the business. The platform split the request sends is counted from these.
-const postRows = ref<(PlannerChannel | null)[]>([])
-watch(selectedQuantity, (quantity) => {
-  postRows.value = Array.from({ length: quantity }, (_, index) => postRows.value[index] ?? null)
-}, { immediate: true })
-watch(postRows, (rows) => {
-  Object.assign(channelSplit, emptySplit())
-  for (const channel of rows) if (channel) channelSplit[channel] += 1
-}, { deep: true, immediate: true })
-// Platforms with no posts are left out entirely: zero is the absence of a
-// request for that platform, not a request for none.
-function requestedChannelCounts() {
-  return Object.fromEntries(
-    channelOptions.flatMap((option) =>
-      channelSplit[option.value] > 0 ? [[option.value, channelSplit[option.value]]] : [],
-    ),
-  )
-}
-function requestedVideoChannelCounts() {
-  return Object.fromEntries(videoChannelOptions.flatMap((option) =>
-    videoChannelSplit[option.value] > 0 ? [[option.value, videoChannelSplit[option.value]]] : [],
-  ))
-}
-// Each video of the request is chosen whole: where it goes and what music it
-// gets. Nothing is chosen for the business, so no video is made with a
-// platform or music it never picked. The platform split the request sends is
-// counted from these.
-const videoRows = ref<{ channel: VideoChannel | null; music: MusicChoice | null }[]>([])
-const videoMusicChosen = computed(() => videoRows.value.every((row) =>
-  !!row.channel && !!row.music && (row.music.source !== 'library' || !!row.music.trackId)))
-watch(selectedVideoQuantity, (quantity) => {
-  videoRows.value = Array.from({ length: quantity }, (_, index) =>
-    videoRows.value[index] || { channel: null, music: null })
-}, { immediate: true })
-// Which video cards are unfolded; all start folded.
-const openVideos = ref(new Set<number>())
-function toggleVideo(index: number) {
-  const next = new Set(openVideos.value)
-  if (!next.delete(index)) next.add(index)
-  openVideos.value = next
-}
-watch(videoRows, (rows) => {
-  Object.assign(videoChannelSplit, emptySplit())
-  for (const row of rows) if (row.channel) videoChannelSplit[row.channel] += 1
-}, { deep: true, immediate: true })
-async function confirmRequest() {
-  if (!splitComplete.value || !videoSplitComplete.value || !videoMusicChosen.value) return
+async function confirmRequest(choice: PlannerRequestChoice) {
+  requestChoice.value = choice
   requestOpen.value = false
   await act(requestAction.value)
 }
@@ -458,10 +404,10 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
                 photoMode.value === 'selected' ? selectedVideoPhotoIds.value : [],
               videoExtraAssetIds: photoMode.value === 'selected' ? videoExtraAssetIds.value : {},
               quantity: selectedQuantity.value,
-              channelCounts: requestedChannelCounts(),
-              videoChannelCounts: requestedVideoChannelCounts(),
+              channelCounts: channelCounts(requestChoice.value.posts),
+              videoChannelCounts: channelCounts(requestChoice.value.videos.map((video) => video.channel)),
               videoQuantity: selectedVideoQuantity.value,
-              ...(selectedVideoQuantity.value ? { videoMusic: videoRows.value } : {}),
+              ...(selectedVideoQuantity.value ? { videoMusic: requestChoice.value.videos } : {}),
             }
           : {}),
       },
@@ -1236,7 +1182,8 @@ onBeforeUnmount(() => clearInterval(timer))
                     type="button"
                     block
                     size="xs"
-                    class="justify-center py-1.5"
+                    class="min-w-0 justify-center gap-0.5 px-0.5 py-1.5 text-[11px] sm:gap-1 sm:px-1.5 sm:text-xs"
+                    :ui="{ leadingIcon: 'size-3.5 sm:size-4' }"
                     :color="photoChosen(asset.id, kind) ? 'primary' : 'neutral'"
                     :variant="photoChosen(asset.id, kind) ? 'solid' : 'soft'"
                     :icon="kind === 'video' ? 'i-lucide-clapperboard' : 'i-lucide-image'"
@@ -1354,121 +1301,14 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
     </div>
 
-    <UModal
+    <PlannerRequestModal
       v-model:open="requestOpen"
-      :title="t('monthly.requestMixedTitle')"
-      :ui="{ title: 'truncate text-base' }"
-    >
-      <template #body>
-        <!-- A video-only request has no posts to place, so it skips straight to
-             the videos. -->
-        <template v-if="selectedQuantity">
-        <h3 v-if="selectedVideoQuantity" class="mb-2 text-sm font-semibold text-highlighted">{{ t('monthly.postPlatforms') }}</h3>
-        <div class="space-y-2">
-          <div
-            v-for="(channel, index) in postRows"
-            :key="index"
-            class="rounded-xl border border-default p-2.5"
-          >
-            <p v-if="postRows.length > 1" class="mb-2 flex items-center gap-1.5 text-xs">
-              <UIcon name="i-lucide-image" class="size-3.5 shrink-0 text-primary" />
-              <span class="font-semibold text-highlighted">{{ t('monthly.postNumber', { number: index + 1 }) }}</span>
-              <span :class="channel ? 'text-muted' : 'text-error'">
-                · {{ channel ? channelOptions.find((option) => option.value === channel)?.label : t('videoMusic.choosePlatform') }}
-              </span>
-            </p>
-            <div class="grid grid-cols-3 gap-2">
-              <UButton
-                v-for="option in channelOptions"
-                :key="option.value"
-                block
-                :color="channel === option.value ? 'primary' : 'neutral'"
-                :variant="channel === option.value ? 'soft' : 'outline'"
-                :aria-pressed="channel === option.value"
-                class="h-auto flex-col gap-1 py-2 text-xs"
-                @click="postRows[index] = option.value"
-              >
-                <TikTokMark v-if="option.value === 'TikTok'" class="size-5" />
-                <UIcon v-else :name="option.icon" class="size-5" />
-                {{ option.label }}
-              </UButton>
-            </div>
-          </div>
-        </div>
-        </template>
-        <!-- One card per video: where it goes and the music it gets, chosen
-             together. -->
-        <div v-if="selectedVideoQuantity" :class="selectedQuantity ? 'mt-4 border-t border-default pt-4' : ''">
-          <h3 class="mb-2 text-sm font-semibold text-highlighted">{{ t('monthly.videoPlatforms') }}</h3>
-          <div class="space-y-2">
-            <div
-              v-for="(row, index) in videoRows"
-              :key="index"
-              class="rounded-xl border border-default p-2.5"
-            >
-              <!-- With several videos each card folds to a one-line summary of
-                   its choices; a single video stays open. -->
-              <UButton
-                v-if="videoRows.length > 1"
-                block
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                trailing-icon="i-lucide-chevron-down"
-                :ui="{ trailingIcon: openVideos.has(index) ? 'rotate-180 transition-transform duration-200' : 'transition-transform duration-200' }"
-                :aria-expanded="openVideos.has(index)"
-                class="-m-1 justify-between px-1"
-                @click="toggleVideo(index)"
-              >
-                <span class="flex min-w-0 items-center gap-1.5 text-xs">
-                  <UIcon name="i-lucide-clapperboard" class="size-3.5 shrink-0 text-primary" />
-                  <span class="font-semibold text-highlighted">{{ t('videoMusic.videoNumber', { number: index + 1 }) }}</span>
-                  <span class="truncate" :class="row.channel && row.music && (row.music.source !== 'library' || row.music.trackId) ? 'text-muted' : 'text-error'">
-                    · {{ row.channel ? videoChannelOptions.find((option) => option.value === row.channel)?.label : t('videoMusic.choosePlatform') }}
-                    · {{ row.music ? t(`videoMusic.${row.music.source}`) : t('videoMusic.chooseMusic') }}
-                  </span>
-                </span>
-              </UButton>
-              <Transition :css="false" @enter="(element, done) => slide(element, true, done)" @leave="(element, done) => slide(element, false, done)">
-              <div v-if="videoRows.length === 1 || openVideos.has(index)" :class="videoRows.length > 1 ? 'pt-2' : ''">
-              <div class="grid grid-cols-3 gap-2">
-                <UButton
-                  v-for="option in videoChannelOptions"
-                  :key="option.value"
-                  block
-                  :color="row.channel === option.value ? 'primary' : 'neutral'"
-                  :variant="row.channel === option.value ? 'soft' : 'outline'"
-                  :aria-pressed="row.channel === option.value"
-                  class="h-auto flex-col gap-1 py-2 text-xs"
-                  @click="row.channel = option.value"
-                >
-                  <TikTokMark v-if="option.value === 'TikTok'" class="size-5" />
-                  <UIcon v-else :name="option.icon" class="size-5" />
-                  {{ option.label }}
-                </UButton>
-              </div>
-              <VideoMusicChoice v-model="row.music" class="mt-2" />
-              </div>
-              </Transition>
-            </div>
-          </div>
-        </div>
-      </template>
-      <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton color="neutral" variant="outline" @click="requestOpen = false">
-            {{ t('common.cancel') }}
-          </UButton>
-          <UButton :loading="busy" :disabled="!splitComplete || !videoSplitComplete || !videoMusicChosen" @click="confirmRequest">
-            {{
-              requestAction === 'prepare'
-                ? t('legacy.prepareMonth')
-                : generateMoreLabel
-            }}
-          </UButton>
-        </div>
-      </template>
-    </UModal>
+      :post-count="selectedQuantity"
+      :video-count="selectedVideoQuantity"
+      :busy="busy"
+      :submit-label="requestAction === 'prepare' ? t('legacy.prepareMonth') : generateMoreLabel"
+      @submit="confirmRequest"
+    />
 
     <UModal
       v-model:open="resetOpen"
