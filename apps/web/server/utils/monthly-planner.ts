@@ -27,6 +27,7 @@ import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
 import { loadBrandLogo, type BrandLogoAsset } from './brand-assets'
 import { renderVideoForPost } from './video-render'
+import { musicForVideo, plannerVideoMusicSchema } from '../../shared/schemas/music'
 import {
   paidAccessForPlanningMonth,
   postsCountedForLimit,
@@ -256,7 +257,7 @@ export async function ensureMonthlyPlan(
     return prior.rows[0] as { id: string; status: string }
   const settings = await plannerStep('ensure.settings', () =>
     client.query(
-      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+      'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,video_music,configured_at FROM monthly_planner_settings WHERE business_id=$1',
       [businessId],
     ),
   )
@@ -298,6 +299,7 @@ export async function ensureMonthlyPlan(
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
     videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
+    videoMusic: plannerVideoMusicSchema.safeParse(settings.rows[0].video_music).data,
   }
   // The two selections are checked independently so the message the user sees
   // names the exact deliverable they oversubscribed, rather than a shared
@@ -403,7 +405,7 @@ export async function requestMonthlyPosts(
   if (!['idle', 'review', 'queued'].includes(prior.status))
     throw new PlannerFailure('PLAN_NOT_RESTARTABLE')
   const settings = await client.query(
-    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,video_music,configured_at FROM monthly_planner_settings WHERE business_id=$1',
     [businessId],
   )
   if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
@@ -436,6 +438,7 @@ export async function requestMonthlyPosts(
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
     videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
+    videoMusic: plannerVideoMusicSchema.safeParse(settings.rows[0].video_music).data,
   }
   // Stored preferences only constrain the kinds this batch actually asks for;
   // a video-only batch must not be rejected because the saved post photos
@@ -547,7 +550,7 @@ export async function restartMonthlyPlan(
   if (['BUDGET_ESTIMATE_EXCEEDED', 'PROVIDER_RETRY_EXHAUSTED'].includes(prior.error_code || ''))
     throw new PlannerFailure('PLAN_RECONCILIATION_REQUIRED')
   const settings = await client.query(
-    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,configured_at FROM monthly_planner_settings WHERE business_id=$1',
+    'SELECT enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,preferred_video_extra_asset_ids,video_music,configured_at FROM monthly_planner_settings WHERE business_id=$1',
     [businessId],
   )
   if (settings.rows[0]?.enabled === false) throw new PlannerFailure('PLANNER_PAUSED')
@@ -582,6 +585,7 @@ export async function restartMonthlyPlan(
     selectedAssetIds: (settings.rows[0].preferred_asset_ids || []) as string[],
     selectedVideoAssetIds: (settings.rows[0].preferred_video_asset_ids || []) as string[],
     videoExtraAssetIds: (settings.rows[0].preferred_video_extra_asset_ids || {}) as Record<string, string[]>,
+    videoMusic: plannerVideoMusicSchema.safeParse(settings.rows[0].video_music).data,
   }
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
@@ -687,6 +691,7 @@ interface PlanRow {
   generate_count: number
   batch_channel_counts: PlannerChannelCounts
   batch_video_count: number
+  batch_start: number
   completed_count: number
   evidence: PlannerEvidence
   evidence_hash: string
@@ -2145,6 +2150,17 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           throw new PlannerFailure('QUOTA_EXCEEDED')
         const postId = randomUUID()
         if (!previousPageStyle) throw new PlannerFailure('GENERATION_FAILED')
+        // This video's place among the current request's videos for its
+        // platform, which picks the music the business chose for it.
+        const videoMusic = slot.deliverable === 'video'
+          ? musicForVideo(
+              plan.evidence.photoSelection?.videoMusic,
+              slot.channel,
+              editorial.slots
+                .slice(plan.batch_start, plan.completed_count)
+                .filter((item) => item.deliverable === 'video' && item.channel === slot.channel).length,
+            )
+          : undefined
         // Resolved with the same tag filter the render endpoint enforces, so a
         // brief never names a logo that the render would then refuse.
         const videoBriefLogoId = slot.deliverable === 'video'
@@ -2250,6 +2266,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
                     // falls back to a safe centred composition inside the
                     // builder itself.
                     ...(slot.shot ? { shot: slot.shot } : {}),
+                    // The music the business chose for this video of the
+                    // request: its position among the request's videos.
+                    ...(videoMusic ? { music: videoMusic } : {}),
                     durationSeconds: videoDurationSeconds,
                     format: channelFormat(slot.channel),
                     createdAt: new Date().toISOString(),

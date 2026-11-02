@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
 import { postSchema, type Post } from '../../shared/schemas/workspace'
+import { publishedCaption } from '../../shared/schemas/music'
 import { recordAuditEvent, transitionMetadata } from './audit'
 import { setTenantContext } from './database'
 import { blockingPostChecks, localPostChecks, postContentVersion, providerPostChecks } from './post-validation'
@@ -183,7 +184,7 @@ export function uniquePublicationMatch(candidates: ProviderPublication[], post: 
   const matches = candidates.filter((candidate) => {
     const text = candidate.message ?? candidate.caption ?? ''
     const publishedAt = Date.parse(candidate.created_time ?? candidate.timestamp ?? '')
-    return text.trim() === post.caption.trim() && publishedAt >= earliest
+    return text.trim() === publishedCaption(post).trim() && publishedAt >= earliest
   })
   return matches.length === 1 ? matches[0] : null
 }
@@ -625,13 +626,13 @@ async function runOnePublishingJob(db: Pool) {
         ? await graphRequest<{ id?: string; post_id?: string }>(
             `${target.id}/videos`,
             token,
-            { file_url: videoUrl, description: post.caption },
+            { file_url: videoUrl, description: publishedCaption(post) },
             'POST',
           )
         : await graphRequest<{ id?: string; post_id?: string }>(
             `${target.id}/photos`,
             token,
-            { url: publicMediaUrl(image), caption: post.caption, published: 'true' },
+            { url: publicMediaUrl(image), caption: publishedCaption(post), published: 'true' },
             'POST',
           )
       console.log('[publish] Facebook response:', JSON.stringify(response))
@@ -646,8 +647,8 @@ async function runOnePublishingJob(db: Pool) {
           // A vertical video is published as a Reel, which is the only video
           // container Instagram offers a professional account.
           videoUrl
-            ? { media_type: 'REELS', video_url: videoUrl, caption: post.caption }
-            : { image_url: publicMediaUrl(image), caption: post.caption },
+            ? { media_type: 'REELS', video_url: videoUrl, caption: publishedCaption(post) }
+            : { image_url: publicMediaUrl(image), caption: publishedCaption(post) },
           'POST',
           host,
         )

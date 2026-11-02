@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
 import { channelFormat, matchesChannelCanvas } from '../../shared/schemas/channel-format'
 import { contentLocaleForPreferences, DEFAULT_TIMEZONE, type Post } from '../../shared/schemas/workspace'
+import { publishedCaption } from '../../shared/schemas/music'
 import { factIsUsable, sameFactContent, type BrandFact } from '../../shared/schemas/business-brain'
 import { dayInZone } from '../../shared/utils/calendar'
 import { channelFormatCapability } from '../../shared/utils/content-formats'
@@ -221,7 +222,7 @@ export async function localPostChecks(
     ...aiChecks,
     {
       key: 'caption',
-      passed: !!post.caption.trim() && [...post.caption].length <= limits.caption_characters,
+      passed: !!post.caption.trim() && [...publishedCaption(post)].length <= limits.caption_characters,
       message: 'server.CAPTION_LENGTH',
       params: { max: limits.caption_characters },
     },

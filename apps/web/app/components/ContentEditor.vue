@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Post } from '~~/shared/schemas/workspace'
+import type { VideoMusicChoice as MusicChoice } from '~~/shared/schemas/music'
 import { channelFormat, publishingChannels } from '~~/shared/schemas/channel-format'
 import { zonedToIso } from '~~/shared/utils/format'
 const props = defineProps<{ id?: string }>()
@@ -233,12 +234,28 @@ async function refreshVideo() {
     // Video state is optional; do not interrupt normal post editing.
   }
 }
+// A video is first made with the music the business chooses for it here;
+// nothing is chosen for it unless the video already has music.
+const videoGenerateOpen = ref(false)
+const videoMusicChoice = ref<MusicChoice | null>(null)
+const videoMusicChosen = computed(() =>
+  !!videoMusicChoice.value && (videoMusicChoice.value.source !== 'library' || !!videoMusicChoice.value.trackId))
+function openVideoGenerate() {
+  const music = post.value?.video?.music
+  videoMusicChoice.value = !music
+    ? null
+    : music.source === 'library'
+      ? { source: 'library', trackId: music.trackId }
+      : { source: music.source }
+  videoGenerateOpen.value = true
+}
 async function renderVideo() {
-  if (!post.value || videoBusy.value || dirty.value) return
+  if (!post.value || videoBusy.value || dirty.value || !videoMusicChosen.value) return
   videoBusy.value = true
   error.value = ''
+  videoGenerateOpen.value = false
   try {
-    await $fetch(`/api/posts/${post.value.id}/video-render`, { method: 'POST', body: {}, retry: 0 })
+    await $fetch(`/api/posts/${post.value.id}/video-render`, { method: 'POST', body: { music: videoMusicChoice.value }, retry: 0 })
     await initLive()
     await refreshVideo()
     notify(t('video.ready'))
@@ -271,6 +288,15 @@ async function editVideoWithAi() {
   } finally {
     videoBusy.value = false
   }
+}
+// New music keeps the render but replaces its file, so the player is pointed
+// at it again rather than replaying the copy it already loaded.
+async function videoMusicChanged(remixed: boolean) {
+  await initLive()
+  await refreshVideo()
+  if (remixed && videoRender.value?.previewUrl)
+    videoRender.value.previewUrl = `${videoRender.value.previewUrl}?v=${Date.now()}`
+  notify(t(remixed ? 'videoMusic.applied' : 'videoMusic.saved'))
 }
 async function sendVideoToTikTok() {
   if (!post.value || videoBusy.value) return
@@ -629,7 +655,7 @@ onBeforeUnmount(() => {
                 icon="i-lucide-play"
                 :loading="videoBusy"
                 :disabled="dirty || syncing || !editable"
-                @click="renderVideo"
+                @click="openVideoGenerate"
               >{{ t('video.generate') }}</UButton>
               <UButton
                 v-if="videoRender?.status === 'ready'"
@@ -648,6 +674,13 @@ onBeforeUnmount(() => {
                 :disabled="dirty || syncing || !editable || videoBusy"
                 @click="videoEditOpen = true"
               >{{ t('video.editWithAi') }}</UButton>
+              <VideoMusicPicker
+                v-if="post?.video"
+                :post-id="post.id"
+                :music="post.video.music"
+                :disabled="dirty || syncing || !editable || videoBusy || post.video.status === 'rendering'"
+                @changed="videoMusicChanged"
+              />
             </div>
           </div>
           <p v-if="post?.video" class="text-sm text-muted">
@@ -961,6 +994,24 @@ onBeforeUnmount(() => {
             fit="contain"
             class="size-full !bg-transparent"
           />
+        </div>
+      </template>
+    </UModal>
+    <UModal
+      v-model:open="videoGenerateOpen"
+      :title="t('video.generate')"
+      :description="t('videoMusic.chooseBeforeGenerate')"
+      :ui="{ content: 'sm:max-w-lg' }"
+    >
+      <template #body>
+        <VideoMusicChoice v-model="videoMusicChoice" />
+        <div class="mt-4 flex justify-end">
+          <UButton
+            icon="i-lucide-play"
+            :loading="videoBusy"
+            :disabled="!videoMusicChosen"
+            @click="renderVideo"
+          >{{ t('video.generate') }}</UButton>
         </div>
       </template>
     </UModal>

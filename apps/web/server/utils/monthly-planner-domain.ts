@@ -15,6 +15,7 @@ import {
 } from '../../shared/schemas/channel-format'
 import { dayInZone } from '../../shared/utils/calendar'
 import { zonedToIso } from '../../shared/utils/format'
+import type { PlannerVideoMusic } from '../../shared/schemas/music'
 import {
   emptyPlannerBrain,
   factIsUsable,
@@ -192,6 +193,7 @@ export function plannerEvidence(
     selectedAssetIds: string[]
     selectedVideoAssetIds?: string[]
     videoExtraAssetIds?: Record<string, string[]>
+    videoMusic?: PlannerVideoMusic
   } = {
     mode: 'auto',
     selectedAssetIds: [],
@@ -322,6 +324,8 @@ export function plannerEvidence(
       selectedAssetIds: photoSelection.mode === 'selected' ? selectedAssetIds : [],
       selectedVideoAssetIds: photoSelection.mode === 'selected' ? selectedVideoAssetIds : [],
       ...(Object.keys(videoExtraAssetIds).length ? { videoExtraAssetIds } : {}),
+      // The music the business chose for the videos of this request.
+      ...(photoSelection.videoMusic ? { videoMusic: photoSelection.videoMusic } : {}),
     },
     videoChannelCounts,
     recentPosts: workspace.posts
@@ -391,7 +395,9 @@ export function plannerIdentityChanged(
  */
 export function promptEvidence(evidence: PlannerEvidence) {
   const { brain: _brain, ...rest } = evidence as PlannerEvidence & { brain?: PlannerBrain }
-  return rest
+  // The music is laid under the finished video; the writer has no use for it.
+  const { videoMusic: _music, ...photoSelection } = rest.photoSelection as PlannerEvidence['photoSelection'] & { videoMusic?: unknown }
+  return { ...rest, photoSelection }
 }
 
 /**

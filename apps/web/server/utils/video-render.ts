@@ -23,6 +23,7 @@ import { directedTakes, videoChargeCredits } from './video-takes'
 import { maxVideoPhotos, storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
 import { addMusicToVideo, composeBrandedVideo, extractVideoFrames, joinClips, videoDuration } from './video-compose'
 import { generateVideoMusic, videoMusicConfigured } from './video-music'
+import { downloadMusicTrack, findMusicTrack } from './music-library'
 import { generateStoryboardShots } from './video-shots'
 import { reviewVideoQuality, verifySamePhotographedSubject } from './video-subject-check'
 
@@ -160,7 +161,15 @@ export async function renderVideoForPost(userId: string, postId: string) {
       covered: channelUiInsets(post.channel),
     }
     const overlay = await buildVideoOverlayLayers(overlayInput)
+    // The music the business chose. A library track taken out of the library
+    // since leaves the video silent rather than paying for AI music instead.
+    const musicChoice = post.video.music?.source || 'ai'
+    const musicTrack = post.video.music?.source === 'library'
+      ? await findMusicTrack(client, post.video.music.trackId)
+      : null
     return {
+      musicSource: musicChoice === 'library' && !musicTrack ? 'none' as const : musicChoice,
+      musicTrackPath: musicTrack?.storagePath,
       business,
       brandName: workspace.brand.name,
       locale,
@@ -458,6 +467,16 @@ export async function renderVideoForPost(userId: string, postId: string) {
     // costs the business the video itself.
     let musicCostUsd: number | null = 0
     const addMusic = async () => {
+      if (snapshot.musicSource === 'none') return
+      if (snapshot.musicSource === 'library') {
+        try {
+          const track = await timed('library_music', () => downloadMusicTrack(snapshot.musicTrackPath!))
+          bytes = await timed('add_music', () => addMusicToVideo(bytes, track))
+        } catch (error) {
+          console.warn('Library music was unavailable; the video stays silent', { postId, error: error instanceof Error ? error.message : 'unknown' })
+        }
+        return
+      }
       if (!videoMusicConfigured()) return
       try {
         const music = await timed('music', () => generateVideoMusic({

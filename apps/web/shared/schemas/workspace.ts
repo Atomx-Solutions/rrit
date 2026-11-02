@@ -9,6 +9,7 @@ import {
 import { brandFactSchema } from './business-brain'
 import { publishingChannels, videoFormats } from './channel-format'
 import { storyboardSchema } from './storyboard'
+import { videoMusicSchema } from './music'
 
 const researchSourceSchema = z
   .url()
@@ -136,6 +137,10 @@ export const postSchema = z.object({
     }).optional(),
     // The business's own direction for the next take, from Edit video with AI.
     editInstruction: z.string().trim().min(5).max(600).optional(),
+    // The music under the video. Without a choice the AI makes it, as videos
+    // always had. A library track keeps the credit its licence asks for, read
+    // when it was chosen, so publishing never depends on the library row.
+    music: videoMusicSchema.optional(),
     // Why the last render could not be made at all (a provider or storage
     // failure), so the business is told plainly.
     failure: z.object({

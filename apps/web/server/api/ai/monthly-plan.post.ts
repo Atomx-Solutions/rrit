@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { monthSchema } from '../../../shared/schemas/monthly-plan'
 import { maxVideoPhotos } from '../../../shared/schemas/storyboard'
+import { videoMusicChoiceSchema, type PlannerVideoMusic } from '../../../shared/schemas/music'
+import { publishingChannels } from '../../../shared/schemas/channel-format'
+import { resolveVideoMusic } from '../../utils/music-library'
 import {
   ensureMonthlyPlan,
   requestMonthlyPosts,
@@ -36,6 +39,11 @@ export default defineEventHandler(async (event) => {
       // silently dropped from the split the business asked for.
       channelCounts: plannerChannelCountsSchema.optional(),
       videoChannelCounts: plannerChannelCountsSchema.optional(),
+      // The music of each video of this request, in the order they are made.
+      videoMusic: z.array(z.object({
+        channel: z.enum(publishingChannels),
+        music: videoMusicChoiceSchema,
+      })).max(100).optional(),
     })
     .safeParse(await boundedBody(event, 16384))
   if (!input.success)
@@ -90,18 +98,35 @@ export default defineEventHandler(async (event) => {
         || extras.some((id) => selectedVideoAssetIds.includes(id))
       )
         throw createError({ statusCode: 422, message: 'server.REQUEST_INVALID' })
+      // A request for videos says, for each one, where it goes and what music
+      // it gets; none is made before the business has chosen. The platforms
+      // named here are the same split the request asks for.
+      const requestedVideos = input.data.videoQuantity || 0
+      const videoChoices = input.data.videoMusic || []
+      if (
+        requestedVideos
+        && (videoChoices.length !== requestedVideos
+          || publishingChannels.some((channel) =>
+            videoChoices.filter((choice) => choice.channel === channel).length
+            !== (input.data.videoChannelCounts?.[channel] || 0)))
+      )
+        throw createError({ statusCode: 422, message: 'server.MUSIC_CHOICE_REQUIRED' })
+      const videoMusic: PlannerVideoMusic = []
+      for (const choice of requestedVideos ? videoChoices : [])
+        videoMusic.push({ channel: choice.channel, music: (await resolveVideoMusic(client, choice.music)).music })
       await client.query(
         `INSERT INTO monthly_planner_settings(
           business_id,enabled,photo_mode,preferred_asset_ids,preferred_video_asset_ids,
-          preferred_video_extra_asset_ids,configured_at
-        ) VALUES($1,true,$2,$3,$4,$5,now())
+          preferred_video_extra_asset_ids,video_music,configured_at
+        ) VALUES($1,true,$2,$3,$4,$5,$6,now())
         ON CONFLICT(business_id) DO UPDATE
           SET enabled=true,photo_mode=EXCLUDED.photo_mode,
               preferred_asset_ids=EXCLUDED.preferred_asset_ids,
               preferred_video_asset_ids=EXCLUDED.preferred_video_asset_ids,
               preferred_video_extra_asset_ids=EXCLUDED.preferred_video_extra_asset_ids,
+              video_music=EXCLUDED.video_music,
               configured_at=now(),updated_at=now()`,
-        [business.id, photoMode, selectedAssetIds, selectedVideoAssetIds, JSON.stringify(videoExtraAssetIds)],
+        [business.id, photoMode, selectedAssetIds, selectedVideoAssetIds, JSON.stringify(videoExtraAssetIds), videoMusic.length ? JSON.stringify(videoMusic) : null],
       )
       if (input.data.action === 'generate') {
         if (!input.data.month) throw new PlannerFailure('INVALID_MONTH')
