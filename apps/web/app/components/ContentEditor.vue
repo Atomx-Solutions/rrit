@@ -678,6 +678,7 @@ onBeforeUnmount(() => {
                 v-if="post?.video"
                 :post-id="post.id"
                 :music="post.video.music"
+                :ai-kept="!!post.video.aiMusicPath"
                 :disabled="dirty || syncing || !editable || videoBusy || post.video.status === 'rendering'"
                 @changed="videoMusicChanged"
               />

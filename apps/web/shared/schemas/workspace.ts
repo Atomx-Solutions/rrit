@@ -141,6 +141,9 @@ export const postSchema = z.object({
     // always had. A library track keeps the credit its licence asks for, read
     // when it was chosen, so publishing never depends on the library row.
     music: videoMusicSchema.optional(),
+    // Where the AI music the video was made with is kept, so the business can
+    // lay it under the video again after trying a library track.
+    aiMusicPath: z.string().max(500).optional(),
     // Why the last render could not be made at all (a provider or storage
     // failure), so the business is told plainly.
     failure: z.object({

@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import type { VideoMusic, VideoMusicChoice as MusicChoice } from '../../shared/schemas/music'
 
-const props = defineProps<{ postId: string; music?: VideoMusic; disabled?: boolean }>()
+// aiKept: the video keeps the AI music it was made with, so it can return to it.
+const props = defineProps<{ postId: string; music?: VideoMusic; aiKept?: boolean; disabled?: boolean }>()
 const emit = defineEmits<{ changed: [remixed: boolean] }>()
 const { t } = useI18n()
 
 const open = ref(false)
 const busy = ref(false)
 const error = ref('')
-const choice = ref<MusicChoice>({ source: 'ai' })
-const canSave = computed(() => choice.value.source !== 'library' || !!choice.value.trackId)
+// A finished video's music is a library track, none, or the AI music it was
+// made with; new AI music is only made with a new video.
+const choice = ref<MusicChoice | null>(null)
+const canSave = computed(() => !!choice.value && (choice.value.source !== 'library' || !!choice.value.trackId))
 
 function show() {
   choice.value = props.music?.source === 'library'
     ? { source: 'library', trackId: props.music.trackId }
-    : { source: props.music?.source || 'ai' }
+    : props.music?.source === 'none' || (props.music?.source === 'ai' && props.aiKept)
+      ? { source: props.music.source }
+      : null
   error.value = ''
   open.value = true
 }
@@ -55,7 +60,7 @@ async function save() {
     :ui="{ content: 'sm:max-w-lg' }"
   >
     <template #body>
-      <VideoMusicChoice v-model="choice" />
+      <VideoMusicChoice v-model="choice" :without-ai="!aiKept" />
       <UAlert v-if="error" class="mt-4" color="error" variant="subtle" :description="error" />
       <div class="mt-4 flex justify-end">
         <UButton icon="i-lucide-check" :loading="busy" :disabled="!canSave" @click="save">

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { videoMusicChoiceSchema } from '../../../../shared/schemas/music'
+import { videoMusicChoiceSchema, type VideoMusic } from '../../../../shared/schemas/music'
 import { postSchema } from '../../../../shared/schemas/workspace'
 import { assetStorageFolder, downloadAsset, removeAsset, uploadBinaryAsset } from '../../../utils/asset-storage'
 import { downloadMusicTrack, resolveVideoMusic } from '../../../utils/music-library'
@@ -10,10 +10,11 @@ import { addMusicToVideo, removeMusicFromVideo } from '../../../utils/video-comp
 // video route reads with.
 const MAX_VIDEO_BYTES = 60 * 1024 * 1024
 
-// Change the music under a post's video. The choice is kept for every later
-// render. A library track or silence is also laid under the video already
-// made, at once and at no cost, because only the sound changes; AI music is
-// made from the video, so it comes with the next render.
+// Change the music under a post's video: a library track, silence, or the AI
+// music the video was made with. The choice is kept for every later render and
+// is laid under the video already made, at once and at no cost, because only
+// the sound changes. New AI music is made only with a new video, so AI can be
+// chosen here only to return to the track the video already has.
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const user = await requireUser(event)
@@ -32,7 +33,18 @@ export default defineEventHandler(async (event) => {
     if (post.video.status === 'rendering')
       throw createError({ statusCode: 409, message: 'server.VIDEO_RENDER_IN_PROGRESS' })
 
-    const { music, storagePath: trackPath } = await resolveVideoMusic(client, input.data)
+    const folder = assetStorageFolder(business.slug, business.id)
+    let music: VideoMusic
+    let trackPath: string | undefined
+    if (input.data.source === 'ai') {
+      // Only this business's own kept track, never a path from elsewhere.
+      if (!post.video.aiMusicPath?.startsWith(`${folder}/`))
+        throw createError({ statusCode: 422, message: 'server.MUSIC_CHOICE_INVALID' })
+      music = { source: 'ai' }
+      trackPath = post.video.aiMusicPath
+    } else {
+      ({ music, storagePath: trackPath } = await resolveVideoMusic(client, input.data))
+    }
     post.video.music = music
     await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2 AND business_id=$3', [JSON.stringify(post), id, business.id])
     await client.query(
@@ -43,10 +55,10 @@ export default defineEventHandler(async (event) => {
       "SELECT id,storage_path,size_bytes FROM video_renders WHERE post_id=$1 AND business_id=$2 AND status='ready' AND storage_path IS NOT NULL ORDER BY created_at DESC LIMIT 1",
       [id, business.id],
     )
-    return { music, trackPath, render: render.rows[0], folder: assetStorageFolder(business.slug, business.id) }
+    return { music, trackPath, render: render.rows[0], folder }
   })
 
-  if (snapshot.music.source === 'ai' || !snapshot.render) return { music: snapshot.music, remixed: false }
+  if (!snapshot.render) return { music: snapshot.music, remixed: false }
 
   const video = await downloadAsset(snapshot.render.storage_path, MAX_VIDEO_BYTES)
   const bytes = snapshot.trackPath

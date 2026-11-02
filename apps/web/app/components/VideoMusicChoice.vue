@@ -4,12 +4,14 @@ import { musicMoods, type MusicTrack, type VideoMusicChoice as MusicChoice } fro
 // AI music, a library track or none: the one choice every video is made with.
 // Null until the business picks one.
 const choice = defineModel<MusicChoice | null>({ required: true })
+// AI music is made with the video, so a finished video offers only the others.
+const props = defineProps<{ withoutAi?: boolean }>()
 const { t } = useI18n()
 const sources = computed(() => [
   { value: 'ai' as const, label: t('videoMusic.ai'), icon: 'i-lucide-wand-sparkles' },
   { value: 'library' as const, label: t('videoMusic.library'), icon: 'i-lucide-library' },
   { value: 'none' as const, label: t('videoMusic.none'), icon: 'i-lucide-volume-x' },
-])
+].filter((option) => !props.withoutAi || option.value !== 'ai'))
 
 const tracks = ref<MusicTrack[] | null>(null)
 const error = ref('')
@@ -79,7 +81,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="grid grid-cols-3 gap-2">
+    <div class="grid gap-2" :class="sources.length === 2 ? 'grid-cols-2' : 'grid-cols-3'">
       <UButton
         v-for="option in sources"
         :key="option.value"
