@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { musicMoods, type MusicTrack, type VideoMusicChoice as MusicChoice } from '../../shared/schemas/music'
+import { musicMoods, type MusicTrack, type VideoMusicChoice as MusicChoice } from '~~/shared/schemas/music'
 
 // AI music, a library track or none: the one choice every video is made with.
 // Null until the business picks one.

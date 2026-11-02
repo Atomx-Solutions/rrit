@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { VideoMusic, VideoMusicChoice as MusicChoice } from '../../shared/schemas/music'
+import type { VideoMusic, VideoMusicChoice as MusicChoice } from '~~/shared/schemas/music'
 
 // aiKept: the video keeps the AI music it was made with, so it can return to it.
 const props = defineProps<{ postId: string; music?: VideoMusic; aiKept?: boolean; disabled?: boolean }>()
