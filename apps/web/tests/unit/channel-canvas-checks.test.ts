@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
 import type { Pool } from 'pg'
-import { localPostChecks } from '../../server/utils/post-validation'
+import { blockingPostChecks, localPostChecks } from '../../server/utils/post-validation'
 import { buildVideoOverlayLayers, chooseLogoPlacement } from '../../server/utils/image-processing'
 import { channelFrame, coveredZonesInstruction } from '../../server/utils/monthly-ai'
 import { channelCanvas, channelUiInsets } from '../../shared/schemas/channel-format'
@@ -210,5 +210,34 @@ describe('channel interface zones', () => {
     expect(coveredZonesInstruction('Instagram')).toBe('')
     expect(channelFrame('TikTok')).toMatchObject({ pixels: '1080x1920', ratio: '9:16' })
     expect(channelFrame('Facebook').coveredByInterface).toEqual({ top: '0%', right: '0%', bottom: '0%', left: '0%' })
+  })
+})
+
+describe('video QA findings', () => {
+  // A failed review is shown in full, but the business decides: it never stops
+  // the post from going for approval.
+  it('marks an invented object in the video critical without blocking the post', async () => {
+    const reason = 'A chair appears that is not in the photograph.'
+    const quality = {
+      decision: 'BLOCK' as const,
+      reasons: [reason],
+      factuality: false,
+      brandFit: true,
+      visualQuality: true,
+      sourceFidelity: false,
+      sourceFidelityReasons: [],
+      styleConsistency: true,
+      styleReasons: [],
+      visualDistinctness: true,
+      distinctnessReasons: [],
+    }
+    const item = post('TikTok', { video: { ...video, format: '1080x1920', quality, qualityContentVersion: 1 } })
+    const checks = await localPostChecks(item, 'business', fakeDb({
+      asset: { width: 1080, height: 1350 },
+      render: { width: 1080, height: 1920 },
+    }))
+    const qa = checks.find((check) => check.key === 'ai_quality')
+    expect(qa).toMatchObject({ passed: false, advisory: true, critical: true, message: reason })
+    expect(blockingPostChecks(checks).some((check) => check.key === 'ai_quality')).toBe(false)
   })
 })

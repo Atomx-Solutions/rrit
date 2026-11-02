@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg'
-import { contentLocaleForPreferences, postSchema } from '../../shared/schemas/workspace'
+import { appLocaleSchema, contentLocaleForPreferences, postSchema } from '../../shared/schemas/workspace'
 import { qualitySchema } from '../../shared/schemas/monthly-plan'
 import { factIsUsable } from '../../shared/schemas/business-brain'
 import { setTenantContext, type TenantContext } from './database'
@@ -80,6 +80,7 @@ export async function reviewPostQuality(
         contentLocaleForPreferences(result.rows[0].state.preferences),
         post.aiProvenance?.locale,
       ),
+      reasonLanguage: appLocaleSchema.parse(result.rows[0].state.preferences.locale),
       original: original.bytes as Buffer,
       image: current.bytes as Buffer,
     }
@@ -99,6 +100,7 @@ export async function reviewPostQuality(
     ),
     capability: 'quality',
     language: snapshot.language,
+    reasonLanguage: snapshot.reasonLanguage,
     schema: qualitySchema,
     maxOutput: REVIEW_MAX_OUTPUT_TOKENS,
     input: {
@@ -146,7 +148,7 @@ export async function reviewPostQuality(
     await client.query(
       "UPDATE posts SET payload=jsonb_set(jsonb_set(jsonb_set(payload,'{policy}',to_jsonb($1::text)),'{policyReason}',to_jsonb($2::text)),'{aiProvenance,quality}',$5::jsonb) WHERE id=$3 AND business_id=$4",
       [
-        quality.factuality ? 'warn' : 'block',
+        'warn',
         policyReason,
         postId,
         tenant.organizationId,

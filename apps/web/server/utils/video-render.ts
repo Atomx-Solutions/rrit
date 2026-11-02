@@ -173,6 +173,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       business,
       brandName: workspace.brand.name,
       locale,
+      reasonLocale: workspace.preferences.locale,
       channel: post.channel,
       caption: post.caption,
       verifiedFacts,
@@ -514,6 +515,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
           caption: snapshot.caption,
           brandName: snapshot.brandName,
           locale: snapshot.locale,
+          reasonLocale: snapshot.reasonLocale,
           verifiedFacts: snapshot.verifiedFacts,
           targetChannel: snapshot.channel,
           context: {
@@ -599,7 +601,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
         if (quality) {
           currentPost.video.quality = quality
           currentPost.video.qualityContentVersion = snapshot.contentVersion
-          currentPost.policy = quality.factuality ? 'warn' : 'block'
+          currentPost.policy = 'warn'
           currentPost.policyReason = quality.reasons.join(' ') || 'validation.aiQualityPassed'
         } else {
           // Pending: validation runs the review again before publishing.

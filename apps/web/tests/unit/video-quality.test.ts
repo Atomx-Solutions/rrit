@@ -11,6 +11,37 @@ vi.mock('../../server/utils/ai-provider', () => ({
 afterEach(() => vi.unstubAllGlobals())
 
 describe('reviewVideoQuality', () => {
+  // The business reads the reasons in its app; the video still speaks to the
+  // audience in the content language.
+  it('writes its reasons in the interface language, not the language of the video', async () => {
+    const response = {
+      id: 'response-language',
+      status: 'completed',
+      usage: { input_tokens: 10, output_tokens: 5 },
+      output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({
+        decision: 'PASS', reasons: [], factuality: true, brandFit: true, visualQuality: true,
+      }) }] }],
+    }
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => response })
+    vi.stubGlobal('fetch', fetcher)
+    const input = {
+      photograph: Buffer.from('photo'),
+      frames: [Buffer.from('first')],
+      caption: 'Kafe e mirë',
+      brandName: 'Brand',
+      locale: 'sq-XK' as const,
+      verifiedFacts: [],
+      targetChannel: 'TikTok' as const,
+    }
+
+    await reviewVideoQuality({ ...input, reasonLocale: 'en-US' })
+    await reviewVideoQuality(input)
+
+    const [english, fallback] = fetcher.mock.calls.map((call) => JSON.parse(call[1].body).instructions)
+    expect(english).toContain('actionable reasons in English.')
+    expect(fallback).toContain('actionable reasons in Albanian.')
+  })
+
   it('sends the original and finished video frames to QA and returns its criticism', async () => {
     const response = {
       id: 'response-1',

@@ -55,6 +55,11 @@ const savedId = ref(props.id)
 const post = computed(() => data.value.posts.find((p) => p.id === savedId.value))
 // The video review's findings are shown once, in the approval check, together
 // with the way to act on them.
+// A failed factual review shows red but never stops the post: the business
+// decides at approval.
+const qualityCritical = computed(() =>
+  !!validation.value?.checks.some((check) => check.critical && !check.passed)
+  || (videoFindingsShown.value && post.value?.video?.quality?.factuality === false))
 const videoFindingsShown = computed(() => {
   const video = post.value?.video
   return video?.status === 'ready' && !!video.quality && video.quality.decision !== 'PASS' && video.quality.reasons.length > 0
@@ -95,7 +100,7 @@ const publishing = ref(false)
 const validation = ref<{
   scope: 'content' | 'publication'
   passed: boolean
-  checks: { key: string; passed: boolean; message: string; params?: Record<string, string | number>; advisory?: boolean }[]
+  checks: { key: string; passed: boolean; message: string; params?: Record<string, string | number>; advisory?: boolean; critical?: boolean }[]
   manualReview: string
 } | null>(null)
 const publication = ref<{
@@ -765,10 +770,10 @@ onBeforeUnmount(() => {
           <ul v-if="validation" class="space-y-3" :aria-label="t('content.validationResult')">
             <li v-for="check in validation.checks" :key="check.key" class="flex gap-2 text-sm">
               <UIcon
-                :name="check.passed ? 'i-lucide-circle-check' : check.advisory ? 'i-lucide-triangle-alert' : 'i-lucide-circle-x'"
-                :class="check.passed ? 'text-success' : check.advisory ? 'text-warning' : 'text-error'"
+                :name="check.passed ? 'i-lucide-circle-check' : check.advisory && !check.critical ? 'i-lucide-triangle-alert' : 'i-lucide-circle-x'"
+                :class="check.passed ? 'text-success' : check.advisory && !check.critical ? 'text-warning' : 'text-error'"
                 class="size-4 shrink-0 mt-0.5"
-              /><span>{{ check.passed ? t('content.okPrefix') : check.advisory ? t('content.warningPrefix') : '' }}{{ validationMessage(check) }}</span>
+              /><span>{{ check.passed ? t('content.okPrefix') : check.advisory && !check.critical ? t('content.warningPrefix') : '' }}{{ validationMessage(check) }}</span>
             </li>
           </ul>
           <UCheckbox
@@ -825,14 +830,14 @@ onBeforeUnmount(() => {
           <UAlert
             v-else
             :color="
-              post?.policy === 'block'
+              post?.policy === 'block' || qualityCritical
                 ? 'error'
                 : post?.policy === 'warn' || !post
                   ? 'warning'
                   : 'success'
             "
             :title="
-              post?.policy === 'block'
+              post?.policy === 'block' || qualityCritical
                 ? t('coverage.needsCorrection')
                 : post?.policy === 'pass'
                   ? t('coverage.technicalPassed')

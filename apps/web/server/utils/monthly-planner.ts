@@ -2007,6 +2007,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           `${plan.completed_count}:${previousPageStyle.revision}`,
         ),
         capability: 'quality',
+        reasonLanguage: workspace.preferences.locale,
         maxOutput: 2000,
         schema: qualitySchema,
         input: {
@@ -2275,9 +2276,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
                   },
                 }
               : {}),
-            // Subjective QA findings remain user-reviewable; only a concrete
-            // factual-safety failure prevents approval without correction.
-            policy: quality.factuality ? 'warn' : 'block',
+            // QA findings never stop the post: a factual failure is shown as
+            // critical, and the business decides at approval.
+            policy: 'warn',
             policyReason:
               quality.reasons.join(' ') || 'Kontrollo faktet dhe dizajnin përpara miratimit.',
             aiProvenance: provenance,
