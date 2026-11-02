@@ -467,8 +467,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <UIcon name="i-lucide-calendar-range" class="size-4" />
           </div>
           <div class="min-w-0">
-            <UBadge color="neutral" variant="subtle" size="sm">{{ t('monthly.title') }}</UBadge>
-            <h2 class="mt-2 text-base font-semibold text-highlighted">
+            <h2 class="text-base font-semibold text-highlighted">
               {{ t('monthly.heading') }}
             </h2>
             <p v-if="planner" class="mt-1 max-w-2xl text-xs leading-5 text-muted">
@@ -979,22 +978,52 @@ onBeforeUnmount(() => clearInterval(timer))
     </div>
 
     <div v-else class="border-t border-default p-4">
-      <div>
-        <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('monthly.monthPhotos') }}</p>
-        <div class="mt-1 flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-base font-semibold text-highlighted">{{ t('legacy.choosePhotoQuestion') }}</h3>
-          <UButton
-            v-if="configuringMore"
-            type="button"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-x"
-            @click="configuringMore = false"
-          >
-            {{ t('common.cancel') }}
-          </UButton>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-highlighted">
+            {{ extendable ? t('monthly.generateMoreTitle') : t('monthly.readyToPrepare') }}
+          </h3>
+          <p class="mt-1 max-w-xl text-sm leading-6 text-muted">
+            {{ t('legacy.monthlyProcess') }}
+          </p>
         </div>
+        <UButton
+          v-if="configuringMore"
+          type="button"
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-x"
+          @click="configuringMore = false"
+        >
+          {{ t('common.cancel') }}
+        </UButton>
+      </div>
+      <div class="mt-3 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+        <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-sparkles" class="size-4" />
+          </div>
+          <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
+          <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
+        </div>
+        <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UIcon name="i-lucide-clapperboard" class="size-4" />
+          </div>
+          <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('video.include') }}</p>
+          <LiveInputNumber
+            v-model="selectedVideoQuantity"
+            :min="0"
+            :max="maxVideosThisBatch"
+            class="w-24 shrink-0"
+            :aria-label="t('video.quantity')"
+          />
+        </div>
+      </div>
+      <div class="mt-4 border-t border-default pt-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('monthly.monthPhotos') }}</p>
+        <h3 class="mt-1 text-base font-semibold text-highlighted">{{ t('legacy.choosePhotoQuestion') }}</h3>
         <div class="mt-3 grid grid-cols-2 gap-2">
           <UButton
             v-for="option in [
@@ -1245,51 +1274,18 @@ onBeforeUnmount(() => clearInterval(timer))
           </p>
         </div>
       </div>
-
-      <div
-        class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-default pt-4"
-      >
-        <div>
-          <h3 class="text-sm font-semibold text-highlighted">
-            {{ extendable ? t('monthly.generateMoreTitle') : t('monthly.readyToPrepare') }}
-          </h3>
-          <p class="mt-1 max-w-xl text-sm leading-6 text-muted">
-            {{ t('legacy.monthlyProcess') }}
-          </p>
-        </div>
-        <div class="grid w-full grid-cols-1 gap-3 lg:grid-cols-3">
-          <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
-            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <UIcon name="i-lucide-sparkles" class="size-4" />
-            </div>
-            <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
-            <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
-          </div>
-          <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
-            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <UIcon name="i-lucide-clapperboard" class="size-4" />
-            </div>
-            <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('video.include') }}</p>
-            <LiveInputNumber
-              v-model="selectedVideoQuantity"
-              :min="0"
-              :max="maxVideosThisBatch"
-              class="w-24 shrink-0"
-              :aria-label="t('video.quantity')"
-            />
-          </div>
-          <UButton
-            block
-            size="lg"
-            :loading="busy"
-            :disabled="selectedQuantity + selectedVideoQuantity < 1 || postPhotosMissing > 0 || videoPhotosMissing > 0"
-            icon="i-lucide-calendar-plus"
-            class="h-full justify-center rounded-xl"
-            @click="openRequest(configuringMore ? 'generate' : 'prepare')"
-          >
-            {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
-          </UButton>
-        </div>
+      <div class="mt-4 border-t border-default pt-4">
+        <UButton
+          block
+          size="lg"
+          :loading="busy"
+          :disabled="selectedQuantity + selectedVideoQuantity < 1 || postPhotosMissing > 0 || videoPhotosMissing > 0"
+          icon="i-lucide-calendar-plus"
+          class="justify-center rounded-xl"
+          @click="openRequest(configuringMore ? 'generate' : 'prepare')"
+        >
+          {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
+        </UButton>
         <p v-if="postPhotosMissing || videoPhotosMissing" class="mt-2 flex items-start gap-1.5 text-xs text-error">
           <UIcon name="i-lucide-circle-alert" class="mt-px size-3.5 shrink-0" />
           <span>
