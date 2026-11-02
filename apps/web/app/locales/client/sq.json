@@ -1671,6 +1671,8 @@
   "monthly.researchSourcesUsed": "Për postimet po përdoren {{count}} burime reale.",
   "monthly.photosIncluded": "{{count}} fotografi do të përfshihen në strategji.",
   "monthly.photosForVideo": "{{count}} të rezervuara për video.",
+  "monthly.postPhotosMissing": "Postime pa foto: {{count}}",
+  "monthly.videoPhotosMissing": "Video pa foto: {{count}}",
   "monthly.photoForPost": "Përdoret për një postim në feed",
   "monthly.photoForVideo": "Përdoret për një video",
   "monthly.videoCardTitle": "Video {{number}}",

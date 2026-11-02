@@ -173,6 +173,15 @@ const splitAssigned = computed(() => Object.values(channelSplit).reduce((sum, co
 const splitComplete = computed(() => splitAssigned.value === selectedQuantity.value)
 const videoSplitAssigned = computed(() => Object.values(videoChannelSplit).reduce((sum, count) => sum + count, 0))
 const videoSplitComplete = computed(() => videoSplitAssigned.value === selectedVideoQuantity.value)
+// When the business chooses the photographs, every post and every video it
+// asks for needs one of its own: a request is not sent with deliverables left
+// for photographs nobody picked.
+const postPhotosMissing = computed(() =>
+  photoMode.value === 'selected' ? Math.max(0, selectedQuantity.value - selectedPhotoIds.value.length) : 0)
+const videoPhotosMissing = computed(() => photoMode.value === 'selected'
+  ? Array.from({ length: selectedVideoQuantity.value }, (_, index) => index)
+    .filter((index) => !videoGroups.value[index]?.length).length
+  : 0)
 function openRequest(action: 'prepare' | 'generate') {
   // A video-only batch does not need a post photo; a post-only batch does not
   // need a video photo. The guard fires only when the user is in `selected`
@@ -1326,7 +1335,7 @@ onBeforeUnmount(() => clearInterval(timer))
             block
             size="lg"
             :loading="busy"
-            :disabled="selectedQuantity + selectedVideoQuantity < 1"
+            :disabled="selectedQuantity + selectedVideoQuantity < 1 || postPhotosMissing > 0 || videoPhotosMissing > 0"
             icon="i-lucide-calendar-plus"
             class="h-full justify-center rounded-xl"
             @click="openRequest(configuringMore ? 'generate' : 'prepare')"
@@ -1334,6 +1343,14 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
           </UButton>
         </div>
+        <p v-if="postPhotosMissing || videoPhotosMissing" class="mt-2 flex items-start gap-1.5 text-xs text-error">
+          <UIcon name="i-lucide-circle-alert" class="mt-px size-3.5 shrink-0" />
+          <span>
+            <template v-if="postPhotosMissing">{{ t('monthly.postPhotosMissing', { count: postPhotosMissing }) }}</template>
+            <template v-if="postPhotosMissing && videoPhotosMissing"> · </template>
+            <template v-if="videoPhotosMissing">{{ t('monthly.videoPhotosMissing', { count: videoPhotosMissing }) }}</template>
+          </span>
+        </p>
       </div>
     </div>
 

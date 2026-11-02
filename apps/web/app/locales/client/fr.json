@@ -1671,6 +1671,8 @@
   "monthly.researchSourcesUsed": "{{count}} sources réelles sont utilisées pour vos publications.",
   "monthly.photosIncluded": "{{count}} photos seront incluses dans la stratégie.",
   "monthly.photosForVideo": "{{count}} réservées à la vidéo.",
+  "monthly.postPhotosMissing": "Publications sans photo : {{count}}",
+  "monthly.videoPhotosMissing": "Vidéos sans photo : {{count}}",
   "monthly.photoForPost": "Utilisée pour une publication du fil",
   "monthly.photoForVideo": "Utilisée pour une vidéo",
   "monthly.videoCardTitle": "Vidéo {{number}}",

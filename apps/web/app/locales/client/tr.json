@@ -1671,6 +1671,8 @@
   "monthly.researchSourcesUsed": "Gönderilerin için {{count}} gerçek kaynak kullanılıyor.",
   "monthly.photosIncluded": "Stratejiye {{count}} fotoğraf dahil edilecek.",
   "monthly.photosForVideo": "{{count}} tanesi video için ayrıldı.",
+  "monthly.postPhotosMissing": "Fotoğrafsız gönderiler: {{count}}",
+  "monthly.videoPhotosMissing": "Fotoğrafsız videolar: {{count}}",
   "monthly.photoForPost": "Akış gönderisi için kullanıldı",
   "monthly.photoForVideo": "Video için kullanıldı",
   "monthly.videoCardTitle": "Video {{number}}",
