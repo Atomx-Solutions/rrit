@@ -504,8 +504,8 @@ onBeforeUnmount(() => clearInterval(timer))
 <template>
   <UCard :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden">
     <div class="p-4">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex min-w-0 items-start gap-3.5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="flex min-w-0 flex-1 basis-64 items-start gap-3.5">
           <div
             class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
           >
@@ -524,12 +524,12 @@ onBeforeUnmount(() => clearInterval(timer))
         </div>
         <!-- Small and to the side: starting over clears drafts, so it stays
              at hand without leading the page. -->
-        <div v-if="plan && plan.status !== 'cancelled'" class="flex shrink-0 flex-col items-end gap-1 sm:flex-row">
+        <div v-if="plan && plan.status !== 'cancelled'" class="flex shrink-0 items-center gap-2">
           <UButton
             v-if="active"
             color="neutral"
             variant="outline"
-            size="xs"
+            size="sm"
             icon="i-lucide-pause"
             :loading="busy"
             @click="act('pause')"
@@ -538,7 +538,7 @@ onBeforeUnmount(() => clearInterval(timer))
           </UButton>
           <UButton
             color="error"
-            variant="soft"
+            variant="outline"
             size="sm"
             icon="i-lucide-rotate-ccw"
             :disabled="busy"
