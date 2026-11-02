@@ -1,6 +1,8 @@
-import { listMusicTracks } from '../../utils/music-library'
+import { listMusicMoods, listMusicTracks } from '../../utils/music-library'
 
 export default defineEventHandler(async (event) => {
   await requireUser(event)
-  return { tracks: await listMusicTracks(database()) }
+  const db = database()
+  const [tracks, moods] = await Promise.all([listMusicTracks(db), listMusicMoods(db)])
+  return { tracks, moods }
 })

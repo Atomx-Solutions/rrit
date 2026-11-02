@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { musicForVideo, publishedCaption, videoMusicChoiceSchema, videoMusicSchema } from '../../shared/schemas/music'
+import { musicForVideo, musicMoodName, publishedCaption, videoMusicChoiceSchema, videoMusicSchema } from '../../shared/schemas/music'
 import { promptEvidence, type PlannerEvidence } from '../../server/utils/monthly-planner-domain'
 
 const trackId = '7f1c2a9e-3b4d-4e5f-8a6b-1c2d3e4f5a6b'
@@ -82,5 +82,15 @@ describe('videoMusicSchema', () => {
     expect(videoMusicSchema.safeParse({ source: 'library' }).success).toBe(false)
     expect(videoMusicSchema.safeParse({ source: 'library', trackId, title: 'Leblon' }).success).toBe(true)
     expect(videoMusicSchema.safeParse({ source: 'ai' }).success).toBe(true)
+  })
+})
+
+describe('musicMoodName', () => {
+  const mood = { slug: 'calm', names: { en: 'Calm', sq: 'E qetë', de: ' ' } }
+  it('shows the name in the app language and English where one is missing', () => {
+    expect(musicMoodName(mood, 'sq')).toBe('E qetë')
+    expect(musicMoodName(mood, 'de')).toBe('Calm')
+    expect(musicMoodName(mood, 'tr')).toBe('Calm')
+    expect(musicMoodName(undefined, 'en')).toBe('')
   })
 })

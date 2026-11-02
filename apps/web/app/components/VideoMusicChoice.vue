@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { musicMoods, type MusicTrack, type VideoMusicChoice as MusicChoice } from '~~/shared/schemas/music'
+import { musicMoodName, type MusicMood, type MusicTrack, type VideoMusicChoice as MusicChoice } from '~~/shared/schemas/music'
 
 // AI music, a library track or none: the one choice every video is made with.
 // Null until the business picks one.
 const choice = defineModel<MusicChoice | null>({ required: true })
 // AI music is made with the video, so a finished video offers only the others.
 const props = defineProps<{ withoutAi?: boolean }>()
-const { t } = useI18n()
+const { t, language } = useI18n()
 const sources = computed(() => [
   { value: 'ai' as const, label: t('videoMusic.ai'), icon: 'i-lucide-wand-sparkles' },
   { value: 'library' as const, label: t('videoMusic.library'), icon: 'i-lucide-library' },
@@ -18,9 +18,15 @@ const error = ref('')
 
 const source = computed(() => choice.value?.source)
 const chosenTrack = computed(() => tracks.value?.find((track) => track.id === choice.value?.trackId))
-const byMood = computed(() => musicMoods
-  .map((mood) => ({ mood, tracks: (tracks.value || []).filter((track) => track.mood === mood) }))
-  .filter((group) => group.tracks.length))
+const moods = ref<MusicMood[]>([])
+const byMood = computed(() => moods.value
+  .map((mood) => ({
+    mood: mood.slug,
+    name: musicMoodName(mood, language.value),
+    tracks: (tracks.value || []).filter((track) => track.mood === mood.slug),
+  }))
+  .filter((group) => group.tracks.length)
+  .sort((a, b) => a.name.localeCompare(b.name)))
 const { playing, toggle, stop } = useTrackPreview()
 onBeforeUnmount(stop)
 
@@ -71,7 +77,9 @@ function minutes(seconds: number) {
 
 onMounted(async () => {
   try {
-    tracks.value = (await $fetch('/api/music')).tracks
+    const library = await $fetch('/api/music')
+    moods.value = library.moods
+    tracks.value = library.tracks
   } catch {
     tracks.value = []
     error.value = t('videoMusic.libraryUnavailable')
@@ -130,7 +138,7 @@ onMounted(async () => {
           class="justify-between text-xs font-semibold uppercase text-muted"
           @click="toggleMood(group.mood)"
         >
-          <span>{{ t(`videoMusic.mood.${group.mood}`) }} <span class="font-normal">· {{ group.tracks.length }}</span></span>
+          <span>{{ group.name }} <span class="font-normal">· {{ group.tracks.length }}</span></span>
         </UButton>
         <Transition :css="false" @enter="(element, done) => slide(element, true, done)" @leave="(element, done) => slide(element, false, done)">
         <div v-if="openMoods.has(group.mood)" role="radiogroup" class="mt-1 space-y-1">

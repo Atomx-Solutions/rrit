@@ -1,14 +1,14 @@
 import type { Pool, PoolClient } from 'pg'
-import { musicTrackSchema, type VideoMusic, type VideoMusicChoice } from '../../shared/schemas/music'
+import { musicMoodSchema, musicTrackSchema, type VideoMusic, type VideoMusicChoice } from '../../shared/schemas/music'
 import { downloadAsset } from './asset-storage'
 
 // A library MP3 is a few minutes of music; anything far larger is not one.
-const MAX_TRACK_BYTES = 20 * 1024 * 1024
+export const MAX_TRACK_BYTES = 20 * 1024 * 1024
 
 type TrackRow = {
   id: string
   title: string
-  artist: string
+  artist: string | null
   mood: string
   duration_seconds: string
   credit_text: string | null
@@ -28,10 +28,19 @@ function track(row: TrackRow) {
   })
 }
 
-/** The active library, grouped by mood and then by title. */
+/** The active library, by mood and then by title. */
 export async function listMusicTracks(db: Pool | PoolClient) {
-  const result = await db.query<TrackRow>(`SELECT ${columns} FROM music_tracks WHERE active ORDER BY mood,title`)
+  const result = await db.query<TrackRow>(
+    `SELECT ${columns} FROM music_tracks
+      WHERE active ORDER BY mood,title`,
+  )
   return result.rows.map(track)
+}
+
+/** The moods the library is grouped by. */
+export async function listMusicMoods(db: Pool | PoolClient) {
+  const result = await db.query<{ slug: string; names: unknown }>("SELECT slug,names FROM music_moods ORDER BY names->>'en',slug")
+  return result.rows.map((row) => musicMoodSchema.parse(row))
 }
 
 /** One active track with where its MP3 is kept, or null when it is gone. */

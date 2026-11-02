@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { publishingChannels } from './channel-format'
 
-export const musicMoods = ['calm', 'happy', 'energetic', 'inspiring'] as const
 export const videoMusicSources = ['ai', 'library', 'none'] as const
 
 export const videoMusicSchema = z.discriminatedUnion('source', [
@@ -43,11 +42,23 @@ export function musicForVideo(choices: PlannerVideoMusic | undefined, channel: s
   return forChannel[Math.min(position, forChannel.length - 1)]?.music
 }
 
+// A mood the library is grouped by, kept by the superadmin. Its name is given
+// per app language; English is always there and stands in for a missing one.
+export const musicMoodSchema = z.object({
+  slug: z.string(),
+  names: z.record(z.string(), z.string()),
+})
+export type MusicMood = z.infer<typeof musicMoodSchema>
+
+export function musicMoodName(mood: MusicMood | undefined, language: string) {
+  return mood?.names[language]?.trim() || mood?.names.en || ''
+}
+
 export const musicTrackSchema = z.object({
   id: z.uuid(),
   title: z.string(),
-  artist: z.string(),
-  mood: z.enum(musicMoods),
+  artist: z.string().nullable(),
+  mood: z.string(),
   durationSeconds: z.number(),
   credit: z.string().nullable(),
 })
