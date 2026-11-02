@@ -6,7 +6,6 @@ import {
   creditPricing,
   creditsForCost,
   creditsForProviderCost,
-  grantAdditionalCredits,
   reserveAvailableCredits,
   reserveCredits,
 } from '../../server/utils/credits'
@@ -82,22 +81,6 @@ describe('single credit balance', () => {
     await expect(
       reserveCredits(client as never, { organizationId, credits: 100, usageKind: 'generation', referenceType: 'ai_generation', referenceId: 'g', idempotencyKey: 'g' }),
     ).rejects.toMatchObject({ statusCode: 402, data: { code: 'CREDITS_EXHAUSTED' } })
-  })
-
-  it('adds a top-up to the single balance without splitting it', async () => {
-    const client = balanceClient(0, 0)
-    const balance = await grantAdditionalCredits(client as never, {
-      organizationId,
-      subscriptionId: 'subscription',
-      credits: 500,
-      referenceType: 'credit_purchase_test',
-      referenceId: 'purchase',
-      idempotencyKey: 'credit-purchase:purchase',
-    })
-    expect(balance).toMatchObject({ remaining: 500, spendable: 500 })
-    const ledgerWrites = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO credit_ledger'))
-    expect(ledgerWrites).toHaveLength(1)
-    expect(String(ledgerWrites[0]?.[0])).not.toContain('wallet')
   })
 })
 

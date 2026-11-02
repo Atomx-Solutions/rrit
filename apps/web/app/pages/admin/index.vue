@@ -11,9 +11,8 @@ type Overview = {
   subscriptions: { mrr_cents: number }
   revenue: { total_cents: number }
   sales: { plans_total_cents: number; plans_this_month_cents: number; credits_total_cents: number; credits_this_month_cents: number; videos_total_cents: number; videos_this_month_cents: number }
-  ai: { cost_micro_eur_this_month: number; cost_cents_this_month: number; margin_cents_this_month: number }
+  ai: { cost_cents_this_month: number }
   currency: 'CHF' | 'EUR'
-  signups: { this_month: number }
   new_organizations: NewOrganization[]
 }
 
@@ -31,7 +30,7 @@ watch(error, (value) => {
 
 // The provider balance, so a low balance is noticed here and not only on the
 // AI costs page. Clicking the notice goes there.
-const { data: balance, error: balanceError, refresh: refreshBalance } = await useFetch<{ balance_usd: number | null, level: 'ok' | 'warning' | 'critical', low_balance_usd: number, warn_balance_usd: number }>(
+const { data: balance, error: balanceError, refresh: refreshBalance } = await useFetch<{ balance_usd: number | null, limited_by: 'account' | 'key', key_limit_usd: number | null, level: 'ok' | 'warning' | 'critical', low_balance_usd: number, warn_balance_usd: number, error: string | null }>(
   '/api/admin/ai/balance',
   { lazy: true, getCachedData: () => undefined },
 )
@@ -60,6 +59,26 @@ onMounted(() => {
 
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+// Names what actually stops the AI: the account balance, the key's own limit,
+// or a key OpenRouter no longer accepts.
+const balanceAlert = computed(() => {
+  const value = balance.value
+  if (!value) return { title: '', description: '' }
+  const critical = value.level === 'critical'
+  const threshold = dollars.format(critical ? value.low_balance_usd : value.warn_balance_usd)
+  if (value.error === 'INVALID_KEY')
+    return { title: t('admin.overview.invalidKey'), description: t('admin.overview.invalidKeyHint') }
+  if (value.limited_by === 'key')
+    return {
+      title: t('admin.overview.keyLimit', { balance: dollars.format(value.balance_usd ?? 0), limit: dollars.format(value.key_limit_usd ?? 0) }),
+      description: t('admin.overview.keyLimitHint'),
+    }
+  return {
+    title: t(critical ? 'admin.overview.lowBalance' : 'admin.overview.nearBalance', { balance: dollars.format(value.balance_usd ?? 0) }),
+    description: t(critical ? 'admin.overview.lowBalanceHint' : 'admin.overview.nearBalanceHint', { threshold }),
+  }
+})
+
 const money = (value: number) => new Intl.NumberFormat('sq-XK', {
   style: 'currency',
   currency: overviewCurrency.value,
@@ -73,14 +92,11 @@ const formatDate = (value: string) =>
 const tiles = computed(() => {
   const overview = data.value
   if (!overview) return []
-  const margin = overview.ai.margin_cents_this_month
   return [
     { label: t('admin.overview.activeOrganizations'), hint: t('admin.overview.activeOrganizationsHint'), value: count.format(overview.organizations.active), icon: 'i-lucide-building-2' },
     { label: t('admin.overview.mrr'), hint: t('admin.overview.mrrHint'), value: money(overview.subscriptions.mrr_cents / 100), icon: 'i-lucide-repeat' },
     { label: t('admin.overview.totalRevenue'), hint: t('admin.overview.totalRevenueHint'), value: money(overview.revenue.total_cents / 100), icon: 'i-lucide-receipt' },
     { label: t('admin.overview.aiCost'), hint: t('admin.overview.aiCostHint'), value: money(overview.ai.cost_cents_this_month / 100), icon: 'i-lucide-cpu' },
-    { label: t('admin.overview.aiMargin'), hint: t('admin.overview.aiMarginHint'), value: money(margin / 100), icon: margin < 0 ? 'i-lucide-trending-down' : 'i-lucide-trending-up' },
-    { label: t('admin.overview.signups'), hint: t('admin.overview.signupsHint'), value: count.format(overview.signups.this_month), icon: 'i-lucide-user-plus' },
   ]
 })
 
@@ -122,14 +138,14 @@ const revenueChannels = computed(() => {
         variant="subtle"
         :icon="balance.level === 'critical' ? 'i-lucide-battery-warning' : 'i-lucide-battery-low'"
         class="shrink-0"
-        :title="t(balance.level === 'critical' ? 'admin.overview.lowBalance' : 'admin.overview.nearBalance', { balance: dollars.format(balance.balance_usd ?? 0) })"
-        :description="t(balance.level === 'critical' ? 'admin.overview.lowBalanceHint' : 'admin.overview.nearBalanceHint', { threshold: dollars.format(balance.level === 'critical' ? balance.low_balance_usd : balance.warn_balance_usd) })"
+        :title="balanceAlert.title"
+        :description="balanceAlert.description"
         :actions="[{ label: t('admin.overview.openAiCosts'), color: balance.level === 'critical' ? 'error' : 'warning', variant: 'solid', to: '/admin/ai' }]"
       />
-      <!-- Two tiles per row on phones, three on tablets, all six in a row on wide screens. -->
-      <UPageGrid class="shrink-0 grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+      <!-- Two tiles per row on phones, all four in a row on wide screens. -->
+      <UPageGrid class="shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
         <template v-if="status === 'pending' && !data">
-          <UCard v-for="index in 6" :key="index" variant="subtle" :ui="{ body: 'p-3 sm:p-4 space-y-2' }">
+          <UCard v-for="index in 4" :key="index" variant="subtle" :ui="{ body: 'p-3 sm:p-4 space-y-2' }">
             <USkeleton class="size-8 rounded-full" />
             <USkeleton class="h-6 w-24" />
             <USkeleton class="h-3 w-32 max-w-full" />

@@ -32,10 +32,7 @@ const { onFormError, watchError } = useFormFeedback()
 // Existing packages keep the currency they were agreed in.  The admin area,
 // however, has one central currency, so render each historical package through
 // the live rate API instead of merely replacing the € / CHF label.
-const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>(
-  '/api/admin/settings',
-  { lazy: true, key: 'admin-custom-packages-currency' },
-)
+const { data: platformSettings } = await useAdminSettings()
 const displayCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
 const { data: euroRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
   lazy: true,

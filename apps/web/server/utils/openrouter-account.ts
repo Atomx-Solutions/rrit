@@ -77,8 +77,10 @@ export async function openRouterAccount(): Promise<ProviderAccount | null> {
   }
   if (!base.key && !base.account) {
     const reason = key.status === 'rejected' ? key.reason : credits.status === 'rejected' ? credits.reason : null
-    console.warn('OpenRouter account lookup failed.', { reason: reason instanceof Error ? reason.message : 'unknown' })
-    base.error = 'UNAVAILABLE'
+    const message = reason instanceof Error ? reason.message : 'unknown'
+    console.warn('OpenRouter account lookup failed.', { reason: message })
+    // A rejected key stops every AI call, so it is named apart from an outage.
+    base.error = message === 'OPENROUTER_401' ? 'INVALID_KEY' : 'UNAVAILABLE'
   }
   return base
 }

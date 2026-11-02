@@ -25,6 +25,7 @@ type Invoice = {
   paid_at: string | null
   payment_method: PaymentMethod | null
   payment_note: string | null
+  paid_by_paddle: boolean
 }
 
 type PaymentStatus = 'paid' | 'unpaid' | 'overdue' | 'credited'
@@ -447,7 +448,7 @@ const sourceLabel: Record<string, string> = {
         </template>
         <template #actions-cell="{ row }">
           <UButton
-            v-if="row.original.payment_status === 'unpaid' || row.original.payment_status === 'overdue'"
+            v-if="(row.original.payment_status === 'unpaid' || row.original.payment_status === 'overdue') && !row.original.paid_by_paddle"
             icon="i-lucide-badge-check"
             color="success"
             variant="ghost"
@@ -456,7 +457,7 @@ const sourceLabel: Record<string, string> = {
             @click="openPayment(row.original)"
           />
           <UButton
-            v-else-if="row.original.payment_status === 'paid'"
+            v-else-if="row.original.payment_status === 'paid' && !row.original.paid_by_paddle"
             icon="i-lucide-undo-2"
             color="neutral"
             variant="ghost"

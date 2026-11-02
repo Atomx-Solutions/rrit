@@ -4,9 +4,8 @@ const { t } = useI18n()
 const { onFormError, showError, watchError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.settings')} · Framic Admin`, robots: 'noindex, nofollow' })
 
-type Settings = { ai_top_up_url: string, ai_warn_balance_usd: number, ai_low_balance_usd: number, package_currency: 'CHF' | 'EUR', custom_package_post_price_cents: number, custom_package_credits_per_post: number, package_request_post_options: number[], package_expiry_reminder_days: number }
 const toast = useToast()
-const { data, status, error, refresh } = await useFetch<Settings>('/api/admin/settings', { lazy: true })
+const { data, status, error, refresh } = await useAdminSettings()
 watch(error, (value) => {
   if (value) showError(t('admin.settings.loadError'))
 }, { immediate: true })
@@ -81,7 +80,7 @@ async function saveCurrency() {
   currencySaving.value = true
   try {
     await $fetch('/api/admin/settings', { method: 'PATCH', body: { package_currency: packageCurrency.value } })
-    await refresh()
+    await refreshAfterCurrencyChange()
     toast.add({ title: 'Currency saved', color: 'success' })
   } catch (problem) {
     saveError.value = (problem as { data?: { message?: string } }).data?.message || 'Currency could not be saved.'

@@ -45,6 +45,7 @@ import {
 } from './ai-provider'
 import { contentLanguageForLocale, type AppLocaleValue } from '../../shared/schemas/workspace'
 import { sceneDressingReview, sceneDressingRule } from './scene-dressing'
+import { providerFailureKind } from './ai-provider-alert'
 
 function integer(name: string, max = Number.MAX_SAFE_INTEGER) {
   const value = Number(process.env[name])
@@ -202,7 +203,8 @@ class ProviderHttpFailure extends PlannerFailure {
 
 export function providerHttpFailure(status: number, diagnostic?: ProviderFailureDiagnostic) {
   let code: string
-  if (status === 402) code = 'PROVIDER_CREDIT_REQUIRED'
+  const kind = providerFailureKind(status, diagnostic?.providerMessage)
+  if (kind === 'credit' || kind === 'key_limit') code = 'PROVIDER_CREDIT_REQUIRED'
   else if (status === 429) code = 'PROVIDER_RATE_LIMITED'
   else if ([401, 403].includes(status)) code = 'CONFIGURATION_REQUIRED'
   else if ([408, 425, 500, 502, 503, 504, 524, 529].includes(status))

@@ -35,6 +35,7 @@ export const invoicePaymentChangeSchema = z.discriminatedUnion('status', [
 const paymentFailures: Record<string, { statusCode: number; message: string }> = {
   INVOICE_PAYMENT_NOT_FOUND: { statusCode: 404, message: 'server.INVOICE_NOT_FOUND' },
   INVOICE_PAYMENT_INVALID: { statusCode: 400, message: 'server.VALUES_INVALID' },
+  INVOICE_PAYMENT_MANAGED_BY_PADDLE: { statusCode: 409, message: 'server.INVOICE_PAYMENT_MANAGED_BY_PADDLE' },
 }
 
 /** Records a payment on an invoice, or clears one recorded by mistake. */
@@ -123,6 +124,7 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
       paid_at: string | null
       payment_method: (typeof invoicePaymentMethods)[number] | null
       payment_note: string | null
+      paid_by_paddle: boolean
     }>
     summary: {
       total_revenue_cents: number

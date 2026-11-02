@@ -18,10 +18,7 @@ const emit = defineEmits<{ close: []; done: [] }>()
 const { t } = useI18n()
 const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
-const { data: currencySettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
-  lazy: true,
-  key: 'admin-package-request-currency',
-})
+const { data: currencySettings } = await useAdminSettings()
 // Offers are written in the central admin currency (Admin → Settings).
 const currency = computed(() => currencySettings.value?.package_currency || 'CHF')
 

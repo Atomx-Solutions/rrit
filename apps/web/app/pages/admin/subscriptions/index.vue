@@ -4,10 +4,7 @@ import type { TableColumn } from '@nuxt/ui'
 definePageMeta({ layout: 'admin', middleware: 'superadmin' })
 const { t } = useI18n()
 const { showError } = useFormFeedback()
-const { data: platformSettings } = await useFetch<{ package_currency: 'CHF' | 'EUR' }>('/api/admin/settings', {
-  lazy: true,
-  key: 'admin-subscriptions-platform-currency',
-})
+const { data: platformSettings } = await useAdminSettings()
 const packageCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
 const { data: exchangeRate } = await useFetch<{ rate: number }>('/api/currency/rate', {
   lazy: true,

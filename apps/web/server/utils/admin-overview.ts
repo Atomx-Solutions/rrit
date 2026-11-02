@@ -10,7 +10,7 @@ export type AdminOverview = {
   subscriptions: { mrr_cents: number, active: number, trialing: number }
   revenue: { total_cents: number, this_month_cents: number }
   sales: { plans_total_cents: number, plans_this_month_cents: number, credits_total_cents: number, credits_this_month_cents: number, videos_total_cents: number, videos_this_month_cents: number, vat_total_cents: number, vat_this_month_cents: number }
-  ai: { cost_micro_eur_this_month: number, cost_micro_eur_total: number, cost_cents_this_month: number, margin_cents_this_month: number }
+  ai: { cost_micro_eur_this_month: number, cost_micro_eur_total: number, cost_cents_this_month: number }
   users: { total: number }
   signups: { this_week: number, this_month: number }
   new_organizations: { id: string, name: string, plan_name: string | null, created_at: string }[]
@@ -25,6 +25,17 @@ function record(value: unknown): Record<string, unknown> {
 function number(value: unknown) {
   const parsed = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+const AVERAGE_MONTH_MS = (365.25 / 12) * 24 * 60 * 60 * 1000
+
+/**
+ * A package's price covers its whole period, so a three-month package at 360
+ * is worth 120 a month. The period is rounded to whole months, at least one.
+ */
+export function monthlyPackageCents(priceCents: unknown, startsAt: string, endsAt: string) {
+  const months = Math.max(1, Math.round((Date.parse(endsAt) - Date.parse(startsAt)) / AVERAGE_MONTH_MS) || 1)
+  return Math.round(number(priceCents) / months)
 }
 
 export function normalizeAdminOverview(value: unknown): AdminOverview {
@@ -69,7 +80,6 @@ export function normalizeAdminOverview(value: unknown): AdminOverview {
       cost_micro_eur_this_month: number(ai.cost_micro_eur_this_month),
       cost_micro_eur_total: number(ai.cost_micro_eur_total),
       cost_cents_this_month: number(ai.cost_cents_this_month),
-      margin_cents_this_month: number(ai.margin_cents_this_month),
     },
     users: { total: number(users.total) },
     signups: {
@@ -145,7 +155,8 @@ export async function adminOverview() {
     && new Date(pkg.starts_at).getTime() <= now
     && new Date(pkg.ends_at).getTime() > now)
   let packageMrrCents = 0
-  for (const pkg of inForce) packageMrrCents += await convert(pkg.price_cents, pkg.currency)
+  for (const pkg of inForce)
+    packageMrrCents += await convert(monthlyPackageCents(pkg.price_cents, pkg.starts_at, pkg.ends_at), pkg.currency)
   // Every revenue figure here is net of VAT: VAT is collected for the state,
   // not earned. Monthly revenue is what was invoiced this month (an annual plan
   // counts in full in its purchase month), net of credit notes.
@@ -164,11 +175,6 @@ export async function adminOverview() {
       ...record(overview.ai),
       cost_micro_eur_this_month: costMicroEur,
       cost_cents_this_month: costCents,
-      // The AI margin is real money: credit top-ups sold this month minus what
-      // the provider charged. Credits included in plans are paid for by the
-      // plan price, so valuing them at the credit price would count money never
-      // collected.
-      margin_cents_this_month: totals.credits_this_month_cents - costCents,
     },
   })
 }

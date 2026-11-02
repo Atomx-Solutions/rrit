@@ -958,7 +958,7 @@ export const plannerMessages: Record<string, string> = {
   PROVIDER_REQUEST_REJECTED:
     'Ofruesi AI nuk e pranoi formatin e kërkesës. Platforma duhet ta korrigjojë konfigurimin përpara vazhdimit.',
   PROVIDER_CREDIT_REQUIRED:
-    'Krediti i ofruesit AI ka mbaruar. Mbush kreditin dhe rifillo planin; fotografitë dhe draftet mbeten të sigurta.',
+    'Përgatitja me AI u ndal nga ana jonë. Fotot dhe draftet janë të sigurta.',
   PROVIDER_RATE_LIMITED:
     'Ofruesi AI e kufizoi përkohësisht kërkesën. Provo rifillimin pas pak minutash.',
   RESEARCH_SOURCES_REQUIRED:

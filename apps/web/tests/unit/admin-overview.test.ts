@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeAdminOverview } from '../../server/utils/admin-overview'
+import { monthlyPackageCents, normalizeAdminOverview } from '../../server/utils/admin-overview'
 
 describe('admin overview response', () => {
   it('keeps the documented KPI structure numeric when Supabase has no data', () => {
@@ -16,7 +16,7 @@ describe('admin overview response', () => {
       subscriptions: { mrr_cents: 0, active: 0, trialing: 0 },
       revenue: { total_cents: 0, this_month_cents: 0 },
       sales: { plans_total_cents: 0, plans_this_month_cents: 0, credits_total_cents: 0, credits_this_month_cents: 0, vat_total_cents: 0, vat_this_month_cents: 0, videos_total_cents: 0, videos_this_month_cents: 0 },
-      ai: { cost_micro_eur_this_month: 0, cost_micro_eur_total: 30, cost_cents_this_month: 0, margin_cents_this_month: 0 },
+      ai: { cost_micro_eur_this_month: 0, cost_micro_eur_total: 30, cost_cents_this_month: 0 },
       users: { total: 0 },
       signups: { this_week: 0, this_month: 0 },
       new_organizations: [],
@@ -34,5 +34,12 @@ describe('admin overview response', () => {
     const overview = normalizeAdminOverview({ new_organizations: [{ name: 'no id' }, ...rows] })
     expect(overview.new_organizations).toHaveLength(7)
     expect(overview.new_organizations[0]).toEqual({ id: 'org-0', name: 'Org 0', plan_name: null, created_at: '2026-09-21T10:00:00Z' })
+  })
+
+  it('spreads a package price over the months it covers', () => {
+    expect(monthlyPackageCents(12000, '2026-11-01T00:00:00Z', '2026-12-01T00:00:00Z')).toBe(12000)
+    expect(monthlyPackageCents(36000, '2026-11-01T00:00:00Z', '2027-02-01T00:00:00Z')).toBe(12000)
+    expect(monthlyPackageCents(120000, '2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z')).toBe(10000)
+    expect(monthlyPackageCents(5000, '2026-11-01T00:00:00Z', '2026-11-08T00:00:00Z')).toBe(5000)
   })
 })
