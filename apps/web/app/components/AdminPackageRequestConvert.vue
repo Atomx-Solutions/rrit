@@ -17,14 +17,7 @@ const emit = defineEmits<{ close: []; done: [] }>()
 const { t } = useI18n()
 const toast = useToast()
 const { onFormError, watchError } = useFormFeedback()
-const { data: platformSettings } = await useFetch<{
-  package_currency: 'CHF' | 'EUR'
-  custom_package_post_price_cents: number
-  custom_package_video_price_cents: number
-}>('/api/admin/settings', {
-  lazy: true,
-  key: 'admin-package-request-settings',
-})
+const { data: platformSettings } = await useAdminSettings()
 const currency = computed(() => platformSettings.value?.package_currency || 'CHF')
 
 type OrganizationRow = { id: string; name: string }

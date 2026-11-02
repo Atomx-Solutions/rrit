@@ -160,13 +160,6 @@ export async function grantMonthlyCredits(client: PoolClient, input: { organizat
   )
   return toBalance(updated.rows[0]!)
 }
-export async function grantAdditionalCredits(client: PoolClient, input: { organizationId: string; subscriptionId: string; credits: number; referenceType: string; referenceId: string; idempotencyKey: string; metadata?: Record<string, unknown> }) {
-  positiveInteger(input.credits, 'credits')
-  const balance = await lockBalance(client, input.organizationId)
-  const grant = await writeLedger(client, { ...input, eventType: 'grant', creditDelta: input.credits })
-  if (!grant.rows.length) return toBalance(balance)
-  return updateBalance(client, input.organizationId, input.credits, 0)
-}
 export async function expireRemainingCredits(client: PoolClient, input: { organizationId: string; subscriptionId?: string | null; idempotencyKey: string }) {
   const balance = await lockBalance(client, input.organizationId)
   const amount = Number(balance.remaining_credits)

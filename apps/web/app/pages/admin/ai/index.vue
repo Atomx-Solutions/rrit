@@ -67,53 +67,43 @@ function usdWithEur(value: number) {
 // Provider top-up URL (opens in new tab, user never leaves the admin page)
 // Where "Add credit" goes is a platform setting, because the provider has no
 // card-payment API we could call from here.
-const { data: platformSettings } = await useFetch<{ ai_top_up_url: string, ai_low_balance_usd: number, ai_warn_balance_usd: number }>('/api/admin/settings', { lazy: true })
+const { data: platformSettings } = await useAdminSettings()
 const topUpUrl = computed(() => platformSettings.value?.ai_top_up_url || 'https://openrouter.ai/settings/credits')
 
-const account_balance = computed(() => account.value?.account?.balance_usd ?? null)
-// The threshold comes from the admin settings page.
-const low_balance = computed(() =>
-  account_balance.value !== null && account_balance.value < (platformSettings.value?.ai_warn_balance_usd ?? 30))
+// Warn below the threshold set on the admin settings page; until it loads,
+// there is nothing to compare with.
+const belowWarning = (usd: number | null | undefined) => {
+  const threshold = platformSettings.value?.ai_warn_balance_usd
+  return usd != null && threshold != null && usd < threshold
+}
 
-// Capacity tiles: only what matters for platform health
+// Capacity: what is left in the account, what is left on the key the platform
+// uses (a key can run out before the account does), and today's spend.
 const capacityTiles = computed(() => {
   const a = account.value
   if (!a || a.error || (!a.key && !a.account)) return []
   const tiles = []
-  if (a.account) {
+  if (a.account)
     tiles.push({
       label: t('admin.ai.accountBalance'),
       value: usdWithEur(a.account.balance_usd),
       icon: 'i-lucide-wallet',
-      warn: low_balance.value,
+      warn: belowWarning(a.account.balance_usd),
     })
+  if (a.key?.limit_usd != null)
     tiles.push({
-      label: t('admin.ai.accountDeposited'),
-      value: usdWithEur(a.account.total_credits_usd),
-      icon: 'i-lucide-piggy-bank',
-      warn: false,
-    })
-    tiles.push({
-      label: t('admin.ai.accountUsedTotal'),
-      value: usdWithEur(a.account.total_usage_usd),
-      icon: 'i-lucide-trending-up',
-      warn: false,
-    })
-  }
-  if (a.key) {
-    tiles.push({
-      label: t('admin.ai.currentKeyUsageTotal'),
-      value: usdWithEur(a.key.usage_usd),
+      label: t('admin.ai.keyRemaining', { limit: dollars.format(a.key.limit_usd) }),
+      value: usdWithEur(a.key.limit_remaining_usd ?? 0),
       icon: 'i-lucide-key-round',
-      warn: false,
+      warn: belowWarning(a.key.limit_remaining_usd ?? 0),
     })
+  if (a.key)
     tiles.push({
       label: t('admin.ai.keyToday'),
       value: usdWithEur(a.key.usage_daily_usd),
       icon: 'i-lucide-sun',
       warn: false,
     })
-  }
   return tiles
 })
 

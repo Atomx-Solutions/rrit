@@ -17,12 +17,7 @@ const { data, error, refresh } = await useFetch<{
 // How many credits a package post is funded with lives with the platform
 // settings, not with the credit pricing, but it belongs on this screen: it is
 // the third number that decides what a post costs the business.
-const { data: platform, refresh: refreshPlatform } = await useFetch<{
-  custom_package_credits_per_post: number
-  custom_package_post_price_cents: number
-  custom_package_video_price_cents: number
-  package_currency: 'CHF' | 'EUR'
-}>('/api/admin/settings', { lazy: true, key: 'admin-platform-package-pricing' })
+const { data: platform, refresh: refreshPlatform } = await useAdminSettings()
 watch(error, (value) => {
   if (value) showError(t('admin.plans.loadError'))
 }, { immediate: true })
@@ -164,10 +159,12 @@ async function saveSettings(kind: 'pricing' | 'invoice') {
   try {
     if (Object.keys(body).length)
       await $fetch(kind === 'pricing' ? '/api/admin/plans/credit-pricing' : '/api/admin/plans/invoice-settings', { method: 'PATCH', body })
+    const currencyChanged = alsoPlatform && 'package_currency' in platformChanges.value
     if (alsoPlatform)
       await $fetch('/api/admin/settings', { method: 'PATCH', body: platformChanges.value })
     toast.add({ title: t('admin.plans.saved'), color: 'success' })
-    await Promise.all([refresh(), refreshPlatform()])
+    if (currencyChanged) await refreshAfterCurrencyChange()
+    else await Promise.all([refresh(), refreshPlatform()])
   } catch (problem) {
     toast.add({ title: (problem as { data?: { message?: string } }).data?.message || 'admin.plans.saveFailed', color: 'error' })
   } finally {

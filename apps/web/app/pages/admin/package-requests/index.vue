@@ -11,14 +11,7 @@ useSeoMeta({
 })
 // Lead conversion totals are package prices, so they use the central
 // superadmin currency rather than formatMoney's legacy EUR default.
-const { data: platformSettings } = await useFetch<{
-  package_currency: 'CHF' | 'EUR'
-  custom_package_post_price_cents: number
-  custom_package_video_price_cents: number
-}>('/api/admin/settings', {
-  lazy: true,
-  key: 'admin-package-request-settings',
-})
+const { data: platformSettings } = await useAdminSettings()
 const packageCurrency = computed(() => platformSettings.value?.package_currency || 'CHF')
 // The server converts every won lead from its own currency already.
 const formatConversionMoney = (cents: number) => formatMoney(cents / 100, packageCurrency.value)
