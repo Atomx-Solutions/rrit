@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { createPaddleTransaction, paddleEnabled } from '../../utils/paddle'
 import { belowPaddleMinimum } from '../../../shared/utils/paddle-minimum'
+import { paddlePackageLines } from '../../utils/paddle-package-lines'
 
 const bodySchema = z.object({ packageId: z.uuid() }).strict()
 
@@ -39,43 +40,6 @@ export default defineEventHandler(async (event) => {
     // the offer has to be a package with posts.
     if (!isAddOn && packageRow.posts_included === 0)
       throw createError({ statusCode: 409, message: 'server.ACTIVE_PACKAGE_REQUIRED' })
-    const invoiceQuantity = packageRow.posts_included === 0 && packageRow.videos_included > 0 && packageRow.credits_included === 0
-      ? packageRow.videos_included
-      : packageRow.videos_included === 0 && packageRow.posts_included > 0 && packageRow.credits_included === 0
-        ? packageRow.posts_included
-        : packageRow.posts_included === 0 && packageRow.videos_included === 0 && packageRow.credits_included > 0
-          ? packageRow.credits_included
-          : 1
-    const invoiceLineQuantity = invoiceQuantity > 1 && packageRow.price_cents % invoiceQuantity === 0
-      ? invoiceQuantity
-      : 1
-    const adjustableCredits = packageRow.posts_included === 0
-      && packageRow.videos_included === 0
-      && packageRow.credits_included > 0
-    const adjustableVideos = packageRow.posts_included === 0
-      && packageRow.videos_included > 0
-      && packageRow.credits_included === 0
-    const adjustablePosts = packageRow.posts_included > 0
-      && packageRow.videos_included === 0
-      && packageRow.credits_included === 0
-    const invoiceUnitAmount = packageRow.price_cents / invoiceLineQuantity
-    // Each line names one unit: the invoice already shows how many in its Qty
-    // column, so a count in the name reads as a second, conflicting quantity.
-    const lineItems = [
-      packageRow.posts_included > 0 ? {
-        quantity: packageRow.posts_included,
-        unitAmountCents: packageRow.post_price_cents,
-        name: 'Framic — Post',
-        description: 'Framic posts',
-      } : null,
-      packageRow.videos_included > 0 ? {
-        quantity: packageRow.videos_included,
-        unitAmountCents: packageRow.video_price_cents,
-        name: 'Framic — Video',
-        description: 'Framic videos',
-      } : null,
-    ].filter((item): item is { quantity: number; unitAmountCents: number; name: string; description: string } => !!item)
-
     const existing = await client.query<{ id: string }>(
       `SELECT id FROM paddle_payment_orders WHERE package_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1`,
       [packageRow.id],
@@ -89,22 +53,20 @@ export default defineEventHandler(async (event) => {
         isAddOn ? 'add_on' : 'parent_package'],
     )).rows[0]
 
+    const name = `Framic — ${[
+      packageRow.posts_included && `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`,
+      packageRow.videos_included && `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`,
+      packageRow.credits_included && `${packageRow.credits_included} credits`,
+    ].filter(Boolean).join(' + ')}`
+    const { lines, adjustable } = paddlePackageLines(packageRow, name)
     const transactionId = await createPaddleTransaction({
       amountCents: packageRow.price_cents,
       currency: packageRow.currency,
       description: `Framic purchase: ${packageRow.posts_included} posts, ${packageRow.videos_included} videos, ${packageRow.credits_included} credits`,
-      name: `Framic — ${[
-        packageRow.posts_included && (adjustablePosts ? 'posts' : `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`),
-        packageRow.videos_included && (adjustableVideos ? 'videos' : `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`),
-        packageRow.credits_included && (packageRow.posts_included || packageRow.videos_included)
-          ? `${packageRow.credits_included} credits`
-          : packageRow.credits_included ? 'credits' : '',
-      ].filter(Boolean).join(' + ')}`,
+      name,
       recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
-      quantity: invoiceLineQuantity,
-      adjustableQuantity: adjustableCredits || adjustableVideos || adjustablePosts,
-      unitAmountCents: invoiceUnitAmount,
-      lineItems: lineItems.length > 0 ? lineItems : undefined,
+      adjustableQuantity: adjustable,
+      lineItems: lines,
       customData: { orderId: order!.id, packageId: packageRow.id, organizationId: business.id },
     })
     await client.query(

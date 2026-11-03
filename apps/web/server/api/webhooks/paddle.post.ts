@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
     id?: string
     status?: string
     custom_data?: { orderId?: string }
-    items?: Array<{ quantity?: number }>
+    items?: Array<{ quantity?: number; price?: { quantity?: { minimum?: number; maximum?: number } } }>
   }
 
   // Read before the database transaction opens, so no lock waits on Paddle.
@@ -51,10 +51,14 @@ export default defineEventHandler(async (event) => {
     if (paid) {
       if (!data.id || !data.custom_data?.orderId)
         throw createError({ statusCode: 400, message: 'server.PADDLE_PAYMENT_REFERENCE_INVALID' })
-      await client.query(
-        `SELECT app.sync_paddle_adjusted_quantity($1,$2)`,
-        [data.custom_data.orderId, data.items?.[0]?.quantity || 1],
-      )
+      // Only a one-line checkout whose price allows a range lets the customer
+      // change the quantity; a fixed line already matches the order.
+      const bounds = data.items?.length === 1 ? data.items[0]!.price?.quantity : undefined
+      if (bounds && bounds.minimum !== bounds.maximum)
+        await client.query(
+          `SELECT app.sync_paddle_adjusted_quantity($1,$2)`,
+          [data.custom_data.orderId, data.items![0]!.quantity || 1],
+        )
       await client.query(
         `SELECT app.process_paddle_payment($1,$2,$3)`,
         [data.custom_data.orderId, data.id, payload.event_id],

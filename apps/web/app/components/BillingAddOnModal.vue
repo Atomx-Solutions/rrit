@@ -1,39 +1,65 @@
 <script setup lang="ts">
 /**
- * One request dialog for everything added to a running package (posts,
- * videos, credits): pick an amount, see what it costs, send. The team answers
- * with an offer the customer pays through Paddle.
+ * One request dialog for everything added to a running package: posts, videos
+ * and credits side by side, each with its own amount (zero leaves it out), one
+ * total and one send. The team answers with a single offer paid through Paddle.
  */
+export type AddOnKind = 'posts' | 'videos' | 'credits'
+export type AddOnItem = { kind: AddOnKind; label: string; icon: string; unitPrice: number; max: number; defaultAmount: number }
+
 const props = withDefaults(defineProps<{
   title: string
   description: string
-  icon: string
-  label: string
-  unitPrice: number
+  items: AddOnItem[]
+  /** The kind the dialog was opened for; each other kind joins only when chosen. */
+  primary: AddOnKind
   submitLabel: string
   formatMoney: (value: number) => string
   loading?: boolean
-  min?: number
-  max?: number
-  withMessage?: boolean
   note?: string
-}>(), { loading: false, min: 1, max: 1000, withMessage: false, note: '' })
+}>(), { loading: false, note: '' })
 const open = defineModel<boolean>('open', { default: false })
-const amount = defineModel<number>('amount', { required: true })
+const amounts = defineModel<Record<AddOnKind, number>>('amounts', { required: true })
 const message = defineModel<string>('message', { default: '' })
 const emit = defineEmits<{ submit: [] }>()
 const { t } = useI18n()
-const total = computed(() => amount.value * props.unitPrice)
-const valid = computed(() => amount.value >= Math.max(props.min, 1))
+const total = computed(() => props.items.reduce((sum, item) => sum + (amounts.value[item.kind] || 0) * item.unitPrice, 0))
+const valid = computed(() => props.items.some(item => (amounts.value[item.kind] || 0) > 0))
+const withCredits = computed(() => props.items.some(item => item.kind === 'credits' && amounts.value.credits > 0))
+// The kind the dialog was opened for comes first and stays; each other kind
+// joins only once chosen (or when it still carries an amount) and can be
+// taken out again with its own X.
+const chosen = ref<AddOnKind[]>([])
+watch(open, (value) => {
+  if (value) chosen.value = props.items
+    .filter(item => item.kind !== props.primary && (amounts.value[item.kind] || 0) > 0)
+    .map(item => item.kind)
+}, { immediate: true })
+const visibleItems = computed(() => [props.primary, ...chosen.value]
+  .map(kind => props.items.find(item => item.kind === kind))
+  .filter((item): item is AddOnItem => !!item))
+const hiddenItems = computed(() => props.items.filter(item => item.kind !== props.primary && !chosen.value.includes(item.kind)))
+function choose(item: AddOnItem) {
+  chosen.value = [...chosen.value, item.kind]
+  setAmount(item.kind, item.defaultAmount)
+}
+function remove(kind: AddOnKind) {
+  chosen.value = chosen.value.filter(value => value !== kind)
+  setAmount(kind, 0)
+}
+function setAmount(kind: AddOnKind, value: number | null | undefined) {
+  amounts.value = { ...amounts.value, [kind]: Math.max(0, Number(value) || 0) }
+}
 </script>
 
 <template>
-  <UModal v-model:open="open" :ui="{ footer: 'p-4 sm:p-5' }">
+  <!-- Closes only through its X, so a stray click outside never drops the amounts. -->
+  <UModal v-model:open="open" :dismissible="false">
     <template #content>
       <div class="flex flex-col">
         <div class="flex items-start gap-3 p-5 pb-0">
           <span class="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-            <UIcon :name="icon" class="size-5" />
+            <UIcon :name="items.find(item => item.kind === primary)?.icon || 'i-lucide-package-plus'" class="size-5" />
           </span>
           <div class="min-w-0 flex-1">
             <h2 class="text-base font-semibold text-highlighted">{{ title }}</h2>
@@ -44,33 +70,69 @@ const valid = computed(() => amount.value >= Math.max(props.min, 1))
             color="neutral"
             variant="ghost"
             size="sm"
-            :aria-label="t('common.cancel')"
+            :aria-label="t('common.close')"
             @click="open = false"
           />
         </div>
 
-        <div class="space-y-4 p-5">
-          <div class="rounded-lg border border-default p-4">
-            <p class="text-center text-xs font-medium uppercase tracking-wide text-muted">{{ label }}</p>
+        <div class="space-y-3 p-5">
+          <div
+            v-for="item in visibleItems"
+            :key="item.kind"
+            class="flex flex-wrap items-center gap-2 rounded-lg border p-3 transition-colors sm:flex-nowrap sm:gap-3"
+            :class="amounts[item.kind] > 0 ? 'border-primary/40 bg-primary/5' : 'border-default'"
+            :data-testid="`add-on-${item.kind}`"
+          >
+            <span class="hidden size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary sm:grid">
+              <UIcon :name="item.icon" class="size-4" />
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium">{{ item.label }}</p>
+              <p v-if="item.unitPrice > 0" class="text-xs text-muted tabular-nums">
+                {{ formatMoney(item.unitPrice) }} × {{ amounts[item.kind] || 0 }}
+              </p>
+            </div>
             <LiveInputNumber
-              v-model="amount"
-              :min="min"
-              :max="max"
-              :aria-label="label"
+              :model-value="amounts[item.kind] || 0"
+              :min="1"
+              :max="item.max"
+              :aria-label="item.label"
               variant="none"
-              size="xl"
-              class="mt-2 w-full [&_input:focus-visible]:shadow-none!"
-              :ui="{ base: 'text-center text-4xl font-semibold tabular-nums', increment: 'pe-0', decrement: 'ps-0' }"
-              :increment="{ color: 'primary', variant: 'soft', size: 'lg' }"
-              :decrement="{ color: 'neutral', variant: 'soft', size: 'lg' }"
+              size="lg"
+              class="order-last w-full shrink-0 sm:order-none sm:w-36 [&_input:focus-visible]:shadow-none!"
+              :ui="{ base: 'text-center text-lg font-semibold tabular-nums', increment: 'pe-0', decrement: 'ps-0' }"
+              :increment="{ color: 'primary', variant: 'soft' }"
+              :decrement="{ color: 'neutral', variant: 'soft' }"
+              @update:model-value="setAmount(item.kind, $event)"
             />
-            <p v-if="unitPrice > 0" class="mt-2 text-center text-xs text-muted tabular-nums">
-              {{ formatMoney(unitPrice) }} × {{ amount }}
-            </p>
+            <UButton
+              v-if="item.kind !== primary"
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :aria-label="t('billing.removeItem', { item: item.label })"
+              :data-testid="`add-on-remove-${item.kind}`"
+              @click="remove(item.kind)"
+            />
+          </div>
+
+          <div v-if="hiddenItems.length" class="flex flex-wrap items-center gap-2">
+            <span class="text-xs text-muted">{{ t('billing.addItems') }}</span>
+            <UButton
+              v-for="item in hiddenItems"
+              :key="item.kind"
+              :label="item.label"
+              :icon="item.icon"
+              color="primary"
+              variant="soft"
+              size="sm"
+              :data-testid="`add-on-choose-${item.kind}`"
+              @click="choose(item)"
+            />
           </div>
 
           <div
-            v-if="unitPrice > 0"
             class="flex items-center justify-between gap-3 rounded-lg bg-primary/10 px-4 py-3 ring-1 ring-primary/20 ring-inset"
           >
             <span class="text-sm text-toned">{{ t('request.estimateLabel') }}</span>
@@ -78,14 +140,14 @@ const valid = computed(() => amount.value >= Math.max(props.min, 1))
           </div>
 
           <UTextarea
-            v-if="withMessage"
+            v-if="withCredits"
             v-model="message"
             :placeholder="t('request.message')"
             :rows="2"
             :maxlength="2000"
             class="w-full"
           />
-          <p v-if="note" class="text-xs text-muted">{{ note }}</p>
+          <p v-if="note && withCredits" class="text-xs text-muted">{{ note }}</p>
         </div>
 
         <div class="border-t border-default p-4 sm:p-5">
