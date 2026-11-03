@@ -23,8 +23,13 @@ export function paddleApiKey() {
   return process.env.PADDLE_API_KEY?.trim() || null
 }
 
+/** Live only when PADDLE_ENV is exactly "production"; anything else is sandbox. */
+export function paddleEnvironment(): 'production' | 'sandbox' {
+  return process.env.PADDLE_ENV === 'production' ? 'production' : 'sandbox'
+}
+
 export function paddleApiBaseUrl() {
-  return (process.env.PADDLE_ENV || 'sandbox') === 'production'
+  return paddleEnvironment() === 'production'
     ? 'https://api.paddle.com'
     : 'https://sandbox-api.paddle.com'
 }
@@ -79,7 +84,7 @@ export async function paddleWebhookSourceAllowed(forwardedFor: string | undefine
     return false
   }
 
-  const environment = process.env.PADDLE_ENV === 'production' ? 'production' : 'sandbox'
+  const environment = paddleEnvironment()
   const cached = paddleWebhookIps?.environment === environment ? paddleWebhookIps : null
   if (!cached || Date.now() >= cached.expiresAt) {
     const ranges = await fetchPaddleWebhookRanges()

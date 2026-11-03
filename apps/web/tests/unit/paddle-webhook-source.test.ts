@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ipv4Range, paddleWebhookSourceAllowed } from '../../server/utils/paddle'
+import { ipv4Range, paddleApiBaseUrl, paddleEnvironment, paddleWebhookSourceAllowed } from '../../server/utils/paddle'
 
 const originalVercel = process.env.VERCEL
 const originalPaddleEnv = process.env.PADDLE_ENV
@@ -77,5 +77,16 @@ describe('IPv4 ranges', () => {
     expect(ipv4Range('300.0.0.1/32')).toBeNull()
     expect(ipv4Range('192.0.2.0/33')).toBeNull()
     expect(ipv4Range('2001:db8::/32')).toBeNull()
+  })
+})
+
+describe('Paddle environment', () => {
+  it('is live only for exactly "production", and the API follows it', () => {
+    for (const [value, environment] of [['production', 'production'], [undefined, 'sandbox'], ['', 'sandbox'], ['prod', 'sandbox'], ['live', 'sandbox']] as const) {
+      if (value === undefined) delete process.env.PADDLE_ENV
+      else process.env.PADDLE_ENV = value
+      expect(paddleEnvironment()).toBe(environment)
+      expect(paddleApiBaseUrl()).toBe(environment === 'production' ? 'https://api.paddle.com' : 'https://sandbox-api.paddle.com')
+    }
   })
 })
