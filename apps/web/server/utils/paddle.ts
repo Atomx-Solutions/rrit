@@ -7,6 +7,10 @@ export type PaddleWebhookEnvelope = {
   data: Record<string, unknown>
 }
 
+/** How long one Paddle API call may take before the request gives up on it. */
+export const PADDLE_REQUEST_TIMEOUT_MS = 10_000
+const paddleSignal = () => AbortSignal.timeout(PADDLE_REQUEST_TIMEOUT_MS)
+
 export function paddleEnabled() {
   return process.env.PADDLE_ENABLED === 'true'
 }
@@ -68,7 +72,7 @@ export async function paddleTransactionBuyer(transactionId: string) {
   try {
     const response = await fetch(
       `${paddleApiBaseUrl()}/transactions/${encodeURIComponent(transactionId)}?include=customer,address,business`,
-      { headers: { Authorization: `Bearer ${apiKey}` } },
+      { headers: { Authorization: `Bearer ${apiKey}` }, signal: paddleSignal() },
     )
     if (!response.ok) return null
     const payload = await response.json() as {
@@ -127,6 +131,7 @@ export async function createPaddleTransaction(input: {
     if (priceId) {
       const priceResponse = await fetch(`${paddleApiBaseUrl()}/prices/${encodeURIComponent(priceId)}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
+        signal: paddleSignal(),
       })
       const pricePayload = await priceResponse.json().catch(() => null) as {
         data?: { product_id?: string }
@@ -144,6 +149,7 @@ export async function createPaddleTransaction(input: {
   if (!taxCategory) {
     const productResponse = await fetch(`${paddleApiBaseUrl()}/products/${encodeURIComponent(productId)}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
+      signal: paddleSignal(),
     })
     const productPayload = await productResponse.json().catch(() => null) as {
       data?: { tax_category?: string }
@@ -156,6 +162,7 @@ export async function createPaddleTransaction(input: {
   const response = await fetch(`${paddleApiBaseUrl()}/transactions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    signal: paddleSignal(),
     body: JSON.stringify({
       collection_mode: 'automatic',
       currency_code: input.currency,

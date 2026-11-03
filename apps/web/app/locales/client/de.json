@@ -2274,6 +2274,7 @@
   "server.POST_REMOVED_FROM_NETWORK": "Der Beitrag wurde nach der Veröffentlichung im Netzwerk gelöscht. Er kann erneut veröffentlicht werden.",
   "content.removedFromNetworkCount": "{{count}} Beiträge wurden in den Netzwerken gelöscht und können erneut veröffentlicht werden.",
   "server.PAYMENT_BELOW_MINIMUM": "Dieses Angebot liegt unter dem Mindestbetrag des Zahlungsanbieters. Kontaktiere das Team für ein neues Angebot.",
+  "server.PAYMENT_NOT_PREPARED": "Die Zahlung konnte nicht vorbereitet werden. Bitte versuche es erneut.",
   "content.repostedBadge": "Erneut veröffentlicht",
   "content.deletedBadge": "Im Netzwerk gelöscht",
   "planner.VERIFIED_FACTS_REQUIRED": "Bestätige die Fakten und Quellen unter Mein Unternehmen.",

@@ -2274,6 +2274,7 @@
   "server.POST_REMOVED_FROM_NETWORK": "Postimi u fshi nga rrjeti pas publikimit. Mund të publikohet përsëri.",
   "content.removedFromNetworkCount": "{{count}} postime u fshinë nga rrjetet dhe mund të publikohen përsëri.",
   "server.PAYMENT_BELOW_MINIMUM": "Kjo ofertë është nën shumën minimale që pranon procesori i pagesave. Kontakto ekipin për një ofertë të re.",
+  "server.PAYMENT_NOT_PREPARED": "Pagesa nuk u përgatit. Provo përsëri.",
   "content.repostedBadge": "Ripostuar",
   "content.deletedBadge": "Fshirë në rrjet",
   "planner.VERIFIED_FACTS_REQUIRED": "Konfirmo faktet dhe burimet te Biznesi im.",

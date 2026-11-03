@@ -2274,6 +2274,7 @@
   "server.POST_REMOVED_FROM_NETWORK": "La publication a été supprimée du réseau après sa publication. Elle peut être republiée.",
   "content.removedFromNetworkCount": "{{count}} publications ont été supprimées des réseaux et peuvent être republiées.",
   "server.PAYMENT_BELOW_MINIMUM": "Cette offre est inférieure au montant minimum accepté par le prestataire de paiement. Contactez l’équipe pour une nouvelle offre.",
+  "server.PAYMENT_NOT_PREPARED": "Le paiement n’a pas pu être préparé. Veuillez réessayer.",
   "content.repostedBadge": "Republiée",
   "content.deletedBadge": "Supprimée du réseau",
   "planner.VERIFIED_FACTS_REQUIRED": "Confirmez les faits et les sources dans Mon entreprise.",

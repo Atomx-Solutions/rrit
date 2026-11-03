@@ -2274,6 +2274,7 @@
   "server.POST_REMOVED_FROM_NETWORK": "The post was deleted from the network after publishing. It can be published again.",
   "content.removedFromNetworkCount": "{{count}} posts were deleted from the networks and can be published again.",
   "server.PAYMENT_BELOW_MINIMUM": "This offer is below the minimum amount the payment provider accepts. Contact the team for a new offer.",
+  "server.PAYMENT_NOT_PREPARED": "The payment could not be prepared. Please try again.",
   "content.repostedBadge": "Reposted",
   "content.deletedBadge": "Deleted on network",
   "planner.VERIFIED_FACTS_REQUIRED": "Confirm the facts and sources in My business.",

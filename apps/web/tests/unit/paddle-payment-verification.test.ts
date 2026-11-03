@@ -43,3 +43,28 @@ describe('Paddle payment verification', () => {
     expect(payment).toMatch(/UPDATE paddle_payment_orders\s+SET posts_included=\$2,videos_included=\$3,credits_included=\$4,amount_cents=\$5,currency=\$6/)
   })
 })
+
+describe('Paddle checkout preparation', () => {
+  const paddle = read('../../server/utils/paddle.ts')
+
+  it('calls Paddle only after the database transaction has closed', () => {
+    const firstTransaction = payment.indexOf('const prepared = await withBusinessTransaction')
+    const closed = payment.indexOf('\n  })\n', firstTransaction)
+    const call = payment.indexOf('await createPaddleTransaction(')
+    expect(firstTransaction).toBeGreaterThan(-1)
+    expect(closed).toBeGreaterThan(firstTransaction)
+    expect(call).toBeGreaterThan(closed)
+  })
+
+  it('stores a transaction only if no other click stored one first', () => {
+    expect(payment).toContain('paddle_transaction_id IS NOT DISTINCT FROM $3')
+    expect(payment).toContain('return row.paddle_transaction_id')
+  })
+
+  it('gives every Paddle API call a time limit', () => {
+    const calls = paddle.match(/await fetch\(/g) ?? []
+    const limited = paddle.match(/signal: (paddleSignal\(\)|AbortSignal\.timeout\()/g) ?? []
+    expect(calls.length).toBeGreaterThan(0)
+    expect(limited).toHaveLength(calls.length)
+  })
+})
