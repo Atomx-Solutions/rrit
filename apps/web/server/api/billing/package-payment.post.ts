@@ -40,17 +40,23 @@ export default defineEventHandler(async (event) => {
     // the offer has to be a package with posts.
     if (!isAddOn && packageRow.posts_included === 0)
       throw createError({ statusCode: 409, message: 'server.ACTIVE_PACKAGE_REQUIRED' })
+    // A pending order is reused, but always rewritten from the offer as it is
+    // now: the team may have changed the offer since the last checkout, and
+    // the webhook grants what the order says.
+    const orderValues = [packageRow.posts_included, packageRow.videos_included, packageRow.credits_included,
+      packageRow.price_cents, packageRow.currency, isAddOn ? 'add_on' : 'parent_package']
     const existing = await client.query<{ id: string }>(
-      `SELECT id FROM paddle_payment_orders WHERE package_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1`,
-      [packageRow.id],
+      `UPDATE paddle_payment_orders
+          SET posts_included=$2,videos_included=$3,credits_included=$4,amount_cents=$5,currency=$6,purpose=$7,updated_at=now()
+        WHERE id=(SELECT id FROM paddle_payment_orders WHERE package_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1)
+        RETURNING id`,
+      [packageRow.id, ...orderValues],
     )
     const order = existing.rows[0] || (await client.query<{ id: string }>(
       `INSERT INTO paddle_payment_orders
-        (organization_id,package_id,purpose,posts_included,videos_included,credits_included,amount_cents,currency)
-       VALUES($1,$2,$8,$3,$4,$5,$6,$7) RETURNING id`,
-      [business.id, packageRow.id, packageRow.posts_included, packageRow.videos_included,
-        packageRow.credits_included, packageRow.price_cents, packageRow.currency,
-        isAddOn ? 'add_on' : 'parent_package'],
+        (organization_id,package_id,posts_included,videos_included,credits_included,amount_cents,currency,purpose)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [business.id, packageRow.id, ...orderValues],
     )).rows[0]
 
     const name = `Framic — ${[

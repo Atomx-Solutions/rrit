@@ -31,7 +31,9 @@ export default defineEventHandler(async (event) => {
   const data = payload.data as {
     id?: string
     status?: string
+    currency_code?: string
     custom_data?: { orderId?: string }
+    details?: { totals?: { subtotal?: string } }
     items?: Array<{ quantity?: number; price?: { quantity?: { minimum?: number; maximum?: number } } }>
   }
 
@@ -59,6 +61,13 @@ export default defineEventHandler(async (event) => {
           `SELECT app.sync_paddle_adjusted_quantity($1,$2)`,
           [data.custom_data.orderId, data.items![0]!.quantity || 1],
         )
+      // Only the order's latest transaction, in its currency and for its
+      // amount, grants it; the subtotal is before discounts and tax.
+      const subtotal = data.details?.totals?.subtotal
+      await client.query(
+        `SELECT app.verify_paddle_payment($1,$2,$3,$4)`,
+        [data.custom_data.orderId, data.id, data.currency_code ?? null, subtotal && /^\d+$/.test(subtotal) ? subtotal : null],
+      )
       await client.query(
         `SELECT app.process_paddle_payment($1,$2,$3)`,
         [data.custom_data.orderId, data.id, payload.event_id],
