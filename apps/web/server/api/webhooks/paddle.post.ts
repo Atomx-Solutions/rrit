@@ -1,9 +1,12 @@
-import { paddleEnabled, paddleTransactionBuyer, paddleWebhookSecret, verifyPaddleSignature, type PaddleWebhookEnvelope } from '../../utils/paddle'
+import { paddleEnabled, paddleTransactionBuyer, paddleWebhookSecret, paddleWebhookSourceAllowed, verifyPaddleSignature, type PaddleWebhookEnvelope } from '../../utils/paddle'
 import { database } from '../../utils/database'
 
 export default defineEventHandler(async (event) => {
   if (!paddleEnabled())
     throw createError({ statusCode: 404, message: 'server.NOT_FOUND' })
+
+  if (!await paddleWebhookSourceAllowed(getHeader(event, 'x-vercel-forwarded-for')))
+    throw createError({ statusCode: 403, message: 'server.UNAUTHORIZED' })
 
   const rawBodyValue = await readRawBody(event, false)
   const rawBody = rawBodyValue == null
