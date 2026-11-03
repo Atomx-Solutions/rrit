@@ -29,28 +29,66 @@ export function paddleApiBaseUrl() {
     : 'https://sandbox-api.paddle.com'
 }
 
-let paddleWebhookIps: { addresses: Set<string>; expiresAt: number; environment: string } | null = null
+type Ipv4Range = { network: number; mask: number }
+let paddleWebhookIps: { ranges: Ipv4Range[]; expiresAt: number; environment: string } | null = null
+const PADDLE_IPS_TTL_MS = 5 * 60 * 1000
+const PADDLE_IPS_TIMEOUT_MS = 3000
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
 
-/** Vercel overwrites this header with the request's public source IP. */
+function ipv4Number(value: string) {
+  const parts = IPV4.exec(value)?.slice(1).map(Number)
+  if (!parts || parts.some(part => part > 255)) return null
+  return ((parts[0]! << 24) | (parts[1]! << 16) | (parts[2]! << 8) | parts[3]!) >>> 0
+}
+
+/** Parses "a.b.c.d/n" (or a bare address) into a range; anything else is null. */
+export function ipv4Range(cidr: string): Ipv4Range | null {
+  const [address = '', bits = '32'] = cidr.split('/')
+  const network = ipv4Number(address)
+  const length = /^\d{1,2}$/.test(bits) ? Number(bits) : NaN
+  if (network === null || !(length >= 0 && length <= 32)) return null
+  const mask = length === 0 ? 0 : (0xFFFFFFFF << (32 - length)) >>> 0
+  return { network: (network & mask) >>> 0, mask }
+}
+
+async function fetchPaddleWebhookRanges() {
+  try {
+    const response = await fetch(`${paddleApiBaseUrl()}/ips`, { signal: AbortSignal.timeout(PADDLE_IPS_TIMEOUT_MS) })
+    if (!response.ok) throw new Error(`status ${response.status}`)
+    const payload = await response.json() as { data?: { ipv4_cidrs?: string[] } }
+    const ranges = (payload.data?.ipv4_cidrs || []).map(ipv4Range).filter((range): range is Ipv4Range => !!range)
+    if (!ranges.length) throw new Error('no usable IPv4 ranges')
+    return ranges
+  } catch (error) {
+    console.error('Paddle webhook IP list could not be loaded', error)
+    return null
+  }
+}
+
+/**
+ * Vercel overwrites this header with the request's public source IP. Paddle's
+ * published ranges are cached; when they cannot be reloaded the last list
+ * stays in use, so a short Paddle outage does not turn paid webhooks away.
+ */
 export async function paddleWebhookSourceAllowed(forwardedFor: string | undefined) {
   if (process.env.VERCEL !== '1') return true
   const source = forwardedFor?.split(',')[0]?.trim()
-  if (!source || !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(source)) return false
+  const address = source ? ipv4Number(source) : null
+  if (address === null) {
+    console.error(`Paddle webhook rejected: source "${source ?? ''}" is not an IPv4 address`)
+    return false
+  }
 
   const environment = process.env.PADDLE_ENV === 'production' ? 'production' : 'sandbox'
-  if (!paddleWebhookIps || paddleWebhookIps.environment !== environment || Date.now() >= paddleWebhookIps.expiresAt) {
-    const response = await fetch(`${paddleApiBaseUrl()}/ips`, { signal: AbortSignal.timeout(3000) })
-    if (!response.ok) return false
-    const payload = await response.json() as { data?: { ipv4_cidrs?: string[] } }
-    const cidrs = payload.data?.ipv4_cidrs
-    if (!Array.isArray(cidrs) || !cidrs.length) return false
-    paddleWebhookIps = {
-      addresses: new Set(cidrs.filter(cidr => /^\d{1,3}(?:\.\d{1,3}){3}\/32$/.test(cidr)).map(cidr => cidr.slice(0, -3))),
-      expiresAt: Date.now() + 5 * 60 * 1000,
-      environment,
-    }
+  const cached = paddleWebhookIps?.environment === environment ? paddleWebhookIps : null
+  if (!cached || Date.now() >= cached.expiresAt) {
+    const ranges = await fetchPaddleWebhookRanges()
+    if (ranges) paddleWebhookIps = { ranges, expiresAt: Date.now() + PADDLE_IPS_TTL_MS, environment }
+    else if (!cached) return false
   }
-  return paddleWebhookIps.addresses.has(source)
+  const allowed = paddleWebhookIps!.ranges.some(range => ((address & range.mask) >>> 0) === range.network)
+  if (!allowed) console.error(`Paddle webhook rejected: ${source} is not a published Paddle address`)
+  return allowed
 }
 
 export function paddleProductId() {
