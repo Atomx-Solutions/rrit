@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
+import { ADD_ON_LIMITS, DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
 import type { AddOnItem, AddOnKind } from '~/components/BillingAddOnModal.vue'
 
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
@@ -165,10 +165,10 @@ const canBuyCredits = computed(() => !!customPackage.value)
 const videoPrice = computed(() => ((platformPricing.value?.videoPriceCents ?? 200) / 100) * (billing.value?.exchangeRate || 1))
 const postPrice = computed(() => ((platformPricing.value?.postPriceCents ?? 0) / 100) * (billing.value?.exchangeRate || 1))
 const addOnItems = computed<AddOnItem[]>(() => [
-  { kind: 'posts', label: t('billing.posts'), icon: 'i-lucide-image', unitPrice: postPrice.value, max: 1000, defaultAmount: addOnDefaults.posts },
-  { kind: 'videos', label: t('billing.videos'), icon: 'i-lucide-clapperboard', unitPrice: videoPrice.value, max: 1000, defaultAmount: addOnDefaults.videos },
+  { kind: 'posts', label: t('billing.posts'), icon: 'i-lucide-image', unitPrice: postPrice.value, max: ADD_ON_LIMITS.posts, defaultAmount: addOnDefaults.posts },
+  { kind: 'videos', label: t('billing.videos'), icon: 'i-lucide-clapperboard', unitPrice: videoPrice.value, max: ADD_ON_LIMITS.videos, defaultAmount: addOnDefaults.videos },
   ...(canBuyCredits.value
-    ? [{ kind: 'credits' as const, label: t('billing.credits'), icon: 'i-lucide-coins', unitPrice: creditPrice.value, max: 1000000, defaultAmount: addOnDefaults.credits }]
+    ? [{ kind: 'credits' as const, label: t('billing.credits'), icon: 'i-lucide-coins', unitPrice: creditPrice.value, max: ADD_ON_LIMITS.credits, defaultAmount: addOnDefaults.credits }]
     : []),
 ])
 const addOnTitles: Record<AddOnKind, [title: string, description: string]> = {

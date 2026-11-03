@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { paddlePackageLines } from '../../server/utils/paddle-package-lines'
+import { ADD_ON_LIMITS } from '../../shared/utils/package-defaults'
 
 const base = { posts_included: 0, videos_included: 0, credits_included: 0, price_cents: 0, post_price_cents: 535, video_price_cents: 200 }
 const total = (lines: { quantity: number; unitAmountCents: number }[]) =>
@@ -8,7 +9,7 @@ const total = (lines: { quantity: number; unitAmountCents: number }[]) =>
 describe('Paddle package lines', () => {
   it('charges posts per post and lets the checkout change the count', () => {
     const result = paddlePackageLines({ ...base, posts_included: 14, price_cents: 14 * 535 }, 'x')
-    expect(result.lines).toEqual([{ quantity: 14, unitAmountCents: 535, name: 'Framic — Post', description: 'Framic posts' }])
+    expect(result.lines).toEqual([{ quantity: 14, maximum: ADD_ON_LIMITS.posts, unitAmountCents: 535, name: 'Framic — Post', description: 'Framic posts' }])
     expect(result.adjustable).toBe(true)
   })
 
@@ -16,7 +17,7 @@ describe('Paddle package lines', () => {
     const row = { ...base, posts_included: 10, credits_included: 50, price_cents: 10 * 535 + 100 }
     const result = paddlePackageLines(row, 'x')
     expect(total(result.lines)).toBe(row.price_cents)
-    expect(result.lines.at(-1)).toMatchObject({ quantity: 50, unitAmountCents: 2 })
+    expect(result.lines.at(-1)).toMatchObject({ quantity: 50, maximum: ADD_ON_LIMITS.credits, unitAmountCents: 2 })
     expect(result.adjustable).toBe(false)
   })
 
@@ -30,13 +31,13 @@ describe('Paddle package lines', () => {
 
   it('does not let the count change when credits do not split evenly', () => {
     const result = paddlePackageLines({ ...base, credits_included: 7, price_cents: 1000 }, 'x')
-    expect(result.lines).toEqual([{ quantity: 1, unitAmountCents: 1000, name: 'Framic — 7 credits', description: 'Framic credits' }])
+    expect(result.lines).toEqual([{ quantity: 1, maximum: 1, unitAmountCents: 1000, name: 'Framic — 7 credits', description: 'Framic credits' }])
     expect(result.adjustable).toBe(false)
   })
 
   it('charges a negotiated total as one fixed line', () => {
     const result = paddlePackageLines({ ...base, posts_included: 10, price_cents: 4000 }, 'Framic — 10 posts')
-    expect(result.lines).toEqual([{ quantity: 1, unitAmountCents: 4000, name: 'Framic — 10 posts', description: 'Framic — 10 posts' }])
+    expect(result.lines).toEqual([{ quantity: 1, maximum: 1, unitAmountCents: 4000, name: 'Framic — 10 posts', description: 'Framic — 10 posts' }])
     expect(result.adjustable).toBe(false)
   })
 })

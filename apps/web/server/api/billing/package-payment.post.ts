@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { createPaddleTransaction, paddleEnabled } from '../../utils/paddle'
 import { belowPaddleMinimum } from '../../../shared/utils/paddle-minimum'
-import { paddlePackageLines } from '../../utils/paddle-package-lines'
+import { PADDLE_PRODUCT_BRAND, paddlePackageLines } from '../../utils/paddle-package-lines'
 
 const bodySchema = z.object({ packageId: z.uuid() }).strict()
 
@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
       [business.id, packageRow.id, ...orderValues],
     )).rows[0]
 
-    const name = `Framic — ${[
+    const name = `${PADDLE_PRODUCT_BRAND} — ${[
       packageRow.posts_included && `${packageRow.posts_included} ${packageRow.posts_included === 1 ? 'post' : 'posts'}`,
       packageRow.videos_included && `${packageRow.videos_included} ${packageRow.videos_included === 1 ? 'video' : 'videos'}`,
       packageRow.credits_included && `${packageRow.credits_included} credits`,
@@ -72,10 +72,7 @@ export default defineEventHandler(async (event) => {
     return {
       order: order!,
       transaction: {
-        amountCents: packageRow.price_cents,
         currency: packageRow.currency,
-        description: `Framic purchase: ${packageRow.posts_included} posts, ${packageRow.videos_included} videos, ${packageRow.credits_included} credits`,
-        name,
         recurring: !isAddOn && (packageRow.posts_included > 0 || packageRow.videos_included > 0),
         adjustableQuantity: adjustable,
         lineItems: lines,

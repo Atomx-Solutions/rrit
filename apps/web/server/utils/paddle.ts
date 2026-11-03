@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import type { PaddlePackageLine } from './paddle-package-lines'
 
 export type PaddleWebhookEnvelope = {
   event_id: string
@@ -145,21 +146,14 @@ export async function paddleTransactionBuyer(transactionId: string) {
 
 let paddleTaxCategoryCache: { productId: string; taxCategory: string } | null = null
 
+/** The price name Paddle shows under each line: a recurring or a one-off charge. */
+const PADDLE_PRICE_NAMES = { recurring: 'Monthly', oneTime: 'One-time' } as const
+
 export async function createPaddleTransaction(input: {
-  amountCents: number
   currency: string
-  description: string
-  name: string
   recurring: boolean
-  quantity?: number
-  adjustableQuantity?: boolean
-  unitAmountCents?: number
-  lineItems?: Array<{
-    quantity: number
-    unitAmountCents: number
-    name: string
-    description: string
-  }>
+  adjustableQuantity: boolean
+  lineItems: PaddlePackageLine[]
   customData: Record<string, string>
 }) {
   const apiKey = paddleApiKey()
@@ -209,20 +203,15 @@ export async function createPaddleTransaction(input: {
     body: JSON.stringify({
       collection_mode: 'automatic',
       currency_code: input.currency,
-      items: (input.lineItems?.length ? input.lineItems : [{
-        quantity: input.quantity ?? 1,
-        unitAmountCents: input.unitAmountCents ?? input.amountCents,
-        name: input.name,
-        description: input.description,
-      }]).map((line) => ({
+      items: input.lineItems.map(line => ({
         quantity: line.quantity,
         price: {
           description: line.description,
-          name: input.recurring ? 'Monthly' : 'One-time',
+          name: input.recurring ? PADDLE_PRICE_NAMES.recurring : PADDLE_PRICE_NAMES.oneTime,
           product: { name: line.name, description: line.description, tax_category: taxCategory },
           quantity: {
             minimum: input.adjustableQuantity ? 1 : line.quantity,
-            maximum: input.adjustableQuantity ? 100000 : line.quantity,
+            maximum: input.adjustableQuantity ? line.maximum : line.quantity,
           },
           billing_cycle: input.recurring ? { interval: 'month', frequency: 1 } : null,
           tax_mode: 'account_setting',

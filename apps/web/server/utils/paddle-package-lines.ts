@@ -1,5 +1,12 @@
+import { ADD_ON_LIMITS } from '../../shared/utils/package-defaults'
+
+/** The name every Paddle product line, checkout and invoice line starts with. */
+export const PADDLE_PRODUCT_BRAND = 'Framic'
+
 export type PaddlePackageLine = {
   quantity: number
+  /** The most the checkout may raise this line to, when its quantity is adjustable. */
+  maximum: number
   unitAmountCents: number
   name: string
   description: string
@@ -26,17 +33,17 @@ type PackageRow = {
 export function paddlePackageLines(row: PackageRow, name: string): { lines: PaddlePackageLine[]; adjustable: boolean } {
   const lines: PaddlePackageLine[] = []
   if (row.posts_included > 0)
-    lines.push({ quantity: row.posts_included, unitAmountCents: row.post_price_cents, name: 'Framic — Post', description: 'Framic posts' })
+    lines.push({ quantity: row.posts_included, maximum: ADD_ON_LIMITS.posts, unitAmountCents: row.post_price_cents, name: `${PADDLE_PRODUCT_BRAND} — Post`, description: `${PADDLE_PRODUCT_BRAND} posts` })
   if (row.videos_included > 0)
-    lines.push({ quantity: row.videos_included, unitAmountCents: row.video_price_cents, name: 'Framic — Video', description: 'Framic videos' })
+    lines.push({ quantity: row.videos_included, maximum: ADD_ON_LIMITS.videos, unitAmountCents: row.video_price_cents, name: `${PADDLE_PRODUCT_BRAND} — Video`, description: `${PADDLE_PRODUCT_BRAND} videos` })
 
   const remainder = row.price_cents - lines.reduce((sum, line) => sum + line.quantity * line.unitAmountCents, 0)
   if (row.credits_included > 0 && remainder > 0) {
     lines.push(remainder % row.credits_included === 0
-      ? { quantity: row.credits_included, unitAmountCents: remainder / row.credits_included, name: 'Framic — Credit', description: 'Framic credits' }
-      : { quantity: 1, unitAmountCents: remainder, name: `Framic — ${row.credits_included} credits`, description: 'Framic credits' })
+      ? { quantity: row.credits_included, maximum: ADD_ON_LIMITS.credits, unitAmountCents: remainder / row.credits_included, name: `${PADDLE_PRODUCT_BRAND} — Credit`, description: `${PADDLE_PRODUCT_BRAND} credits` }
+      : { quantity: 1, maximum: 1, unitAmountCents: remainder, name: `${PADDLE_PRODUCT_BRAND} — ${row.credits_included} credits`, description: `${PADDLE_PRODUCT_BRAND} credits` })
   } else if (remainder !== 0 || lines.some(line => line.unitAmountCents <= 0)) {
-    return { lines: [{ quantity: 1, unitAmountCents: row.price_cents, name, description: name }], adjustable: false }
+    return { lines: [{ quantity: 1, maximum: 1, unitAmountCents: row.price_cents, name, description: name }], adjustable: false }
   }
 
   const counts = [row.posts_included, row.videos_included, row.credits_included].filter(count => count > 0)
