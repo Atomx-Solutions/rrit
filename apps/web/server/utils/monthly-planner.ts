@@ -97,6 +97,8 @@ import {
   type PlannerVideoChannelCounts,
   type PlannerEvidence,
   type PlannerTimingSample,
+  plannerTimings,
+  type PlannerTimed,
 } from './monthly-planner-domain'
 import { getBrandForBusiness } from './brands'
 import { loadPlannerBrain } from './business-brain'
@@ -1373,7 +1375,7 @@ function generationAssetIds(evidence: PlannerEvidence) {
     ]
   return evidence.assets.map((asset) => asset.id)
 }
-async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
+async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) {
   // The queue already skips a paused business, but a customer can pause
   // between the claim and this point. Re-read the switch before doing any
   // work: the paid-call boundary would catch it anyway, after a workspace
@@ -1454,7 +1456,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           plan.evidence.capturedAt,
         )
       : null
-    const response = await monthlyProviderCall(db, {
+    const response = await timed('research', monthlyProviderCall(db, {
       ...common,
       // Research must decide the language from audience + local market; never
       // let a dashboard preference preselect it.
@@ -1483,7 +1485,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         // plans only static posts is never told that motion exists.
         ...(plan.evidence.brand.videoDeliverables?.enabled ? { videoDeliverables: { enabled: true } } : {}),
       },
-    })
+    }))
     const research = researchFromResponse(
       response,
       new Date(),
@@ -1557,9 +1559,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     let previousPageStyle: PreviousPageStyle | undefined
     try {
       planningContactSheet = await assetContactSheet(planningAssets)
-      previousPageStyle = await loadPreviousPageStyle(db, plan.business_id, {
+      previousPageStyle = await timed('planning.page_style', loadPreviousPageStyle(db, plan.business_id, {
         analyze: analyzePageStyle,
-      })
+      }))
       // One key per batch. It carries how many slots already existed, so a
       // later request plans its own slots while every earlier tick of this
       // batch reuses the audited response instead of paying again.
@@ -1568,7 +1570,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         plan.evidence_hash,
         `${plannedSoFar.length}:${batchCount}:${previousPageStyle.revision}:${plan.planning_retry_nonce}`,
       )
-      const response = await monthlyProviderCall(db, {
+      const response = await timed('planning', monthlyProviderCall(db, {
         ...common,
         stageKey: planningStageKey,
         capability: 'planning',
@@ -1675,7 +1677,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ? [`data:image/jpeg;base64,${previousPageStyle.contactSheet.toString('base64')}`]
             : []),
         ],
-      })
+      }))
       let editorial
       try {
         editorial = validateEditorialPlan(
@@ -1743,13 +1745,13 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   // A post written for an occasion's visitors speaks their language; every
   // other post speaks the plan's. Text, image and review all follow the slot.
   const slotCommon = { ...common, language: slot.locale || common.language }
-  const assets = await plannerStep('content.assets', () =>
+  const assets = await timed('content.assets', plannerStep('content.assets', () =>
     loadPlannerAssets(
       db,
       plan.business_id,
       generationAssetIds(plan.evidence),
     ),
-  )
+  ))
   if (!assets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
   let contactSheet: Buffer | undefined
   let previousPageStyle: PreviousPageStyle | undefined
@@ -1759,9 +1761,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   try {
     contactSheet = await assetContactSheet(assets)
     brandLogo = await plannerStep('content.logo', () => loadBrandLogo(db, plan.business_id))
-    previousPageStyle = await loadPreviousPageStyle(db, plan.business_id, {
+    previousPageStyle = await timed('content.page_style', loadPreviousPageStyle(db, plan.business_id, {
       analyze: analyzePageStyle,
-    })
+    }))
     const earlier = await db.query<{
       caption: string
       title: string
@@ -1811,7 +1813,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     // distinctness instructions are applied before generation; QA reports a
     // warning for human review instead of spending credits on a second attempt.
     for (let attempt = 0; attempt < 1; attempt++) {
-      const response = await monthlyProviderCall(db, {
+      const response = await timed('content.text', monthlyProviderCall(db, {
         ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'content',
@@ -1863,7 +1865,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ? [`data:image/jpeg;base64,${previousGeneratedContactSheet.toString('base64')}`]
             : []),
         ],
-      })
+      }))
       let rawContent: unknown
       try {
         rawContent = JSON.parse(responseText(response))
@@ -1914,7 +1916,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         // The poster is the photograph fitted to the channel canvas, the same
         // image the render later animates, so what the gallery shows is the
         // video's own first frame.
-        const fitted = await plannerStep('content.video_poster', () =>
+        const fitted = await timed('content.video_poster', plannerStep('content.video_poster', () =>
           fitPhotoToChannel(original!.bytes, slot.channel, {
             outpaint: async (guide, prompt, attempt) => {
               const painted = await monthlyImageCall(db, {
@@ -1928,7 +1930,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             },
             review: reviewExtension,
           }),
-        )
+        ))
         creative = fitted.bytes
         videoPosterFit = fitted.mode
         videoPosterFitReasons = fitted.reasons
@@ -1969,7 +1971,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         revisionFeedback,
         guardrails: slotBrain.guardrails.map((guardrail) => guardrail.text),
       })
-      imageGeneration = await monthlyImageCall(db, {
+      imageGeneration = await timed('content.image', monthlyImageCall(db, {
         ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'image',
@@ -1989,7 +1991,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           : previousGeneratedContactSheet
             ? [{ bytes: previousGeneratedContactSheet }]
             : undefined,
-      })
+      }))
       // The provider result is the complete design. Local processing only
       // normalizes the output and places the approved logo in a dynamically
       // selected clear region; it does not apply a coded layout template.
@@ -1999,7 +2001,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         brandLogo?.bytes,
         content.creative.logoZone,
       )
-      const qualityResponse = await monthlyProviderCall(db, {
+      const qualityResponse = await timed('content.quality', monthlyProviderCall(db, {
         ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'quality',
@@ -2050,7 +2052,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ? [`data:image/jpeg;base64,${previousGeneratedContactSheet.toString('base64')}`]
             : []),
         ],
-      })
+      }))
       quality = normalizeQualityReview(
         qualitySchema.parse(JSON.parse(responseText(qualityResponse))),
       )
@@ -2075,7 +2077,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     )
     await plannerStep('content.persist.storage', () => uploadAsset(storagePath, creative))
     try {
-      const committed = await plannerStep('content.persist', () =>
+      const committed = await timed('content.persist', plannerStep('content.persist', () =>
         transaction(db, async (client) => {
         await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [plan.business_id])
         const locked = await client.query(
@@ -2377,16 +2379,16 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         // deliverable outside this transaction.
         return postId
         }),
-      )
+      ))
       if (!committed) await removeAsset(storagePath)
       // A video is produced in the same run as the posts, because its
       // photograph is its first frame and has to exist first. The render opens
       // its own transactions, so it waits until this one has committed.
       if (committed && slot.deliverable === 'video') {
         try {
-          await plannerStep('content.video_render', () =>
+          await timed('content.video_render', plannerStep('content.video_render', () =>
             renderVideoForPost(plan.owner_id, committed),
-          )
+          ))
         } catch (error) {
           // The post is delivered and its brief is durable, so a render that
           // fails here leaves something the business can start again from the
@@ -2535,10 +2537,22 @@ export async function runMonthlyPlannerTick(
         [plan.id],
       ),
     )
+    const timings = plannerTimings()
+    // One line per run, whatever its outcome, so a slow plan shows which of
+    // its steps took the time.
+    const logTimings = (outcome: string) => console.info('Monthly planner timings', {
+      planId: plan.id,
+      stage: plan.stage,
+      slot: plan.completed_count,
+      outcome,
+      ...timings.summary(),
+    })
     try {
-      await plannerStep('jobs.advance', () => advanceMonthlyPlan(db, plan))
+      await plannerStep('jobs.advance', () => advanceMonthlyPlan(db, plan, timings.timed))
+      logTimings('advanced')
     } catch (error) {
       const code = plannerFailureCode(error)
+      logTimings(code)
       const rawStage =
         typeof error === 'object' && error && 'plannerStage' in error
           ? String(error.plannerStage)

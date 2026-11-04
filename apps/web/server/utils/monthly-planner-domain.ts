@@ -1120,3 +1120,30 @@ export function creativeGeometry(channel: PublishingChannel) {
     safeHeight: percent(retainedHeight * safeShare),
   }
 }
+
+export type PlannerStepTiming = { step: string; ms: number }
+
+/**
+ * How long each step of one planner run took, read once the run ends, so a
+ * slow plan can be traced to its research, strategy, text, image, review or
+ * video the way a video render is traced to its shots.
+ */
+export function plannerTimings(now: () => number = Date.now) {
+  const steps: PlannerStepTiming[] = []
+  const started = now()
+  return {
+    // Takes the step's promise rather than a callback, so the call is written
+    // in place and keeps the narrowing of the variables around it.
+    timed: async <T>(step: string, work: Promise<T>) => {
+      const stepStarted = now()
+      try {
+        return await work
+      } finally {
+        steps.push({ step, ms: now() - stepStarted })
+      }
+    },
+    summary: () => ({ totalMs: now() - started, steps: [...steps] }),
+  }
+}
+
+export type PlannerTimed = ReturnType<typeof plannerTimings>['timed']

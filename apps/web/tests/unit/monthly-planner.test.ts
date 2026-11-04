@@ -20,6 +20,7 @@ import {
   creativeGeometry,
   PlannerFailure,
   plannerIdentityChanged,
+  plannerTimings,
 } from '../../server/utils/monthly-planner-domain'
 import {
   monthlyAiConfigured,
@@ -43,7 +44,7 @@ import {
   removeLogoBackground,
 } from '../../server/utils/image-processing'
 import { loadPlannerAssets } from '../../server/utils/monthly-planner'
-import { generatedPostSchema, editorialPlanSchema } from '../../shared/schemas/monthly-plan'
+import { generatedPostSchema, editorialPlanSchema, slotBriefSchema } from '../../shared/schemas/monthly-plan'
 import { paidAccessForPlanningMonth } from '../../server/utils/trials'
 import { aiProviderJsonSchema } from '../../server/utils/ai-provider'
 import { z } from 'zod'
@@ -118,7 +119,7 @@ function researchFixture(): ProviderResponse {
     ],
   }
 }
-function editorialFixture() {
+function editorialFixture(): z.input<typeof editorialPlanSchema> {
   return {
     objective: 'Introduce the verified business offering',
     audience: 'Local regular customers',
@@ -296,7 +297,7 @@ describe('monthly evidence and provider boundaries', () => {
       selectedAssetIds: [selectedId],
     })
     const research = researchFromResponse(researchFixture(), now)
-    const plan: z.infer<typeof editorialPlanSchema> = editorialFixture()
+    const plan = editorialFixture()
     // One Instagram post was asked for; the model planned a TikTok video.
     Object.assign(plan.slots[0]!, { requiredAssetId: selectedId, deliverable: 'video', channel: 'TikTok' })
     const validated = validateEditorialPlan(plan, evidence, research, '2026-09', 1, undefined, [], { Instagram: 1 }, 0)
@@ -312,7 +313,7 @@ describe('monthly evidence and provider boundaries', () => {
     })
     expect(evidence.assets.map((asset) => asset.id)).toEqual([selectedId])
     const research = researchFromResponse(researchFixture(), now)
-    const plan: z.infer<typeof editorialPlanSchema> = editorialFixture()
+    const plan = editorialFixture()
     plan.slots[0]!.requiredAssetId = selectedId
     expect(validateEditorialPlan(plan, evidence, research, '2026-09', 1).slots[0]).toMatchObject({
       requiredAssetId: selectedId,
@@ -338,7 +339,7 @@ describe('monthly evidence and provider boundaries', () => {
       {
         publishedAt: '2026-09-01T08:00:00.000Z',
         channel: 'Instagram',
-        source: 'social',
+        source: 'instagram',
       },
     ])
     const research = researchFromResponse(researchFixture(), now)
@@ -510,7 +511,7 @@ describe('monthly evidence and provider boundaries', () => {
     const evidence = plannerEvidence(createDemo(), now)
     const research = researchFromResponse(researchFixture(), now)
     const plan = editorialFixture()
-    const earlier = { ...plan.slots[0]!, topic: 'An earlier, different topic', hook: 'An earlier, different hook.' }
+    const earlier = slotBriefSchema.parse({ ...plan.slots[0]!, topic: 'An earlier, different topic', hook: 'An earlier, different hook.' })
     const validated = validateEditorialPlan(plan, evidence, research, '2026-09', 1, undefined, [earlier])
     expect(validated.slots[0]!.day).toBe(earlier.day)
     expect(validated.slots[0]!.channel).toBe(earlier.channel)
@@ -661,6 +662,7 @@ function imagePromptInput() {
       eyebrow: 'Aurum Restaurant',
       cta: 'Ruaje për sonte',
       layout: 'A close detail of the plated main course, anchored low on the left.',
+      logoZone: 'auto' as const,
     },
     slot: {
       channel: 'Instagram' as 'Instagram' | 'Facebook' | 'TikTok',
@@ -691,6 +693,7 @@ describe('AI creative generation', () => {
       eyebrow: 'Aurum Restaurant',
       cta: 'Ruaje për sonte',
       layout: 'An original warm evening composition built around the real dining room.',
+      logoZone: 'auto' as const,
     }
     const monthly = monthlyImagePrompt({
       brand: { name: 'Aurum', industry: 'Restaurant', audience: 'Mysafirë në Prishtinë' },
@@ -1198,5 +1201,29 @@ describe('requested platforms', () => {
     expect(soleChannel({ Instagram: 3 })).toBe('Instagram')
     expect(soleChannel({ Instagram: 2, Facebook: 1 })).toBeUndefined()
     expect(soleChannel({})).toBeUndefined()
+  })
+})
+
+describe('planner timings', () => {
+  it('records every step, including one that fails, and the whole run', async () => {
+    let clock = 0
+    const timings = plannerTimings(() => clock)
+    const step = async (ms: number, failure?: string) => {
+      await Promise.resolve()
+      clock += ms
+      if (failure) throw new Error(failure)
+    }
+    await timings.timed('research', step(40))
+    await expect(timings.timed('planning', step(25, 'provider down'))).rejects.toThrow('provider down')
+    clock += 5
+    expect(timings.summary()).toEqual({
+      totalMs: 70,
+      steps: [{ step: 'research', ms: 40 }, { step: 'planning', ms: 25 }],
+    })
+  })
+
+  it('returns what the timed step returns', async () => {
+    const timings = plannerTimings()
+    await expect(timings.timed('content.text', Promise.resolve('caption'))).resolves.toBe('caption')
   })
 })
