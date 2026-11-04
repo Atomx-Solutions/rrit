@@ -1,3 +1,18 @@
+import { createRequire } from 'node:module'
+
+// The ffmpeg and ffprobe builds the video pipeline runs. They are program
+// files rather than code, so the server bundle would leave them out unless it
+// is told to carry them; a Vercel function has no ffmpeg of its own.
+const mediaBinaries = (() => {
+  const require = createRequire(import.meta.url)
+  try {
+    return [require('ffmpeg-static') as string | null, (require('ffprobe-static') as { path: string }).path]
+      .filter((path): path is string => !!path)
+  } catch {
+    return []
+  }
+})()
+
 const appHost = (() => {
   try {
     return process.env.APP_URL ? new URL(process.env.APP_URL).hostname : undefined
@@ -62,6 +77,7 @@ export default defineNuxtConfig({
     output: process.env.VERCEL
       ? {}
       : { dir: process.env.NITRO_OUTPUT_DIR || '.output' },
+    externals: { traceInclude: mediaBinaries },
     vercel: {
       functions: { maxDuration: functionMaxDurationSeconds },
       // The planner runs from this cron on Vercel, where no process stays up
