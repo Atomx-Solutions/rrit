@@ -876,6 +876,19 @@ describe('retention policy', () => {
     expect(run.rows[0].last_completed_at).toBeInstanceOf(Date)
   })
 })
+describe('retention clean-up running twice', () => {
+  it('leaves at once while another clean-up holds the lock, instead of waiting with a connection', async () => {
+    const holder = await pool.connect()
+    try {
+      await holder.query('BEGIN')
+      await holder.query("SELECT pg_advisory_xact_lock(hashtext('rrit-retention'))")
+      await expect(runRetentionBatch(pool)).resolves.toEqual({ skipped: true })
+    } finally {
+      await holder.query('ROLLBACK')
+      holder.release()
+    }
+  })
+})
 describe('AI cost reservations', () => {
   it('calculates configured cost and permits only one reservation per generation', async () => {
     expect(aiCostConfigured()).toBe(true)

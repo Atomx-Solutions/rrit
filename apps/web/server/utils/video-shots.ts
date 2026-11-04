@@ -2,7 +2,7 @@ import type { Canvas } from '../../shared/schemas/channel-format'
 import type { Storyboard } from '../../shared/schemas/storyboard'
 import { generateAiVideo } from './ai-video-provider'
 import { padFrameToCanvas } from './image-processing'
-import { extractLastFrame, extractVideoFrames } from './video-compose'
+import { extractVideoFrames } from './video-compose'
 import { buildShotExecutionBrief } from './video-execution-brief'
 import { verifyVideoSubject } from './video-subject-check'
 
@@ -24,7 +24,6 @@ export type ShotDependencies = {
   reserveRetry: (seconds: number, shot: number) => Promise<boolean>
   generate: typeof generateAiVideo
   verify: typeof verifyVideoSubject
-  lastFrameOf: typeof extractLastFrame
   framesOf: typeof extractVideoFrames
 }
 
@@ -34,19 +33,19 @@ const defaults: ShotDependencies = {
   reserveRetry: async () => false,
   generate: generateAiVideo,
   verify: verifyVideoSubject,
-  lastFrameOf: extractLastFrame,
   framesOf: extractVideoFrames,
 }
 
 /**
- * Generates every shot of a storyboard with the configured motion model, one
- * after another. The first shot starts on its photograph unless the director
- * wrote an arrival; a later shot from the same photograph as the one before
- * starts on that shot's last frame, so the motion carries on without a jump,
- * while a shot from another photograph starts on its own, as a new scene. A
- * shot that ends on its photograph is pinned to it as its last frame, the
- * final shot always is. Every shot is held against its own photograph before
- * the next one is made.
+ * Generates every shot of a storyboard with the configured motion model, all
+ * at once. Each shot is a scene of its own: it opens on its photograph, with
+ * its own framing and move, instead of carrying on from the frame another
+ * shot ended on, so the video changes view from scene to scene and no shot
+ * waits for another. The first shot may open away from its photograph when
+ * the director wrote an arrival and the model can still be pinned to it at
+ * the end. A shot that ends on its photograph is pinned to it as its last
+ * frame; the final shot always is. Every shot is held against its own
+ * photograph.
  */
 export async function generateStoryboardShots(input: {
   storyboard: Storyboard
@@ -60,33 +59,26 @@ export async function generateStoryboardShots(input: {
   lastFrameSupported: boolean
   guardrails?: string[]
   maxLength?: number
-  // 'stop' ends the take at the first shot that changed the subject so a
-  // calmer take can be tried; 'record' keeps going and reports it, so the
-  // last take is always delivered for the business to judge and edit.
+  // 'stop' gives the take up when a shot changed the subject so a calmer take
+  // can be tried; 'record' keeps every shot and reports it, so the last take
+  // is always delivered for the business to judge and edit.
   onSubjectChange?: 'stop' | 'record'
 }, dependencies: Partial<ShotDependencies> = {}) {
   const deps = { ...defaults, ...dependencies }
   const photographs = await Promise.all(
     [input.fitted, ...(input.extraFitted || [])].map((image) => padFrameToCanvas(image, input.provider.canvas)),
   )
-  const clips: Buffer[] = []
-  const subjectChanges: { shot: number; reason: string }[] = []
-  let costUsd: number | null = 0
-  for (const [index, shot] of input.storyboard.shots.entries()) {
-    const final = index === input.storyboard.shots.length - 1
+  const shots = input.storyboard.shots
+  const shoot = async (shot: Storyboard['shots'][number], index: number) => {
+    const final = index === shots.length - 1
     const photograph = photographs[shot.photoIndex ?? 0] || photographs[0]!
-    const sameScene = index > 0 && (input.storyboard.shots[index - 1]!.photoIndex ?? 0) === (shot.photoIndex ?? 0)
     const endsOnPhotograph = (shot.endsOnPhotograph || final) && input.lastFrameSupported
     // An arrival may open away from the photograph only when the model can
-    // still be pinned to it at the end; otherwise it starts on it.
-    const start: 'photograph' | 'previous_shot' | 'free' = sameScene
-      ? 'previous_shot'
-      : index === 0 && !shot.opensOnPhotograph && endsOnPhotograph ? 'free' : 'photograph'
-    const firstFrame = start === 'previous_shot'
-      ? await deps.lastFrameOf(clips[index - 1]!, input.provider.canvas)
-      : start === 'photograph' ? photograph : undefined
-    const request = (opening: typeof start, image: Buffer | undefined) => deps.generate({
-      image,
+    // still be pinned to it at the end; every other shot opens on it.
+    const start: 'photograph' | 'free' =
+      index === 0 && !shot.opensOnPhotograph && endsOnPhotograph ? 'free' : 'photograph'
+    const request = (opening: typeof start) => deps.generate({
+      image: opening === 'photograph' ? photograph : undefined,
       lastFrame: endsOnPhotograph ? photograph : undefined,
       prompt: buildShotExecutionBrief({
         storyboard: input.storyboard,
@@ -100,39 +92,49 @@ export async function generateStoryboardShots(input: {
       canvas: input.provider.canvas,
       aspectRatio: input.provider.aspectRatio,
     })
-    const shoot = async () => {
+    const attempt = async () => {
       let generated
       const generationStarted = Date.now()
       try {
-        generated = await request(start, firstFrame)
+        generated = await request(start)
       } catch (error) {
         // A model that will not take a closing frame alone gets the photograph
         // as its opening frame too, rather than losing the shot.
         if (start !== 'free') throw error
-        generated = await request('photograph', photograph)
+        generated = await request('photograph')
       }
       if (!generated) throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
       deps.onTiming(`shot_${index + 1}_generate`, Date.now() - generationStarted)
-      costUsd = costUsd === null || generated.costUsd === null ? null : costUsd + generated.costUsd
       deps.onCost(generated.costUsd)
       const checkStarted = Date.now()
       const check = await deps.verify({ photograph, frames: await deps.framesOf(generated.bytes, [0.3, 0.6, 0.95]) })
       deps.onTiming(`shot_${index + 1}_check`, Date.now() - checkStarted)
       deps.onCost(check.costUsd ?? 0)
-      return { bytes: generated.bytes, check }
+      return { bytes: generated.bytes, costUsd: generated.costUsd, check }
     }
-    let taken = await shoot()
+    let taken = await attempt()
+    let costUsd: number | null = taken.costUsd
     // A shot that changed the subject is shot once more on its own before the
     // whole take is given up, when that one shot can still be paid for.
-    if (!taken.check.sameSubject && await deps.reserveRetry(shot.durationSeconds, index + 1))
-      taken = await shoot()
-    if (!taken.check.sameSubject) {
-      if (input.onSubjectChange !== 'record') throw new ShotSubjectChanged(index + 1, taken.check.reason)
-      subjectChanges.push({ shot: index + 1, reason: taken.check.reason })
+    if (!taken.check.sameSubject && await deps.reserveRetry(shot.durationSeconds, index + 1)) {
+      taken = await attempt()
+      costUsd = costUsd === null || taken.costUsd === null ? null : costUsd + taken.costUsd
     }
-    clips.push(taken.bytes)
+    return { bytes: taken.bytes, costUsd, check: taken.check }
   }
-  return { clips, costUsd, subjectChanges }
+  // Every shot is waited for, even when one fails, so what each of them cost
+  // is reported before the take is given up.
+  const results = await Promise.allSettled(shots.map(shoot))
+  const failed = results.find((result) => result.status === 'rejected')
+  if (failed) throw failed.reason
+  const taken = results.map((result) => (result as PromiseFulfilledResult<Awaited<ReturnType<typeof shoot>>>).value)
+  const subjectChanges = taken.flatMap((shot, index) =>
+    shot.check.sameSubject ? [] : [{ shot: index + 1, reason: shot.check.reason }])
+  if (subjectChanges.length && input.onSubjectChange !== 'record')
+    throw new ShotSubjectChanged(subjectChanges[0]!.shot, subjectChanges[0]!.reason)
+  const costUsd = taken.reduce<number | null>(
+    (sum, shot) => (sum === null || shot.costUsd === null ? null : sum + shot.costUsd), 0)
+  return { clips: taken.map((shot) => shot.bytes), costUsd, subjectChanges }
 }
 
 /** The shot length the model renders that is closest to the one asked for. */

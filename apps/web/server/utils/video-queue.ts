@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
 import { aiVideoConfigured } from './ai-video-provider'
 import { monthlyWorkerDatabase } from './monthly-planner'
-import { plannerRunSettings, runPlannerLanes, videoQueueSettings } from './monthly-planner-domain'
+import { plannerRunSettings, runClaimedJobs, videoQueueSettings } from './monthly-planner-domain'
 import { failStoppedRender, renderQueuedVideo, type ClaimedVideoRender } from './video-render'
 
 function warnQueue(message: string, error: unknown) {
@@ -107,21 +107,19 @@ export async function runVideoRenderQueue(
       db,
       useRuntimeConfig().functionMaxDurationSeconds + lease.leaseMarginMs / 1000,
     )
-    await runPlannerLanes({
+    await runClaimedJobs<ClaimedVideoRender>({
       concurrency: settings.concurrency,
       deadline,
       minStepMs: settings.minRenderMs,
       idleMs: settings.pollMs,
       waitWhile: options.waitWhile,
-      next: async () => {
-        const job: ClaimedVideoRender | undefined = await claimVideoRender(db, leaseOwner, leaseUntil(), settings.concurrency)
-        if (!job) return false
-        // The render records its own failure on the post and gives the
-        // credits back, so the lane only notes it and moves on.
-        await renderQueuedVideo(job).catch((error: unknown) =>
-          warnQueue('A queued video could not be rendered', error))
-        return true
+      claim: () => claimVideoRender(db, leaseOwner, leaseUntil(), settings.concurrency),
+      // The render records its own failure on the post and gives the credits
+      // back, so the run only notes it and moves on.
+      run: async (job) => {
+        await renderQueuedVideo(job)
       },
+      onError: (error) => warnQueue('A queued video could not be claimed or rendered', error),
     })
   } finally {
     if (renewal) clearInterval(renewal)

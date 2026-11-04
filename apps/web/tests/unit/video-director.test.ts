@@ -195,6 +195,13 @@ describe('storyboard rules', () => {
     expect(storyboardShape({ ...limits, maxSeconds: 6 })).toEqual({ minShots: 1, maxShots: 1, totalSeconds: 6 })
   })
 
+  it('tells a video in one continuous shot when only one is allowed, so it needs one call to the motion model', () => {
+    const one = { ...limits, maxShots: 1 }
+    expect(storyboardShape(one)).toEqual({ minShots: 1, maxShots: 1, totalSeconds: 8 })
+    expect(storyboardProblems(storyboard(), one).join(' ')).toContain('one continuous shot')
+    expect(storyboardShape({ ...limits, maxShots: 2 })).toEqual({ minShots: 2, maxShots: 2, totalSeconds: 12 })
+  })
+
   it('allows only shot lengths the configured model renders', () => {
     const odd = storyboard()
     odd.shots[0]!.durationSeconds = 5
@@ -216,6 +223,9 @@ describe('the creative director', () => {
     expect(brief).not.toContain('drone flights, push-ins')
     const several = directorInstructions({ ...input, limits: { ...limits, photos: 2 } })
     expect(several).toContain('at most 45 degrees')
+    const single = directorInstructions({ ...input, limits: { ...limits, maxShots: 1 } })
+    expect(single).toContain('It is one continuous shot of 8 seconds')
+    expect(single).not.toContain('separate shots')
     expect(several).toContain('descending from the sky')
     expect(brief).toContain('never 360 degrees')
     expect(brief).toContain('Albanian')
@@ -274,9 +284,9 @@ describe('the creative director', () => {
 
 describe('the cinematic shot prompt', () => {
   it('briefs one shot like a cinematographer and keeps the subject rules', () => {
-    const brief = buildShotExecutionBrief({ storyboard: storyboard(), index: 1, start: 'previous_shot', endsOnPhotograph: true, guardrails: ['No speed claims.'] })
+    const brief = buildShotExecutionBrief({ storyboard: storyboard(), index: 1, start: 'photograph', endsOnPhotograph: true, guardrails: ['No speed claims.'] })
     expect(brief).toContain('8-second shot, shot 2 of 2')
-    expect(brief).toContain('the last frame of the previous shot')
+    expect(brief).toContain('starts exactly on the supplied first frame, a real photograph')
     expect(brief).toContain('ends exactly on the supplied last frame, the real photograph')
     expect(brief).toContain('Lens: 35mm')
     expect(brief).toContain('Ease: ease-in-out')

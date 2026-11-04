@@ -120,6 +120,9 @@ export type StoryboardLimits = {
   durations: number[]
   minSeconds: number
   maxSeconds: number
+  // The most shots a video may have, at most maxStoryboardShots. Each shot is
+  // one call to the motion model, so fewer shots make a video sooner.
+  maxShots?: number
   // How many photographs of the subject the video is made from; one when unset.
   photos?: number
 }
@@ -144,7 +147,8 @@ export function storyboardShape(limits: StoryboardLimits) {
     const fitting = totals(count).filter((sum) => sum >= limits.minSeconds && sum <= limits.maxSeconds)
     return fitting.length ? Math.max(...fitting) : null
   }
-  const counts = Array.from({ length: maxStoryboardShots }, (_, index) => index + 1)
+  const most = Math.min(maxStoryboardShots, Math.max(1, limits.maxShots ?? maxStoryboardShots))
+  const counts = Array.from({ length: most }, (_, index) => index + 1)
     .filter((count) => best(count) !== null)
   const multiShot = counts.filter((count) => count >= minStoryboardShots)
   const allowed = multiShot.length ? multiShot : counts
@@ -166,7 +170,9 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
   const shape = storyboardShape(limits)
   if (shape) {
     if (storyboard.shots.length < shape.minShots || storyboard.shots.length > shape.maxShots)
-      problems.push(`Tell the video in ${shape.minShots} to ${shape.maxShots} separate shots; it has ${storyboard.shots.length}.`)
+      problems.push(shape.maxShots === 1
+        ? `Tell the video in one continuous shot; it has ${storyboard.shots.length}.`
+        : `Tell the video in ${shape.minShots} to ${shape.maxShots} separate shots; it has ${storyboard.shots.length}.`)
     if (total !== shape.totalSeconds)
       problems.push(`The shots must last ${shape.totalSeconds} seconds together, the full length of the video; they last ${total}.`)
   } else if (total < limits.minSeconds || total > limits.maxSeconds)

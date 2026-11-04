@@ -345,15 +345,22 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
     // from the fitted photograph. Without a valid storyboard the strategy's
     // own shot direction is rendered as before.
     // The video moves through the scene its still post shows: the photograph
-    // dressed with the props that belong to this business, without type.
-    const dressed = await timed('dress_scene', () => dressVideoScene({
-      photograph: snapshot.fitted!,
+    // dressed with the props that belong to this business, without type. Only
+    // the shots need the dressed photograph, so the director plans the video
+    // from the fitted one while the scene is dressed, and neither waits for
+    // the other.
+    const undressed = snapshot.fitted!
+    const dressing = timed('dress_scene', () => dressVideoScene({
+      photograph: undressed,
       channel: snapshot.channel,
       brand: snapshot.director.brand,
       post: snapshot.director.post,
-    }))
-    fitCostUsd += dressed.costUsd
-    snapshot.fitted = dressed.bytes
+    })).then((dressed) => {
+      fitCostUsd += dressed.costUsd
+      snapshot.fitted = dressed.bytes
+    })
+    // A render that stops before its first shot still settles the dressing.
+    dressing.catch(() => undefined)
     const capabilities = await aiVideoCapabilities(snapshot.canvas)
     let limits = { ...videoLengthLimits(capabilities.durations), photos: 1 + extraFitted.length }
     // The video is planned within what the business can pay for: the model's
@@ -416,6 +423,7 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
     }
     // One take: the director's storyboard, shot by shot.
     const take = async (storyboard: Storyboard, onSubjectChange: 'stop' | 'record') => {
+      await dressing
       const crossfade = videoCrossfadeSeconds()
       const shots = await generateStoryboardShots({
         storyboard,
@@ -458,7 +466,7 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
       direct: async (previousAttempt) => {
         failureReason = 'direction_failed'
         const direction = await timed('direct', () => directVideo({
-          photograph: snapshot.fitted!,
+          photograph: undressed,
           extraPhotographs: extraFitted,
           channel: snapshot.channel,
           limits,

@@ -65,7 +65,7 @@ function fakes(lastFrame = Buffer.from('previous-last-frame')) {
 }
 
 describe('generating a storyboard shot by shot', () => {
-  it('chains each shot from the last frame of the one before and ends on the photograph', async () => {
+  it('opens every shot on its photograph as a scene of its own and ends on the photograph', async () => {
     const deps = fakes()
     const fitted = await photo()
     const result = await generateStoryboardShots({
@@ -80,10 +80,26 @@ describe('generating a storyboard shot by shot', () => {
     expect(first!.durationSeconds).toBe(4)
     expect(first!.lastFrame).toBeUndefined()
     expect(second!.durationSeconds).toBe(8)
-    expect(second!.image).toEqual(Buffer.from('previous-last-frame'))
+    // The second scene opens on the photograph, not on where the first ended.
+    expect(second!.image).toEqual(first!.image)
     // The final shot is pinned to the photograph at its end.
     expect(second!.lastFrame).toBeInstanceOf(Buffer)
     expect(deps.verify).toHaveBeenCalledTimes(2)
+  })
+
+  it('sends every shot to the motion model at once, so none waits for another', async () => {
+    let inFlight = 0
+    let peak = 0
+    const deps = fakes()
+    deps.generate.mockImplementation(async () => {
+      inFlight++
+      peak = Math.max(peak, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      inFlight--
+      return { bytes: Buffer.from('clip'), costUsd: 0.4 }
+    })
+    await generateStoryboardShots({ storyboard: board([shot(4), shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
+    expect(peak).toBe(3)
   })
 
   it('starts a shot from another photograph on that photograph and holds it against it', async () => {
@@ -133,15 +149,15 @@ describe('generating a storyboard shot by shot', () => {
     expect(retry.image).toBeInstanceOf(Buffer)
   })
 
-  it('stops at the first shot that changes the subject, having reported what it paid', async () => {
+  it('gives the take up when a shot changes the subject, having reported what every shot paid', async () => {
     const deps = { ...fakes(), onCost: vi.fn() }
     deps.verify.mockResolvedValueOnce({ sameSubject: true, reason: 'same' }).mockResolvedValueOnce({ sameSubject: false, reason: 'different wheels' })
     const result = generateStoryboardShots({ storyboard: board([shot(4), shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
     await expect(result).rejects.toBeInstanceOf(ShotSubjectChanged)
     await expect(result).rejects.toMatchObject({ shot: 2, reason: 'different wheels' })
-    expect(deps.generate).toHaveBeenCalledTimes(2)
-    // Two shots and two subject checks were paid for.
-    expect(deps.onCost).toHaveBeenCalledTimes(4)
+    // The shots run at once, so all three were made before the change was seen.
+    expect(deps.generate).toHaveBeenCalledTimes(3)
+    expect(deps.onCost).toHaveBeenCalledTimes(6)
   })
 
   it('shoots a shot that changed the subject once more on its own before giving up the take', async () => {
@@ -158,7 +174,8 @@ describe('generating a storyboard shot by shot', () => {
     deps.verify.mockResolvedValue({ sameSubject: false, reason: 'different cup' })
     const result = generateStoryboardShots({ storyboard: board([shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
     await expect(result).rejects.toMatchObject({ shot: 1, reason: 'different cup' })
-    expect(deps.generate).toHaveBeenCalledTimes(2)
+    // Each of the two shots was made, shot once more, and still changed.
+    expect(deps.generate).toHaveBeenCalledTimes(4)
   })
 
   it('on the delivered take, keeps every shot and reports which changed the subject', async () => {
@@ -179,7 +196,7 @@ describe('generating a storyboard shot by shot', () => {
     const deps = { ...fakes(), onCost: vi.fn() }
     deps.verify.mockResolvedValue({ sameSubject: true, reason: 'same', costUsd: 0.002 } as never)
     await generateStoryboardShots({ storyboard: board([shot(6), shot(6)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
-    expect(deps.onCost.mock.calls.map((call) => call[0])).toEqual([0.4, 0.002, 0.4, 0.002])
+    expect(deps.onCost.mock.calls.map((call) => call[0]).sort()).toEqual([0.002, 0.002, 0.4, 0.4])
   })
 
   it('reports an unknown cost when any shot reports none', async () => {

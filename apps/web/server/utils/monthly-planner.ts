@@ -100,7 +100,7 @@ import {
   type PlannerTimingSample,
   plannerTimings,
   plannerRunSettings,
-  runPlannerLanes,
+  runClaimedJobs,
   type PlannerTimed,
 } from './monthly-planner-domain'
 import { getBrandForBusiness } from './brands'
@@ -2439,7 +2439,9 @@ function warnPlannerWrite(message: string, error: unknown) {
     typeof error === 'object' && error && 'code' in error
       ? String(error.code).slice(0, 64)
       : undefined
-  console.warn(message, { code })
+  // A connection timeout carries no code, so its message says what happened.
+  const reason = error instanceof Error ? error.message.slice(0, 200) : undefined
+  console.warn(message, { code, reason })
 }
 
 // Keeps the planner shown as alive while a run is busy with a long step. It
@@ -2689,19 +2691,19 @@ export async function runMonthlyPlannerBatch(
   heartbeat.unref()
   try {
     if (options.discover !== false) await discoverMonthlyPlans(db)
-    const next = async () => {
-      const plan = await claimMonthlyPlan(db, leaseOwner, leaseUntil(), settings.concurrency)
-      if (!plan) return false
-      await advanceClaimedPlan(db, plan)
-      return true
-    }
-    if (options.once) await next()
-    else
-      await runPlannerLanes({
+    const claim = () => claimMonthlyPlan(db, leaseOwner, leaseUntil(), settings.concurrency)
+    if (options.once) {
+      const plan = await claim()
+      if (plan) await advanceClaimedPlan(db, plan)
+    } else
+      await runClaimedJobs({
         concurrency: settings.concurrency,
         deadline,
         minStepMs: settings.minStepMs,
-        next,
+        idleMs: settings.pollMs,
+        claim,
+        run: (plan) => advanceClaimedPlan(db, plan),
+        onError: (error) => warnPlannerWrite('A planner run could not claim or advance a plan this time.', error),
       })
   } finally {
     clearInterval(heartbeat)

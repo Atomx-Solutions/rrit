@@ -62,6 +62,20 @@ describe('planner runs started from a request', () => {
     expect(waitWhile?.()).toBe(false)
   })
 
+  it('waits for the plans to finish when the videos fail, and only then reports it', async () => {
+    let plansDone = false
+    planner.runMonthlyPlannerBatch.mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      plansDone = true
+      return undefined
+    })
+    videos.runVideoRenderQueue.mockImplementationOnce(async () => {
+      throw new Error('timeout exceeded when trying to connect')
+    })
+    await expect(runPlannerAndVideos({ deadline: 5000 })).rejects.toThrow('timeout exceeded')
+    expect(plansDone).toBe(true)
+  })
+
   it('leaves the run to the planner timer on a long-running host', () => {
     vi.stubEnv('VERCEL', '')
     startMonthlyPlannerNow(event, 1000)

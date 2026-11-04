@@ -44,7 +44,15 @@ export async function runRetentionBatch(db: Pool = database()) {
   const client = await db.connect()
   try {
     await client.query('BEGIN')
-    await client.query("SELECT pg_advisory_xact_lock(hashtext('rrit-retention'))")
+    // Another clean-up already under way does the work; this one leaves at
+    // once rather than waiting for it with a connection held.
+    const lock = await client.query<{ acquired: boolean }>(
+      "SELECT pg_try_advisory_xact_lock(hashtext('rrit-retention')) AS acquired",
+    )
+    if (!lock.rows[0]?.acquired) {
+      await client.query('ROLLBACK')
+      return { skipped: true as const }
+    }
     const policy = await retentionPolicy(client)
     await client.query(
       "INSERT INTO maintenance_runs(name,last_started_at,failure) VALUES('retention',now(),NULL) ON CONFLICT(name) DO UPDATE SET last_started_at=now(),failure=NULL",

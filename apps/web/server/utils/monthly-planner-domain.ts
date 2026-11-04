@@ -1176,37 +1176,69 @@ export function plannerRunSettings(env: Record<string, string | undefined> = pro
     leaseMarginMs: positiveSetting(env.PLANNER_LEASE_MARGIN_SECONDS, 60) * 1000,
     leaseMs: positiveSetting(env.PLANNER_LEASE_SECONDS, 600) * 1000,
     poolSize: positiveSetting(env.PLANNER_DATABASE_POOL_SIZE, 10),
+    // How often a busy run looks for a plan that became ready meanwhile.
+    pollMs: positiveSetting(env.PLANNER_POLL_SECONDS, 5) * 1000,
   }
 }
 
 /**
- * Keeps up to `concurrency` jobs moving at once: each lane claims and runs one
- * job after another until none is waiting, or until too little time is left
- * before `deadline` to start one that could still finish. `next` says whether
- * it found a job. While `waitWhile` holds, a lane that found nothing looks
- * again every `idleMs` instead of stopping, for work still being queued.
+ * Keeps up to `concurrency` claimed jobs running at once. Jobs are claimed one
+ * at a time, and only while there is room for another, so a run never asks
+ * the database for more than one claim at once however high the concurrency.
+ * While jobs run and there is room, it looks for new work every `idleMs` and
+ * whenever a job finishes, so work queued meanwhile starts beside them rather
+ * than after them. It stops once nothing is running or waiting, or too little
+ * time is left before `deadline` to start a job that could still finish.
+ * While `waitWhile` holds, a run with nothing to do keeps looking instead of
+ * stopping, for work still being queued.
+ *
+ * A claim or a job that fails is reported to `onError` and never ends the
+ * run: it returns only once every job it started has finished, so the host
+ * never stops the function while one is still under way.
  */
-export async function runPlannerLanes(input: {
+export async function runClaimedJobs<Job>(input: {
   concurrency: number
   deadline: number
   minStepMs: number
-  next: () => Promise<boolean>
+  claim: () => Promise<Job | undefined>
+  run: (job: Job) => Promise<void>
+  onError: (error: unknown) => void
+  idleMs: number
   waitWhile?: () => boolean
-  idleMs?: number
   now?: () => number
   sleep?: (ms: number) => Promise<void>
 }) {
   const now = input.now || Date.now
   const sleep = input.sleep || ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
-  const lane = async () => {
-    for (;;) {
-      if (input.deadline - now() < input.minStepMs) return
-      if (await input.next()) continue
-      if (!input.waitWhile?.()) return
-      await sleep(input.idleMs || 0)
-    }
+  const running = new Set<Promise<void>>()
+  const start = (job: Job) => {
+    const work: Promise<void> = input.run(job)
+      .catch(input.onError)
+      .finally(() => running.delete(work))
+    running.add(work)
   }
-  await Promise.all(Array.from({ length: Math.max(1, input.concurrency) }, lane))
+  const idle = () => sleep(input.idleMs)
+  for (;;) {
+    if (input.deadline - now() < input.minStepMs) break
+    if (running.size >= Math.max(1, input.concurrency)) {
+      await Promise.race(running)
+      continue
+    }
+    let job: Job | undefined
+    try {
+      job = await input.claim()
+    } catch (error) {
+      input.onError(error)
+    }
+    if (job !== undefined) {
+      start(job)
+      continue
+    }
+    if (running.size) await Promise.race([...running, idle()])
+    else if (input.waitWhile?.()) await idle()
+    else break
+  }
+  await Promise.all(running)
 }
 
 /**

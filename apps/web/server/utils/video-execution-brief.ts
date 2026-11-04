@@ -27,7 +27,7 @@ export function buildShotExecutionBrief(input: {
   storyboard: Storyboard
   index: number
   // What the shot is pinned to.
-  start: 'photograph' | 'previous_shot' | 'free'
+  start: 'photograph' | 'free'
   endsOnPhotograph: boolean
   guardrails?: string[]
   maxLength?: number
@@ -37,9 +37,7 @@ export function buildShotExecutionBrief(input: {
   const guardrails = (input.guardrails || []).map(rule => rule.trim()).filter(Boolean)
   const opening = input.start === 'photograph'
     ? 'It starts exactly on the supplied first frame, a real photograph.'
-    : input.start === 'previous_shot'
-      ? 'It starts exactly on the supplied first frame, the last frame of the previous shot, and continues its motion without a jump.'
-      : 'It opens on the scene this shot describes, before the subject is in its photographed place.'
+    : 'It opens on the scene this shot describes, before the subject is in its photographed place.'
   const closing = input.endsOnPhotograph
     ? 'It ends exactly on the supplied last frame, the real photograph.'
     : ''

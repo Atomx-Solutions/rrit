@@ -22,7 +22,7 @@ import {
   plannerIdentityChanged,
   plannerTimings,
   plannerRunSettings,
-  runPlannerLanes,
+  runClaimedJobs,
   videoQueueSettings,
   slotUsesPostAllowance,
 } from '../../server/utils/monthly-planner-domain'
@@ -1232,38 +1232,118 @@ describe('planner timings', () => {
   })
 })
 
-describe('planner lanes', () => {
-  it('advances up to the concurrency at once and stops when nothing is waiting', async () => {
+describe('claimed jobs', () => {
+  const onError = () => undefined
+
+  it('runs up to the concurrency at once, claims one at a time, and stops when nothing is waiting', async () => {
     let waiting = 7
     let running = 0
     let peak = 0
-    await runPlannerLanes({
+    let claiming = 0
+    let peakClaims = 0
+    await runClaimedJobs({
       concurrency: 3,
       deadline: Number.POSITIVE_INFINITY,
       minStepMs: 1000,
-      next: async () => {
-        if (!waiting) return false
+      idleMs: 1,
+      onError,
+      claim: async () => {
+        claiming++
+        peakClaims = Math.max(peakClaims, claiming)
+        await Promise.resolve()
+        claiming--
+        if (!waiting) return undefined
         waiting--
+        return waiting
+      },
+      run: async () => {
         running++
         peak = Math.max(peak, running)
         await new Promise((resolve) => setTimeout(resolve, 5))
         running--
-        return true
       },
     })
     expect(waiting).toBe(0)
     expect(peak).toBe(3)
+    // However high the concurrency, the database sees one claim at a time.
+    expect(peakClaims).toBe(1)
   })
 
-  it('starts no step once too little time is left before the deadline', async () => {
+  it('starts no job once too little time is left before the deadline', async () => {
     let clock = 0
-    const next = vi.fn(async () => {
+    const run = vi.fn(async () => {
       clock += 400
-      return true
     })
-    await runPlannerLanes({ concurrency: 1, deadline: 1000, minStepMs: 300, next, now: () => clock })
-    // 0 and 400 leave room for a step; at 800 only 200ms is left.
-    expect(next).toHaveBeenCalledTimes(2)
+    await runClaimedJobs({
+      concurrency: 1, deadline: 1000, minStepMs: 300, idleMs: 1, onError, now: () => clock,
+      claim: async () => 'job', run,
+    })
+    // 0 and 400 leave room for a job; at 800 only 200ms is left.
+    expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it('waits for every job it started even when a claim or another job fails', async () => {
+    const errors: unknown[] = []
+    let claims = 0
+    let finished = false
+    await runClaimedJobs({
+      concurrency: 2,
+      deadline: Number.POSITIVE_INFINITY,
+      minStepMs: 0,
+      idleMs: 1,
+      onError: (error) => errors.push(error),
+      claim: async () => {
+        claims++
+        if (claims === 1) return 'slow'
+        if (claims === 2) return 'broken'
+        if (claims === 3) throw new Error('timeout exceeded when trying to connect')
+        return undefined
+      },
+      run: async (job) => {
+        if (job === 'broken') throw new Error('provider down')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        finished = true
+      },
+    })
+    expect(finished).toBe(true)
+    expect(errors.map((error) => (error as Error).message)).toEqual([
+      'provider down',
+      'timeout exceeded when trying to connect',
+    ])
+  })
+
+  it('starts work queued while another job runs beside it, not after it', async () => {
+    let queued = false
+    let finishFirst = () => {}
+    const started: string[] = []
+    let claims = 0
+    const run = runClaimedJobs({
+      concurrency: 2,
+      deadline: Number.POSITIVE_INFINITY,
+      minStepMs: 0,
+      idleMs: 1,
+      onError,
+      claim: async () => {
+        claims++
+        if (claims === 1) return 'first'
+        if (queued) {
+          queued = false
+          return 'second'
+        }
+        return undefined
+      },
+      run: async (job) => {
+        started.push(job)
+        if (job === 'first') await new Promise<void>((resolve) => { finishFirst = resolve })
+      },
+    })
+    // The second video is queued while the first is still rendering.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    queued = true
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(started).toEqual(['first', 'second'])
+    finishFirst()
+    await run
   })
 
   it('keeps looking for queued work while told to, then stops once nothing more is coming', async () => {
@@ -1271,23 +1351,25 @@ describe('planner lanes', () => {
     let found = 0
     let planning = true
     const sleep = vi.fn(async () => {
-      // A plan queues a video while the lane waits, then planning ends.
+      // A plan queues a video while the run waits, then planning ends.
       if (sleep.mock.calls.length === 1) found = 1
       else planning = false
     })
-    await runPlannerLanes({
+    await runClaimedJobs({
       concurrency: 1,
       deadline: Number.POSITIVE_INFINITY,
       minStepMs: 0,
       idleMs: 5000,
       waitWhile: () => planning,
       sleep,
-      next: async () => {
+      onError,
+      claim: async () => {
         checks++
-        if (!found) return false
+        if (!found) return undefined
         found--
-        return true
+        return 'video'
       },
+      run: async () => undefined,
     })
     expect(sleep).toHaveBeenCalledWith(5000)
     // Empty, then the queued video, empty again, and empty once planning ended.
