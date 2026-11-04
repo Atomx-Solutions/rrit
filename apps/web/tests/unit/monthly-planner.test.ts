@@ -24,6 +24,7 @@ import {
   plannerRunSettings,
   runPlannerLanes,
   videoQueueSettings,
+  slotUsesPostAllowance,
 } from '../../server/utils/monthly-planner-domain'
 import {
   monthlyAiConfigured,
@@ -1310,5 +1311,12 @@ describe('planner lanes', () => {
       concurrency: plannerRunSettings({}).concurrency,
       leaseMarginMs: plannerRunSettings({}).leaseMarginMs,
     })
+  })
+})
+
+describe('post allowance', () => {
+  it('stops only posts once the month is used up, so videos already asked for are still made', () => {
+    expect(slotUsesPostAllowance({ deliverable: 'static_post' })).toBe(true)
+    expect(slotUsesPostAllowance({ deliverable: 'video' })).toBe(false)
   })
 })

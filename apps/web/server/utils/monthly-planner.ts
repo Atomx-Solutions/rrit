@@ -91,6 +91,7 @@ import {
   promptEvidence,
   remainingMonthlyPosts,
   requestedPlannerPosts,
+  slotUsesPostAllowance,
   validateEditorialPlan,
   type PlannerChannel,
   type PlannerChannelCounts,
@@ -1408,17 +1409,6 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
     )
     return
   }
-  if (plan.stage === 'content') {
-    const current = await postsCountedForLimit(
-      db,
-      plan.business_id,
-      plan.month_key,
-      access.paid,
-      access.quotaPeriod,
-    )
-    if (!remainingMonthlyPosts(access.limits.posts_per_month, current))
-      throw new PlannerFailure('QUOTA_EXCEEDED')
-  }
   let researchLanguage: ReturnType<typeof contentLocaleForPreferences> | undefined
   const common = {
     planId: plan.id,
@@ -1740,6 +1730,19 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
   const editorial = parsePersistedEditorialPlan(plan.editorial_plan)
   const slot = editorial.slots[plan.completed_count]
   if (!slot) throw new PlannerFailure('INVALID_SLOT_COUNT')
+  // Only a post is stopped here, before anything is paid for, once the
+  // month's posts are used up; a video is checked against its own allowance.
+  if (slotUsesPostAllowance(slot)) {
+    const current = await postsCountedForLimit(
+      db,
+      plan.business_id,
+      plan.month_key,
+      access.paid,
+      access.quotaPeriod,
+    )
+    if (!remainingMonthlyPosts(access.limits.posts_per_month, current))
+      throw new PlannerFailure('QUOTA_EXCEEDED')
+  }
   const slotDay = `${plan.month_key}-${String(slot.day).padStart(2, '0')}`
   if (
     !slot.factIds.every((id) => {
@@ -2154,7 +2157,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
           ),
         )
         if (
-          (slot.deliverable !== 'video' &&
+          (slotUsesPostAllowance(slot) &&
             !remainingMonthlyPosts(currentAccess.limits.posts_per_month, countedPosts)) ||
           Number(usage.rows[0]?.bytes || 0) + creative.length >
             currentAccess.limits.media_storage_bytes

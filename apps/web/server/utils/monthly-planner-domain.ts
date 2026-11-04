@@ -1026,6 +1026,15 @@ export function remainingMonthlyPosts(postsPerMonth: number, createdThisMonth: n
 }
 
 /**
+ * Whether a slot uses the month's post allowance. A video has an allowance of
+ * its own, checked when its render is queued, so a business that has used up
+ * its posts still gets the videos it asked for.
+ */
+export function slotUsesPostAllowance(slot: Pick<SlotBrief, 'deliverable'>) {
+  return slot.deliverable !== 'video'
+}
+
+/**
  * Validates the client choice again at the server boundary. Zero is a valid
  * request so a batch may consist of videos alone; the "at least one
  * deliverable overall" rule is enforced one level up where the caller also
