@@ -21,12 +21,16 @@ export function invocationDeadline(event: H3Event, started: number) {
  */
 export async function runPlannerAndVideos(options: { deadline: number; discover?: boolean }) {
   let planning = true
-  await Promise.all([
+  // Both are awaited to the end even when one fails, so the function is never
+  // stopped while the other is still working.
+  const [plans, videos] = await Promise.allSettled([
     runMonthlyPlannerBatch(undefined, options).finally(() => {
       planning = false
     }),
     runVideoRenderQueue(undefined, { deadline: options.deadline, waitWhile: () => planning }),
   ])
+  const failed = [plans, videos].find((result) => result.status === 'rejected')
+  if (failed) throw failed.reason
 }
 
 function keepRunningAfterReply(work: Promise<void>, what: string) {
