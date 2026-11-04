@@ -1147,3 +1147,48 @@ export function plannerTimings(now: () => number = Date.now) {
 }
 
 export type PlannerTimed = ReturnType<typeof plannerTimings>['timed']
+
+function positiveSetting(value: string | undefined, fallback: number) {
+  const configured = Number(value)
+  return Number.isInteger(configured) && configured > 0 ? configured : fallback
+}
+
+/**
+ * How many plans advance at once across every planner run, how much time a
+ * run must still have to start another step, how long a lease outlives what
+ * holds it, and how many database connections one run may open. A run on a
+ * host without a hard time limit renews its leases instead, for the lease
+ * length given here.
+ */
+export function plannerRunSettings(env: Record<string, string | undefined> = process.env) {
+  return {
+    concurrency: positiveSetting(env.PLANNER_CONCURRENCY, 50),
+    minStepMs: positiveSetting(env.PLANNER_MIN_STEP_SECONDS, 300) * 1000,
+    leaseMarginMs: positiveSetting(env.PLANNER_LEASE_MARGIN_SECONDS, 60) * 1000,
+    leaseMs: positiveSetting(env.PLANNER_LEASE_SECONDS, 600) * 1000,
+    poolSize: positiveSetting(env.PLANNER_DATABASE_POOL_SIZE, 10),
+  }
+}
+
+/**
+ * Keeps up to `concurrency` plans moving at once: each lane claims and
+ * advances one plan after another until none is waiting, or until too little
+ * time is left before `deadline` to start a step that could still finish.
+ * `next` says whether it found a plan to advance.
+ */
+export async function runPlannerLanes(input: {
+  concurrency: number
+  deadline: number
+  minStepMs: number
+  next: () => Promise<boolean>
+  now?: () => number
+}) {
+  const now = input.now || Date.now
+  const lane = async () => {
+    for (;;) {
+      if (input.deadline - now() < input.minStepMs) return
+      if (!(await input.next())) return
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, input.concurrency) }, lane))
+}

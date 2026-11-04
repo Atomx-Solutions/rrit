@@ -1918,6 +1918,119 @@ describe('monthly planning persistence and cost boundaries', () => {
     }
     await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
   })
+  function researchResponse(url: string) {
+    return new Response(
+      JSON.stringify({
+        id: randomUUID(),
+        status: 'completed',
+        usage: { input_tokens: 100, output_tokens: 100 },
+        output: [
+          {
+            type: 'web_search_call',
+            status: 'completed',
+            action: { sources: [{ url, title: 'Lease source' }] },
+          },
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: 'Observed context [1]',
+                annotations: [
+                  { type: 'url_citation', url, title: 'Lease source', start_index: 17, end_index: 20 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      { status: 200 },
+    )
+  }
+  it('lets only one of two simultaneous runs take a plan, so research is paid for once', async () => {
+    const item = await monthlyBusiness(1)
+    const plan = await enqueue(item)
+    const fetcher = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      return researchResponse('https://example.test/one-claim')
+    })
+    vi.stubGlobal('fetch', fetcher)
+    await Promise.all([
+      runMonthlyPlannerTick(pool, { discover: false }),
+      runMonthlyPlannerTick(pool, { discover: false }),
+    ])
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(
+      (await pool.query('SELECT stage,lease_owner,lease_until FROM monthly_plans WHERE id=$1', [plan.id]))
+        .rows[0],
+    ).toMatchObject({ stage: 'planning', lease_owner: null, lease_until: null })
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('leaves a plan alone while another run holds its lease and takes it once the lease expires', async () => {
+    const item = await monthlyBusiness(1)
+    const plan = await enqueue(item)
+    const fetcher = vi.fn(async () => researchResponse('https://example.test/expired-lease'))
+    vi.stubGlobal('fetch', fetcher)
+    await pool.query(
+      "UPDATE monthly_plans SET lease_owner=$2,lease_until=now()+interval '1 hour' WHERE id=$1",
+      [plan.id, randomUUID()],
+    )
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(fetcher).not.toHaveBeenCalled()
+    await pool.query(
+      "UPDATE monthly_plans SET lease_until=now()-interval '1 second' WHERE id=$1",
+      [plan.id],
+    )
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect((await pool.query('SELECT stage FROM monthly_plans WHERE id=$1', [plan.id])).rows[0]).toEqual({
+      stage: 'planning',
+    })
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('takes no plan while as many plans as PLANNER_CONCURRENCY hold a live lease', async () => {
+    vi.stubEnv('PLANNER_CONCURRENCY', '1')
+    const busy = await enqueue(await monthlyBusiness(1))
+    const waiting = await enqueue(await monthlyBusiness(1))
+    await pool.query(
+      "UPDATE monthly_plans SET lease_owner=$2,lease_until=now()+interval '1 hour' WHERE id=$1",
+      [busy.id, randomUUID()],
+    )
+    const fetcher = vi.fn(async () => researchResponse('https://example.test/concurrency'))
+    vi.stubGlobal('fetch', fetcher)
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(fetcher).not.toHaveBeenCalled()
+    expect((await pool.query('SELECT stage FROM monthly_plans WHERE id=$1', [waiting.id])).rows[0]).toEqual({
+      stage: 'research',
+    })
+    await pool.query(
+      "UPDATE monthly_plans SET status='cancelled',lease_owner=NULL,lease_until=NULL WHERE id=ANY($1)",
+      [[busy.id, waiting.id]],
+    )
+    vi.stubEnv('PLANNER_CONCURRENCY', undefined)
+  })
+  it('discards what a run produced once it has lost the lease to another run', async () => {
+    const item = await monthlyBusiness(1)
+    const plan = await enqueue(item)
+    const thief = randomUUID()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        // Another run takes the plan while this one waits on the provider.
+        await pool.query('UPDATE monthly_plans SET lease_owner=$2 WHERE id=$1', [plan.id, thief])
+        return researchResponse('https://example.test/lost-lease')
+      }),
+    )
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(
+      (await pool.query('SELECT stage,research,lease_owner FROM monthly_plans WHERE id=$1', [plan.id]))
+        .rows[0],
+    ).toEqual({ stage: 'research', research: null, lease_owner: thief })
+    await pool.query(
+      "UPDATE monthly_plans SET status='cancelled',lease_owner=NULL,lease_until=NULL WHERE id=$1",
+      [plan.id],
+    )
+  })
   it('rejects a cost reservation before any provider request', async () => {
     const item = await monthlyBusiness()
     const plan = await enqueue(item)

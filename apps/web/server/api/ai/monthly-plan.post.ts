@@ -15,8 +15,10 @@ import {
   plannerChannelCountsSchema,
   plannerMessageKey,
 } from '../../utils/monthly-planner-domain'
+import { startMonthlyPlannerNow } from '../../utils/planner-run'
 
 export default defineEventHandler(async (event) => {
+  const started = Date.now()
   requireSameOrigin(event)
   const user = await requireUser(event)
   const input = z
@@ -151,6 +153,10 @@ export default defineEventHandler(async (event) => {
         videoChannelCounts: input.data.videoChannelCounts,
       })
     })
+    // Work this request queued starts now, once it is committed, instead of
+    // waiting for the planner's next scheduled run.
+    if (input.data.action !== 'reset' && input.data.action !== 'pause')
+      startMonthlyPlannerNow(event, started)
     setResponseStatus(event, 202)
     return result
   } catch (error) {

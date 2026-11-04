@@ -21,6 +21,8 @@ import {
   PlannerFailure,
   plannerIdentityChanged,
   plannerTimings,
+  plannerRunSettings,
+  runPlannerLanes,
 } from '../../server/utils/monthly-planner-domain'
 import {
   monthlyAiConfigured,
@@ -1225,5 +1227,51 @@ describe('planner timings', () => {
   it('returns what the timed step returns', async () => {
     const timings = plannerTimings()
     await expect(timings.timed('content.text', Promise.resolve('caption'))).resolves.toBe('caption')
+  })
+})
+
+describe('planner lanes', () => {
+  it('advances up to the concurrency at once and stops when nothing is waiting', async () => {
+    let waiting = 7
+    let running = 0
+    let peak = 0
+    await runPlannerLanes({
+      concurrency: 3,
+      deadline: Number.POSITIVE_INFINITY,
+      minStepMs: 1000,
+      next: async () => {
+        if (!waiting) return false
+        waiting--
+        running++
+        peak = Math.max(peak, running)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        running--
+        return true
+      },
+    })
+    expect(waiting).toBe(0)
+    expect(peak).toBe(3)
+  })
+
+  it('starts no step once too little time is left before the deadline', async () => {
+    let clock = 0
+    const next = vi.fn(async () => {
+      clock += 400
+      return true
+    })
+    await runPlannerLanes({ concurrency: 1, deadline: 1000, minStepMs: 300, next, now: () => clock })
+    // 0 and 400 leave room for a step; at 800 only 200ms is left.
+    expect(next).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads its limits from the environment and ignores unusable values', () => {
+    expect(plannerRunSettings({ PLANNER_CONCURRENCY: '6', PLANNER_MIN_STEP_SECONDS: '120' })).toMatchObject({
+      concurrency: 6,
+      minStepMs: 120000,
+    })
+    expect(plannerRunSettings({ PLANNER_CONCURRENCY: '0', PLANNER_LEASE_MARGIN_SECONDS: 'soon' })).toMatchObject({
+      concurrency: plannerRunSettings({}).concurrency,
+      leaseMarginMs: plannerRunSettings({}).leaseMarginMs,
+    })
   })
 })

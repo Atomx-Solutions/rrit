@@ -1,9 +1,13 @@
 import { monthlyAiConfigured } from '../utils/monthly-ai'
-import { closeMonthlyWorkerDatabase, runMonthlyPlannerTick } from '../utils/monthly-planner'
+import { closeMonthlyWorkerDatabase, runMonthlyPlannerBatch } from '../utils/monthly-planner'
 
 export default defineNitroPlugin((nitro) => {
   if (!monthlyAiConfigured() || !['planner', 'all'].includes(process.env.PROCESS_ROLE || 'all'))
     return
+  // A Vercel function is frozen between requests and stopped at its time
+  // limit, so a timer here would only run while traffic happens to keep it
+  // awake. The planner cron (/api/cron/planner) drives the planner there.
+  if (process.env.VERCEL) return
   if (!process.env.WORKER_DATABASE_URL) {
     console.error('Monthly planner requires WORKER_DATABASE_URL.')
     return
@@ -12,7 +16,7 @@ export default defineNitroPlugin((nitro) => {
   let current: Promise<void> | undefined
   function tick() {
     if (closing || current) return
-    current = runMonthlyPlannerTick()
+    current = runMonthlyPlannerBatch()
       .catch((error: unknown) => {
         const name = error instanceof Error ? error.name : 'UnknownError'
         const rawCode =
