@@ -1026,6 +1026,15 @@ export function remainingMonthlyPosts(postsPerMonth: number, createdThisMonth: n
 }
 
 /**
+ * Whether a slot uses the month's post allowance. A video has an allowance of
+ * its own, checked when its render is queued, so a business that has used up
+ * its posts still gets the videos it asked for.
+ */
+export function slotUsesPostAllowance(slot: Pick<SlotBrief, 'deliverable'>) {
+  return slot.deliverable !== 'video'
+}
+
+/**
  * Validates the client choice again at the server boundary. Zero is a valid
  * request so a batch may consist of videos alone; the "at least one
  * deliverable overall" rule is enforced one level up where the caller also
@@ -1118,5 +1127,97 @@ export function creativeGeometry(channel: PublishingChannel) {
     discardedHeightPerSide: percent((1 - retainedHeight) / 2),
     safeWidth: percent(retainedWidth * safeShare),
     safeHeight: percent(retainedHeight * safeShare),
+  }
+}
+
+export type PlannerStepTiming = { step: string; ms: number }
+
+/**
+ * How long each step of one planner run took, read once the run ends, so a
+ * slow plan can be traced to its research, strategy, text, image, review or
+ * video the way a video render is traced to its shots.
+ */
+export function plannerTimings(now: () => number = Date.now) {
+  const steps: PlannerStepTiming[] = []
+  const started = now()
+  return {
+    // Takes the step's promise rather than a callback, so the call is written
+    // in place and keeps the narrowing of the variables around it.
+    timed: async <T>(step: string, work: Promise<T>) => {
+      const stepStarted = now()
+      try {
+        return await work
+      } finally {
+        steps.push({ step, ms: now() - stepStarted })
+      }
+    },
+    summary: () => ({ totalMs: now() - started, steps: [...steps] }),
+  }
+}
+
+export type PlannerTimed = ReturnType<typeof plannerTimings>['timed']
+
+function positiveSetting(value: string | undefined, fallback: number) {
+  const configured = Number(value)
+  return Number.isInteger(configured) && configured > 0 ? configured : fallback
+}
+
+/**
+ * How many plans advance at once across every planner run, how much time a
+ * run must still have to start another step, how long a lease outlives what
+ * holds it, and how many database connections one run may open. A run on a
+ * host without a hard time limit renews its leases instead, for the lease
+ * length given here.
+ */
+export function plannerRunSettings(env: Record<string, string | undefined> = process.env) {
+  return {
+    concurrency: positiveSetting(env.PLANNER_CONCURRENCY, 50),
+    minStepMs: positiveSetting(env.PLANNER_MIN_STEP_SECONDS, 300) * 1000,
+    leaseMarginMs: positiveSetting(env.PLANNER_LEASE_MARGIN_SECONDS, 60) * 1000,
+    leaseMs: positiveSetting(env.PLANNER_LEASE_SECONDS, 600) * 1000,
+    poolSize: positiveSetting(env.PLANNER_DATABASE_POOL_SIZE, 10),
+  }
+}
+
+/**
+ * Keeps up to `concurrency` jobs moving at once: each lane claims and runs one
+ * job after another until none is waiting, or until too little time is left
+ * before `deadline` to start one that could still finish. `next` says whether
+ * it found a job. While `waitWhile` holds, a lane that found nothing looks
+ * again every `idleMs` instead of stopping, for work still being queued.
+ */
+export async function runPlannerLanes(input: {
+  concurrency: number
+  deadline: number
+  minStepMs: number
+  next: () => Promise<boolean>
+  waitWhile?: () => boolean
+  idleMs?: number
+  now?: () => number
+  sleep?: (ms: number) => Promise<void>
+}) {
+  const now = input.now || Date.now
+  const sleep = input.sleep || ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  const lane = async () => {
+    for (;;) {
+      if (input.deadline - now() < input.minStepMs) return
+      if (await input.next()) continue
+      if (!input.waitWhile?.()) return
+      await sleep(input.idleMs || 0)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, input.concurrency) }, lane))
+}
+
+/**
+ * How many videos render at once across every run, how much of a run's time
+ * must be left to start one, and how often a run that is still planning looks
+ * for videos its plans have just queued.
+ */
+export function videoQueueSettings(env: Record<string, string | undefined> = process.env) {
+  return {
+    concurrency: positiveSetting(env.VIDEO_CONCURRENCY, 20),
+    minRenderMs: positiveSetting(env.VIDEO_MIN_RENDER_SECONDS, 600) * 1000,
+    pollMs: positiveSetting(env.VIDEO_QUEUE_POLL_SECONDS, 5) * 1000,
   }
 }

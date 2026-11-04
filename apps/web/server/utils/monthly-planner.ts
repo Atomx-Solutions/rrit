@@ -26,7 +26,7 @@ import {
 import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
 import { loadBrandLogo, type BrandLogoAsset } from './brand-assets'
-import { renderVideoForPost } from './video-render'
+import { queueVideoRender } from './video-render'
 import { musicForVideo, plannerVideoMusicSchema } from '../../shared/schemas/music'
 import {
   paidAccessForPlanningMonth,
@@ -91,12 +91,17 @@ import {
   promptEvidence,
   remainingMonthlyPosts,
   requestedPlannerPosts,
+  slotUsesPostAllowance,
   validateEditorialPlan,
   type PlannerChannel,
   type PlannerChannelCounts,
   type PlannerVideoChannelCounts,
   type PlannerEvidence,
   type PlannerTimingSample,
+  plannerTimings,
+  plannerRunSettings,
+  runPlannerLanes,
+  type PlannerTimed,
 } from './monthly-planner-domain'
 import { getBrandForBusiness } from './brands'
 import { loadPlannerBrain } from './business-brain'
@@ -112,7 +117,9 @@ export function monthlyWorkerDatabase() {
   if (!workerPool) {
     workerPool = new pg.Pool({
       connectionString: process.env.WORKER_DATABASE_URL,
-      max: 4,
+      // Plans hold a connection only for short transactions, never across a
+      // provider call, so many plans share a small pool and wait their turn.
+      max: plannerRunSettings().poolSize,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
       keepAlive: true,
@@ -698,6 +705,8 @@ interface PlanRow {
   planning_retry_nonce: number
   research: unknown
   editorial_plan: unknown
+  // The run that holds this plan; every write it makes is fenced by it.
+  lease_owner: string
 }
 interface PlannerAssetRow {
   id: string
@@ -1373,7 +1382,7 @@ function generationAssetIds(evidence: PlannerEvidence) {
     ]
   return evidence.assets.map((asset) => asset.id)
 }
-async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
+async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) {
   // The queue already skips a paused business, but a customer can pause
   // between the claim and this point. Re-read the switch before doing any
   // work: the paid-call boundary would catch it anyway, after a workspace
@@ -1395,21 +1404,10 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   // research and its drafts and waits for the next request.
   if (plan.completed_count >= plan.generate_count) {
     await db.query(
-      "UPDATE monthly_plans SET status='idle',error_code=NULL,updated_at=now() WHERE id=$1",
-      [plan.id],
+      "UPDATE monthly_plans SET status='idle',error_code=NULL,updated_at=now() WHERE id=$1 AND lease_owner=$2",
+      [plan.id, plan.lease_owner],
     )
     return
-  }
-  if (plan.stage === 'content') {
-    const current = await postsCountedForLimit(
-      db,
-      plan.business_id,
-      plan.month_key,
-      access.paid,
-      access.quotaPeriod,
-    )
-    if (!remainingMonthlyPosts(access.limits.posts_per_month, current))
-      throw new PlannerFailure('QUOTA_EXCEEDED')
   }
   let researchLanguage: ReturnType<typeof contentLocaleForPreferences> | undefined
   const common = {
@@ -1454,7 +1452,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           plan.evidence.capturedAt,
         )
       : null
-    const response = await monthlyProviderCall(db, {
+    const response = await timed('research', monthlyProviderCall(db, {
       ...common,
       // Research must decide the language from audience + local market; never
       // let a dashboard preference preselect it.
@@ -1483,7 +1481,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         // plans only static posts is never told that motion exists.
         ...(plan.evidence.brand.videoDeliverables?.enabled ? { videoDeliverables: { enabled: true } } : {}),
       },
-    })
+    }))
     const research = researchFromResponse(
       response,
       new Date(),
@@ -1492,8 +1490,8 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     )
     researchLanguage = research.language?.locale
     await db.query(
-      "UPDATE monthly_plans SET research=$1,stage='planning',updated_at=now() WHERE id=$2",
-      [JSON.stringify(research), plan.id],
+      "UPDATE monthly_plans SET research=$1,stage='planning',updated_at=now() WHERE id=$2 AND lease_owner=$3",
+      [JSON.stringify(research), plan.id, plan.lease_owner],
     )
     return
   }
@@ -1508,9 +1506,10 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
       : []
     const batchCount = plan.generate_count - plannedSoFar.length
     if (batchCount < 1) {
-      await db.query("UPDATE monthly_plans SET stage='content',updated_at=now() WHERE id=$1", [
-        plan.id,
-      ])
+      await db.query(
+        "UPDATE monthly_plans SET stage='content',updated_at=now() WHERE id=$1 AND lease_owner=$2",
+        [plan.id, plan.lease_owner],
+      )
       return
     }
     const accessDates = packagePlanningDates(plan.month_key, access.quotaPeriod)
@@ -1557,9 +1556,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     let previousPageStyle: PreviousPageStyle | undefined
     try {
       planningContactSheet = await assetContactSheet(planningAssets)
-      previousPageStyle = await loadPreviousPageStyle(db, plan.business_id, {
+      previousPageStyle = await timed('planning.page_style', loadPreviousPageStyle(db, plan.business_id, {
         analyze: analyzePageStyle,
-      })
+      }))
       // One key per batch. It carries how many slots already existed, so a
       // later request plans its own slots while every earlier tick of this
       // batch reuses the audited response instead of paying again.
@@ -1568,7 +1567,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         plan.evidence_hash,
         `${plannedSoFar.length}:${batchCount}:${previousPageStyle.revision}:${plan.planning_retry_nonce}`,
       )
-      const response = await monthlyProviderCall(db, {
+      const response = await timed('planning', monthlyProviderCall(db, {
         ...common,
         stageKey: planningStageKey,
         capability: 'planning',
@@ -1675,7 +1674,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ? [`data:image/jpeg;base64,${previousPageStyle.contactSheet.toString('base64')}`]
             : []),
         ],
-      })
+      }))
       let editorial
       try {
         editorial = validateEditorialPlan(
@@ -1718,8 +1717,8 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           }
         : editorial
       await db.query(
-        "UPDATE monthly_plans SET editorial_plan=$1,stage='content',updated_at=now() WHERE id=$2",
-        [JSON.stringify(merged), plan.id],
+        "UPDATE monthly_plans SET editorial_plan=$1,stage='content',updated_at=now() WHERE id=$2 AND lease_owner=$3",
+        [JSON.stringify(merged), plan.id, plan.lease_owner],
       )
     } finally {
       planningContactSheet?.fill(0)
@@ -1731,6 +1730,19 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   const editorial = parsePersistedEditorialPlan(plan.editorial_plan)
   const slot = editorial.slots[plan.completed_count]
   if (!slot) throw new PlannerFailure('INVALID_SLOT_COUNT')
+  // Only a post is stopped here, before anything is paid for, once the
+  // month's posts are used up; a video is checked against its own allowance.
+  if (slotUsesPostAllowance(slot)) {
+    const current = await postsCountedForLimit(
+      db,
+      plan.business_id,
+      plan.month_key,
+      access.paid,
+      access.quotaPeriod,
+    )
+    if (!remainingMonthlyPosts(access.limits.posts_per_month, current))
+      throw new PlannerFailure('QUOTA_EXCEEDED')
+  }
   const slotDay = `${plan.month_key}-${String(slot.day).padStart(2, '0')}`
   if (
     !slot.factIds.every((id) => {
@@ -1743,13 +1755,13 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   // A post written for an occasion's visitors speaks their language; every
   // other post speaks the plan's. Text, image and review all follow the slot.
   const slotCommon = { ...common, language: slot.locale || common.language }
-  const assets = await plannerStep('content.assets', () =>
+  const assets = await timed('content.assets', plannerStep('content.assets', () =>
     loadPlannerAssets(
       db,
       plan.business_id,
       generationAssetIds(plan.evidence),
     ),
-  )
+  ))
   if (!assets.length) throw new PlannerFailure('OWNED_PHOTOS_REQUIRED')
   let contactSheet: Buffer | undefined
   let previousPageStyle: PreviousPageStyle | undefined
@@ -1759,9 +1771,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   try {
     contactSheet = await assetContactSheet(assets)
     brandLogo = await plannerStep('content.logo', () => loadBrandLogo(db, plan.business_id))
-    previousPageStyle = await loadPreviousPageStyle(db, plan.business_id, {
+    previousPageStyle = await timed('content.page_style', loadPreviousPageStyle(db, plan.business_id, {
       analyze: analyzePageStyle,
-    })
+    }))
     const earlier = await db.query<{
       caption: string
       title: string
@@ -1811,7 +1823,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     // distinctness instructions are applied before generation; QA reports a
     // warning for human review instead of spending credits on a second attempt.
     for (let attempt = 0; attempt < 1; attempt++) {
-      const response = await monthlyProviderCall(db, {
+      const response = await timed('content.text', monthlyProviderCall(db, {
         ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'content',
@@ -1863,7 +1875,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ? [`data:image/jpeg;base64,${previousGeneratedContactSheet.toString('base64')}`]
             : []),
         ],
-      })
+      }))
       let rawContent: unknown
       try {
         rawContent = JSON.parse(responseText(response))
@@ -1914,7 +1926,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         // The poster is the photograph fitted to the channel canvas, the same
         // image the render later animates, so what the gallery shows is the
         // video's own first frame.
-        const fitted = await plannerStep('content.video_poster', () =>
+        const fitted = await timed('content.video_poster', plannerStep('content.video_poster', () =>
           fitPhotoToChannel(original!.bytes, slot.channel, {
             outpaint: async (guide, prompt, attempt) => {
               const painted = await monthlyImageCall(db, {
@@ -1928,7 +1940,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             },
             review: reviewExtension,
           }),
-        )
+        ))
         creative = fitted.bytes
         videoPosterFit = fitted.mode
         videoPosterFitReasons = fitted.reasons
@@ -1969,7 +1981,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         revisionFeedback,
         guardrails: slotBrain.guardrails.map((guardrail) => guardrail.text),
       })
-      imageGeneration = await monthlyImageCall(db, {
+      imageGeneration = await timed('content.image', monthlyImageCall(db, {
         ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'image',
@@ -1989,7 +2001,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           : previousGeneratedContactSheet
             ? [{ bytes: previousGeneratedContactSheet }]
             : undefined,
-      })
+      }))
       // The provider result is the complete design. Local processing only
       // normalizes the output and places the approved logo in a dynamically
       // selected clear region; it does not apply a coded layout template.
@@ -1999,7 +2011,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         brandLogo?.bytes,
         content.creative.logoZone,
       )
-      const qualityResponse = await monthlyProviderCall(db, {
+      const qualityResponse = await timed('content.quality', monthlyProviderCall(db, {
         ...slotCommon,
         stageKey: monthlyAutomaticStageKey(
           'quality',
@@ -2050,7 +2062,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
             ? [`data:image/jpeg;base64,${previousGeneratedContactSheet.toString('base64')}`]
             : []),
         ],
-      })
+      }))
       quality = normalizeQualityReview(
         qualitySchema.parse(JSON.parse(responseText(qualityResponse))),
       )
@@ -2075,16 +2087,18 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
     )
     await plannerStep('content.persist.storage', () => uploadAsset(storagePath, creative))
     try {
-      const committed = await plannerStep('content.persist', () =>
+      const committed = await timed('content.persist', plannerStep('content.persist', () =>
         transaction(db, async (client) => {
         await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [plan.business_id])
         const locked = await client.query(
-          'SELECT completed_count,status FROM monthly_plans WHERE id=$1 FOR UPDATE',
+          'SELECT completed_count,status,lease_owner FROM monthly_plans WHERE id=$1 FOR UPDATE',
           [plan.id],
         )
+        // A run that lost its lease leaves the slot to the run that holds it.
         if (
           locked.rows[0]?.completed_count !== plan.completed_count ||
-          locked.rows[0]?.status !== 'running'
+          locked.rows[0]?.status !== 'running' ||
+          locked.rows[0]?.lease_owner !== plan.lease_owner
         )
           return
         const settings = await client.query(
@@ -2143,7 +2157,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
           ),
         )
         if (
-          (slot.deliverable !== 'video' &&
+          (slotUsesPostAllowance(slot) &&
             !remainingMonthlyPosts(currentAccess.limits.posts_per_month, countedPosts)) ||
           Number(usage.rows[0]?.bytes || 0) + creative.length >
             currentAccess.limits.media_storage_bytes
@@ -2377,22 +2391,22 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
         // deliverable outside this transaction.
         return postId
         }),
-      )
+      ))
       if (!committed) await removeAsset(storagePath)
-      // A video is produced in the same run as the posts, because its
-      // photograph is its first frame and has to exist first. The render opens
-      // its own transactions, so it waits until this one has committed.
+      // A video is queued once its post exists, because its photograph is its
+      // first frame. The render takes minutes, so the plan moves on to its
+      // next post while a video lane renders this one.
       if (committed && slot.deliverable === 'video') {
         try {
-          await plannerStep('content.video_render', () =>
-            renderVideoForPost(plan.owner_id, committed),
-          )
+          await timed('content.video_queue', plannerStep('content.video_queue', () =>
+            queueVideoRender(plan.owner_id, committed),
+          ))
         } catch (error) {
           // The post is delivered and its brief is durable, so a render that
-          // fails here leaves something the business can start again from the
-          // editor. Losing the rest of a batch it has paid for would cost it
-          // more than stopping is worth.
-          console.error('The monthly planner could not render a video', {
+          // could not be queued leaves something the business can start again
+          // from the editor. Losing the rest of a batch it has paid for would
+          // cost it more than stopping is worth.
+          console.error('The monthly planner could not queue a video', {
             planId: plan.id,
             postId: committed,
             error,
@@ -2420,210 +2434,285 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow) {
   }
 }
 
-// A renewable database lease spans the provider call without holding an SQL
-// connection. It expires after process loss; reserved stages prevent double spend.
-export async function runMonthlyPlannerTick(
-  db: Pool = monthlyWorkerDatabase(),
-  options: { discover?: boolean } = {},
-) {
-  if (!monthlyAiConfigured()) return
-  const leaseOwner = randomUUID()
-  const acquired = await plannerStep('lease.acquire', () =>
+function warnPlannerWrite(message: string, error: unknown) {
+  const code =
+    typeof error === 'object' && error && 'code' in error
+      ? String(error.code).slice(0, 64)
+      : undefined
+  console.warn(message, { code })
+}
+
+// Keeps the planner shown as alive while a run is busy with a long step. It
+// is a status line only: each plan carries its own lease.
+async function recordPlannerHeartbeat(db: Pool) {
+  await db.query(
+    `INSERT INTO worker_heartbeats(name,last_seen_at) VALUES('monthly_planner',now())
+      ON CONFLICT(name) DO UPDATE SET last_seen_at=now()`,
+  )
+}
+
+// Creates and rotates plans for businesses that have configured the planner.
+async function discoverMonthlyPlans(db: Pool) {
+  // Scan in stable rotation so businesses missing prerequisites do not starve others.
+  const candidates = await plannerStep('discovery', () =>
     db.query(
-      `INSERT INTO worker_heartbeats(name,last_seen_at,lease_owner,lease_until)
-        VALUES('monthly_planner',now(),$1,now()+interval '10 minutes')
-        ON CONFLICT(name) DO UPDATE
-          SET last_seen_at=now(),lease_owner=EXCLUDED.lease_owner,lease_until=EXCLUDED.lease_until
-        WHERE worker_heartbeats.lease_until IS NULL
-          OR worker_heartbeats.lease_until<now()
-          OR worker_heartbeats.last_seen_at<now()-interval '2 minutes'
-        RETURNING name`,
-      [leaseOwner],
+      `SELECT b.id,b.owner_id,b.state FROM businesses b
+      LEFT JOIN monthly_planner_settings s ON s.business_id=b.id
+      WHERE COALESCE(s.enabled,true) AND s.configured_at IS NOT NULL
+      ORDER BY COALESCE(s.updated_at,b.created_at),b.id LIMIT 10`,
     ),
   )
-  if (!acquired.rowCount) return
-  const heartbeat = setInterval(() => {
-    void db
-      .query(
-        `UPDATE worker_heartbeats
-          SET last_seen_at=now(),lease_until=now()+interval '10 minutes'
-          WHERE name='monthly_planner' AND lease_owner=$1`,
-        [leaseOwner],
+  for (const business of candidates.rows) {
+    try {
+      await plannerStep('candidate.ensure', () =>
+        transaction(db, async (client) => {
+          // An editor/API transaction may already be changing this workspace.
+          // Skip it for this rotation instead of starving every other tenant.
+          const available = await client.query(
+            'SELECT id FROM businesses WHERE id=$1 FOR UPDATE SKIP LOCKED',
+            [business.id],
+          )
+          if (!available.rowCount) return
+          await setTenantContext(client, {
+            userId: business.owner_id,
+            organizationId: business.id,
+          })
+          await ensureMonthlyPlan(client, business.id, business.owner_id)
+          const zone = business.state.preferences?.timezone || 'Europe/Tirane'
+          const localDate = new Intl.DateTimeFormat('en-CA', {
+            timeZone: zone,
+            day: '2-digit',
+          }).format(new Date())
+          if (Number(localDate) >= 24) {
+            const upcoming = new Date(`${planningMonth(zone)}-01T12:00:00Z`)
+            upcoming.setUTCMonth(upcoming.getUTCMonth() + 1)
+            // Use a savepoint: unavailable future access must not roll back this month.
+            await client.query('SAVEPOINT next_month')
+            try {
+              await ensureMonthlyPlan(
+                client,
+                business.id,
+                business.owner_id,
+                upcoming.toISOString().slice(0, 7),
+              )
+            } catch (error) {
+              await client.query('ROLLBACK TO SAVEPOINT next_month')
+              if (!(error instanceof PlannerFailure)) throw error
+            }
+          }
+        }),
       )
-      .catch((error: unknown) => {
-        const code =
-          typeof error === 'object' && error && 'code' in error
-            ? String(error.code).slice(0, 64)
-            : undefined
-        console.warn('Monthly planner heartbeat refresh was interrupted.', { code })
+    } catch (error) {
+      if (!(error instanceof PlannerFailure)) throw error
+    }
+    await plannerStep('candidate.rotate', () =>
+      db.query(
+        'INSERT INTO monthly_planner_settings(business_id,enabled) VALUES($1,true) ON CONFLICT(business_id) DO UPDATE SET updated_at=now()',
+        [business.id],
+      ),
+    )
+  }
+}
+
+/**
+ * Takes the next waiting plan for this run, unless as many plans as
+ * PLANNER_CONCURRENCY already hold a live lease. Claims are taken one at a
+ * time, so two runs can never both read room for one more plan and both take
+ * it. The lease is written with the plan, so another run skips it until the
+ * lease has expired, which is only once this run has stopped.
+ */
+async function claimMonthlyPlan(db: Pool, leaseOwner: string, leaseUntil: Date, concurrency: number) {
+  return plannerStep('jobs.claim', () =>
+    transaction(db, async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('monthly_planner.claim'))")
+      const active = await client.query<{ count: number }>(
+        'SELECT count(*)::integer AS count FROM monthly_plans WHERE lease_until>now()',
+      )
+      if ((active.rows[0]?.count || 0) >= concurrency) return undefined
+      const claimed = await client.query<{ id: string }>(
+        `UPDATE monthly_plans
+          SET status='running',error_code=NULL,updated_at=now(),lease_owner=$1,lease_until=$2
+          WHERE id=(
+            SELECT p.id FROM monthly_plans p
+            LEFT JOIN monthly_planner_settings s ON s.business_id=p.business_id
+            WHERE p.status IN ('queued','running') AND p.next_run_at<=now() AND COALESCE(s.enabled,true)
+              AND (p.lease_until IS NULL OR p.lease_until<now())
+            ORDER BY p.updated_at,p.id LIMIT 1
+            FOR UPDATE OF p SKIP LOCKED
+          )
+          RETURNING id`,
+        [leaseOwner, leaseUntil],
+      )
+      const id = claimed.rows[0]?.id
+      if (!id) return undefined
+      const plan = await client.query<PlanRow>(
+        `SELECT p.*,to_char(p.month,'YYYY-MM') AS month_key,b.owner_id
+          FROM monthly_plans p JOIN businesses b ON b.id=p.business_id WHERE p.id=$1`,
+        [id],
+      )
+      return plan.rows[0]
+    }),
+  )
+}
+
+// Advances one claimed plan by one step and gives its lease back, whatever the
+// outcome. Every write is fenced by the lease, so a run that lost it changes
+// nothing.
+async function advanceClaimedPlan(db: Pool, plan: PlanRow) {
+  const timings = plannerTimings()
+  // One line per run, whatever its outcome, so a slow plan shows which of
+  // its steps took the time.
+  const logTimings = (outcome: string) => console.info('Monthly planner timings', {
+    planId: plan.id,
+    stage: plan.stage,
+    slot: plan.completed_count,
+    outcome,
+    ...timings.summary(),
+  })
+  try {
+    await plannerStep('jobs.advance', () => advanceMonthlyPlan(db, plan, timings.timed))
+    logTimings('advanced')
+  } catch (error) {
+    const code = plannerFailureCode(error)
+    logTimings(code)
+    const rawStage =
+      typeof error === 'object' && error && 'plannerStage' in error
+        ? String(error.plannerStage)
+        : undefined
+    const stage = rawStage && /^[a-z0-9_.-]{1,64}$/i.test(rawStage) ? rawStage : undefined
+    const database =
+      typeof error === 'object' && error
+        ? Object.fromEntries(
+            ['code', 'schema', 'table', 'column', 'constraint'].flatMap((field) => {
+              if (!(field in error)) return []
+              const rawValue = error[field as keyof typeof error]
+              if (typeof rawValue !== 'string' || !/^[a-z0-9_.-]{1,128}$/i.test(rawValue))
+                return []
+              return [[field, rawValue]]
+            }),
+          )
+        : undefined
+    // A customer pausing their own planner is a decision, not a fault. The
+    // plan is still blocked below so the explicit resume can pick it up, but
+    // it is not worth a warning on every tick that races a pause. Every other
+    // stop is logged, with its stage when one is known, so a failure outside
+    // a named step still says what went wrong.
+    if (code !== 'PLANNER_PAUSED')
+      console.warn('Monthly planner paused the current tick.', {
+        code,
+        stage: stage || 'unknown',
+        database,
+        ...(error instanceof PlannerFailure
+          ? { details: error.details.slice(0, 5) }
+          : {
+              errorName:
+                typeof error === 'object' && error && 'name' in error
+                  ? String(error.name).slice(0, 80)
+                  : typeof error,
+              errorMessage:
+                typeof error === 'object' && error && 'message' in error
+                  ? String(error.message).slice(0, 500)
+                  : 'Unknown generation failure',
+              // Where it was thrown, so a failure outside a named step can
+              // be found without a debugger.
+              at: error instanceof Error && error.stack
+                ? error.stack.split('\n').slice(1, 4).map((line) => line.trim())
+                : [],
+            }),
       })
+    // A provider-side temporary error or rate limit has no usable result,
+    // but is safe to retry through the existing bounded ledger policy. Keep
+    // research/planning moving without requiring a human click; after the
+    // allowed attempts the ledger returns PROVIDER_RETRY_EXHAUSTED and this
+    // falls through to the normal blocked state below.
+    if (['PROVIDER_TEMPORARY', 'PROVIDER_RATE_LIMITED'].includes(code)) {
+      const delaySeconds = code === 'PROVIDER_RATE_LIMITED' ? 60 : 15
+      await db.query(
+        `UPDATE monthly_plans
+            SET status='queued',error_code=$1,
+                next_run_at=now() + ($2::text || ' seconds')::interval,updated_at=now()
+          WHERE id=$3 AND lease_owner=$4`,
+        [code, delaySeconds, plan.id, plan.lease_owner],
+      )
+      return
+    }
+    // Never turn a failed automatic stage into another paid attempt. The plan
+    // remains resumable, but only an explicit user action may continue it.
+    await db.query(
+      `UPDATE monthly_plans
+        SET status='blocked',error_code=$1,next_run_at=now(),updated_at=now()
+        WHERE id=$2 AND lease_owner=$3`,
+      [code, plan.id, plan.lease_owner],
+    )
+  } finally {
+    try {
+      await db.query(
+        'UPDATE monthly_plans SET lease_owner=NULL,lease_until=NULL WHERE id=$1 AND lease_owner=$2',
+        [plan.id, plan.lease_owner],
+      )
+    } catch (error) {
+      warnPlannerWrite('Monthly planner lease will expire on its own after a release failure.', error)
+    }
+  }
+}
+
+/**
+ * Runs the planner until `deadline` (epoch ms), when the host stops the
+ * function. Up to PLANNER_CONCURRENCY plans advance at once, each by one step
+ * at a time, until none is waiting or too little time is left to start one.
+ *
+ * With a finite deadline every lease ends a margin after it, so an expired
+ * lease always belongs to a run that has stopped and needs no renewal. Without
+ * one (a long-lived process) leases last PLANNER_LEASE_SECONDS and are renewed
+ * while their step runs, so only a process that is gone lets its lease expire.
+ */
+export async function runMonthlyPlannerBatch(
+  db: Pool = monthlyWorkerDatabase(),
+  options: { deadline?: number; discover?: boolean; once?: boolean } = {},
+) {
+  if (!monthlyAiConfigured()) return
+  const settings = plannerRunSettings()
+  const deadline = options.deadline ?? Number.POSITIVE_INFINITY
+  const bounded = Number.isFinite(deadline)
+  const leaseUntil = () =>
+    new Date(bounded ? deadline + settings.leaseMarginMs : Date.now() + settings.leaseMs)
+  const leaseOwner = randomUUID()
+  await plannerStep('heartbeat', () => recordPlannerHeartbeat(db))
+  const heartbeat = setInterval(() => {
+    void recordPlannerHeartbeat(db).catch((error: unknown) =>
+      warnPlannerWrite('Monthly planner heartbeat refresh was interrupted.', error))
+    if (!bounded)
+      void db
+        .query('UPDATE monthly_plans SET lease_until=$2 WHERE lease_owner=$1', [leaseOwner, leaseUntil()])
+        .catch((error: unknown) => warnPlannerWrite('Monthly planner lease renewal was interrupted.', error))
   }, 30000)
   heartbeat.unref()
   try {
-    // Scan in stable rotation so businesses missing prerequisites do not starve others.
-    const candidates = await plannerStep('discovery', () =>
-      db.query(
-        `SELECT b.id,b.owner_id,b.state FROM businesses b
-        LEFT JOIN monthly_planner_settings s ON s.business_id=b.id
-        WHERE COALESCE(s.enabled,true) AND s.configured_at IS NOT NULL AND $1::boolean
-        ORDER BY COALESCE(s.updated_at,b.created_at),b.id LIMIT 10`,
-        [options.discover !== false],
-      ),
-    )
-    for (const business of candidates.rows) {
-      try {
-        await plannerStep('candidate.ensure', () =>
-          transaction(db, async (client) => {
-            // An editor/API transaction may already be changing this workspace.
-            // Skip it for this rotation instead of starving every other tenant.
-            const available = await client.query(
-              'SELECT id FROM businesses WHERE id=$1 FOR UPDATE SKIP LOCKED',
-              [business.id],
-            )
-            if (!available.rowCount) return
-            await setTenantContext(client, {
-              userId: business.owner_id,
-              organizationId: business.id,
-            })
-            await ensureMonthlyPlan(client, business.id, business.owner_id)
-            const zone = business.state.preferences?.timezone || 'Europe/Tirane'
-            const localDate = new Intl.DateTimeFormat('en-CA', {
-              timeZone: zone,
-              day: '2-digit',
-            }).format(new Date())
-            if (Number(localDate) >= 24) {
-              const upcoming = new Date(`${planningMonth(zone)}-01T12:00:00Z`)
-              upcoming.setUTCMonth(upcoming.getUTCMonth() + 1)
-              // Use a savepoint: unavailable future access must not roll back this month.
-              await client.query('SAVEPOINT next_month')
-              try {
-                await ensureMonthlyPlan(
-                  client,
-                  business.id,
-                  business.owner_id,
-                  upcoming.toISOString().slice(0, 7),
-                )
-              } catch (error) {
-                await client.query('ROLLBACK TO SAVEPOINT next_month')
-                if (!(error instanceof PlannerFailure)) throw error
-              }
-            }
-          }),
-        )
-      } catch (error) {
-        if (!(error instanceof PlannerFailure)) throw error
-      }
-      await plannerStep('candidate.rotate', () =>
-        db.query(
-          'INSERT INTO monthly_planner_settings(business_id,enabled) VALUES($1,true) ON CONFLICT(business_id) DO UPDATE SET updated_at=now()',
-          [business.id],
-        ),
-      )
+    if (options.discover !== false) await discoverMonthlyPlans(db)
+    const next = async () => {
+      const plan = await claimMonthlyPlan(db, leaseOwner, leaseUntil(), settings.concurrency)
+      if (!plan) return false
+      await advanceClaimedPlan(db, plan)
+      return true
     }
-    const jobs = await plannerStep('jobs.read', () =>
-      db.query<PlanRow>(`SELECT p.*,to_char(p.month,'YYYY-MM') AS month_key,b.owner_id
-        FROM monthly_plans p JOIN businesses b ON b.id=p.business_id
-        LEFT JOIN monthly_planner_settings s ON s.business_id=p.business_id
-        WHERE p.status IN ('queued','running') AND p.next_run_at<=now() AND COALESCE(s.enabled,true)
-        ORDER BY p.updated_at,p.id LIMIT 1`),
-    )
-    const plan = jobs.rows[0]
-    if (!plan) return
-    await plannerStep('jobs.claim', () =>
-      db.query(
-        "UPDATE monthly_plans SET status='running',error_code=NULL,updated_at=now() WHERE id=$1",
-        [plan.id],
-      ),
-    )
-    try {
-      await plannerStep('jobs.advance', () => advanceMonthlyPlan(db, plan))
-    } catch (error) {
-      const code = plannerFailureCode(error)
-      const rawStage =
-        typeof error === 'object' && error && 'plannerStage' in error
-          ? String(error.plannerStage)
-          : undefined
-      const stage = rawStage && /^[a-z0-9_.-]{1,64}$/i.test(rawStage) ? rawStage : undefined
-      const database =
-        typeof error === 'object' && error
-          ? Object.fromEntries(
-              ['code', 'schema', 'table', 'column', 'constraint'].flatMap((field) => {
-                if (!(field in error)) return []
-                const rawValue = error[field as keyof typeof error]
-                if (typeof rawValue !== 'string' || !/^[a-z0-9_.-]{1,128}$/i.test(rawValue))
-                  return []
-                return [[field, rawValue]]
-              }),
-            )
-          : undefined
-      // A customer pausing their own planner is a decision, not a fault. The
-      // plan is still blocked below so the explicit resume can pick it up, but
-      // it is not worth a warning on every tick that races a pause. Every other
-      // stop is logged, with its stage when one is known, so a failure outside
-      // a named step still says what went wrong.
-      if (code !== 'PLANNER_PAUSED')
-        console.warn('Monthly planner paused the current tick.', {
-          code,
-          stage: stage || 'unknown',
-          database,
-          ...(error instanceof PlannerFailure
-            ? { details: error.details.slice(0, 5) }
-            : {
-                errorName:
-                  typeof error === 'object' && error && 'name' in error
-                    ? String(error.name).slice(0, 80)
-                    : typeof error,
-                errorMessage:
-                  typeof error === 'object' && error && 'message' in error
-                    ? String(error.message).slice(0, 500)
-                    : 'Unknown generation failure',
-                // Where it was thrown, so a failure outside a named step can
-                // be found without a debugger.
-                at: error instanceof Error && error.stack
-                  ? error.stack.split('\n').slice(1, 4).map((line) => line.trim())
-                  : [],
-              }),
-        })
-      // A provider-side temporary error or rate limit has no usable result,
-      // but is safe to retry through the existing bounded ledger policy. Keep
-      // research/planning moving without requiring a human click; after the
-      // allowed attempts the ledger returns PROVIDER_RETRY_EXHAUSTED and this
-      // falls through to the normal blocked state below.
-      if (['PROVIDER_TEMPORARY', 'PROVIDER_RATE_LIMITED'].includes(code)) {
-        const delaySeconds = code === 'PROVIDER_RATE_LIMITED' ? 60 : 15
-        await db.query(
-          `UPDATE monthly_plans
-              SET status='queued',error_code=$1,
-                  next_run_at=now() + ($2::text || ' seconds')::interval,updated_at=now()
-            WHERE id=$3`,
-          [code, delaySeconds, plan.id],
-        )
-        return
-      }
-      // Never turn a failed automatic stage into another paid attempt. The plan
-      // remains resumable, but only an explicit user action may continue it.
-      await db.query(
-        `UPDATE monthly_plans
-          SET status='blocked',error_code=$1,next_run_at=now(),updated_at=now()
-          WHERE id=$2`,
-        [code, plan.id],
-      )
-    }
+    if (options.once) await next()
+    else
+      await runPlannerLanes({
+        concurrency: settings.concurrency,
+        deadline,
+        minStepMs: settings.minStepMs,
+        next,
+      })
   } finally {
     clearInterval(heartbeat)
-    try {
-      await db.query(
-        "UPDATE worker_heartbeats SET lease_owner=NULL,lease_until=NULL,last_seen_at=now() WHERE name='monthly_planner' AND lease_owner=$1",
-        [leaseOwner],
-      )
-    } catch (error) {
-      const code =
-        typeof error === 'object' && error && 'code' in error
-          ? String(error.code).slice(0, 64)
-          : undefined
-      console.warn('Monthly planner lease will recover automatically after release failure.', {
-        code,
-      })
-    }
   }
+}
+
+// One step of one plan: the waiting plan that has waited longest advances by
+// a single stage or post.
+export function runMonthlyPlannerTick(
+  db: Pool = monthlyWorkerDatabase(),
+  options: { discover?: boolean } = {},
+) {
+  return runMonthlyPlannerBatch(db, { ...options, once: true })
 }

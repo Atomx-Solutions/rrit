@@ -1,4 +1,5 @@
 import { ratioLabel, type Canvas } from '../../shared/schemas/channel-format'
+import { parseRetryAfter } from './meta'
 
 type OpenRouterVideoStatus = {
   id?: string
@@ -24,6 +25,128 @@ function config() {
 
 function providerError(status: OpenRouterVideoStatus) {
   return typeof status.error === 'string' ? status.error : status.error?.message
+}
+
+function positiveSetting(value: string | undefined, fallback: number) {
+  const configured = Number(value)
+  return Number.isInteger(configured) && configured > 0 ? configured : fallback
+}
+
+/**
+ * How the job is followed once submitted: how often it is asked about, how
+ * long it may take in all, how many failed asks in a row end it, and how many
+ * times a submission the provider rate-limited is sent again.
+ */
+export function videoProviderSettings(env: Record<string, string | undefined> = process.env) {
+  return {
+    pollIntervalMs: positiveSetting(env.OPENROUTER_VIDEO_POLL_SECONDS, 2) * 1000,
+    timeoutMs: positiveSetting(env.OPENROUTER_VIDEO_TIMEOUT_SECONDS, 600) * 1000,
+    maxFailures: positiveSetting(env.OPENROUTER_VIDEO_MAX_FAILURES, 5),
+    submitAttempts: positiveSetting(env.OPENROUTER_VIDEO_SUBMIT_ATTEMPTS, 3),
+  }
+}
+
+export type ProviderClock = { now: () => number; sleep: (ms: number) => Promise<void> }
+const realClock: ProviderClock = {
+  now: Date.now,
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+}
+
+// A refusal worth asking again about: the provider was busy or briefly down.
+function transientStatus(status: number) {
+  return status === 429 || status >= 500
+}
+
+/**
+ * Follows a submitted job until it completes. A failed ask (no answer, a busy
+ * or failing provider, or an answer that is not JSON) is asked again, since
+ * the job itself goes on and has already been paid for; only a run of
+ * `maxFailures` of them in a row, or the job taking longer than `timeoutMs`,
+ * gives it up. A job the provider reports as failed ends at once.
+ */
+export async function pollVideoJob(
+  ask: () => Promise<Response>,
+  settings: ReturnType<typeof videoProviderSettings>,
+  clock: ProviderClock = realClock,
+): Promise<OpenRouterVideoStatus> {
+  const started = clock.now()
+  let failures = 0
+  for (;;) {
+    if (clock.now() - started >= settings.timeoutMs)
+      throw createError({ statusCode: 504, message: 'server.VIDEO_GENERATION_TIMEOUT' })
+    await clock.sleep(settings.pollIntervalMs)
+    let status: OpenRouterVideoStatus | undefined
+    try {
+      const response = await ask()
+      if (response.ok) status = await response.json() as OpenRouterVideoStatus
+      else if (!transientStatus(response.status)) {
+        const body = await response.json().catch(() => ({})) as OpenRouterVideoStatus
+        throw createError({ statusCode: 502, message: providerError(body) || 'OpenRouter video generation failed.' })
+      }
+    } catch (error) {
+      // A refusal decided above is final; anything else was a failed ask.
+      if (typeof error === 'object' && error && 'statusCode' in error) throw error
+    }
+    if (!status) {
+      failures++
+      if (failures >= settings.maxFailures)
+        throw createError({ statusCode: 502, message: 'OpenRouter did not answer about the video job.' })
+      continue
+    }
+    failures = 0
+    const state = (status.status || '').toLowerCase()
+    if (['completed', 'succeeded'].includes(state)) return status
+    if (['failed', 'error', 'cancelled'].includes(state))
+      throw createError({ statusCode: 502, message: providerError(status) || 'OpenRouter video generation failed.' })
+  }
+}
+
+/**
+ * Downloads a finished video, asking again when the download fails for a
+ * reason that can pass: the video is paid for and must not be lost to one
+ * dropped connection.
+ */
+export async function downloadVideoContent(
+  download: () => Promise<Response>,
+  settings: ReturnType<typeof videoProviderSettings>,
+  clock: ProviderClock = realClock,
+) {
+  for (let attempt = 1; ; attempt++) {
+    let response: Response | undefined
+    try {
+      response = await download()
+      if (response.ok) return Buffer.from(await response.arrayBuffer())
+    } catch {
+      // A dropped connection or a timeout; asked again below.
+    }
+    if ((response && !transientStatus(response.status)) || attempt >= settings.maxFailures)
+      throw createError({ statusCode: 502, message: 'server.VIDEO_DOWNLOAD_FAILED' })
+    await clock.sleep(settings.pollIntervalMs * attempt)
+  }
+}
+
+/**
+ * Submits a job. Only a submission the provider turned away as rate-limited
+ * is sent again, after the wait it asks for: that one was never accepted. Any
+ * other failure may have started a paid job, so it is never sent twice.
+ */
+export async function submitVideoJob(
+  send: () => Promise<Response>,
+  settings: ReturnType<typeof videoProviderSettings>,
+  clock: ProviderClock = realClock,
+) {
+  for (let attempt = 1; ; attempt++) {
+    const response = await send()
+    if (response.status === 429 && attempt < settings.submitAttempts) {
+      const wait = parseRetryAfter(response.headers.get('retry-after'), clock.now())
+      await clock.sleep(wait ? wait * 1000 : settings.pollIntervalMs * 2 ** attempt)
+      continue
+    }
+    const submitted = await response.json().catch(() => ({})) as OpenRouterVideoStatus
+    if (!response.ok || !submitted.id)
+      throw createError({ statusCode: 502, message: providerError(submitted) || 'OpenRouter nuk e pranoi kërkesën për video.' })
+    return submitted
+  }
 }
 
 // OpenRouter's catalogue does not publish a model's prompt limit, so it is
@@ -164,7 +287,8 @@ async function openrouterAdapter(request: VideoProviderRequest): Promise<VideoPr
     image_url: { url: `data:image/jpeg;base64,${image.toString('base64')}` },
     frame_type: frameType,
   })
-  const response = await fetch(`${provider.baseUrl}/videos`, {
+  const settings = videoProviderSettings()
+  const submitted = await submitVideoJob(() => fetch(`${provider.baseUrl}/videos`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -183,29 +307,21 @@ async function openrouterAdapter(request: VideoProviderRequest): Promise<VideoPr
     }),
     signal: AbortSignal.timeout(30000),
     redirect: 'error',
-  })
-  const submitted = await response.json() as OpenRouterVideoStatus
-  if (!response.ok || !submitted.id)
-    throw createError({ statusCode: 502, message: providerError(submitted) || 'OpenRouter nuk e pranoi kërkesën për video.' })
+  }), settings)
 
   const pollUrl = submitted.polling_url?.startsWith('http')
     ? submitted.polling_url
     : `${provider.baseUrl}/videos/${submitted.id}`
-  let completed: OpenRouterVideoStatus | undefined
-  for (let attempt = 0; attempt < 90; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    const poll = await fetch(pollUrl, { headers: { Authorization: `Bearer ${provider.key}` }, signal: AbortSignal.timeout(30000), redirect: 'error' })
-    completed = await poll.json() as OpenRouterVideoStatus
-    if (['completed', 'succeeded'].includes((completed.status || '').toLowerCase())) break
-    if (['failed', 'error', 'cancelled'].includes((completed.status || '').toLowerCase()))
-      throw createError({ statusCode: 502, message: providerError(completed) || 'OpenRouter video generation failed.' })
-  }
-  if (!completed || !['completed', 'succeeded'].includes((completed.status || '').toLowerCase()))
-    throw createError({ statusCode: 504, message: 'server.VIDEO_GENERATION_TIMEOUT' })
+  const completed = await pollVideoJob(
+    () => fetch(pollUrl, { headers: { Authorization: `Bearer ${provider.key}` }, signal: AbortSignal.timeout(30000), redirect: 'error' }),
+    settings,
+  )
   const contentUrl = completed.unsigned_urls?.[0] || completed.data?.url || `${provider.baseUrl}/videos/${submitted.id}/content`
-  const video = await fetch(contentUrl, { headers: { Authorization: `Bearer ${provider.key}` }, signal: AbortSignal.timeout(120000), redirect: 'error' })
-  if (!video.ok) throw createError({ statusCode: 502, message: 'server.VIDEO_DOWNLOAD_FAILED' })
-  return { bytes: Buffer.from(await video.arrayBuffer()), costUsd: completed.usage?.cost ?? null }
+  const bytes = await downloadVideoContent(
+    () => fetch(contentUrl, { headers: { Authorization: `Bearer ${provider.key}` }, signal: AbortSignal.timeout(120000), redirect: 'error' }),
+    settings,
+  )
+  return { bytes, costUsd: completed.usage?.cost ?? null }
 }
 
 /**

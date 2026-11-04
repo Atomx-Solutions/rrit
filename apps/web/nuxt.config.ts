@@ -11,6 +11,10 @@ const appHost = (() => {
 const immutableAsset = 'public, max-age=31536000, immutable'
 const publicAsset = 'public, max-age=86400, stale-while-revalidate=604800'
 
+// The longest a Vercel function may run (800s is the Pro maximum). The planner
+// cron reads the same figure to stop claiming work before it is cut off.
+const functionMaxDurationSeconds = Number(process.env.FUNCTION_MAX_DURATION_SECONDS) || 800
+
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -58,6 +62,12 @@ export default defineNuxtConfig({
     output: process.env.VERCEL
       ? {}
       : { dir: process.env.NITRO_OUTPUT_DIR || '.output' },
+    vercel: {
+      functions: { maxDuration: functionMaxDurationSeconds },
+      // The planner runs from this cron on Vercel, where no process stays up
+      // between requests to run it on a timer.
+      config: { crons: [{ path: '/api/cron/planner', schedule: '* * * * *' }] },
+    },
   },
   app: {
     head: {
@@ -84,6 +94,7 @@ export default defineNuxtConfig({
     },
   },
   runtimeConfig: {
+    functionMaxDurationSeconds,
     public: {
       apiBase: '',
       // Publishable Supabase credentials are safe to expose to the browser.

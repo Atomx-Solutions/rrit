@@ -25,6 +25,7 @@ import {
   MetaFailure,
   metaFailureCategory,
   parseRetryAfter,
+  withBusinessTransaction,
 } from '../../server/utils/meta'
 import {
   decodePhoto,
@@ -75,6 +76,8 @@ import {
   runMonthlyPlannerTick,
 } from '../../server/utils/monthly-planner'
 import { monthlyProviderCall } from '../../server/utils/monthly-ai'
+import { claimVideoRender } from '../../server/utils/video-queue'
+import { failStoppedRender } from '../../server/utils/video-render'
 import { createDemo } from '../fixtures/workspace'
 import { syncBusinessBrain, updateBusinessBrainSettings } from '../../server/utils/business-brain'
 import { currentPostQuality, reviewPostQuality } from '../../server/utils/post-quality'
@@ -1381,6 +1384,112 @@ describe('optional Meta calendar', () => {
   })
 })
 
+describe('video render queue', () => {
+  async function queuedRender(postId: string, businessId: string, requestedBy: string) {
+    const render = await pool.query<{ id: string }>(
+      `INSERT INTO video_renders(business_id,post_id,source_asset_ids,status,quota_month,requested_by,reserved_credits)
+        VALUES($1,$2,'[]','queued',date_trunc('month',now())::date,$3,10) RETURNING id`,
+      [businessId, postId, requestedBy],
+    )
+    return render.rows[0]!.id
+  }
+  async function videoPost() {
+    const item = await business()
+    const postId = randomUUID()
+    await pool.query('INSERT INTO posts(id,business_id,payload) VALUES($1,$2,$3)', [
+      postId,
+      item.id,
+      // A complete post, since settling a render reads the post it belongs to.
+      JSON.stringify({ ...createDemo().posts[0]!, id: postId }),
+    ])
+    return { ...item, postId }
+  }
+  const worker = () =>
+    new Pool({ connectionString: databaseUrl, options: `-c search_path=${schema},public -c role=rrit_worker` })
+
+  it('keeps one render at a time for a post, so a second request cannot pay for a second video', async () => {
+    const item = await videoPost()
+    await queuedRender(item.postId, item.id, item.user)
+    await expect(queuedRender(item.postId, item.id, item.user)).rejects.toMatchObject({ code: '23505' })
+    await pool.query("UPDATE video_renders SET status='failed' WHERE post_id=$1", [item.postId])
+    await expect(queuedRender(item.postId, item.id, item.user)).resolves.toEqual(expect.any(String))
+    await pool.query("UPDATE video_renders SET status='failed' WHERE post_id=$1", [item.postId])
+  })
+
+  it('lets the worker claim a queued render once, with a lease, and hands it to no second claim', async () => {
+    const item = await videoPost()
+    const id = await queuedRender(item.postId, item.id, item.user)
+    const db = worker()
+    try {
+      const until = new Date(Date.now() + 60_000)
+      const [first, second] = await Promise.all([
+        claimVideoRender(db, randomUUID(), until, 100),
+        claimVideoRender(db, randomUUID(), until, 100),
+      ])
+      const claims = [first, second].filter(Boolean)
+      expect(claims).toHaveLength(1)
+      expect(claims[0]).toMatchObject({ id, postId: item.postId, requestedBy: item.user })
+      expect(
+        (await pool.query('SELECT status,lease_owner FROM video_renders WHERE id=$1', [id])).rows[0],
+      ).toEqual({ status: 'rendering', lease_owner: claims[0]!.leaseOwner })
+    } finally {
+      await db.end()
+    }
+    await pool.query("UPDATE video_renders SET status='failed',lease_owner=NULL,lease_until=NULL WHERE id=$1", [id])
+  })
+
+  it('settles a render left over from before the queue once its function must have stopped', async () => {
+    const stale = await videoPost()
+    const recent = await videoPost()
+    const legacy = async (item: Awaited<ReturnType<typeof videoPost>>, age: string) =>
+      (await pool.query<{ id: string }>(
+        `INSERT INTO video_renders(business_id,post_id,source_asset_ids,status,quota_month,created_at)
+          VALUES($1,$2,'[]','rendering',date_trunc('month',now())::date,now()-$3::interval) RETURNING id`,
+        [item.id, item.postId, age],
+      )).rows[0]!.id
+    // Nitro provides this to the server at runtime; the test supplies it.
+    vi.stubGlobal('withBusinessTransaction', withBusinessTransaction)
+    const staleId = await legacy(stale, '2 hours')
+    const recentId = await legacy(recent, '1 minute')
+    await failStoppedRender({ id: staleId, postId: stale.postId, actorId: stale.user, staleAfterSeconds: 860 })
+    await failStoppedRender({ id: recentId, postId: recent.postId, actorId: recent.user, staleAfterSeconds: 860 })
+    expect((await pool.query('SELECT status,failure_reason FROM video_renders WHERE id=$1', [staleId])).rows[0]).toEqual({
+      status: 'failed',
+      failure_reason: 'render_stopped',
+    })
+    expect((await pool.query('SELECT status FROM video_renders WHERE id=$1', [recentId])).rows[0]).toEqual({
+      status: 'rendering',
+    })
+    await pool.query("UPDATE video_renders SET status='failed' WHERE id=$1", [recentId])
+  })
+
+  it('claims no render while as many renders as allowed hold a live lease', async () => {
+    const busy = await videoPost()
+    const waiting = await videoPost()
+    const busyId = await queuedRender(busy.postId, busy.id, busy.user)
+    const waitingId = await queuedRender(waiting.postId, waiting.id, waiting.user)
+    await pool.query(
+      "UPDATE video_renders SET status='rendering',lease_owner=$2,lease_until=now()+interval '1 hour' WHERE id=$1",
+      [busyId, randomUUID()],
+    )
+    const db = worker()
+    try {
+      const active = (await pool.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM video_renders WHERE status='rendering' AND lease_until>now()",
+      )).rows[0]!.count
+      expect(await claimVideoRender(db, randomUUID(), new Date(Date.now() + 60_000), active)).toBeUndefined()
+      expect((await pool.query('SELECT status FROM video_renders WHERE id=$1', [waitingId])).rows[0]).toEqual({
+        status: 'queued',
+      })
+    } finally {
+      await db.end()
+    }
+    await pool.query(
+      "UPDATE video_renders SET status='failed',lease_owner=NULL,lease_until=NULL WHERE id=ANY($1)",
+      [[busyId, waitingId]],
+    )
+  })
+})
 describe('immutable post content and approvals', () => {
   it('keeps full snapshots immutable and never reuses approval for changed content', async () => {
     const item = await business()
@@ -1917,6 +2026,119 @@ describe('monthly planning persistence and cost boundaries', () => {
       await worker.end()
     }
     await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  function researchResponse(url: string) {
+    return new Response(
+      JSON.stringify({
+        id: randomUUID(),
+        status: 'completed',
+        usage: { input_tokens: 100, output_tokens: 100 },
+        output: [
+          {
+            type: 'web_search_call',
+            status: 'completed',
+            action: { sources: [{ url, title: 'Lease source' }] },
+          },
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: 'Observed context [1]',
+                annotations: [
+                  { type: 'url_citation', url, title: 'Lease source', start_index: 17, end_index: 20 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      { status: 200 },
+    )
+  }
+  it('lets only one of two simultaneous runs take a plan, so research is paid for once', async () => {
+    const item = await monthlyBusiness(1)
+    const plan = await enqueue(item)
+    const fetcher = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      return researchResponse('https://example.test/one-claim')
+    })
+    vi.stubGlobal('fetch', fetcher)
+    await Promise.all([
+      runMonthlyPlannerTick(pool, { discover: false }),
+      runMonthlyPlannerTick(pool, { discover: false }),
+    ])
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(
+      (await pool.query('SELECT stage,lease_owner,lease_until FROM monthly_plans WHERE id=$1', [plan.id]))
+        .rows[0],
+    ).toMatchObject({ stage: 'planning', lease_owner: null, lease_until: null })
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('leaves a plan alone while another run holds its lease and takes it once the lease expires', async () => {
+    const item = await monthlyBusiness(1)
+    const plan = await enqueue(item)
+    const fetcher = vi.fn(async () => researchResponse('https://example.test/expired-lease'))
+    vi.stubGlobal('fetch', fetcher)
+    await pool.query(
+      "UPDATE monthly_plans SET lease_owner=$2,lease_until=now()+interval '1 hour' WHERE id=$1",
+      [plan.id, randomUUID()],
+    )
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(fetcher).not.toHaveBeenCalled()
+    await pool.query(
+      "UPDATE monthly_plans SET lease_until=now()-interval '1 second' WHERE id=$1",
+      [plan.id],
+    )
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect((await pool.query('SELECT stage FROM monthly_plans WHERE id=$1', [plan.id])).rows[0]).toEqual({
+      stage: 'planning',
+    })
+    await pool.query("UPDATE monthly_plans SET status='cancelled' WHERE id=$1", [plan.id])
+  })
+  it('takes no plan while as many plans as PLANNER_CONCURRENCY hold a live lease', async () => {
+    vi.stubEnv('PLANNER_CONCURRENCY', '1')
+    const busy = await enqueue(await monthlyBusiness(1))
+    const waiting = await enqueue(await monthlyBusiness(1))
+    await pool.query(
+      "UPDATE monthly_plans SET lease_owner=$2,lease_until=now()+interval '1 hour' WHERE id=$1",
+      [busy.id, randomUUID()],
+    )
+    const fetcher = vi.fn(async () => researchResponse('https://example.test/concurrency'))
+    vi.stubGlobal('fetch', fetcher)
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(fetcher).not.toHaveBeenCalled()
+    expect((await pool.query('SELECT stage FROM monthly_plans WHERE id=$1', [waiting.id])).rows[0]).toEqual({
+      stage: 'research',
+    })
+    await pool.query(
+      "UPDATE monthly_plans SET status='cancelled',lease_owner=NULL,lease_until=NULL WHERE id=ANY($1)",
+      [[busy.id, waiting.id]],
+    )
+    vi.stubEnv('PLANNER_CONCURRENCY', undefined)
+  })
+  it('discards what a run produced once it has lost the lease to another run', async () => {
+    const item = await monthlyBusiness(1)
+    const plan = await enqueue(item)
+    const thief = randomUUID()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        // Another run takes the plan while this one waits on the provider.
+        await pool.query('UPDATE monthly_plans SET lease_owner=$2 WHERE id=$1', [plan.id, thief])
+        return researchResponse('https://example.test/lost-lease')
+      }),
+    )
+    await runMonthlyPlannerTick(pool, { discover: false })
+    expect(
+      (await pool.query('SELECT stage,research,lease_owner FROM monthly_plans WHERE id=$1', [plan.id]))
+        .rows[0],
+    ).toEqual({ stage: 'research', research: null, lease_owner: thief })
+    await pool.query(
+      "UPDATE monthly_plans SET status='cancelled',lease_owner=NULL,lease_until=NULL WHERE id=$1",
+      [plan.id],
+    )
   })
   it('rejects a cost reservation before any provider request', async () => {
     const item = await monthlyBusiness()

@@ -84,10 +84,12 @@ const videoPreviewOpen = ref(false)
 const videoBusy = ref(false)
 const videoRender = ref<{
   id: string
-  status: 'rendering' | 'ready' | 'failed'
+  status: 'queued' | 'rendering' | 'ready' | 'failed'
   failureReason: string | null
   previewUrl: string | null
 } | null>(null)
+const videoInProgress = computed(() =>
+  videoRender.value?.status === 'queued' || videoRender.value?.status === 'rendering')
 const previewVideoUrl = computed(() =>
   post.value?.video?.status === 'ready' && form.image === post.value.image
     ? videoRender.value?.previewUrl || null
@@ -235,9 +237,33 @@ async function refreshVideo() {
   try {
     const result = await $fetch(`/api/posts/${post.value.id}/video`)
     videoRender.value = result.render || null
+    if (videoInProgress.value) followVideo()
   } catch {
     // Video state is optional; do not interrupt normal post editing.
   }
+}
+// A video takes minutes and renders on the server after the request has been
+// answered. While one is queued or rendering, its status is read again until
+// it is ready or has failed, also after the editor is opened again.
+let videoTimer: ReturnType<typeof setInterval> | undefined
+function followVideo() {
+  if (videoTimer) return
+  videoTimer = setInterval(async () => {
+    await refreshVideo()
+    if (videoInProgress.value) return
+    clearInterval(videoTimer)
+    videoTimer = undefined
+    await initLive()
+    if (videoRender.value?.status === 'ready') notify(t('video.ready'))
+    else error.value = t('video.failed')
+  }, 10000)
+}
+// What the server answers once a render is queued.
+type QueuedVideo = { renderId: string; status: 'queued' }
+function videoQueued(render: QueuedVideo) {
+  videoRender.value = { id: render.renderId, status: 'queued', failureReason: null, previewUrl: null }
+  followVideo()
+  notify(t('video.rendering'))
 }
 // A video is first made with the music the business chooses for it here;
 // nothing is chosen for it unless the video already has music.
@@ -255,15 +281,17 @@ function openVideoGenerate() {
   videoGenerateOpen.value = true
 }
 async function renderVideo() {
-  if (!post.value || videoBusy.value || dirty.value || !videoMusicChosen.value) return
+  if (!post.value || videoBusy.value || videoInProgress.value || dirty.value || !videoMusicChosen.value) return
   videoBusy.value = true
   error.value = ''
   videoGenerateOpen.value = false
   try {
-    await $fetch(`/api/posts/${post.value.id}/video-render`, { method: 'POST', body: { music: videoMusicChoice.value }, retry: 0 })
-    await initLive()
-    await refreshVideo()
-    notify(t('video.ready'))
+    const queued = await $fetch<QueuedVideo>(`/api/posts/${post.value.id}/video-render`, {
+      method: 'POST',
+      body: { music: videoMusicChoice.value },
+      retry: 0,
+    })
+    videoQueued(queued)
   } catch (problem) {
     error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
   } finally {
@@ -274,20 +302,18 @@ async function renderVideo() {
 const videoEditOpen = ref(false)
 const videoInstruction = ref('')
 async function editVideoWithAi() {
-  if (!post.value || videoBusy.value || videoInstruction.value.trim().length < 5) return
+  if (!post.value || videoBusy.value || videoInProgress.value || videoInstruction.value.trim().length < 5) return
   videoBusy.value = true
   error.value = ''
   try {
-    await $fetch(`/api/posts/${post.value.id}/video-edit`, {
+    const queued = await $fetch<QueuedVideo>(`/api/posts/${post.value.id}/video-edit`, {
       method: 'POST',
       body: { instruction: videoInstruction.value.trim() },
       retry: 0,
     })
     videoEditOpen.value = false
     videoInstruction.value = ''
-    await initLive()
-    await refreshVideo()
-    notify(t('video.ready'))
+    videoQueued(queued)
   } catch (problem) {
     error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
   } finally {
@@ -337,7 +363,10 @@ onMounted(() => {
   void refreshPublication()
   void refreshVideo()
 })
-onBeforeUnmount(() => clearInterval(publicationTimer))
+onBeforeUnmount(() => {
+  clearInterval(publicationTimer)
+  clearInterval(videoTimer)
+})
 const scheduleOpen = ref(false)
 const schedule = ref('')
 const scheduleError = ref('')
@@ -658,8 +687,8 @@ onBeforeUnmount(() => {
                 v-if="post?.video?.status === 'brief_ready'"
                 size="sm"
                 icon="i-lucide-play"
-                :loading="videoBusy"
-                :disabled="dirty || syncing || !editable"
+                :loading="videoBusy || videoInProgress"
+                :disabled="dirty || syncing || !editable || videoInProgress"
                 @click="openVideoGenerate"
               >{{ t('video.generate') }}</UButton>
               <UButton
@@ -676,7 +705,8 @@ onBeforeUnmount(() => {
                 variant="outline"
                 color="neutral"
                 icon="i-lucide-wand-sparkles"
-                :disabled="dirty || syncing || !editable || videoBusy"
+                :loading="videoInProgress"
+                :disabled="dirty || syncing || !editable || videoBusy || videoInProgress"
                 @click="videoEditOpen = true"
               >{{ t('video.editWithAi') }}</UButton>
               <VideoMusicPicker
@@ -684,13 +714,13 @@ onBeforeUnmount(() => {
                 :post-id="post.id"
                 :music="post.video.music"
                 :ai-kept="!!post.video.aiMusicPath"
-                :disabled="dirty || syncing || !editable || videoBusy || post.video.status === 'rendering'"
+                :disabled="dirty || syncing || !editable || videoBusy || videoInProgress"
                 @changed="videoMusicChanged"
               />
             </div>
           </div>
           <p v-if="post?.video" class="text-sm text-muted">
-            {{ videoRender?.status === 'ready' ? t('video.readyHint') : t('video.sourceHint') }}
+            {{ videoInProgress ? t('video.rendering') : videoRender?.status === 'ready' ? t('video.readyHint') : t('video.sourceHint') }}
           </p>
           <!-- A video the subject check doubted is kept for the business to
                judge; the check's own words say what it saw. -->

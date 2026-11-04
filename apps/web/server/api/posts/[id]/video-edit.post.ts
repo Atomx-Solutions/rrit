@@ -1,11 +1,13 @@
 import { z } from 'zod'
 import { postSchema } from '../../../../shared/schemas/workspace'
-import { renderVideoForPost } from '../../../utils/video-render'
+import { queueVideoRender } from '../../../utils/video-render'
+import { startVideoRenderNow } from '../../../utils/planner-run'
 
 // Edit video with AI: the business tells the creative director in its own
 // words what the next take should be, and the video is rendered again from the
 // same photograph under the same rules.
 export default defineEventHandler(async (event) => {
+  const started = Date.now()
   requireSameOrigin(event)
   const user = await requireUser(event)
   const id = z.uuid().parse(getRouterParam(event, 'id'))
@@ -28,5 +30,9 @@ export default defineEventHandler(async (event) => {
       [business.id, user.id, id],
     )
   })
-  return renderVideoForPost(user.id, id)
+  // The render is queued and starts at once; the editor follows its status.
+  const queued = await queueVideoRender(user.id, id)
+  startVideoRenderNow(event, started)
+  setResponseStatus(event, 202)
+  return queued
 })

@@ -20,6 +20,11 @@ import {
   creativeGeometry,
   PlannerFailure,
   plannerIdentityChanged,
+  plannerTimings,
+  plannerRunSettings,
+  runPlannerLanes,
+  videoQueueSettings,
+  slotUsesPostAllowance,
 } from '../../server/utils/monthly-planner-domain'
 import {
   monthlyAiConfigured,
@@ -43,7 +48,7 @@ import {
   removeLogoBackground,
 } from '../../server/utils/image-processing'
 import { loadPlannerAssets } from '../../server/utils/monthly-planner'
-import { generatedPostSchema, editorialPlanSchema } from '../../shared/schemas/monthly-plan'
+import { generatedPostSchema, editorialPlanSchema, slotBriefSchema } from '../../shared/schemas/monthly-plan'
 import { paidAccessForPlanningMonth } from '../../server/utils/trials'
 import { aiProviderJsonSchema } from '../../server/utils/ai-provider'
 import { z } from 'zod'
@@ -118,7 +123,7 @@ function researchFixture(): ProviderResponse {
     ],
   }
 }
-function editorialFixture() {
+function editorialFixture(): z.input<typeof editorialPlanSchema> {
   return {
     objective: 'Introduce the verified business offering',
     audience: 'Local regular customers',
@@ -296,7 +301,7 @@ describe('monthly evidence and provider boundaries', () => {
       selectedAssetIds: [selectedId],
     })
     const research = researchFromResponse(researchFixture(), now)
-    const plan: z.infer<typeof editorialPlanSchema> = editorialFixture()
+    const plan = editorialFixture()
     // One Instagram post was asked for; the model planned a TikTok video.
     Object.assign(plan.slots[0]!, { requiredAssetId: selectedId, deliverable: 'video', channel: 'TikTok' })
     const validated = validateEditorialPlan(plan, evidence, research, '2026-09', 1, undefined, [], { Instagram: 1 }, 0)
@@ -312,7 +317,7 @@ describe('monthly evidence and provider boundaries', () => {
     })
     expect(evidence.assets.map((asset) => asset.id)).toEqual([selectedId])
     const research = researchFromResponse(researchFixture(), now)
-    const plan: z.infer<typeof editorialPlanSchema> = editorialFixture()
+    const plan = editorialFixture()
     plan.slots[0]!.requiredAssetId = selectedId
     expect(validateEditorialPlan(plan, evidence, research, '2026-09', 1).slots[0]).toMatchObject({
       requiredAssetId: selectedId,
@@ -338,7 +343,7 @@ describe('monthly evidence and provider boundaries', () => {
       {
         publishedAt: '2026-09-01T08:00:00.000Z',
         channel: 'Instagram',
-        source: 'social',
+        source: 'instagram',
       },
     ])
     const research = researchFromResponse(researchFixture(), now)
@@ -510,7 +515,7 @@ describe('monthly evidence and provider boundaries', () => {
     const evidence = plannerEvidence(createDemo(), now)
     const research = researchFromResponse(researchFixture(), now)
     const plan = editorialFixture()
-    const earlier = { ...plan.slots[0]!, topic: 'An earlier, different topic', hook: 'An earlier, different hook.' }
+    const earlier = slotBriefSchema.parse({ ...plan.slots[0]!, topic: 'An earlier, different topic', hook: 'An earlier, different hook.' })
     const validated = validateEditorialPlan(plan, evidence, research, '2026-09', 1, undefined, [earlier])
     expect(validated.slots[0]!.day).toBe(earlier.day)
     expect(validated.slots[0]!.channel).toBe(earlier.channel)
@@ -661,6 +666,7 @@ function imagePromptInput() {
       eyebrow: 'Aurum Restaurant',
       cta: 'Ruaje për sonte',
       layout: 'A close detail of the plated main course, anchored low on the left.',
+      logoZone: 'auto' as const,
     },
     slot: {
       channel: 'Instagram' as 'Instagram' | 'Facebook' | 'TikTok',
@@ -691,6 +697,7 @@ describe('AI creative generation', () => {
       eyebrow: 'Aurum Restaurant',
       cta: 'Ruaje për sonte',
       layout: 'An original warm evening composition built around the real dining room.',
+      logoZone: 'auto' as const,
     }
     const monthly = monthlyImagePrompt({
       brand: { name: 'Aurum', industry: 'Restaurant', audience: 'Mysafirë në Prishtinë' },
@@ -1198,5 +1205,118 @@ describe('requested platforms', () => {
     expect(soleChannel({ Instagram: 3 })).toBe('Instagram')
     expect(soleChannel({ Instagram: 2, Facebook: 1 })).toBeUndefined()
     expect(soleChannel({})).toBeUndefined()
+  })
+})
+
+describe('planner timings', () => {
+  it('records every step, including one that fails, and the whole run', async () => {
+    let clock = 0
+    const timings = plannerTimings(() => clock)
+    const step = async (ms: number, failure?: string) => {
+      await Promise.resolve()
+      clock += ms
+      if (failure) throw new Error(failure)
+    }
+    await timings.timed('research', step(40))
+    await expect(timings.timed('planning', step(25, 'provider down'))).rejects.toThrow('provider down')
+    clock += 5
+    expect(timings.summary()).toEqual({
+      totalMs: 70,
+      steps: [{ step: 'research', ms: 40 }, { step: 'planning', ms: 25 }],
+    })
+  })
+
+  it('returns what the timed step returns', async () => {
+    const timings = plannerTimings()
+    await expect(timings.timed('content.text', Promise.resolve('caption'))).resolves.toBe('caption')
+  })
+})
+
+describe('planner lanes', () => {
+  it('advances up to the concurrency at once and stops when nothing is waiting', async () => {
+    let waiting = 7
+    let running = 0
+    let peak = 0
+    await runPlannerLanes({
+      concurrency: 3,
+      deadline: Number.POSITIVE_INFINITY,
+      minStepMs: 1000,
+      next: async () => {
+        if (!waiting) return false
+        waiting--
+        running++
+        peak = Math.max(peak, running)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        running--
+        return true
+      },
+    })
+    expect(waiting).toBe(0)
+    expect(peak).toBe(3)
+  })
+
+  it('starts no step once too little time is left before the deadline', async () => {
+    let clock = 0
+    const next = vi.fn(async () => {
+      clock += 400
+      return true
+    })
+    await runPlannerLanes({ concurrency: 1, deadline: 1000, minStepMs: 300, next, now: () => clock })
+    // 0 and 400 leave room for a step; at 800 only 200ms is left.
+    expect(next).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps looking for queued work while told to, then stops once nothing more is coming', async () => {
+    let checks = 0
+    let found = 0
+    let planning = true
+    const sleep = vi.fn(async () => {
+      // A plan queues a video while the lane waits, then planning ends.
+      if (sleep.mock.calls.length === 1) found = 1
+      else planning = false
+    })
+    await runPlannerLanes({
+      concurrency: 1,
+      deadline: Number.POSITIVE_INFINITY,
+      minStepMs: 0,
+      idleMs: 5000,
+      waitWhile: () => planning,
+      sleep,
+      next: async () => {
+        checks++
+        if (!found) return false
+        found--
+        return true
+      },
+    })
+    expect(sleep).toHaveBeenCalledWith(5000)
+    // Empty, then the queued video, empty again, and empty once planning ended.
+    expect(checks).toBe(4)
+  })
+
+  it('reads the video queue limits from the environment', () => {
+    expect(videoQueueSettings({ VIDEO_CONCURRENCY: '3', VIDEO_MIN_RENDER_SECONDS: '900' })).toMatchObject({
+      concurrency: 3,
+      minRenderMs: 900000,
+    })
+    expect(videoQueueSettings({ VIDEO_QUEUE_POLL_SECONDS: 'often' }).pollMs).toBe(videoQueueSettings({}).pollMs)
+  })
+
+  it('reads its limits from the environment and ignores unusable values', () => {
+    expect(plannerRunSettings({ PLANNER_CONCURRENCY: '6', PLANNER_MIN_STEP_SECONDS: '120' })).toMatchObject({
+      concurrency: 6,
+      minStepMs: 120000,
+    })
+    expect(plannerRunSettings({ PLANNER_CONCURRENCY: '0', PLANNER_LEASE_MARGIN_SECONDS: 'soon' })).toMatchObject({
+      concurrency: plannerRunSettings({}).concurrency,
+      leaseMarginMs: plannerRunSettings({}).leaseMarginMs,
+    })
+  })
+})
+
+describe('post allowance', () => {
+  it('stops only posts once the month is used up, so videos already asked for are still made', () => {
+    expect(slotUsesPostAllowance({ deliverable: 'static_post' })).toBe(true)
+    expect(slotUsesPostAllowance({ deliverable: 'video' })).toBe(false)
   })
 })
