@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { ffmpegBinary, ffprobeBinary } from './media-binaries'
 
 const run = promisify(execFile)
 const MAX_FINAL_VIDEO_BYTES = 50 * 1024 * 1024 // Smallest current video delivery limit (TikTok).
@@ -10,7 +11,7 @@ const MAX_FINAL_VIDEO_BYTES = 50 * 1024 * 1024 // Smallest current video deliver
 type VideoInfo = { width: number; height: number; duration: number }
 
 async function probe(path: string): Promise<VideoInfo> {
-  const { stdout } = await run(process.env.FFPROBE_PATH || 'ffprobe', [
+  const { stdout } = await run(ffprobeBinary(), [
     '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height:format=duration',
     '-of', 'json', path,
   ], { timeout: 15_000, maxBuffer: 1024 * 1024 })
@@ -35,7 +36,7 @@ export async function conformVideoToCanvas(video: Buffer, size: { width: number;
     const outputPath = join(directory, 'conformed.mp4')
     await writeFile(inputPath, video)
     const { width, height } = size
-    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+    await run(ffmpegBinary(), [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
       '-i', inputPath,
       '-filter_complex',
@@ -79,7 +80,7 @@ export async function extractLastFrame(video: Buffer, size: { width: number; hei
     const videoPath = join(directory, 'clip.mp4')
     const framePath = join(directory, 'last.jpg')
     await writeFile(videoPath, video)
-    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+    await run(ffmpegBinary(), [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
       '-sseof', '-0.1', '-i', videoPath, '-update', '1', '-q:v', '2',
       '-vf', `scale=${size.width}:${size.height}:force_original_aspect_ratio=increase,crop=${size.width}:${size.height},setsar=1`,
@@ -119,7 +120,7 @@ export async function joinClips(clips: Buffer[], size: { width: number; height: 
       return step
     }).join('')
     const outputPath = join(directory, 'joined.mp4')
-    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+    await run(ffmpegBinary(), [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
       ...paths.flatMap((path) => ['-i', path]),
       '-filter_complex', `${normalized}${joins}[${previous}]null[out]`,
@@ -141,7 +142,7 @@ export async function extractVideoFrames(video: Buffer, fractions: number[]) {
     const { duration } = await probe(videoPath)
     return await Promise.all(fractions.map(async (fraction, index) => {
       const framePath = join(directory, `frame-${index}.jpg`)
-      await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+      await run(ffmpegBinary(), [
         '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
         '-ss', String(Math.max(0, Math.min(duration - 0.05, duration * fraction))),
         '-i', videoPath, '-frames:v', '1', '-vf', 'scale=768:-2', framePath,
@@ -172,7 +173,7 @@ export async function addMusicToVideo(video: Buffer, music: Buffer) {
     await Promise.all([writeFile(videoPath, video), writeFile(musicPath, music)])
     const source = await probe(videoPath)
     const fadeOut = Math.min(MUSIC_FADE_OUT_SECONDS, source.duration / 2)
-    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+    await run(ffmpegBinary(), [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
       '-i', videoPath, '-stream_loop', '-1', '-i', musicPath,
       '-filter_complex',
@@ -199,7 +200,7 @@ export async function removeMusicFromVideo(video: Buffer) {
     const videoPath = join(directory, 'video.mp4')
     const outputPath = join(directory, 'silent.mp4')
     await writeFile(videoPath, video)
-    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+    await run(ffmpegBinary(), [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
       '-i', videoPath, '-map', '0:v', '-c:v', 'copy', '-an', '-movflags', '+faststart', outputPath,
     ], { timeout: 120_000, maxBuffer: 2 * 1024 * 1024 })
@@ -260,7 +261,7 @@ export async function composeBrandedVideo(input: {
         + `[${index ? `m${index}` : 'motion'}][o${index}]overlay=x=0:y='if(lt(t,${end}),${rise}*pow(1-max(0,t-${start})/${OVERLAY_REVEAL_SECONDS},3),0)':eval=frame:shortest=1,format=yuv420p[m${index + 1}];`
     }).join('')
     const composed = overlays.length ? `m${overlays.length}` : 'motion'
-    await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+    await run(ffmpegBinary(), [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
       '-i', motionPath,
       ...overlayPaths.flatMap((path) => ['-loop', '1', '-framerate', '30', '-t', String(source.duration), '-i', path]),

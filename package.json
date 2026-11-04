@@ -33,6 +33,7 @@
   "allowScripts": {
     "esbuild": true,
     "unrs-resolver": true,
-    "vue-demi": true
+    "vue-demi": true,
+    "ffmpeg-static": true
   }
 }

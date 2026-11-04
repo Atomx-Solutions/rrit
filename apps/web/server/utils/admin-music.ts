@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { ffprobeBinary } from './media-binaries'
 import { z } from 'zod'
 import { APP_LOCALES } from '../../shared/schemas/workspace'
 import { adminServiceClient } from './admin-supabase'
@@ -58,7 +59,7 @@ export async function mp3Duration(bytes: Buffer) {
   try {
     const file = join(folder, 'track.mp3')
     await writeFile(file, bytes)
-    const { stdout } = await run(process.env.FFPROBE_PATH || 'ffprobe', [
+    const { stdout } = await run(ffprobeBinary(), [
       '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'format=duration',
       '-of', 'default=noprint_wrappers=1:nokey=1', file,
     ], { timeout: 15_000, maxBuffer: 1024 * 1024 })
