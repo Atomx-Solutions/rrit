@@ -1,13 +1,31 @@
+import { readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 
-// The ffmpeg and ffprobe builds the video pipeline runs. They are program
-// files rather than code, so the server bundle would leave them out unless it
-// is told to carry them; a Vercel function has no ffmpeg of its own.
+// Files the server needs that are not code, so the server bundle would leave
+// them out unless told to carry them: a Vercel function has no ffmpeg and no
+// fonts of its own.
+const require = createRequire(import.meta.url)
+// The ffmpeg and ffprobe builds the video pipeline runs.
 const mediaBinaries = (() => {
-  const require = createRequire(import.meta.url)
   try {
     return [require('ffmpeg-static') as string | null, (require('ffprobe-static') as { path: string }).path]
       .filter((path): path is string => !!path)
+  } catch {
+    return []
+  }
+})()
+// The upright Inter faces the overlays draw their text with (see
+// server/utils/fonts.ts), and the package file they are found by.
+const textFonts = (() => {
+  try {
+    const fontPackage = require.resolve('@expo-google-fonts/inter/package.json')
+    const root = dirname(fontPackage)
+    return [fontPackage, ...readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.includes('Italic'))
+      .flatMap((entry) => readdirSync(join(root, entry.name))
+        .filter((file) => file.endsWith('.ttf'))
+        .map((file) => join(root, entry.name, file)))]
   } catch {
     return []
   }
@@ -77,7 +95,7 @@ export default defineNuxtConfig({
     output: process.env.VERCEL
       ? {}
       : { dir: process.env.NITRO_OUTPUT_DIR || '.output' },
-    externals: { traceInclude: mediaBinaries },
+    externals: { traceInclude: [...mediaBinaries, ...textFonts] },
     vercel: {
       functions: { maxDuration: functionMaxDurationSeconds },
       // The planner runs from this cron on Vercel, where no process stays up

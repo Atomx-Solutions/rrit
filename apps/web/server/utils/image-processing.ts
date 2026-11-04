@@ -1,4 +1,5 @@
 import sharp, { type OverlayOptions } from 'sharp'
+import { prepareFonts } from './fonts'
 import { PlannerFailure } from './monthly-planner-domain'
 import {
   channelCanvas,
@@ -7,6 +8,9 @@ import {
   type CanvasInsets,
   type PublishingChannel,
 } from '../../shared/schemas/channel-format'
+
+// Text is drawn with the packaged font; see prepareFonts.
+prepareFonts()
 
 function escapeXml(value: string) {
   return value.replace(

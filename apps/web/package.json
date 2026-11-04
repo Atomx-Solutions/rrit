@@ -29,6 +29,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "0.4.2",
     "@fontsource-variable/inter": "^5.2.0",
     "@iconify-json/lucide": "^1.2.0",
     "@iconify-json/simple-icons": "1.2.100",
