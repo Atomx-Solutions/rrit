@@ -1171,24 +1171,44 @@ export function plannerRunSettings(env: Record<string, string | undefined> = pro
 }
 
 /**
- * Keeps up to `concurrency` plans moving at once: each lane claims and
- * advances one plan after another until none is waiting, or until too little
- * time is left before `deadline` to start a step that could still finish.
- * `next` says whether it found a plan to advance.
+ * Keeps up to `concurrency` jobs moving at once: each lane claims and runs one
+ * job after another until none is waiting, or until too little time is left
+ * before `deadline` to start one that could still finish. `next` says whether
+ * it found a job. While `waitWhile` holds, a lane that found nothing looks
+ * again every `idleMs` instead of stopping, for work still being queued.
  */
 export async function runPlannerLanes(input: {
   concurrency: number
   deadline: number
   minStepMs: number
   next: () => Promise<boolean>
+  waitWhile?: () => boolean
+  idleMs?: number
   now?: () => number
+  sleep?: (ms: number) => Promise<void>
 }) {
   const now = input.now || Date.now
+  const sleep = input.sleep || ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
   const lane = async () => {
     for (;;) {
       if (input.deadline - now() < input.minStepMs) return
-      if (!(await input.next())) return
+      if (await input.next()) continue
+      if (!input.waitWhile?.()) return
+      await sleep(input.idleMs || 0)
     }
   }
   await Promise.all(Array.from({ length: Math.max(1, input.concurrency) }, lane))
+}
+
+/**
+ * How many videos render at once across every run, how much of a run's time
+ * must be left to start one, and how often a run that is still planning looks
+ * for videos its plans have just queued.
+ */
+export function videoQueueSettings(env: Record<string, string | undefined> = process.env) {
+  return {
+    concurrency: positiveSetting(env.VIDEO_CONCURRENCY, 20),
+    minRenderMs: positiveSetting(env.VIDEO_MIN_RENDER_SECONDS, 600) * 1000,
+    pollMs: positiveSetting(env.VIDEO_QUEUE_POLL_SECONDS, 5) * 1000,
+  }
 }

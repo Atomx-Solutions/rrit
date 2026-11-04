@@ -26,7 +26,7 @@ import {
 import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
 import { loadBrandLogo, type BrandLogoAsset } from './brand-assets'
-import { renderVideoForPost } from './video-render'
+import { queueVideoRender } from './video-render'
 import { musicForVideo, plannerVideoMusicSchema } from '../../shared/schemas/music'
 import {
   paidAccessForPlanningMonth,
@@ -2390,20 +2390,20 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
         }),
       ))
       if (!committed) await removeAsset(storagePath)
-      // A video is produced in the same run as the posts, because its
-      // photograph is its first frame and has to exist first. The render opens
-      // its own transactions, so it waits until this one has committed.
+      // A video is queued once its post exists, because its photograph is its
+      // first frame. The render takes minutes, so the plan moves on to its
+      // next post while a video lane renders this one.
       if (committed && slot.deliverable === 'video') {
         try {
-          await timed('content.video_render', plannerStep('content.video_render', () =>
-            renderVideoForPost(plan.owner_id, committed),
+          await timed('content.video_queue', plannerStep('content.video_queue', () =>
+            queueVideoRender(plan.owner_id, committed),
           ))
         } catch (error) {
           // The post is delivered and its brief is durable, so a render that
-          // fails here leaves something the business can start again from the
-          // editor. Losing the rest of a batch it has paid for would cost it
-          // more than stopping is worth.
-          console.error('The monthly planner could not render a video', {
+          // could not be queued leaves something the business can start again
+          // from the editor. Losing the rest of a batch it has paid for would
+          // cost it more than stopping is worth.
+          console.error('The monthly planner could not queue a video', {
             planId: plan.id,
             postId: committed,
             error,

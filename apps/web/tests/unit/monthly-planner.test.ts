@@ -23,6 +23,7 @@ import {
   plannerTimings,
   plannerRunSettings,
   runPlannerLanes,
+  videoQueueSettings,
 } from '../../server/utils/monthly-planner-domain'
 import {
   monthlyAiConfigured,
@@ -1262,6 +1263,42 @@ describe('planner lanes', () => {
     await runPlannerLanes({ concurrency: 1, deadline: 1000, minStepMs: 300, next, now: () => clock })
     // 0 and 400 leave room for a step; at 800 only 200ms is left.
     expect(next).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps looking for queued work while told to, then stops once nothing more is coming', async () => {
+    let checks = 0
+    let found = 0
+    let planning = true
+    const sleep = vi.fn(async () => {
+      // A plan queues a video while the lane waits, then planning ends.
+      if (sleep.mock.calls.length === 1) found = 1
+      else planning = false
+    })
+    await runPlannerLanes({
+      concurrency: 1,
+      deadline: Number.POSITIVE_INFINITY,
+      minStepMs: 0,
+      idleMs: 5000,
+      waitWhile: () => planning,
+      sleep,
+      next: async () => {
+        checks++
+        if (!found) return false
+        found--
+        return true
+      },
+    })
+    expect(sleep).toHaveBeenCalledWith(5000)
+    // Empty, then the queued video, empty again, and empty once planning ended.
+    expect(checks).toBe(4)
+  })
+
+  it('reads the video queue limits from the environment', () => {
+    expect(videoQueueSettings({ VIDEO_CONCURRENCY: '3', VIDEO_MIN_RENDER_SECONDS: '900' })).toMatchObject({
+      concurrency: 3,
+      minRenderMs: 900000,
+    })
+    expect(videoQueueSettings({ VIDEO_QUEUE_POLL_SECONDS: 'often' }).pollMs).toBe(videoQueueSettings({}).pollMs)
   })
 
   it('reads its limits from the environment and ignores unusable values', () => {

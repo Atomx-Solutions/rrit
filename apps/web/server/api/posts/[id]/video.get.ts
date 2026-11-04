@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   return withBusinessTransaction(user.id, async (client, business) => {
     const result = await client.query<{
       id: string
-      status: 'rendering' | 'ready' | 'failed'
+      status: 'queued' | 'rendering' | 'ready' | 'failed'
       failure_reason: string | null
     }>(
       `SELECT r.id,r.status,r.failure_reason

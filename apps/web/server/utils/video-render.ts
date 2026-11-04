@@ -28,19 +28,85 @@ import { generateStoryboardShots } from './video-shots'
 import { reviewVideoQuality, verifySamePhotographedSubject } from './video-subject-check'
 
 /**
- * Render a post's video and settle what it cost.
+ * Queue a render of a post's video, with its credits already held.
  *
- * This is the whole deliverable, so it is shared rather than left inside the
- * HTTP route: the monthly planner renders the videos a business bought as part
- * of the same run that produced its posts, and a business that renders one by
- * hand from the editor must get exactly the same work, charge and bookkeeping.
+ * Making a video takes minutes, so the request that asks for one only queues
+ * it and answers at once; a planner run renders it from the queue. The
+ * allowance and the credits are checked here, so a business that cannot pay
+ * is told straight away. The monthly planner and the editor queue the same
+ * way, so both get exactly the same work, charge and bookkeeping.
  */
-export async function renderVideoForPost(userId: string, postId: string) {
+export async function queueVideoRender(userId: string, postId: string) {
   // Generation is the whole deliverable, so an unconfigured provider stops the
   // request before anything is reserved or recorded rather than falling back to
   // a render the brief never asked for.
   if (!aiVideoConfigured())
     throw createError({ statusCode: 503, message: 'server.AI_VIDEO_NOT_CONFIGURED' })
+  return queueRender(userId, postId).catch(async (error: unknown) => {
+    // A render already under way keeps its brief as it is. Any other refusal
+    // (no allowance, no credits) is recorded on the brief, which the editor
+    // can start again, so it never reads as in progress.
+    const inProgress = typeof error === 'object' && error && 'message' in error
+      && error.message === 'server.VIDEO_RENDER_IN_PROGRESS'
+    if (!inProgress)
+      await withBusinessTransaction(userId, (client, business) =>
+        markPostVideoFailed(client, business.id, postId, { code: 'queue_refused' }))
+    throw error
+  })
+}
+
+function queueRender(userId: string, postId: string) {
+  return withBusinessTransaction(userId, async (client, business) => {
+    const result = await client.query<{ payload: unknown }>('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [postId, business.id])
+    const post = result.rows[0] && postSchema.parse(result.rows[0].payload)
+    if (!post?.video?.sourceAssetIds.length)
+      throw createError({ statusCode: 409, message: 'server.VIDEO_BRIEF_REQUIRED' })
+    const canvas = channelCanvas(post.channel)
+    // The package allowance is checked before the render row exists, exactly as
+    // posts are, so a business over its limit is stopped before it is charged.
+    await requireQuota(business.id, 'videos_per_month', 1, client)
+    // The configured figure is the reservation, not the charge: it holds enough
+    // credits to cover a render so the business cannot start one it cannot pay
+    // for. What is actually taken is the provider's real cost, settled below.
+    const videoCredits = await videoRenderCredits(client)
+    const render = await client.query<{ id: string }>(
+      `INSERT INTO video_renders(
+         business_id,post_id,source_asset_ids,logo_asset_id,status,quota_month,width,height,duration_seconds,
+         requested_by,reserved_credits
+       ) VALUES($1,$2,$3,$4,'queued',date_trunc('month',now() AT TIME ZONE 'UTC')::date,$5,$6,$7,$8,$9) RETURNING id`,
+      [
+        business.id,
+        postId,
+        JSON.stringify(post.video.sourceAssetIds),
+        post.video.logoAssetId || null,
+        canvas.width,
+        canvas.height,
+        post.video.durationSeconds,
+        userId,
+        videoCredits,
+      ],
+    ).catch((error: unknown) => {
+      // One render at a time for a post: a second request finds the first.
+      if (typeof error === 'object' && error && 'code' in error && error.code === '23505')
+        throw createError({ statusCode: 409, message: 'server.VIDEO_RENDER_IN_PROGRESS' })
+      throw error
+    })
+    const renderRow = render.rows[0]
+    if (!renderRow) throw createError({ statusCode: 500, message: 'server.VIDEO_JOB_NOT_CREATED' })
+    await reserveCredits(client, { organizationId: business.id, credits: videoCredits, usageKind: 'generation', referenceType: 'video', referenceId: renderRow.id, idempotencyKey: `video-reserve:${renderRow.id}` })
+    return { renderId: renderRow.id, status: 'queued' as const }
+  })
+}
+
+/** A queued render a planner run has claimed, with the lease that fences it. */
+export type ClaimedVideoRender = { id: string; postId: string; requestedBy: string; leaseOwner: string }
+
+/**
+ * Render a claimed video and settle what it cost. Every write is fenced by the
+ * run's lease, so a run that lost the render to another changes nothing.
+ */
+export async function renderQueuedVideo(job: ClaimedVideoRender) {
+  const { postId, requestedBy: userId } = job
   // A failure while the render is being prepared rolls that transaction back,
   // so the brief would otherwise stay 'brief_ready' and read as in progress
   // forever. It is recorded as failed instead, which the editor can retry.
@@ -96,30 +162,14 @@ export async function renderVideoForPost(userId: string, postId: string) {
           [post.video.logoAssetId, business.id],
         )
       : undefined
-    // The package allowance is checked before the render row exists, exactly as
-    // posts are, so a business over its limit is stopped before it is charged.
-    await requireQuota(business.id, 'videos_per_month', 1, client)
-    const render = await client.query<{ id: string }>(
-      `INSERT INTO video_renders(
-         business_id,post_id,source_asset_ids,logo_asset_id,status,quota_month,width,height,duration_seconds
-       ) VALUES($1,$2,$3,$4,'rendering',date_trunc('month',now() AT TIME ZONE 'UTC')::date,$5,$6,$7) RETURNING id`,
-      [
-        business.id,
-        postId,
-        JSON.stringify(post.video.sourceAssetIds),
-        post.video.logoAssetId || null,
-        canvas.width,
-        canvas.height,
-        post.video.durationSeconds,
-      ],
+    // What the queue already holds for this render, read under its lease.
+    const render = await client.query<{ reserved_credits: number | null }>(
+      "SELECT reserved_credits FROM video_renders WHERE id=$1 AND business_id=$2 AND post_id=$3 AND status='rendering' AND lease_owner=$4",
+      [job.id, business.id, postId, job.leaseOwner],
     )
     const renderRow = render.rows[0]
-    if (!renderRow) throw createError({ statusCode: 500, message: 'server.VIDEO_JOB_NOT_CREATED' })
-    // The configured figure is the reservation, not the charge: it holds enough
-    // credits to cover a render so the business cannot start one it cannot pay
-    // for. What is actually taken is the provider's real cost, settled below.
-    const videoCredits = await videoRenderCredits(client)
-    await reserveCredits(client, { organizationId: business.id, credits: videoCredits, usageKind: 'generation', referenceType: 'video', referenceId: renderRow.id, idempotencyKey: `video-reserve:${renderRow.id}` })
+    if (!renderRow) throw createError({ statusCode: 409, message: 'server.VIDEO_JOB_NOT_CREATED' })
+    const videoCredits = renderRow.reserved_credits || 0
     const logoRow = logo?.rows[0]
     const { workspace } = await loadWorkspace(client, business.id, userId)
     // The video speaks the language of the audience the research found.
@@ -180,7 +230,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       businessBrain,
       approvedCopy: approvedVideoCopy(post),
       contentVersion: post.contentVersion ?? 1,
-      renderId: renderRow.id,
+      renderId: job.id,
       source: asset.rows[0].storage_path
         ? await downloadAsset(asset.rows[0].storage_path, 10 * 1024 * 1024)
         : asset.rows[0].bytes!,
@@ -222,9 +272,7 @@ export async function renderVideoForPost(userId: string, postId: string) {
       overlayInput,
     }
   }).catch(async (error) => {
-    await withBusinessTransaction(userId, (client, business) =>
-      markPostVideoFailed(client, business.id, postId),
-    )
+    await failClaimedRender(job, 'render_failed')
     throw error
   })
 
@@ -341,14 +389,21 @@ export async function renderVideoForPost(userId: string, postId: string) {
       const needed = estimatedVideoCredits(seconds, pricing.rates)
       if (needed <= reservedCredits) return
       const extra = needed - reservedCredits
-      await withBusinessTransaction(userId, (client, business) => reserveCredits(client, {
-        organizationId: business.id,
-        credits: extra,
-        usageKind: 'generation',
-        referenceType: 'video',
-        referenceId: snapshot.renderId,
-        idempotencyKey: `video-reserve-extra:${snapshot.renderId}:${attempt}`,
-      }))
+      await withBusinessTransaction(userId, async (client, business) => {
+        await reserveCredits(client, {
+          organizationId: business.id,
+          credits: extra,
+          usageKind: 'generation',
+          referenceType: 'video',
+          referenceId: snapshot.renderId,
+          idempotencyKey: `video-reserve-extra:${snapshot.renderId}:${attempt}`,
+        })
+        // Kept with the render, so a render that is stopped can give it back.
+        await client.query(
+          'UPDATE video_renders SET reserved_credits=COALESCE(reserved_credits,0)+$1 WHERE id=$2 AND business_id=$3',
+          [extra, snapshot.renderId, business.id],
+        )
+      })
       reservedCredits += extra
     }
     // Every video is made by the configured motion model; nothing is animated
@@ -579,10 +634,12 @@ export async function renderVideoForPost(userId: string, postId: string) {
           referenceId: snapshot.renderId,
           idempotencyKey: `video-release:${snapshot.renderId}`,
         })
-      await client.query(
-        "UPDATE video_renders SET status='ready',storage_path=$1,size_bytes=$2,duration_seconds=$3,composed=true,completed_at=now() WHERE id=$4 AND business_id=$5",
-        [path, bytes.length, Math.round(motionSeconds), snapshot.renderId, business.id],
+      const finished = await client.query(
+        "UPDATE video_renders SET status='ready',storage_path=$1,size_bytes=$2,duration_seconds=$3,composed=true,completed_at=now(),lease_owner=NULL,lease_until=NULL WHERE id=$4 AND business_id=$5 AND lease_owner=$6",
+        [path, bytes.length, Math.round(motionSeconds), snapshot.renderId, business.id, job.leaseOwner],
       )
+      // A run that lost its lease settles nothing; the charge above rolls back.
+      if (!finished.rowCount) throw createError({ statusCode: 409, message: 'server.VIDEO_JOB_NOT_CREATED' })
       const current = await client.query<{ payload: unknown }>('SELECT payload FROM posts WHERE id=$1 AND business_id=$2 FOR UPDATE', [postId, business.id])
       const currentPost = current.rows[0] && postSchema.parse(current.rows[0].payload)
       if (currentPost?.video) {
@@ -630,17 +687,52 @@ export async function renderVideoForPost(userId: string, postId: string) {
         })
       }
     }
-    await withBusinessTransaction(userId, async (client, business) => {
-      // Nothing was delivered, so the whole reservation goes back.
-      await releaseReservedCredits(client, { organizationId: business.id, credits: reservedCredits, usageKind: 'generation', referenceType: 'video', referenceId: snapshot.renderId, idempotencyKey: `video-release:${snapshot.renderId}` })
-      await client.query(
-        "UPDATE video_renders SET status='failed',failure_reason=$1,completed_at=now() WHERE id=$2 AND business_id=$3",
-        [failureReason, snapshot.renderId, business.id],
-      )
-      await markPostVideoFailed(client, business.id, postId, { code: failureReason })
-    })
+    await failClaimedRender(job, failureReason)
     throw error
   }
+}
+
+/**
+ * Records a claimed render as failed and gives back everything held for it,
+ * since nothing was delivered. Fenced by the lease, so only the run that holds
+ * the render settles it, and only once.
+ */
+async function failClaimedRender(job: ClaimedVideoRender, failureReason: string) {
+  await withBusinessTransaction(job.requestedBy, async (client, business) => {
+    const failed = await client.query<{ reserved_credits: number | null }>(
+      "UPDATE video_renders SET status='failed',failure_reason=$1,completed_at=now(),lease_owner=NULL,lease_until=NULL WHERE id=$2 AND business_id=$3 AND lease_owner=$4 RETURNING reserved_credits",
+      [failureReason, job.id, business.id, job.leaseOwner],
+    )
+    if (!failed.rowCount) return
+    const held = failed.rows[0]!.reserved_credits || 0
+    if (held > 0)
+      await releaseReservedCredits(client, { organizationId: business.id, credits: held, usageKind: 'generation', referenceType: 'video', referenceId: job.id, idempotencyKey: `video-release:${job.id}` })
+    await markPostVideoFailed(client, business.id, job.postId, { code: failureReason })
+  })
+}
+
+/**
+ * Settles a render whose run was stopped before it finished: its lease has
+ * expired, so the run is gone. Nothing was delivered, so what was held goes
+ * back and the business can start it again from the editor.
+ */
+export async function failStoppedRender(render: { id: string; postId: string; actorId: string; staleAfterSeconds: number }) {
+  await withBusinessTransaction(render.actorId, async (client, business) => {
+    // A render from before the queue holds no recorded reservation, so only
+    // its status is settled.
+    const failed = await client.query<{ reserved_credits: number | null }>(
+      `UPDATE video_renders SET status='failed',failure_reason='render_stopped',completed_at=now(),lease_owner=NULL,lease_until=NULL
+        WHERE id=$1 AND business_id=$2 AND status='rendering'
+          AND COALESCE(lease_until, created_at + make_interval(secs => $3)) < now()
+        RETURNING reserved_credits`,
+      [render.id, business.id, render.staleAfterSeconds],
+    )
+    if (!failed.rowCount) return
+    const held = failed.rows[0]!.reserved_credits || 0
+    if (held > 0)
+      await releaseReservedCredits(client, { organizationId: business.id, credits: held, usageKind: 'generation', referenceType: 'video', referenceId: render.id, idempotencyKey: `video-release:${render.id}` })
+    await markPostVideoFailed(client, business.id, render.postId, { code: 'render_stopped' })
+  })
 }
 
 async function markPostVideoFailed(

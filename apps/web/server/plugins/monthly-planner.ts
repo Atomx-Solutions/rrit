@@ -1,5 +1,6 @@
 import { monthlyAiConfigured } from '../utils/monthly-ai'
 import { closeMonthlyWorkerDatabase, runMonthlyPlannerBatch } from '../utils/monthly-planner'
+import { runVideoRenderQueue } from '../utils/video-queue'
 
 export default defineNitroPlugin((nitro) => {
   if (!monthlyAiConfigured() || !['planner', 'all'].includes(process.env.PROCESS_ROLE || 'all'))
@@ -63,13 +64,31 @@ export default defineNitroPlugin((nitro) => {
         current = undefined
       })
   }
-  const timer = setInterval(tick, 15000)
+  // Videos render on a loop of their own, so a long render never holds back
+  // the plans waiting behind it.
+  let rendering: Promise<void> | undefined
+  function renderTick() {
+    if (closing || rendering) return
+    rendering = runVideoRenderQueue()
+      .catch((error: unknown) =>
+        console.error('The video queue stopped this tick.', {
+          error: error instanceof Error ? error.message.slice(0, 500) : 'unknown',
+        }))
+      .finally(() => {
+        rendering = undefined
+      })
+  }
+  const timer = setInterval(() => {
+    tick()
+    renderTick()
+  }, 15000)
   timer.unref()
   tick()
+  renderTick()
   nitro.hooks.hook('close', async () => {
     closing = true
     clearInterval(timer)
-    await current
+    await Promise.all([current, rendering])
     await closeMonthlyWorkerDatabase()
   })
 })
