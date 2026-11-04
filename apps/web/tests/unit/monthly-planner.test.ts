@@ -1245,6 +1245,7 @@ describe('claimed jobs', () => {
       concurrency: 3,
       deadline: Number.POSITIVE_INFINITY,
       minStepMs: 1000,
+      idleMs: 1,
       onError,
       claim: async () => {
         claiming++
@@ -1274,7 +1275,7 @@ describe('claimed jobs', () => {
       clock += 400
     })
     await runClaimedJobs({
-      concurrency: 1, deadline: 1000, minStepMs: 300, onError, now: () => clock,
+      concurrency: 1, deadline: 1000, minStepMs: 300, idleMs: 1, onError, now: () => clock,
       claim: async () => 'job', run,
     })
     // 0 and 400 leave room for a job; at 800 only 200ms is left.
@@ -1289,6 +1290,7 @@ describe('claimed jobs', () => {
       concurrency: 2,
       deadline: Number.POSITIVE_INFINITY,
       minStepMs: 0,
+      idleMs: 1,
       onError: (error) => errors.push(error),
       claim: async () => {
         claims++
@@ -1308,6 +1310,40 @@ describe('claimed jobs', () => {
       'provider down',
       'timeout exceeded when trying to connect',
     ])
+  })
+
+  it('starts work queued while another job runs beside it, not after it', async () => {
+    let queued = false
+    let finishFirst = () => {}
+    const started: string[] = []
+    let claims = 0
+    const run = runClaimedJobs({
+      concurrency: 2,
+      deadline: Number.POSITIVE_INFINITY,
+      minStepMs: 0,
+      idleMs: 1,
+      onError,
+      claim: async () => {
+        claims++
+        if (claims === 1) return 'first'
+        if (queued) {
+          queued = false
+          return 'second'
+        }
+        return undefined
+      },
+      run: async (job) => {
+        started.push(job)
+        if (job === 'first') await new Promise<void>((resolve) => { finishFirst = resolve })
+      },
+    })
+    // The second video is queued while the first is still rendering.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    queued = true
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(started).toEqual(['first', 'second'])
+    finishFirst()
+    await run
   })
 
   it('keeps looking for queued work while told to, then stops once nothing more is coming', async () => {

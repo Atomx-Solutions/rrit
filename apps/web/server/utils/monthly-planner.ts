@@ -2700,6 +2700,7 @@ export async function runMonthlyPlannerBatch(
         concurrency: settings.concurrency,
         deadline,
         minStepMs: settings.minStepMs,
+        idleMs: settings.pollMs,
         claim,
         run: (plan) => advanceClaimedPlan(db, plan),
         onError: (error) => warnPlannerWrite('A planner run could not claim or advance a plan this time.', error),

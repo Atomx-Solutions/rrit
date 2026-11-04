@@ -1176,6 +1176,8 @@ export function plannerRunSettings(env: Record<string, string | undefined> = pro
     leaseMarginMs: positiveSetting(env.PLANNER_LEASE_MARGIN_SECONDS, 60) * 1000,
     leaseMs: positiveSetting(env.PLANNER_LEASE_SECONDS, 600) * 1000,
     poolSize: positiveSetting(env.PLANNER_DATABASE_POOL_SIZE, 10),
+    // How often a busy run looks for a plan that became ready meanwhile.
+    pollMs: positiveSetting(env.PLANNER_POLL_SECONDS, 5) * 1000,
   }
 }
 
@@ -1183,10 +1185,12 @@ export function plannerRunSettings(env: Record<string, string | undefined> = pro
  * Keeps up to `concurrency` claimed jobs running at once. Jobs are claimed one
  * at a time, and only while there is room for another, so a run never asks
  * the database for more than one claim at once however high the concurrency.
- * A new job is claimed as soon as one finishes, until none is waiting or too
- * little time is left before `deadline` to start one that could still finish.
- * While `waitWhile` holds, a run with nothing to do looks again every `idleMs`
- * instead of stopping, for work still being queued.
+ * While jobs run and there is room, it looks for new work every `idleMs` and
+ * whenever a job finishes, so work queued meanwhile starts beside them rather
+ * than after them. It stops once nothing is running or waiting, or too little
+ * time is left before `deadline` to start a job that could still finish.
+ * While `waitWhile` holds, a run with nothing to do keeps looking instead of
+ * stopping, for work still being queued.
  *
  * A claim or a job that fails is reported to `onError` and never ends the
  * run: it returns only once every job it started has finished, so the host
@@ -1199,8 +1203,8 @@ export async function runClaimedJobs<Job>(input: {
   claim: () => Promise<Job | undefined>
   run: (job: Job) => Promise<void>
   onError: (error: unknown) => void
+  idleMs: number
   waitWhile?: () => boolean
-  idleMs?: number
   now?: () => number
   sleep?: (ms: number) => Promise<void>
 }) {
@@ -1213,7 +1217,7 @@ export async function runClaimedJobs<Job>(input: {
       .finally(() => running.delete(work))
     running.add(work)
   }
-  const idle = () => sleep(input.idleMs || 0)
+  const idle = () => sleep(input.idleMs)
   for (;;) {
     if (input.deadline - now() < input.minStepMs) break
     if (running.size >= Math.max(1, input.concurrency)) {
@@ -1230,9 +1234,8 @@ export async function runClaimedJobs<Job>(input: {
       start(job)
       continue
     }
-    const waiting = input.waitWhile?.()
-    if (running.size) await Promise.race(waiting ? [...running, idle()] : running)
-    else if (waiting) await idle()
+    if (running.size) await Promise.race([...running, idle()])
+    else if (input.waitWhile?.()) await idle()
     else break
   }
   await Promise.all(running)
