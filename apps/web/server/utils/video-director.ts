@@ -26,13 +26,15 @@ function seconds(variable: string, fallback: number) {
   return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
-// How long a video may be (VIDEO_MIN_SECONDS / VIDEO_MAX_SECONDS) and the
-// shot lengths the configured motion model renders.
+// How long a video may be (VIDEO_MIN_SECONDS / VIDEO_MAX_SECONDS), how many
+// shots it may be told in (VIDEO_MAX_SHOTS) and the shot lengths the
+// configured motion model renders.
 export function videoLengthLimits(durations: number[]): StoryboardLimits {
   return {
     durations,
     minSeconds: seconds('VIDEO_MIN_SECONDS', 4),
     maxSeconds: seconds('VIDEO_MAX_SECONDS', 8),
+    maxShots: Math.floor(seconds('VIDEO_MAX_SHOTS', maxStoryboardShots)),
   }
 }
 
@@ -81,9 +83,11 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
     ? `Each shot lasts exactly one of ${limits.durations.join(', ')} seconds, the lengths the motion model renders.`
     : 'Give each shot a whole number of seconds.'
   const shape = storyboardShape(limits)
-  const shapeRule = shape
-    ? `Its shots last ${shape.totalSeconds} seconds together, the full length of the video, told in ${shape.minShots === shape.maxShots ? shape.minShots : `${shape.minShots} to ${shape.maxShots}`} separate shots. Each shot is its own scene with its own camera idea, framing, light or moment, generated separately and joined to the next, so the video moves through the concept instead of holding one move.`
-    : `It lasts between ${limits.minSeconds} and ${limits.maxSeconds} seconds in total, in 1 to ${maxStoryboardShots} shots.`
+  const shapeRule = shape?.maxShots === 1
+    ? `It is one continuous shot of ${shape.totalSeconds} seconds, the full length of the video: one camera idea that carries the whole concept from the hook to the close.`
+    : shape
+      ? `Its shots last ${shape.totalSeconds} seconds together, the full length of the video, told in ${shape.minShots === shape.maxShots ? shape.minShots : `${shape.minShots} to ${shape.maxShots}`} separate shots. Each shot is its own scene with its own camera idea, framing, light or moment, generated separately and joined to the next, so the video moves through the concept instead of holding one move.`
+      : `It lasts between ${limits.minSeconds} and ${limits.maxSeconds} seconds in total, in 1 to ${limits.maxShots ?? maxStoryboardShots} shots.`
   const canvas = channelCanvas(input.channel)
   const covered = channelUiInsets(input.channel)
   const coveredSides = (['top', 'right', 'bottom', 'left'] as const)
@@ -101,6 +105,7 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
       : 'Everything is made from the supplied photographs of one subject, and each shot from one of them. You are free with everything around the subject: the environment, light, time of day, weather, sky, atmosphere, particles, reflections and effects; how the subject arrives in its photographed place (for example descending from the sky and landing, rolling in out of light or fog); and the camera, including drone flights, push-ins, rises, reveals, tracking and small turns.',
     `You are not free with the subject itself. It must stay exactly the subject in the photograph: the same model, colour, shape, logo, wheels and details. Show only the side of it the photograph shows: the camera may turn around it by at most ${maxRotation} degrees in a shot, never orbit it, never 360 degrees, never show its back, underside or interior. Set rotationDegrees honestly and showsOnlyPhotographedSides to true only when that holds.`,
     'The final shot must end on the real photograph (endsOnPhotograph=true), so the video closes on the true subject. Mark each shot that opens on the photograph\'s own view with opensOnPhotograph=true.',
+    'The shots are generated separately and at the same time: each one opens on its own photograph as a scene of its own and never continues the frame another shot ended on. Give every shot a different framing, camera move or moment, so the video changes view from scene to scene instead of moving back and forth over one view.',
     'Write every shot as a cinematographer\'s brief: the camera move, the lens (focal length or look), the speed, the ease in and out, the light and atmosphere, the effects, and what the subject does. Be concrete and visual. No text, letters, logos or captions appear in the motion; the application sets the call to action over it.',
     singlePhoto
       ? 'Give every shot a shotSize of wide, medium or close, never detail: a closer framing than the photograph is a crop the model has to fill with invented detail. Vary the framing where the photograph allows it, and let the move, light and atmosphere make each shot its own scene.'

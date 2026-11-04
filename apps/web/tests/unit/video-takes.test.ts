@@ -123,7 +123,6 @@ describe('charging a multi-shot video', () => {
       // Each shot costs its seconds at 0.10 USD; each check costs nothing here.
       generate: vi.fn(async (request: { durationSeconds: number }) => ({ bytes: Buffer.from('clip'), costUsd: request.durationSeconds * 0.1 })) as never,
       verify: vi.fn(async () => ({ sameSubject: true, reason: 'same', costUsd: 0 })),
-      lastFrameOf: vi.fn(async () => Buffer.from('last')),
       framesOf: vi.fn(async () => [Buffer.from('f')]),
       onCost: (value) => costs.push(value),
     })
