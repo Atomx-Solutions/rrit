@@ -66,7 +66,13 @@ export default defineNuxtConfig({
       functions: { maxDuration: functionMaxDurationSeconds },
       // The planner runs from this cron on Vercel, where no process stays up
       // between requests to run it on a timer.
-      config: { crons: [{ path: '/api/cron/planner', schedule: '* * * * *' }] },
+      // Retention runs once a day from its own cron, not on every instance.
+      config: {
+        crons: [
+          { path: '/api/cron/planner', schedule: '* * * * *' },
+          { path: '/api/cron/maintenance', schedule: '0 3 * * *' },
+        ],
+      },
     },
   },
   app: {
