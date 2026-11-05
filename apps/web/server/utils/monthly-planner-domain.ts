@@ -1214,7 +1214,8 @@ export function plannerRetryDelaySeconds(
  *
  * A claim or a job that fails is reported to `onError` and never ends the
  * run: it returns only once every job it started has finished, so the host
- * never stops the function while one is still under way.
+ * never stops the function while one is still under way. `onStop` is told
+ * why the run stopped looking for work, and how much time was left.
  */
 export async function runClaimedJobs<Job>(input: {
   concurrency: number
@@ -1225,6 +1226,7 @@ export async function runClaimedJobs<Job>(input: {
   onError: (error: unknown) => void
   idleMs: number
   waitWhile?: () => boolean
+  onStop?: (reason: 'deadline' | 'idle', leftMs: number) => void
   now?: () => number
   sleep?: (ms: number) => Promise<void>
 }) {
@@ -1239,7 +1241,10 @@ export async function runClaimedJobs<Job>(input: {
   }
   const idle = () => sleep(input.idleMs)
   for (;;) {
-    if (input.deadline - now() < input.minStepMs) break
+    if (input.deadline - now() < input.minStepMs) {
+      input.onStop?.('deadline', input.deadline - now())
+      break
+    }
     if (running.size >= Math.max(1, input.concurrency)) {
       await Promise.race(running)
       continue
@@ -1256,7 +1261,10 @@ export async function runClaimedJobs<Job>(input: {
     }
     if (running.size) await Promise.race([...running, idle()])
     else if (input.waitWhile?.()) await idle()
-    else break
+    else {
+      input.onStop?.('idle', input.deadline - now())
+      break
+    }
   }
   await Promise.all(running)
 }
