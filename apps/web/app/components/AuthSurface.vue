@@ -176,6 +176,8 @@ function errorText(problem: {
     user_already_exists_use_another_email: t('auth.accountExistsOtherEmailError'),
     password_too_short: t('auth.passwordTooShortError'),
     weak_password: t('auth.weakPasswordError'),
+    // Supabase refuses a reset to the password the account already has.
+    same_password: t('auth.samePasswordError'),
     user_banned: t('auth.userBannedError'),
   }
   if (
@@ -185,6 +187,8 @@ function errorText(problem: {
     return messages.invalid_email ?? t('auth.invalidEmailError')
   if (normalizedMessage.includes('already registered'))
     return messages.user_already_exists ?? t('auth.accountExistsError')
+  if (normalizedMessage.includes('different from the old password'))
+    return messages.same_password ?? t('auth.samePasswordError')
   if (normalizedMessage.includes('password') && normalizedMessage.includes('weak'))
     return messages.weak_password ?? t('auth.weakPasswordError')
   if (normalizedMessage.includes('fetch') || normalizedMessage.includes('network'))

@@ -1521,6 +1521,7 @@
   "auth.pkceError": "Hape linkun në të njëjtin browser ku e krijove llogarinë ose kërko një link të ri.",
   "auth.passwordTooShortError": "Përdor të paktën 12 karaktere dhe një simbol.",
   "auth.weakPasswordError": "Zgjidh një fjalëkalim me të paktën 12 karaktere dhe një simbol.",
+  "auth.samePasswordError": "Fjalëkalimi i ri duhet të jetë ndryshe nga ai që ke tani.",
   "auth.userBannedError": "Kjo llogari nuk mund të përdoret për momentin.",
   "auth.networkError": "Lidhja me serverin dështoi. Kontrollo internetin dhe provo sërish.",
   "auth.genericError": "Veprimi nuk përfundoi. Kontrollo të dhënat dhe provo sërish.",
