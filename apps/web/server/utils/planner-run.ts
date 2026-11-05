@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { getDeadline, waitUntil } from '@vercel/functions'
 import { runMonthlyPlannerBatch } from './monthly-planner'
 import { runVideoRenderQueue } from './video-queue'
+import { onVercel } from './host'
 
 /**
  * When Vercel stops this invocation: the platform's own deadline when it
@@ -55,7 +56,7 @@ function keepRunningAfterReply(work: Promise<void>, what: string) {
  * within seconds anyway. A plan another run already holds is left to it.
  */
 export function startMonthlyPlannerNow(event: H3Event, started: number) {
-  if (!process.env.VERCEL) return
+  if (!onVercel()) return
   keepRunningAfterReply(
     runPlannerAndVideos({ deadline: invocationDeadline(event, started), discover: false }),
     'planner',
@@ -64,7 +65,7 @@ export function startMonthlyPlannerNow(event: H3Event, started: number) {
 
 /** Starts rendering a video the business has just queued, the same way. */
 export function startVideoRenderNow(event: H3Event, started: number) {
-  if (!process.env.VERCEL) return
+  if (!onVercel()) return
   keepRunningAfterReply(
     runVideoRenderQueue(undefined, { deadline: invocationDeadline(event, started) }),
     'video queue',

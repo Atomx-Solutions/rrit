@@ -1,4 +1,5 @@
 import { monthlyAiConfigured } from '../utils/monthly-ai'
+import { onVercel } from '../utils/host'
 import { closeMonthlyWorkerDatabase, runMonthlyPlannerBatch } from '../utils/monthly-planner'
 import { runVideoRenderQueue } from '../utils/video-queue'
 
@@ -8,7 +9,7 @@ export default defineNitroPlugin((nitro) => {
   // A Vercel function is frozen between requests and stopped at its time
   // limit, so a timer here would only run while traffic happens to keep it
   // awake. The planner cron (/api/cron/planner) drives the planner there.
-  if (process.env.VERCEL) return
+  if (onVercel()) return
   if (!process.env.WORKER_DATABASE_URL) {
     console.error('Monthly planner requires WORKER_DATABASE_URL.')
     return

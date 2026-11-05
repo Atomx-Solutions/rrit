@@ -1,4 +1,5 @@
 import { acquireOperationsWorkerDatabase } from '../utils/database'
+import { onVercel } from '../utils/host'
 import { runRetentionBatch } from '../utils/retention'
 
 export default defineNitroPlugin((nitro) => {
@@ -7,7 +8,7 @@ export default defineNitroPlugin((nitro) => {
   // Every new Vercel instance would start a clean-up of its own, and one frozen
   // half-way held the retention lock for all of them. The daily maintenance
   // cron (/api/cron/maintenance) runs it there instead.
-  if (process.env.VERCEL) return
+  if (onVercel()) return
   if (!process.env.WORKER_DATABASE_URL) {
     console.error('Maintenance requires WORKER_DATABASE_URL and will not start.')
     return

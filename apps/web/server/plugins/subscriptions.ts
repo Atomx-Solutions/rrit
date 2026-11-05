@@ -1,4 +1,5 @@
 import { acquireOperationsWorkerDatabase } from '../utils/database'
+import { onVercel } from '../utils/host'
 import { runPackageExpiry } from '../utils/custom-packages'
 
 // Dynamic package expiry is database-owned and must be maintained even though
@@ -9,7 +10,7 @@ export default defineNitroPlugin((nitro) => {
   // Every new Vercel instance would start a round of its own, and its timer
   // stops while the instance sleeps. The package cron (/api/cron/packages)
   // runs it there instead.
-  if (process.env.VERCEL) return
+  if (onVercel()) return
   if (!process.env.WORKER_DATABASE_URL) {
     console.error('Package maintenance requires WORKER_DATABASE_URL and will not start.')
     return

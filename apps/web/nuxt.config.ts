@@ -138,6 +138,9 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     functionMaxDurationSeconds,
+    // Vercel sets VERCEL while it builds; the built app keeps the answer,
+    // since its functions need not see VERCEL when they run (server/utils/host).
+    onVercel: Boolean(process.env.VERCEL),
     public: {
       apiBase: '',
       // Publishable Supabase credentials are safe to expose to the browser.

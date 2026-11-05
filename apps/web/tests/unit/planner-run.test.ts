@@ -6,9 +6,17 @@ vi.mock('@vercel/functions', () => ({
   getDeadline: () => vercel.deadline,
   waitUntil: vercel.waitUntil,
 }))
-const planner = vi.hoisted(() => ({ runMonthlyPlannerBatch: vi.fn(async () => undefined) }))
+// Both mocks are typed as they are called, so a test can read the options
+// each was given.
+type PlannerBatchOptions = { deadline?: number; discover?: boolean; once?: boolean }
+type VideoQueueOptions = { deadline?: number; waitWhile?: () => boolean }
+const planner = vi.hoisted(() => ({
+  runMonthlyPlannerBatch: vi.fn(async (_db?: unknown, _options?: PlannerBatchOptions) => undefined),
+}))
 vi.mock('../../server/utils/monthly-planner', () => planner)
-const videos = vi.hoisted(() => ({ runVideoRenderQueue: vi.fn(async () => undefined) }))
+const videos = vi.hoisted(() => ({
+  runVideoRenderQueue: vi.fn(async (_db?: unknown, _options?: VideoQueueOptions) => undefined),
+}))
 vi.mock('../../server/utils/video-queue', () => videos)
 
 const { invocationDeadline, runPlannerAndVideos, startMonthlyPlannerNow, startVideoRenderNow } = await import('../../server/utils/planner-run')
@@ -50,8 +58,8 @@ describe('planner runs started from a request', () => {
       finishPlanning = () => resolve(undefined)
     }))
     let waitWhile: (() => boolean) | undefined
-    videos.runVideoRenderQueue.mockImplementationOnce(async (_db: unknown, options: { waitWhile?: () => boolean }) => {
-      waitWhile = options.waitWhile
+    videos.runVideoRenderQueue.mockImplementationOnce(async (_db?: unknown, options?: VideoQueueOptions) => {
+      waitWhile = options?.waitWhile
       return undefined
     })
     const run = runPlannerAndVideos({ deadline: 5000 })
@@ -78,10 +86,21 @@ describe('planner runs started from a request', () => {
 
   it('leaves the run to the planner timer on a long-running host', () => {
     vi.stubEnv('VERCEL', '')
+    // Built for a long-running server, not for Vercel.
+    vi.stubGlobal('useRuntimeConfig', () => ({ functionMaxDurationSeconds: 800, onVercel: false }))
     startMonthlyPlannerNow(event, 1000)
     startVideoRenderNow(event, 1000)
     expect(planner.runMonthlyPlannerBatch).not.toHaveBeenCalled()
     expect(videos.runVideoRenderQueue).not.toHaveBeenCalled()
     expect(vercel.waitUntil).not.toHaveBeenCalled()
+  })
+
+  it('starts the run right after a request on Vercel even when the function does not see VERCEL', () => {
+    // As in production: built for Vercel, VERCEL absent while it runs.
+    vi.stubEnv('VERCEL', '')
+    vi.stubGlobal('useRuntimeConfig', () => ({ functionMaxDurationSeconds: 800, onVercel: true }))
+    startMonthlyPlannerNow(event, 1000)
+    expect(planner.runMonthlyPlannerBatch).toHaveBeenCalledWith(undefined, { deadline: 801000, discover: false })
+    expect(vercel.waitUntil).toHaveBeenCalled()
   })
 })
