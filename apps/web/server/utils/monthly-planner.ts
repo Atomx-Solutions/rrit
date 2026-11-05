@@ -100,6 +100,7 @@ import {
   type PlannerTimingSample,
   plannerTimings,
   plannerRunSettings,
+  plannerRetryDelaySeconds,
   runClaimedJobs,
   type PlannerTimed,
 } from './monthly-planner-domain'
@@ -2630,7 +2631,7 @@ async function advanceClaimedPlan(db: Pool, plan: PlanRow) {
     // lost on the way back is settled as interrupted on the next step and
     // called again under the same bound.
     if (['PROVIDER_TEMPORARY', 'PROVIDER_RATE_LIMITED', 'PROVIDER_UNCERTAIN'].includes(code)) {
-      const delaySeconds = code === 'PROVIDER_RATE_LIMITED' ? 60 : 15
+      const delaySeconds = plannerRetryDelaySeconds(code, plannerRunSettings())
       await db.query(
         `UPDATE monthly_plans
             SET status='queued',error_code=$1,

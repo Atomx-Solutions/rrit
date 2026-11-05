@@ -1178,7 +1178,27 @@ export function plannerRunSettings(env: Record<string, string | undefined> = pro
     poolSize: positiveSetting(env.PLANNER_DATABASE_POOL_SIZE, 10),
     // How often a busy run looks for a plan that became ready meanwhile.
     pollMs: positiveSetting(env.PLANNER_POLL_SECONDS, 5) * 1000,
+    // A stage the provider rate-limited was never billed, so it is called
+    // again more times than one that failed, after a longer, spread-out wait.
+    rateLimitRetries: positiveSetting(env.PLANNER_RATE_LIMIT_RETRIES, 10),
+    rateLimitDelayMs: positiveSetting(env.PLANNER_RATE_LIMIT_DELAY_SECONDS, 60) * 1000,
+    // The wait before a stage a temporary provider error stopped is tried again.
+    retryDelayMs: positiveSetting(env.PLANNER_RETRY_DELAY_SECONDS, 15) * 1000,
   }
+}
+
+/**
+ * Seconds until a plan stopped by a provider that was busy or briefly down is
+ * advanced again. A rate-limited plan waits between one and two delays at
+ * random, so plans the provider refused together do not all return together.
+ */
+export function plannerRetryDelaySeconds(
+  code: string,
+  settings: Pick<ReturnType<typeof plannerRunSettings>, 'rateLimitDelayMs' | 'retryDelayMs'>,
+  random: () => number = Math.random,
+) {
+  if (code !== 'PROVIDER_RATE_LIMITED') return Math.round(settings.retryDelayMs / 1000)
+  return Math.round((settings.rateLimitDelayMs * (1 + random())) / 1000)
 }
 
 /**

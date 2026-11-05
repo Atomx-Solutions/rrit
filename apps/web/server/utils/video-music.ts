@@ -2,6 +2,8 @@
 // separately generated shots, so music made per shot would change at every
 // cut; it is made once, from frames of the finished video, and laid under it.
 
+import { sendWithRateLimitRetry } from './provider-rate-limit'
+
 function config() {
   const key = process.env.OPENROUTER_API_KEY?.trim()
   const model = process.env.OPENROUTER_MUSIC_MODEL?.trim()
@@ -32,7 +34,7 @@ export async function generateVideoMusic(input: {
 }) {
   const provider = config()
   if (!provider) return null
-  const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+  const response = await sendWithRateLimitRetry(() => fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',
     redirect: 'error',
     signal: AbortSignal.timeout(180000),
@@ -59,7 +61,7 @@ export async function generateVideoMusic(input: {
         ],
       }],
     }),
-  })
+  }))
   if (!response.ok) throw new Error(`music_unavailable:${response.status}`)
   let audio = ''
   let costUsd: number | null = null
