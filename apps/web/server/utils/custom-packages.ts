@@ -4,7 +4,7 @@ import {
   type CustomPackageDraft,
   type CustomPackageStatus,
 } from '../../shared/schemas/custom-package'
-import type { PoolClient } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 import { withTenantTransaction, type TenantContext } from './database'
 
 /**
@@ -115,6 +115,40 @@ export async function expireCustomPackages(client: PoolClient, now = new Date())
     [now],
   )
   return Number(result.rows[0]?.expired || 0)
+}
+
+// How long the expiry waits for a package row another session holds before
+// it gives up for this round; the next round finds it again.
+const packageExpiryLockTimeout = '5s'
+
+/**
+ * One round of package expiry: ended packages are marked expired and their
+ * unused credits end with them. Only one round runs at a time; a round that
+ * finds another under way leaves it the work instead of waiting for it, and a
+ * row held by a session that froze is given up on rather than waited for, so
+ * a stuck round never holds every other one up.
+ */
+export async function runPackageExpiry(db: Pool, now = new Date()) {
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(`SET LOCAL lock_timeout = '${packageExpiryLockTimeout}'`)
+    const lock = await client.query<{ acquired: boolean }>(
+      "SELECT pg_try_advisory_xact_lock(hashtext('rrit-package-expiry')) AS acquired",
+    )
+    if (!lock.rows[0]?.acquired) {
+      await client.query('COMMIT')
+      return { skipped: true as const }
+    }
+    const expired = await expireCustomPackages(client, now)
+    await client.query('COMMIT')
+    return { expired }
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 type CustomPackageRow = {

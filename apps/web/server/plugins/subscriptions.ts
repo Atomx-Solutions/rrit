@@ -1,11 +1,15 @@
 import { acquireOperationsWorkerDatabase } from '../utils/database'
-import { expireCustomPackages } from '../utils/custom-packages'
+import { runPackageExpiry } from '../utils/custom-packages'
 
 // Dynamic package expiry is database-owned and must be maintained even though
 // the legacy static subscription service is no longer part of the runtime.
 export default defineNitroPlugin((nitro) => {
   const role = process.env.PROCESS_ROLE || 'all'
   if (process.env.MAINTENANCE_ENABLED === 'false' || !['maintenance', 'all'].includes(role)) return
+  // Every new Vercel instance would start a round of its own, and its timer
+  // stops while the instance sleeps. The package cron (/api/cron/packages)
+  // runs it there instead.
+  if (process.env.VERCEL) return
   if (!process.env.WORKER_DATABASE_URL) {
     console.error('Package maintenance requires WORKER_DATABASE_URL and will not start.')
     return
@@ -17,19 +21,7 @@ export default defineNitroPlugin((nitro) => {
   function tick() {
     if (running || closing) return current
     running = true
-    current = (async () => {
-      const client = await worker.db.connect()
-      try {
-        await client.query('BEGIN')
-        await expireCustomPackages(client)
-        await client.query('COMMIT')
-      } catch (error) {
-        await client.query('ROLLBACK').catch(() => {})
-        throw error
-      } finally {
-        client.release()
-      }
-    })()
+    current = runPackageExpiry(worker.db)
       .then(() => undefined)
       .catch(() => {
         console.error('Dynamic package maintenance failed; inspect database health.')
