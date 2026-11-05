@@ -508,20 +508,30 @@ watch(form, () => {
   clearTimeout(timer)
   timer = setTimeout(() => save(true), 900)
 })
+// The status being changed to. Saving, checking and changing the status run
+// one after another, so the button pressed shows it is working and none of
+// them can be pressed again until all three are done.
+const statusChanging = ref<Post['status'] | null>(null)
 async function setStatus(next: Post['status']) {
+  if (statusChanging.value) return
   if (next === 'approved' && post.value?.status !== 'scheduled' && !confirmed.value) {
     error.value = t('content.confirmFacts')
     return
   }
-  await save()
-  if (dirty.value || !savedId.value) return
-  if (next === 'approved' && post.value?.status !== 'scheduled') {
-    if (!(await checkPost())) return
-    confirmed.value = true
-  }
-  if (await transition(savedId.value, next)) {
-    notify(next === 'approved' ? t('content.postApprovedToast') : t('content.statusUpdatedToast'))
-    if (next === 'approved') scheduleOpen.value = true
+  statusChanging.value = next
+  try {
+    await save()
+    if (dirty.value || !savedId.value) return
+    if (next === 'approved' && post.value?.status !== 'scheduled') {
+      if (!(await checkPost())) return
+      confirmed.value = true
+    }
+    if (await transition(savedId.value, next)) {
+      notify(next === 'approved' ? t('content.postApprovedToast') : t('content.statusUpdatedToast'))
+      if (next === 'approved') scheduleOpen.value = true
+    }
+  } finally {
+    statusChanging.value = null
   }
 }
 async function schedulePost() {
@@ -918,18 +928,19 @@ onBeforeUnmount(() => {
             <UButton
               v-if="!post || post.status === 'draft'"
               variant="outline"
-              :disabled="!form.title || !form.caption || publishBlocked"
+              :disabled="!form.title || !form.caption || publishBlocked || syncing || !!statusChanging"
+              :loading="statusChanging === 'review'"
               @click="setStatus('review')"
               >{{ t('content.submitApproval') }}</UButton
             ><template v-if="post?.status === 'review'"
               ><UButton
                 variant="outline"
-                :disabled="!confirmed || checking || syncing || publishBlocked"
-                :loading="checking"
+                :disabled="!confirmed || checking || syncing || publishBlocked || !!statusChanging"
+                :loading="checking || statusChanging === 'approved'"
                 icon="i-lucide-check"
                 @click="setStatus('approved')"
                 >{{ t('content.approvePost') }}</UButton
-              ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
+              ><UButton color="neutral" variant="outline" :disabled="syncing || !!statusChanging" :loading="statusChanging === 'draft'" @click="setStatus('draft')"
                 >{{ t('content.returnDraft') }}</UButton
               ></template
             ><template v-if="post?.status === 'approved'"
@@ -937,24 +948,26 @@ onBeforeUnmount(() => {
                 >{{ form.channel === 'TikTok' ? t('content.sendToTikTok') : t('content.publishNow') }}</UButton
               ><UButton variant="outline" icon="i-lucide-calendar-plus" :disabled="publishBlocked" @click="scheduleOpen = true"
                 >{{ t('content.schedulePost') }}</UButton
-              ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
+              ><UButton color="neutral" variant="outline" :disabled="syncing || !!statusChanging" :loading="statusChanging === 'draft'" @click="setStatus('draft')"
                 >{{ t('content.reopenEditing') }}</UButton
               ></template
             ><template v-if="post?.status === 'failed'"
               ><UButton
                 variant="outline"
-                :disabled="!confirmed || checking || syncing || publishBlocked"
-                :loading="checking"
+                :disabled="!confirmed || checking || syncing || publishBlocked || !!statusChanging"
+                :loading="checking || statusChanging === 'approved'"
                 icon="i-lucide-rotate-ccw"
                 @click="setStatus('approved')"
                 >{{ t('content.reviewApproveAgain') }}</UButton
-              ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
+              ><UButton color="neutral" variant="outline" :disabled="syncing || !!statusChanging" :loading="statusChanging === 'draft'" @click="setStatus('draft')"
                 >{{ t('content.returnForCorrection') }}</UButton
               ></template
             ><UButton
               v-if="post?.status === 'scheduled'"
               color="neutral"
               variant="outline"
+              :disabled="syncing || !!statusChanging"
+              :loading="statusChanging === 'approved'"
               @click="setStatus('approved')"
                 >{{ t('content.removeFromCalendar') }}</UButton
             >
