@@ -10,6 +10,7 @@ import {
   PlannerFailure,
   plannerMessageKey,
   resumableContentFailureCode,
+  videoQueueSettings,
 } from '../../utils/monthly-planner-domain'
 import { getBrandForBusiness } from '../../utils/brands'
 import { loadPlannerBrain } from '../../utils/business-brain'
@@ -70,6 +71,17 @@ export default defineEventHandler(async (event) => {
           )
         ).rows[0]?.count || 0
       : 0
+    // Of those, the ones still waiting their turn: a business has only so many
+    // videos made at once, and the rest start on their own.
+    const videosQueued = row && videosRendering
+      ? (
+          await client.query<{ count: number }>(
+            `SELECT count(*)::int AS count FROM video_renders r JOIN posts p ON p.id=r.post_id
+              WHERE r.business_id=$1 AND p.monthly_plan_id=$2 AND r.status='queued'`,
+            [business.id, row.id],
+          )
+        ).rows[0]?.count || 0
+      : 0
     const usedPosts = access
       ? await postsCountedForLimit(client, business.id, month.data, access.paid, access.quotaPeriod)
       : 0
@@ -109,6 +121,9 @@ export default defineEventHandler(async (event) => {
         used: usedVideos,
         remaining: Math.max(0, (access?.limits.videos_per_month || 0) - usedVideos),
       },
+      // How many of a business's videos are made at once; the rest wait their
+      // turn, and the planner says so before they are asked for.
+      videosAtOnce: videoQueueSettings().perBusiness,
       workerAlive: worker.rows[0]?.alive === true,
       prerequisite: prerequisite
         ? plannerMessageKey(prerequisite, 'planner.prerequisiteDefault')
@@ -124,6 +139,7 @@ export default defineEventHandler(async (event) => {
             requested: row.generate_count as number,
             completed: row.completed_count as number,
             videosRendering,
+            videosQueued,
             // The run the customer just started, reported on its own:
             // `generate_count` accumulates across requests and would otherwise
             // make a single new post read as part of a larger job.

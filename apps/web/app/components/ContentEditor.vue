@@ -232,11 +232,15 @@ async function refreshPublication() {
     /* Keep the last confirmed status; the user can refresh. */
   }
 }
+// How many videos of the business are made at once; a video beyond that
+// waits its turn, and the hint says so.
+const videosAtOnce = ref(0)
 async function refreshVideo() {
   if (!post.value) return
   try {
     const result = await $fetch(`/api/posts/${post.value.id}/video`)
     videoRender.value = result.render || null
+    videosAtOnce.value = result.perBusiness
     if (videoInProgress.value) followVideo()
   } catch {
     // Video state is optional; do not interrupt normal post editing.
@@ -758,7 +762,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <p v-if="post?.video" class="text-sm text-muted">
-            {{ videoInProgress ? t('video.rendering') : videoRender?.status === 'ready' ? t('video.readyHint') : t('video.sourceHint') }}
+            {{ videoRender?.status === 'queued' && videosAtOnce ? t(videosAtOnce === 1 ? 'video.queuedHintOne' : 'video.queuedHintMany', { count: videosAtOnce }) : videoInProgress ? t('video.rendering') : videoRender?.status === 'ready' ? t('video.readyHint') : t('video.sourceHint') }}
           </p>
           <!-- A video the subject check doubted is kept for the business to
                judge; the check's own words say what it saw. -->

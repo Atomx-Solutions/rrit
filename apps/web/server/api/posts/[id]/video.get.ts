@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { videoQueueSettings } from '../../../utils/monthly-planner-domain'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
@@ -16,6 +17,9 @@ export default defineEventHandler(async (event) => {
     )
     const render = result.rows[0]
     return {
+      // How many videos of one business are made at once, so a video still
+      // waiting its turn can say why it has not started.
+      perBusiness: videoQueueSettings().perBusiness,
       render: render && {
         id: render.id,
         status: render.status,
