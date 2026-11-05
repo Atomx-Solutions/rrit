@@ -256,7 +256,7 @@ function followVideo() {
     await initLive()
     if (videoRender.value?.status === 'ready') notify(t('video.ready'))
     else error.value = t('video.failed')
-  }, 10000)
+  }, videoFollowMs)
 }
 // What the server answers once a render is queued.
 type QueuedVideo = { renderId: string; status: 'queued' }
@@ -289,6 +289,26 @@ async function renderVideo() {
     const queued = await $fetch<QueuedVideo>(`/api/posts/${post.value.id}/video-render`, {
       method: 'POST',
       body: { music: videoMusicChoice.value },
+      retry: 0,
+    })
+    videoQueued(queued)
+  } catch (problem) {
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
+  } finally {
+    videoBusy.value = false
+  }
+}
+// A video that failed is made again as it was asked for, with the music it
+// already has; one with no music yet asks for it first, as a first render does.
+async function retryVideo() {
+  if (!post.value?.video || videoBusy.value || videoInProgress.value || dirty.value) return
+  if (!post.value.video.music) return openVideoGenerate()
+  videoBusy.value = true
+  error.value = ''
+  try {
+    const queued = await $fetch<QueuedVideo>(`/api/posts/${post.value.id}/video-render`, {
+      method: 'POST',
+      body: {},
       retry: 0,
     })
     videoQueued(queued)
@@ -488,20 +508,30 @@ watch(form, () => {
   clearTimeout(timer)
   timer = setTimeout(() => save(true), 900)
 })
+// The status being changed to. Saving, checking and changing the status run
+// one after another, so the button pressed shows it is working and none of
+// them can be pressed again until all three are done.
+const statusChanging = ref<Post['status'] | null>(null)
 async function setStatus(next: Post['status']) {
+  if (statusChanging.value) return
   if (next === 'approved' && post.value?.status !== 'scheduled' && !confirmed.value) {
     error.value = t('content.confirmFacts')
     return
   }
-  await save()
-  if (dirty.value || !savedId.value) return
-  if (next === 'approved' && post.value?.status !== 'scheduled') {
-    if (!(await checkPost())) return
-    confirmed.value = true
-  }
-  if (await transition(savedId.value, next)) {
-    notify(next === 'approved' ? t('content.postApprovedToast') : t('content.statusUpdatedToast'))
-    if (next === 'approved') scheduleOpen.value = true
+  statusChanging.value = next
+  try {
+    await save()
+    if (dirty.value || !savedId.value) return
+    if (next === 'approved' && post.value?.status !== 'scheduled') {
+      if (!(await checkPost())) return
+      confirmed.value = true
+    }
+    if (await transition(savedId.value, next)) {
+      notify(next === 'approved' ? t('content.postApprovedToast') : t('content.statusUpdatedToast'))
+      if (next === 'approved') scheduleOpen.value = true
+    }
+  } finally {
+    statusChanging.value = null
   }
 }
 async function schedulePost() {
@@ -681,8 +711,8 @@ onBeforeUnmount(() => {
               <!-- A video post keeps the photo its video was made from, and its
                    video is made again through "Edit video with AI". -->
               <PhotoUpload v-if="editable && !post?.video" @uploaded="form.image = $event" />
-              <!-- Only a video never made yet is generated here; a failed one is
-                   made again through "Edit video with AI". -->
+              <!-- A video never made yet is generated here; a failed one is tried
+                   again as it was, or made anew through "Edit video with AI". -->
               <UButton
                 v-if="post?.video?.status === 'brief_ready'"
                 size="sm"
@@ -691,6 +721,14 @@ onBeforeUnmount(() => {
                 :disabled="dirty || syncing || !editable || videoInProgress"
                 @click="openVideoGenerate"
               >{{ t('video.generate') }}</UButton>
+              <UButton
+                v-if="videoFailed"
+                size="sm"
+                icon="i-lucide-refresh-cw"
+                :loading="videoBusy || videoInProgress"
+                :disabled="dirty || syncing || !editable || videoInProgress"
+                @click="retryVideo"
+              >{{ t('common.retry') }}</UButton>
               <UButton
                 v-if="videoRender?.status === 'ready'"
                 size="sm"
@@ -890,18 +928,19 @@ onBeforeUnmount(() => {
             <UButton
               v-if="!post || post.status === 'draft'"
               variant="outline"
-              :disabled="!form.title || !form.caption || publishBlocked"
+              :disabled="!form.title || !form.caption || publishBlocked || syncing || !!statusChanging"
+              :loading="statusChanging === 'review'"
               @click="setStatus('review')"
               >{{ t('content.submitApproval') }}</UButton
             ><template v-if="post?.status === 'review'"
               ><UButton
                 variant="outline"
-                :disabled="!confirmed || checking || syncing || publishBlocked"
-                :loading="checking"
+                :disabled="!confirmed || checking || syncing || publishBlocked || !!statusChanging"
+                :loading="checking || statusChanging === 'approved'"
                 icon="i-lucide-check"
                 @click="setStatus('approved')"
                 >{{ t('content.approvePost') }}</UButton
-              ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
+              ><UButton color="neutral" variant="outline" :disabled="syncing || !!statusChanging" :loading="statusChanging === 'draft'" @click="setStatus('draft')"
                 >{{ t('content.returnDraft') }}</UButton
               ></template
             ><template v-if="post?.status === 'approved'"
@@ -909,24 +948,26 @@ onBeforeUnmount(() => {
                 >{{ form.channel === 'TikTok' ? t('content.sendToTikTok') : t('content.publishNow') }}</UButton
               ><UButton variant="outline" icon="i-lucide-calendar-plus" :disabled="publishBlocked" @click="scheduleOpen = true"
                 >{{ t('content.schedulePost') }}</UButton
-              ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
+              ><UButton color="neutral" variant="outline" :disabled="syncing || !!statusChanging" :loading="statusChanging === 'draft'" @click="setStatus('draft')"
                 >{{ t('content.reopenEditing') }}</UButton
               ></template
             ><template v-if="post?.status === 'failed'"
               ><UButton
                 variant="outline"
-                :disabled="!confirmed || checking || syncing || publishBlocked"
-                :loading="checking"
+                :disabled="!confirmed || checking || syncing || publishBlocked || !!statusChanging"
+                :loading="checking || statusChanging === 'approved'"
                 icon="i-lucide-rotate-ccw"
                 @click="setStatus('approved')"
                 >{{ t('content.reviewApproveAgain') }}</UButton
-              ><UButton color="neutral" variant="outline" @click="setStatus('draft')"
+              ><UButton color="neutral" variant="outline" :disabled="syncing || !!statusChanging" :loading="statusChanging === 'draft'" @click="setStatus('draft')"
                 >{{ t('content.returnForCorrection') }}</UButton
               ></template
             ><UButton
               v-if="post?.status === 'scheduled'"
               color="neutral"
               variant="outline"
+              :disabled="syncing || !!statusChanging"
+              :loading="statusChanging === 'approved'"
               @click="setStatus('approved')"
                 >{{ t('content.removeFromCalendar') }}</UButton
             >

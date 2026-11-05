@@ -2626,8 +2626,10 @@ async function advanceClaimedPlan(db: Pool, plan: PlanRow) {
     // but is safe to retry through the existing bounded ledger policy. Keep
     // research/planning moving without requiring a human click; after the
     // allowed attempts the ledger returns PROVIDER_RETRY_EXHAUSTED and this
-    // falls through to the normal blocked state below.
-    if (['PROVIDER_TEMPORARY', 'PROVIDER_RATE_LIMITED'].includes(code)) {
+    // falls through to the normal blocked state below. A call whose answer was
+    // lost on the way back is settled as interrupted on the next step and
+    // called again under the same bound.
+    if (['PROVIDER_TEMPORARY', 'PROVIDER_RATE_LIMITED', 'PROVIDER_UNCERTAIN'].includes(code)) {
       const delaySeconds = code === 'PROVIDER_RATE_LIMITED' ? 60 : 15
       await db.query(
         `UPDATE monthly_plans

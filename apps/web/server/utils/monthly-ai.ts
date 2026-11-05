@@ -28,6 +28,7 @@ import {
 } from '../../shared/schemas/monthly-plan'
 import { ctaMaxLength } from '../../shared/schemas/storyboard'
 import { trialStatus } from './trials'
+import { attemptKey, interruptedRunCode, settleInterruptedRun } from './monthly-ai-recovery'
 import { setTenantContext, type TenantContext } from './database'
 import {
   consumeReservedCredits,
@@ -293,26 +294,38 @@ async function logProviderHttpFailure(
 
 const explicitFailureRetryLimit = 3
 
-async function recoverPriorRun(priorRun: Record<string, unknown> | undefined) {
+// How long one provider call may run before it is given up.
+const textCallTimeoutMs = 180000
+const imageCallTimeoutMs = 300000
+
+export async function recoverPriorRun(priorRun: Record<string, unknown> | undefined) {
   if (!priorRun) return undefined
   if (priorRun.status === 'completed') return priorRun
   if (
     priorRun.status === 'failed' &&
-    (retryableProviderFailureCode(String(priorRun.error_code || '')) ||
+    (priorRun.error_code === interruptedRunCode ||
+      retryableProviderFailureCode(String(priorRun.error_code || '')) ||
       retryableMonthlyGenerationFailureCode(String(priorRun.error_code || '')))
   ) {
-    const automaticFailure = ['PROVIDER_RATE_LIMITED', 'PROVIDER_TEMPORARY'].includes(
+    const automaticFailure = ['PROVIDER_RATE_LIMITED', 'PROVIDER_TEMPORARY', interruptedRunCode].includes(
       String(priorRun.error_code || ''),
     )
-    if (automaticFailure && Number(priorRun.retry_count || 0) >= explicitFailureRetryLimit)
+    if (automaticFailure && Number(priorRun.retry_count || 0) >= explicitFailureRetryLimit) {
+      console.warn('A stage used every attempt it is allowed and stops here.', {
+        runId: String(priorRun.id),
+        stageKey: String(priorRun.stage_key || ''),
+        errorCode: String(priorRun.error_code || ''),
+        attempts: Number(priorRun.retry_count || 0) + 1,
+      })
       throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
+    }
     return priorRun
   }
   if (priorRun.status === 'failed')
     throw new PlannerFailure(String(priorRun.error_code || 'PROVIDER_REQUEST_REJECTED'))
 
-  // An ambiguous dispatch may already have been billed. Never create another
-  // provider request for it automatically or by reusing a different stage key.
+  // A run still reserved or uncertain here was not settled as interrupted:
+  // never make another provider request for it.
   throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
 }
 
@@ -858,6 +871,7 @@ export async function monthlyProviderCall(
     args.capability === 'research' || args.capability === 'planning' ? 'research' : 'generation'
   const client = await db.connect()
   let runId: string
+  let attempt = 0
   try {
     await client.query('BEGIN')
     if (args.tenant) await setTenantContext(client, args.tenant)
@@ -876,7 +890,13 @@ export async function monthlyProviderCall(
       'SELECT * FROM monthly_ai_runs WHERE plan_id=$1 AND stage_key=$2 AND business_id=$3',
       [args.planId, args.stageKey, args.businessId],
     )
-    const storedRun = prior.rows[0]
+    const storedRun = await settleInterruptedRun(client, prior.rows[0], {
+      businessId: args.businessId,
+      callTimeoutMs: textCallTimeoutMs,
+      reserveKeyPrefix: 'monthly-ai-credit-reserve',
+      releaseKeyPrefix: 'monthly-ai-interrupted-release',
+      usageKind,
+    })
     if (storedRun && !completedRunHasUsableProviderResult(storedRun)) {
       await client.query(
         "UPDATE monthly_ai_runs SET status='failed',error_code='PROVIDER_INCOMPLETE',completed_at=COALESCE(completed_at,now()) WHERE id=$1 AND status='completed'",
@@ -934,11 +954,11 @@ export async function monthlyProviderCall(
     }
     const result = priorRun
       ? await client.query(
-          "UPDATE monthly_ai_runs SET status='reserved',error_code=NULL,actual_cost_micro_eur=NULL,result=NULL,provider_response_id=NULL,completed_at=NULL,retry_count=retry_count+1,created_at=now() WHERE id=$1 AND status='failed' RETURNING id",
+          "UPDATE monthly_ai_runs SET status='reserved',error_code=NULL,actual_cost_micro_eur=NULL,result=NULL,provider_response_id=NULL,completed_at=NULL,retry_count=retry_count+1,created_at=now() WHERE id=$1 AND status='failed' RETURNING id,retry_count",
           [priorRun.id],
         )
       : await client.query(
-          "INSERT INTO monthly_ai_runs(plan_id,business_id,stage_key,model,prompt_version,prompt_hash,status,reserved_cost_micro_eur) VALUES($1,$2,$3,$4,$5,$6,'reserved',$7) RETURNING id",
+          "INSERT INTO monthly_ai_runs(plan_id,business_id,stage_key,model,prompt_version,prompt_hash,status,reserved_cost_micro_eur) VALUES($1,$2,$3,$4,$5,$6,'reserved',$7) RETURNING id,retry_count",
           [
             args.planId,
             args.businessId,
@@ -953,6 +973,8 @@ export async function monthlyProviderCall(
       throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
     }
     runId = result.rows[0].id
+    attempt = Number(result.rows[0].retry_count || 0)
+    if (attempt > 0) console.info('A stage is called again.', { runId, stageKey: args.stageKey, attempt })
     // The monthly page-style analysis is a platform cost, never charged to
     // the customer's credits; its provider cost stays in monthly_ai_runs.
     if (!platformCost) {
@@ -962,7 +984,7 @@ export async function monthlyProviderCall(
         usageKind,
         referenceType: 'monthly_ai_run',
         referenceId: runId,
-        idempotencyKey: `monthly-ai-credit-reserve:${runId}`,
+        idempotencyKey: attemptKey('monthly-ai-credit-reserve', runId, attempt),
       })
     }
     await client.query('COMMIT')
@@ -1023,7 +1045,7 @@ export async function monthlyProviderCall(
           usageKind,
           referenceType: 'monthly_ai_run',
           referenceId: runId,
-          idempotencyKey: `monthly-ai-token-charge:${runId}`,
+          idempotencyKey: attemptKey('monthly-ai-token-charge', runId, attempt),
         })
         if (creditReserve > credits)
           await releaseReservedCredits(connection, {
@@ -1032,7 +1054,7 @@ export async function monthlyProviderCall(
             usageKind,
             referenceType: 'monthly_ai_run',
             referenceId: runId,
-            idempotencyKey: `monthly-ai-credit-release:${runId}`,
+            idempotencyKey: attemptKey('monthly-ai-credit-release', runId, attempt),
           })
       }
       const result = await connection.query(sql, values)
@@ -1052,7 +1074,7 @@ export async function monthlyProviderCall(
     const response = await fetch(config.provider.responsesUrl, {
       method: 'POST',
       redirect: 'error',
-      signal: AbortSignal.timeout(180000),
+      signal: AbortSignal.timeout(textCallTimeoutMs),
       headers: config.provider.headers,
       body: JSON.stringify({
         model: config.model,
@@ -1161,7 +1183,7 @@ export async function monthlyProviderCall(
           ? "UPDATE monthly_ai_runs SET status='failed',error_code=$1,result=COALESCE($2::jsonb,result),actual_cost_micro_eur=0,completed_at=now() WHERE id=$3 AND status='reserved'"
           : "UPDATE monthly_ai_runs SET status=CASE WHEN status='reserved' THEN 'uncertain' ELSE status END WHERE id=$1",
         knownFailure ? [error.code, failureResult, runId] : [runId],
-        knownFailure ? `monthly-ai-failure-release:${runId}` : undefined,
+        knownFailure ? attemptKey('monthly-ai-failure-release', runId, attempt) : undefined,
       )
     } catch (persistError) {
       console.warn('Monthly text run state will be reconciled after database recovery.', {
@@ -1229,6 +1251,7 @@ export async function monthlyImageCall(
   const reserve = config.imageReserve
   const client = await db.connect()
   let runId: string
+  let attempt = 0
   let creditReserve = 0
   try {
     await client.query('BEGIN')
@@ -1249,7 +1272,13 @@ export async function monthlyImageCall(
       'SELECT * FROM monthly_ai_runs WHERE plan_id=$1 AND stage_key=$2 AND business_id=$3',
       [args.planId, args.stageKey, args.businessId],
     )
-    const priorRun = await recoverPriorRun(prior.rows[0])
+    const priorRun = await recoverPriorRun(await settleInterruptedRun(client, prior.rows[0], {
+      businessId: args.businessId,
+      callTimeoutMs: imageCallTimeoutMs,
+      reserveKeyPrefix: 'monthly-image-credit-reserve',
+      releaseKeyPrefix: 'monthly-image-interrupted-release',
+      usageKind: 'generation',
+    }))
     if (priorRun?.status === 'completed') {
       await client.query('COMMIT')
       if (
@@ -1296,11 +1325,11 @@ export async function monthlyImageCall(
     if (!usage.rowCount) throw new PlannerFailure('QUOTA_EXCEEDED')
     const result = priorRun
       ? await client.query(
-          "UPDATE monthly_ai_runs SET status='reserved',error_code=NULL,actual_cost_micro_eur=NULL,result=NULL,provider_response_id=NULL,completed_at=NULL,retry_count=retry_count+1,created_at=now() WHERE id=$1 AND status='failed' RETURNING id",
+          "UPDATE monthly_ai_runs SET status='reserved',error_code=NULL,actual_cost_micro_eur=NULL,result=NULL,provider_response_id=NULL,completed_at=NULL,retry_count=retry_count+1,created_at=now() WHERE id=$1 AND status='failed' RETURNING id,retry_count",
           [priorRun.id],
         )
       : await client.query(
-          "INSERT INTO monthly_ai_runs(plan_id,business_id,stage_key,model,prompt_version,prompt_hash,status,reserved_cost_micro_eur) VALUES($1,$2,$3,$4,$5,$6,'reserved',$7) RETURNING id",
+          "INSERT INTO monthly_ai_runs(plan_id,business_id,stage_key,model,prompt_version,prompt_hash,status,reserved_cost_micro_eur) VALUES($1,$2,$3,$4,$5,$6,'reserved',$7) RETURNING id,retry_count",
           [
             args.planId,
             args.businessId,
@@ -1315,13 +1344,15 @@ export async function monthlyImageCall(
       throw new PlannerFailure('PROVIDER_RETRY_EXHAUSTED')
     }
     runId = result.rows[0].id
+    attempt = Number(result.rows[0].retry_count || 0)
+    if (attempt > 0) console.info('A stage is called again.', { runId, stageKey: args.stageKey, attempt })
     creditReserve = await reserveAvailableCredits(client, {
       organizationId: args.businessId,
       credits: await creditsForCost(client, reserve),
       usageKind: 'generation',
       referenceType: 'monthly_ai_run',
       referenceId: runId,
-      idempotencyKey: `monthly-image-credit-reserve:${runId}`,
+      idempotencyKey: attemptKey('monthly-image-credit-reserve', runId, attempt),
     })
     await client.query('COMMIT')
   } catch (error) {
@@ -1379,7 +1410,7 @@ export async function monthlyImageCall(
         usageKind: 'generation',
         referenceType: 'monthly_ai_run',
         referenceId: runId,
-        idempotencyKey: `monthly-image-token-charge:${runId}`,
+        idempotencyKey: attemptKey('monthly-image-token-charge', runId, attempt),
       })
       if (creditReserve > credits)
         await releaseReservedCredits(connection, {
@@ -1388,7 +1419,7 @@ export async function monthlyImageCall(
           usageKind: 'generation',
           referenceType: 'monthly_ai_run',
           referenceId: runId,
-          idempotencyKey: `monthly-image-credit-release:${runId}`,
+          idempotencyKey: attemptKey('monthly-image-credit-release', runId, attempt),
         })
       const result = await connection.query(sql, values)
       if (!result.rowCount) throw new PlannerFailure('PROVIDER_UNCERTAIN')
@@ -1407,7 +1438,7 @@ export async function monthlyImageCall(
       response = await fetch(config.provider.imagesUrl, {
         method: 'POST',
         redirect: 'error',
-        signal: AbortSignal.timeout(300000),
+        signal: AbortSignal.timeout(imageCallTimeoutMs),
         headers: config.provider.headers,
         body: JSON.stringify({
           model: config.imageModel,
@@ -1471,7 +1502,7 @@ export async function monthlyImageCall(
       response = await fetch(config.provider.imagesUrl, {
         method: 'POST',
         redirect: 'error',
-        signal: AbortSignal.timeout(300000),
+        signal: AbortSignal.timeout(imageCallTimeoutMs),
         headers,
         body,
       })
@@ -1537,7 +1568,7 @@ export async function monthlyImageCall(
           ? "UPDATE monthly_ai_runs SET status='failed',error_code=$1,result=COALESCE($2::jsonb,result),actual_cost_micro_eur=0,completed_at=now() WHERE id=$3 AND status='reserved'"
           : "UPDATE monthly_ai_runs SET status=CASE WHEN status='reserved' THEN 'uncertain' ELSE status END WHERE id=$1",
         knownFailure ? [error.code, failureResult, runId] : [runId],
-        knownFailure ? `monthly-image-failure-release:${runId}` : undefined,
+        knownFailure ? attemptKey('monthly-image-failure-release', runId, attempt) : undefined,
       )
     } catch (persistError) {
       console.warn('Monthly image run state will be reconciled after database recovery.', {

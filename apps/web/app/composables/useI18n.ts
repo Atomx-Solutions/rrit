@@ -23,19 +23,32 @@ export function needsAdminDictionary() {
  * switching the console to English never changes what a client reads.
  */
 export function localeCookieName() {
+  return onAdminRoute() ? 'rrit-admin-locale' : 'rrit-locale'
+}
+
+function onAdminRoute() {
   const path = import.meta.client ? window.location.pathname : useRequestURL().pathname
-  return authScopeForPath(path) === 'admin' ? 'rrit-admin-locale' : 'rrit-locale'
+  return authScopeForPath(path) === 'admin'
+}
+
+/**
+ * The locale a page is shown in. The admin console is written in Albanian and
+ * English only, so any other language reads it in English; otherwise its own
+ * copy would be English while the shared form messages came out in that
+ * language, as German did on the admin sign-in.
+ */
+function localeForPage(value: string | undefined): AppLocale {
+  const language = languageForLocale(value)
+  return localeForLanguage(onAdminRoute() && language !== 'sq' ? 'en' : language)
 }
 
 export function useI18n() {
   const cookie = useCookie<AppLocale>(localeCookieName(), { default: () => 'de-CH' })
-  const locale = useState<AppLocale>('rrit-ui-locale', () =>
-    localeForLanguage(languageForLocale(cookie.value)),
-  )
+  const locale = useState<AppLocale>('rrit-ui-locale', () => localeForPage(cookie.value))
   // Nuxt hydrates useState from the server payload. Re-read the locale cookie on
   // the client so a saved language is applied before the first interactive render.
-  if (import.meta.client && languageForLocale(cookie.value) !== languageForLocale(locale.value)) {
-    locale.value = localeForLanguage(languageForLocale(cookie.value))
+  if (import.meta.client && localeForPage(cookie.value) !== locale.value) {
+    locale.value = localeForPage(cookie.value)
   }
 
   function t(key: string, params: Record<string, string | number> = {}) {
@@ -54,7 +67,7 @@ export function useI18n() {
   }
 
   function setLocale(value: string) {
-    const next = localeForLanguage(languageForLocale(value))
+    const next = localeForPage(value)
     const language = languageForLocale(next)
     const admin = needsAdminDictionary()
     // Switch only once the new dictionary is in hand: applying it earlier would
