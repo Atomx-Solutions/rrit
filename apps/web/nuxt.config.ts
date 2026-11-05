@@ -105,6 +105,9 @@ export default defineNuxtConfig({
         crons: [
           { path: '/api/cron/planner', schedule: '* * * * *' },
           { path: '/api/cron/maintenance', schedule: '0 3 * * *' },
+          // Ended packages and their credits, as the package timer does on a
+          // long-running host.
+          { path: '/api/cron/packages', schedule: '*/15 * * * *' },
         ],
       },
     },
