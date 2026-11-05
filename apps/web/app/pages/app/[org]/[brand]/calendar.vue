@@ -9,6 +9,7 @@ import {
 import { monthlyPlannerPath } from '~/utils/creation-route'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
+useFollowVideos()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('nav.calendar')} · Framic` })
 const today = computed(() => dayInZone(new Date(), data.value.preferences.timezone))

@@ -266,7 +266,8 @@ const failedPlanPosts = computed(() => planPosts.value.filter(isFailed).length)
 const onlyFailedVideos = computed(() => !waitingPosts.value.length && failedPlanPosts.value > 0)
 const reviewPath = computed(() => `${base.value}/content${onlyFailedVideos.value ? '?status=failed' : ''}`)
 const awaitingTitle = computed(() => {
-  if (videosRendering.value) return t('monthly.videoRenderingTitle', { count: videosRendering.value })
+  if (videosRendering.value)
+    return t(videosRendering.value === 1 ? 'monthly.videoRenderingTitleOne' : 'monthly.videoRenderingTitleMany', { count: videosRendering.value })
   if (onlyFailedVideos.value) return t('monthly.videosFailedTitle', { count: failedPlanPosts.value })
   if (waitingVideos.value && waitingStills.value)
     return t('monthly.mixedAwaitingApproval', { posts: waitingStills.value, videos: waitingVideos.value })
@@ -866,7 +867,7 @@ onBeforeUnmount(() => clearInterval(timer))
                 {{ awaitingTitle }}
               </h3>
               <p class="mt-0.5 text-sm text-muted">
-                {{ videosRendering ? t('monthly.videoRenderingDescription') : onlyFailedVideos ? t('video.failedBlocksDescription') : t('monthly.batchReadyDescription') }}
+                {{ videosRendering ? t(videosRendering === 1 ? 'monthly.videoRenderingDescriptionOne' : 'monthly.videoRenderingDescriptionMany') : onlyFailedVideos ? t('video.failedBlocksDescription') : t('monthly.batchReadyDescription') }}
               </p>
               <ULink
                 v-if="!videosRendering && !onlyFailedVideos && failedPlanPosts"

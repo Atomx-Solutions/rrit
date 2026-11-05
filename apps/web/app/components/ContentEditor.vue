@@ -256,7 +256,7 @@ function followVideo() {
     await initLive()
     if (videoRender.value?.status === 'ready') notify(t('video.ready'))
     else error.value = t('video.failed')
-  }, 10000)
+  }, videoFollowMs)
 }
 // What the server answers once a render is queued.
 type QueuedVideo = { renderId: string; status: 'queued' }
@@ -289,6 +289,26 @@ async function renderVideo() {
     const queued = await $fetch<QueuedVideo>(`/api/posts/${post.value.id}/video-render`, {
       method: 'POST',
       body: { music: videoMusicChoice.value },
+      retry: 0,
+    })
+    videoQueued(queued)
+  } catch (problem) {
+    error.value = t((problem as { data?: { message?: string } }).data?.message || 'video.failed')
+  } finally {
+    videoBusy.value = false
+  }
+}
+// A video that failed is made again as it was asked for, with the music it
+// already has; one with no music yet asks for it first, as a first render does.
+async function retryVideo() {
+  if (!post.value?.video || videoBusy.value || videoInProgress.value || dirty.value) return
+  if (!post.value.video.music) return openVideoGenerate()
+  videoBusy.value = true
+  error.value = ''
+  try {
+    const queued = await $fetch<QueuedVideo>(`/api/posts/${post.value.id}/video-render`, {
+      method: 'POST',
+      body: {},
       retry: 0,
     })
     videoQueued(queued)
@@ -681,8 +701,8 @@ onBeforeUnmount(() => {
               <!-- A video post keeps the photo its video was made from, and its
                    video is made again through "Edit video with AI". -->
               <PhotoUpload v-if="editable && !post?.video" @uploaded="form.image = $event" />
-              <!-- Only a video never made yet is generated here; a failed one is
-                   made again through "Edit video with AI". -->
+              <!-- A video never made yet is generated here; a failed one is tried
+                   again as it was, or made anew through "Edit video with AI". -->
               <UButton
                 v-if="post?.video?.status === 'brief_ready'"
                 size="sm"
@@ -691,6 +711,14 @@ onBeforeUnmount(() => {
                 :disabled="dirty || syncing || !editable || videoInProgress"
                 @click="openVideoGenerate"
               >{{ t('video.generate') }}</UButton>
+              <UButton
+                v-if="videoFailed"
+                size="sm"
+                icon="i-lucide-refresh-cw"
+                :loading="videoBusy || videoInProgress"
+                :disabled="dirty || syncing || !editable || videoInProgress"
+                @click="retryVideo"
+              >{{ t('common.retry') }}</UButton>
               <UButton
                 v-if="videoRender?.status === 'ready'"
                 size="sm"

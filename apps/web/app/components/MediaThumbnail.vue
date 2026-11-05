@@ -18,9 +18,7 @@ const { t } = useI18n()
 // still recognizable before the overlay is drawn.
 const videoStatus = computed(() => props.post.video?.status)
 const isReadyVideo = computed(() => videoStatus.value === 'ready')
-const isPendingVideo = computed(() =>
-  videoStatus.value === 'brief_ready' || videoStatus.value === 'rendering',
-)
+const isPendingVideo = computed(() => videoPending(props.post.video))
 const isFailedVideo = computed(() => videoStatus.value === 'failed')
 </script>
 <template>

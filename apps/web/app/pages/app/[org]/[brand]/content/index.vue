@@ -3,6 +3,7 @@ import { statusLabels } from '~~/shared/utils/format'
 import { postSchema } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
+useFollowVideos()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('content.yourPosts')} · Framic` })
 const route = useRoute()
