@@ -174,7 +174,9 @@ export async function reserveCredits(client: PoolClient, input: { organizationId
   positiveInteger(input.credits, 'credits')
   const balance = await lockBalance(client, input.organizationId)
   if (toBalance(balance).spendable < input.credits) throw exhausted()
-  const ledger = await writeLedger(client, { ...input, eventType: 'reserve', creditDelta: 0 })
+  // The size is kept with the reservation, so one left by a call that was cut
+  // off can be returned exactly.
+  const ledger = await writeLedger(client, { ...input, eventType: 'reserve', creditDelta: 0, metadata: { credits: input.credits } })
   if (!ledger.rows.length) return toBalance(balance)
   return updateBalance(client, input.organizationId, 0, input.credits)
 }
