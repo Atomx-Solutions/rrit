@@ -12,6 +12,7 @@ import { qualitySchema } from '../../shared/schemas/monthly-plan'
 import type { Storyboard } from '../../shared/schemas/storyboard'
 import { normalizeQualityReview } from './post-quality-domain'
 import { sceneDressingReview } from './scene-dressing'
+import { sendWithRateLimitRetry } from './provider-rate-limit'
 
 const subjectCheckSchema = z.object({
   sameSubject: z.boolean(),
@@ -35,7 +36,7 @@ export async function verifyVideoSubject(input: { photograph: Buffer; frames: Bu
       image_url: `data:image/jpeg;base64,${bytes.toString('base64')}`,
       detail: 'high',
     })
-    const response = await fetch(provider.responsesUrl, {
+    const response = await sendWithRateLimitRetry(() => fetch(provider.responsesUrl, {
       method: 'POST',
       redirect: 'error',
       signal: AbortSignal.timeout(60000),
@@ -64,7 +65,7 @@ export async function verifyVideoSubject(input: { photograph: Buffer; frames: Bu
           },
         },
       }),
-    })
+    }))
     if (!response.ok) return { sameSubject: false, reason: `check_unavailable:${response.status}`, costUsd: 0 }
     const raw = parseMonthlyProviderResponse(await response.json())
     // What the check itself cost, charged with the video.
@@ -88,7 +89,7 @@ export async function verifySamePhotographedSubject(input: { main: Buffer; other
       image_url: `data:image/jpeg;base64,${bytes.toString('base64')}`,
       detail: 'high',
     })
-    const response = await fetch(provider.responsesUrl, {
+    const response = await sendWithRateLimitRetry(() => fetch(provider.responsesUrl, {
       method: 'POST',
       redirect: 'error',
       signal: AbortSignal.timeout(60000),
@@ -117,7 +118,7 @@ export async function verifySamePhotographedSubject(input: { main: Buffer; other
           },
         },
       }),
-    })
+    }))
     if (!response.ok) return { sameSubject: false, reason: `check_unavailable:${response.status}`, costUsd: 0 }
     const raw = parseMonthlyProviderResponse(await response.json())
     return { ...subjectCheckSchema.parse(JSON.parse(responseText(raw))), costUsd: raw.usage.cost ?? 0 }
@@ -157,7 +158,7 @@ export async function reviewVideoQuality(input: {
     image_url: `data:image/jpeg;base64,${bytes.toString('base64')}`,
     detail: 'high',
   })
-  const response = await fetch(provider.responsesUrl, {
+  const response = await sendWithRateLimitRetry(() => fetch(provider.responsesUrl, {
     method: 'POST',
     redirect: 'error',
     signal: AbortSignal.timeout(60000),
@@ -186,7 +187,7 @@ export async function reviewVideoQuality(input: {
         },
       },
     }),
-  })
+  }))
   if (!response.ok)
     throw createError({ statusCode: 503, message: 'server.VIDEO_QA_UNAVAILABLE', data: { providerStatus: response.status } })
   const raw = parseMonthlyProviderResponse(await response.json())

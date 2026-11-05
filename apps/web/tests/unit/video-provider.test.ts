@@ -15,7 +15,7 @@ const settings = videoProviderSettings({
   OPENROUTER_VIDEO_POLL_SECONDS: '2',
   OPENROUTER_VIDEO_TIMEOUT_SECONDS: '60',
   OPENROUTER_VIDEO_MAX_FAILURES: '3',
-  OPENROUTER_VIDEO_SUBMIT_ATTEMPTS: '3',
+  OPENROUTER_VIDEO_RATE_LIMIT_WAIT_SECONDS: '60',
 })
 
 function fakeClock() {
@@ -25,6 +25,7 @@ function fakeClock() {
     sleep: vi.fn(async (ms: number) => {
       time += ms
     }),
+    random: () => 1,
   }
 }
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -44,6 +45,18 @@ describe('following a video job', () => {
     const ask = vi.fn(() => answers.shift()!())
     await expect(pollVideoJob(ask, settings, fakeClock())).resolves.toMatchObject({ status: 'completed' })
     expect(ask).toHaveBeenCalledTimes(5)
+  })
+
+  it('keeps following a job the provider rate-limited, since it is fine and already paid for', async () => {
+    // More rate-limited asks in a row than failures allowed, then the answer.
+    const answers = [
+      ...Array.from({ length: 5 }, () => () => Promise.resolve(json({}, 429, { 'retry-after': '3' }))),
+      () => Promise.resolve(json({ status: 'completed' })),
+    ]
+    const clock = fakeClock()
+    const ask = vi.fn(() => answers.shift()!())
+    await expect(pollVideoJob(ask, settings, clock)).resolves.toMatchObject({ status: 'completed' })
+    expect(clock.sleep).toHaveBeenCalledWith(3000)
   })
 
   it('gives up after too many failed asks in a row', async () => {
@@ -98,6 +111,12 @@ describe('submitting a video job', () => {
     const send = vi.fn(() => Promise.resolve(answers.shift()!))
     await expect(submitVideoJob(send, settings, clock)).resolves.toMatchObject({ id: 'job-1' })
     expect(clock.sleep).toHaveBeenCalledWith(7000)
+  })
+
+  it('gives up a submission still rate-limited once its wait budget is spent', async () => {
+    const send = vi.fn(() => Promise.resolve(json({ error: 'slow down' }, 429, { 'retry-after': '25' })))
+    await expect(submitVideoJob(send, settings, fakeClock())).rejects.toMatchObject({ statusCode: 502, message: 'slow down' })
+    expect(send).toHaveBeenCalledTimes(3)
   })
 
   it('never sends twice a submission that may already have started a paid job', async () => {

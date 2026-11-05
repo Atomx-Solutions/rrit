@@ -20,6 +20,7 @@ import {
 } from './ai-provider'
 import { parseMonthlyProviderResponse, responseText } from './monthly-ai'
 import { sceneDressingRule } from './scene-dressing'
+import { sendWithRateLimitRetry } from './provider-rate-limit'
 
 function seconds(variable: string, fallback: number) {
   const value = Number(process.env[variable])
@@ -156,7 +157,7 @@ export async function directVideo(input: DirectorInput, attempts = 2): Promise<D
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const provider = aiProviderConfiguration()
-      const response = await fetch(provider.responsesUrl, {
+      const response = await sendWithRateLimitRetry(() => fetch(provider.responsesUrl, {
         method: 'POST',
         redirect: 'error',
         signal: AbortSignal.timeout(90000),
@@ -185,7 +186,7 @@ export async function directVideo(input: DirectorInput, attempts = 2): Promise<D
             },
           },
         }),
-      })
+      }))
       if (!response.ok) {
         corrections = []
         continue

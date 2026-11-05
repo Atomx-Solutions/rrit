@@ -3,6 +3,7 @@ import type { Pool } from 'pg'
 import { aiCreditCycleStartSql } from './ai-credits'
 import {
   PlannerFailure,
+  plannerRunSettings,
   canonicalSourceUrl,
   evidenceHash,
   creativeGeometry,
@@ -47,6 +48,7 @@ import {
 import { contentLanguageForLocale, type AppLocaleValue } from '../../shared/schemas/workspace'
 import { sceneDressingReview, sceneDressingRule } from './scene-dressing'
 import { providerFailureKind } from './ai-provider-alert'
+import { rateLimitSettings, sendWithRateLimitRetry } from './provider-rate-limit'
 
 function integer(name: string, max = Number.MAX_SAFE_INTEGER) {
   const value = Number(process.env[name])
@@ -297,6 +299,9 @@ const explicitFailureRetryLimit = 3
 // How long one provider call may run before it is given up.
 const textCallTimeoutMs = 180000
 const imageCallTimeoutMs = 300000
+// How long a reserved call may still be running: its own timeout, plus the
+// time it may have waited for a provider that rate-limited it.
+const runningFor = (callTimeoutMs: number) => callTimeoutMs + rateLimitSettings().waitMs
 
 export async function recoverPriorRun(priorRun: Record<string, unknown> | undefined) {
   if (!priorRun) return undefined
@@ -307,10 +312,13 @@ export async function recoverPriorRun(priorRun: Record<string, unknown> | undefi
       retryableProviderFailureCode(String(priorRun.error_code || '')) ||
       retryableMonthlyGenerationFailureCode(String(priorRun.error_code || '')))
   ) {
-    const automaticFailure = ['PROVIDER_RATE_LIMITED', 'PROVIDER_TEMPORARY', interruptedRunCode].includes(
-      String(priorRun.error_code || ''),
-    )
-    if (automaticFailure && Number(priorRun.retry_count || 0) >= explicitFailureRetryLimit) {
+    // A rate-limited call was refused before any work and never billed, so it
+    // has a wider bound than a call that failed or was cut off.
+    const code = String(priorRun.error_code || '')
+    const limit = code === 'PROVIDER_RATE_LIMITED'
+      ? plannerRunSettings().rateLimitRetries
+      : ['PROVIDER_TEMPORARY', interruptedRunCode].includes(code) ? explicitFailureRetryLimit : null
+    if (limit !== null && Number(priorRun.retry_count || 0) >= limit) {
       console.warn('A stage used every attempt it is allowed and stops here.', {
         runId: String(priorRun.id),
         stageKey: String(priorRun.stage_key || ''),
@@ -892,7 +900,7 @@ export async function monthlyProviderCall(
     )
     const storedRun = await settleInterruptedRun(client, prior.rows[0], {
       businessId: args.businessId,
-      callTimeoutMs: textCallTimeoutMs,
+      callTimeoutMs: runningFor(textCallTimeoutMs),
       reserveKeyPrefix: 'monthly-ai-credit-reserve',
       releaseKeyPrefix: 'monthly-ai-interrupted-release',
       usageKind,
@@ -1071,7 +1079,7 @@ export async function monthlyProviderCall(
     const content: object[] = [{ type: 'input_text', text: serialized }]
     for (const image of args.images || [])
       content.push({ type: 'input_image', image_url: image, detail: 'high' })
-    const response = await fetch(config.provider.responsesUrl, {
+    const response = await sendWithRateLimitRetry(() => fetch(config.provider.responsesUrl, {
       method: 'POST',
       redirect: 'error',
       signal: AbortSignal.timeout(textCallTimeoutMs),
@@ -1097,7 +1105,7 @@ export async function monthlyProviderCall(
             }
           : {}),
       }),
-    })
+    }))
     if (!response.ok) {
       const diagnostic = await logProviderHttpFailure(response, {
         provider: config.provider.name,
@@ -1274,7 +1282,7 @@ export async function monthlyImageCall(
     )
     const priorRun = await recoverPriorRun(await settleInterruptedRun(client, prior.rows[0], {
       businessId: args.businessId,
-      callTimeoutMs: imageCallTimeoutMs,
+      callTimeoutMs: runningFor(imageCallTimeoutMs),
       reserveKeyPrefix: 'monthly-image-credit-reserve',
       releaseKeyPrefix: 'monthly-image-interrupted-release',
       usageKind: 'generation',
@@ -1435,7 +1443,7 @@ export async function monthlyImageCall(
   try {
     let response: Response
     if (config.provider.name === 'openrouter') {
-      response = await fetch(config.provider.imagesUrl, {
+      response = await sendWithRateLimitRetry(() => fetch(config.provider.imagesUrl, {
         method: 'POST',
         redirect: 'error',
         signal: AbortSignal.timeout(imageCallTimeoutMs),
@@ -1473,7 +1481,7 @@ export async function monthlyImageCall(
           ],
           user: evidenceHash(args.businessId).slice(0, 32),
         }),
-      })
+      }))
     } else {
       const body = new FormData()
       body.set('model', config.imageModel)
@@ -1499,13 +1507,13 @@ export async function monthlyImageCall(
         )
       const headers = { ...config.provider.headers }
       delete headers['Content-Type']
-      response = await fetch(config.provider.imagesUrl, {
+      response = await sendWithRateLimitRetry(() => fetch(config.provider.imagesUrl, {
         method: 'POST',
         redirect: 'error',
         signal: AbortSignal.timeout(imageCallTimeoutMs),
         headers,
         body,
-      })
+      }))
     }
     if (!response.ok) {
       const diagnostic = await logProviderHttpFailure(response, {

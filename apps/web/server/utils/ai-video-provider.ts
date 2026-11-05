@@ -1,5 +1,5 @@
 import { ratioLabel, type Canvas } from '../../shared/schemas/channel-format'
-import { parseRetryAfter } from './meta'
+import { rateLimitPause, rateLimitSettings, sendWithRateLimitRetry } from './provider-rate-limit'
 
 type OpenRouterVideoStatus = {
   id?: string
@@ -34,23 +34,29 @@ function positiveSetting(value: string | undefined, fallback: number) {
 
 /**
  * How the job is followed once submitted: how often it is asked about, how
- * long it may take in all, how many failed asks in a row end it, and how many
- * times a submission the provider rate-limited is sent again.
+ * long it may take in all and how many failed asks in a row end it. A
+ * submission the provider rate-limited waits for it up to its own budget: the
+ * provider takes many videos' shots at once only so far, and a shot that
+ * waits its turn is made instead of failing its video.
  */
 export function videoProviderSettings(env: Record<string, string | undefined> = process.env) {
   return {
     pollIntervalMs: positiveSetting(env.OPENROUTER_VIDEO_POLL_SECONDS, 2) * 1000,
     timeoutMs: positiveSetting(env.OPENROUTER_VIDEO_TIMEOUT_SECONDS, 600) * 1000,
     maxFailures: positiveSetting(env.OPENROUTER_VIDEO_MAX_FAILURES, 5),
-    submitAttempts: positiveSetting(env.OPENROUTER_VIDEO_SUBMIT_ATTEMPTS, 3),
+    rateLimit: {
+      ...rateLimitSettings(env),
+      waitMs: positiveSetting(env.OPENROUTER_VIDEO_RATE_LIMIT_WAIT_SECONDS, 120) * 1000,
+    },
   }
 }
 
-export type ProviderClock = { now: () => number; sleep: (ms: number) => Promise<void> }
+export type ProviderClock = { now: () => number; sleep: (ms: number) => Promise<void>; random?: () => number }
 const realClock: ProviderClock = {
   now: Date.now,
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }
+const withRandom = (clock: ProviderClock) => ({ ...clock, random: clock.random ?? Math.random })
 
 // A refusal worth asking again about: the provider was busy or briefly down.
 function transientStatus(status: number) {
@@ -62,7 +68,9 @@ function transientStatus(status: number) {
  * or failing provider, or an answer that is not JSON) is asked again, since
  * the job itself goes on and has already been paid for; only a run of
  * `maxFailures` of them in a row, or the job taking longer than `timeoutMs`,
- * gives it up. A job the provider reports as failed ends at once.
+ * gives it up. An ask the provider rate-limited is not a failure: the job is
+ * fine and is asked about again after the pause the provider needs. A job the
+ * provider reports as failed ends at once.
  */
 export async function pollVideoJob(
   ask: () => Promise<Response>,
@@ -71,14 +79,18 @@ export async function pollVideoJob(
 ): Promise<OpenRouterVideoStatus> {
   const started = clock.now()
   let failures = 0
+  let limited = 0
   for (;;) {
     if (clock.now() - started >= settings.timeoutMs)
       throw createError({ statusCode: 504, message: 'server.VIDEO_GENERATION_TIMEOUT' })
     await clock.sleep(settings.pollIntervalMs)
     let status: OpenRouterVideoStatus | undefined
+    let pause = 0
     try {
       const response = await ask()
       if (response.ok) status = await response.json() as OpenRouterVideoStatus
+      else if (response.status === 429)
+        pause = rateLimitPause(++limited, response.headers.get('retry-after'), settings.rateLimit, withRandom(clock))
       else if (!transientStatus(response.status)) {
         const body = await response.json().catch(() => ({})) as OpenRouterVideoStatus
         throw createError({ statusCode: 502, message: providerError(body) || 'OpenRouter video generation failed.' })
@@ -87,6 +99,11 @@ export async function pollVideoJob(
       // A refusal decided above is final; anything else was a failed ask.
       if (typeof error === 'object' && error && 'statusCode' in error) throw error
     }
+    if (pause) {
+      await clock.sleep(pause)
+      continue
+    }
+    limited = 0
     if (!status) {
       failures++
       if (failures >= settings.maxFailures)
@@ -121,32 +138,28 @@ export async function downloadVideoContent(
     }
     if ((response && !transientStatus(response.status)) || attempt >= settings.maxFailures)
       throw createError({ statusCode: 502, message: 'server.VIDEO_DOWNLOAD_FAILED' })
-    await clock.sleep(settings.pollIntervalMs * attempt)
+    await clock.sleep(response?.status === 429
+      ? rateLimitPause(attempt, response.headers.get('retry-after'), settings.rateLimit, withRandom(clock))
+      : settings.pollIntervalMs * attempt)
   }
 }
 
 /**
  * Submits a job. Only a submission the provider turned away as rate-limited
- * is sent again, after the wait it asks for: that one was never accepted. Any
- * other failure may have started a paid job, so it is never sent twice.
+ * is sent again, after the wait it asks for and within the video's wait
+ * budget: that one was never accepted. Any other failure may have started a
+ * paid job, so it is never sent twice.
  */
 export async function submitVideoJob(
   send: () => Promise<Response>,
   settings: ReturnType<typeof videoProviderSettings>,
   clock: ProviderClock = realClock,
 ) {
-  for (let attempt = 1; ; attempt++) {
-    const response = await send()
-    if (response.status === 429 && attempt < settings.submitAttempts) {
-      const wait = parseRetryAfter(response.headers.get('retry-after'), clock.now())
-      await clock.sleep(wait ? wait * 1000 : settings.pollIntervalMs * 2 ** attempt)
-      continue
-    }
-    const submitted = await response.json().catch(() => ({})) as OpenRouterVideoStatus
-    if (!response.ok || !submitted.id)
-      throw createError({ statusCode: 502, message: providerError(submitted) || 'OpenRouter nuk e pranoi kërkesën për video.' })
-    return submitted
-  }
+  const response = await sendWithRateLimitRetry(send, settings.rateLimit, withRandom(clock))
+  const submitted = await response.json().catch(() => ({})) as OpenRouterVideoStatus
+  if (!response.ok || !submitted.id)
+    throw createError({ statusCode: 502, message: providerError(submitted) || 'OpenRouter nuk e pranoi kërkesën për video.' })
+  return submitted
 }
 
 // OpenRouter's catalogue does not publish a model's prompt limit, so it is

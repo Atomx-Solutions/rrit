@@ -14,6 +14,7 @@ import {
 } from './ai-provider'
 import { providerCreativeCanvas } from './monthly-planner-domain'
 import { parseMonthlyProviderResponse, REVIEW_MAX_OUTPUT_TOKENS, responseText } from './monthly-ai'
+import { sendWithRateLimitRetry } from './provider-rate-limit'
 
 /**
  * Fitting a business photograph to the canvas of the channel it is for.
@@ -235,7 +236,7 @@ export async function requestOutpaint(guide: Buffer, prompt: string, channel: Pu
   const model = aiProviderModel('AI_IMAGE_MODEL')
   let response: Response
   if (provider.name === 'openrouter') {
-    response = await fetch(provider.imagesUrl, {
+    response = await sendWithRateLimitRetry(() => fetch(provider.imagesUrl, {
       method: 'POST',
       redirect: 'error',
       signal: AbortSignal.timeout(300000),
@@ -248,7 +249,7 @@ export async function requestOutpaint(guide: Buffer, prompt: string, channel: Pu
         n: 1,
         input_references: [{ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${guide.toString('base64')}` } }],
       }),
-    })
+    }))
   } else {
     const body = new FormData()
     body.set('model', model)
@@ -257,7 +258,7 @@ export async function requestOutpaint(guide: Buffer, prompt: string, channel: Pu
     body.set('image[]', new Blob([new Uint8Array(guide)], { type: 'image/jpeg' }), 'canvas.jpg')
     const headers = { ...provider.headers }
     delete headers['Content-Type']
-    response = await fetch(provider.imagesUrl, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(300000), headers, body })
+    response = await sendWithRateLimitRetry(() => fetch(provider.imagesUrl, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(300000), headers, body }))
   }
   if (!response.ok) throw new Error(`outpaint_rejected:${response.status}`)
   const result = imageResponseSchema.parse(await response.json())
@@ -281,7 +282,7 @@ export async function reviewExtension(original: Buffer, extended: Buffer) {
       image_url: `data:image/jpeg;base64,${bytes.toString('base64')}`,
       detail: 'high',
     })
-    const response = await fetch(provider.responsesUrl, {
+    const response = await sendWithRateLimitRetry(() => fetch(provider.responsesUrl, {
       method: 'POST',
       redirect: 'error',
       signal: AbortSignal.timeout(60000),
@@ -303,7 +304,7 @@ export async function reviewExtension(original: Buffer, extended: Buffer) {
           },
         },
       }),
-    })
+    }))
     if (!response.ok) return { natural: false, reason: `review_unavailable:${response.status}`, costUsd: 0 }
     const raw = parseMonthlyProviderResponse(await response.json())
     // What the review itself cost, charged with the fit.
