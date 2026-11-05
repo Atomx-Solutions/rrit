@@ -1282,6 +1282,24 @@ describe('claimed jobs', () => {
     expect(run).toHaveBeenCalledTimes(2)
   })
 
+  it('says why it stopped looking for work and how much time was left', async () => {
+    let clock = 0
+    const stops: [string, number][] = []
+    await runClaimedJobs({
+      concurrency: 1, deadline: 1000, minStepMs: 300, idleMs: 1, onError, now: () => clock,
+      claim: async () => 'job', run: async () => { clock += 400 },
+      onStop: (reason, leftMs) => stops.push([reason, leftMs]),
+    })
+    expect(stops).toEqual([['deadline', 200]])
+    const idle: [string, number][] = []
+    await runClaimedJobs({
+      concurrency: 1, deadline: 1000, minStepMs: 300, idleMs: 1, onError, now: () => 0,
+      claim: async () => undefined, run: async () => {},
+      onStop: (reason, leftMs) => idle.push([reason, leftMs]),
+    })
+    expect(idle).toEqual([['idle', 1000]])
+  })
+
   it('waits for every job it started even when a claim or another job fails', async () => {
     const errors: unknown[] = []
     let claims = 0

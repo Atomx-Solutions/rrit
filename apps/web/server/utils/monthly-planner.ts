@@ -2707,6 +2707,23 @@ export async function runMonthlyPlannerBatch(
         claim,
         run: (plan) => advanceClaimedPlan(db, plan),
         onError: (error) => warnPlannerWrite('A planner run could not claim or advance a plan this time.', error),
+        onStop: (reason, leftMs) => {
+          // Only a run that stops for want of time leaves work for the next
+          // minute's cron; that wait is what a business sees between steps.
+          if (reason !== 'deadline') return
+          void db
+            .query<{ count: number }>(
+              `SELECT count(*)::integer AS count FROM monthly_plans
+                WHERE status IN ('queued','running') AND next_run_at<=now()
+                  AND (lease_until IS NULL OR lease_until<now())`,
+            )
+            .then((waiting) => console.info('A planner run stops: too little time is left to start another step.', {
+              secondsLeft: Math.round(leftMs / 1000),
+              minStepSeconds: Math.round(settings.minStepMs / 1000),
+              plansWaiting: waiting.rows[0]?.count || 0,
+            }))
+            .catch(() => undefined)
+        },
       })
   } finally {
     clearInterval(heartbeat)

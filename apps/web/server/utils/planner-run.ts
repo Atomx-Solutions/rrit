@@ -8,10 +8,16 @@ import { runVideoRenderQueue } from './video-queue'
  * reports one, otherwise the configured function limit counted from `started`.
  */
 export function invocationDeadline(event: H3Event, started: number) {
-  return (
-    getDeadline()?.getTime()
-    ?? started + useRuntimeConfig(event).functionMaxDurationSeconds * 1000
-  )
+  const reported = getDeadline()?.getTime()
+  const deadline = reported ?? started + useRuntimeConfig(event).functionMaxDurationSeconds * 1000
+  // Where the limit came from and how much of it is left, so a run that stops
+  // early can be traced to its deadline.
+  console.info('A run starts with this much time.', {
+    path: event.path,
+    deadlineFrom: reported === undefined ? 'config' : 'platform',
+    secondsLeft: Math.round((deadline - Date.now()) / 1000),
+  })
+  return deadline
 }
 
 /**
