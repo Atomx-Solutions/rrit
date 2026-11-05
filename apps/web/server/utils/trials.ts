@@ -452,6 +452,10 @@ export async function postsCountedForLimit(
  * Videos rendered against the allowance. There is no trial grant for videos, so
  * this is only ever the package period or the calendar quota month.
  */
+// A render counts against the package's videos unless it could not be made:
+// the business got no video, so it keeps the place to try again.
+const countedVideoRender = "status<>'failed'"
+
 export async function videosCountedForLimit(
   db: Pool | PoolClient,
   businessId: string,
@@ -461,13 +465,13 @@ export async function videosCountedForLimit(
     ? await db.query<{ count: number }>(
         `SELECT count(*)::integer AS count
            FROM video_renders
-          WHERE business_id=$1 AND created_at>=$2 AND created_at<$3`,
+          WHERE business_id=$1 AND created_at>=$2 AND created_at<$3 AND ${countedVideoRender}`,
         [businessId, quotaPeriod.startsAt, quotaPeriod.endsAt],
       )
     : await db.query<{ count: number }>(
         `SELECT count(*)::integer AS count
            FROM video_renders
-          WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date`,
+          WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date AND ${countedVideoRender}`,
         [businessId],
       )
   return Number(result.rows[0]?.count || 0)
@@ -528,7 +532,7 @@ export async function usageSnapshot(
               )
           )
         ) AS social_accounts,
-        (SELECT count(*)::integer FROM video_renders WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date) AS videos_per_month`,
+        (SELECT count(*)::integer FROM video_renders WHERE business_id=$1 AND quota_month=date_trunc('month',now() AT TIME ZONE 'UTC')::date AND ${countedVideoRender}) AS videos_per_month`,
       [businessId],
     ),
   ])

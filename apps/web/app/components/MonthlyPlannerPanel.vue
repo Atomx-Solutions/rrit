@@ -199,6 +199,13 @@ const remainingPosts = computed(() => planner.value?.usage?.remaining || 0)
 // A video is a deliverable of its own with its own photograph, so the only
 // bound on it is the videos the package has left; it does not borrow a post.
 const remainingVideos = computed(() => planner.value?.videoUsage?.remaining || 0)
+// How many of the business's videos are made at once. Asking for more is
+// allowed; the planner says up front that the rest wait their turn.
+const videosAtOnce = computed(() => planner.value?.videosAtOnce || 0)
+const videosAtOnceHint = computed(() =>
+  videosAtOnce.value && selectedVideoQuantity.value > videosAtOnce.value
+    ? t(videosAtOnce.value === 1 ? 'monthly.videosOneAtATime' : 'monthly.videosSeveralAtATime', { count: videosAtOnce.value })
+    : undefined)
 const maxVideosThisBatch = computed(() => remainingVideos.value)
 watch(maxVideosThisBatch, (max) => {
   if (selectedVideoQuantity.value > max) selectedVideoQuantity.value = max
@@ -228,6 +235,8 @@ const settled = computed(() => plan.value?.status === 'idle' && (plan.value?.com
 // Videos render after their posts are committed, so the batch is only ready
 // for review once none of them is still being made.
 const videosRendering = computed(() => plan.value?.videosRendering || 0)
+// Videos of the plan still waiting their turn behind the ones being made.
+const videosQueued = computed(() => plan.value?.videosQueued || 0)
 // A plan that produced everything asked of it but still owes posts from the
 // package. Posts are drawn on request, so this is a normal resting state, not
 // an end state.
@@ -265,14 +274,19 @@ const waitingStills = computed(() => waitingPosts.value.length - waitingVideos.v
 const failedPlanPosts = computed(() => planPosts.value.filter(isFailed).length)
 const onlyFailedVideos = computed(() => !waitingPosts.value.length && failedPlanPosts.value > 0)
 const reviewPath = computed(() => `${base.value}/content${onlyFailedVideos.value ? '?status=failed' : ''}`)
+// One or several of something, each worded in its own language.
+const counted = (key: string, count: number) => t(`${key}${count === 1 ? 'One' : 'Many'}`, { count })
 const awaitingTitle = computed(() => {
   if (videosRendering.value)
     return t(videosRendering.value === 1 ? 'monthly.videoRenderingTitleOne' : 'monthly.videoRenderingTitleMany', { count: videosRendering.value })
-  if (onlyFailedVideos.value) return t('monthly.videosFailedTitle', { count: failedPlanPosts.value })
+  if (onlyFailedVideos.value) return counted('monthly.videosFailedTitle', failedPlanPosts.value)
   if (waitingVideos.value && waitingStills.value)
-    return t('monthly.mixedAwaitingApproval', { posts: waitingStills.value, videos: waitingVideos.value })
-  if (waitingVideos.value) return t('monthly.videosAwaitingApproval', { count: waitingVideos.value })
-  if (waitingStills.value) return t('monthly.postsAwaitingApproval', { count: waitingStills.value })
+    return t('monthly.mixedAwaitingApproval', {
+      posts: counted('monthly.postCount', waitingStills.value),
+      videos: counted('monthly.videoCount', waitingVideos.value),
+    })
+  if (waitingVideos.value) return counted('monthly.videosAwaitingApproval', waitingVideos.value)
+  if (waitingStills.value) return counted('monthly.postsAwaitingApproval', waitingStills.value)
   return t('monthly.batchReady')
 })
 // Produced within the running request, so a second request for one post starts
@@ -821,7 +835,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
               <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
-            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
+            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" :help="videosAtOnceHint" size="xs" class="min-w-0">
               <LiveInputNumber
                 v-model="selectedVideoQuantity"
                 :min="0"
@@ -869,12 +883,15 @@ onBeforeUnmount(() => clearInterval(timer))
               <p class="mt-0.5 text-sm text-muted">
                 {{ videosRendering ? t(videosRendering === 1 ? 'monthly.videoRenderingDescriptionOne' : 'monthly.videoRenderingDescriptionMany') : onlyFailedVideos ? t('video.failedBlocksDescription') : t('monthly.batchReadyDescription') }}
               </p>
+              <p v-if="videosRendering && videosQueued && videosAtOnce" class="mt-1 inline-flex items-center gap-1 text-sm text-muted">
+                <UIcon name="i-lucide-clock" class="size-4" />{{ t(videosAtOnce === 1 ? 'monthly.videosQueuedOne' : 'monthly.videosQueuedMany', { queued: videosQueued, count: videosAtOnce }) }}
+              </p>
               <ULink
                 v-if="!videosRendering && !onlyFailedVideos && failedPlanPosts"
                 :to="`${base}/content?status=failed`"
                 class="mt-1 inline-flex items-center gap-1 text-sm font-medium text-warning"
               >
-                <UIcon name="i-lucide-video-off" class="size-4" />{{ t('monthly.someFailed', { count: failedPlanPosts }) }}
+                <UIcon name="i-lucide-video-off" class="size-4" />{{ counted('monthly.someFailed', failedPlanPosts) }}
               </ULink>
             </div>
           </div>
@@ -915,7 +932,7 @@ onBeforeUnmount(() => clearInterval(timer))
           <div>
             <UBadge color="success" variant="subtle">{{ t('monthly.monthReady') }}</UBadge>
             <h3 class="mt-2 text-base font-semibold text-highlighted">
-              {{ t('monthly.postsAwaitingApproval', { count: plan.completed }) }}
+              {{ counted('monthly.postsAwaitingApproval', plan.completed) }}
             </h3>
             <p class="mt-1 text-sm text-muted">
               {{ t('legacy.nextContentStudio') }}
@@ -955,7 +972,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
               <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
-            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
+            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" :help="videosAtOnceHint" size="xs" class="min-w-0">
               <LiveInputNumber
                 v-model="selectedVideoQuantity"
                 :min="0"

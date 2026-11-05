@@ -13,10 +13,19 @@ function warnQueue(message: string, error: unknown) {
 
 /**
  * Takes the oldest queued render for this run, unless as many renders as
- * VIDEO_CONCURRENCY already hold a live lease. Claims are taken one at a time,
- * so two runs can never both read room for one more render and both take it.
+ * VIDEO_CONCURRENCY already hold a live lease. A business that already has
+ * `perBusiness` renders under way is passed over for the next business in
+ * line, so its later videos wait their turn without holding up anyone else's.
+ * Claims are taken one at a time, so two runs can never both read room for
+ * one more render and both take it.
  */
-export async function claimVideoRender(db: Pool, leaseOwner: string, leaseUntil: Date, concurrency: number) {
+export async function claimVideoRender(
+  db: Pool,
+  leaseOwner: string,
+  leaseUntil: Date,
+  concurrency: number,
+  perBusiness = videoQueueSettings().perBusiness,
+) {
   const client = await db.connect()
   try {
     await client.query('BEGIN')
@@ -28,17 +37,39 @@ export async function claimVideoRender(db: Pool, leaseOwner: string, leaseUntil:
       await client.query('COMMIT')
       return undefined
     }
-    const claimed = await client.query<{ id: string; post_id: string; requested_by: string }>(
+    const claimed = await client.query<{ id: string; post_id: string; requested_by: string; business_id: string }>(
       `UPDATE video_renders SET status='rendering',lease_owner=$1,lease_until=$2
         WHERE id=(
-          SELECT id FROM video_renders WHERE status='queued' AND requested_by IS NOT NULL
-          ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED
+          SELECT queued.id FROM video_renders AS queued
+           WHERE queued.status='queued' AND queued.requested_by IS NOT NULL
+             AND (
+               SELECT count(*) FROM video_renders AS active
+                WHERE active.business_id=queued.business_id
+                  AND active.status='rendering' AND active.lease_until>now()
+             ) < $3
+           ORDER BY queued.created_at,queued.id LIMIT 1 FOR UPDATE SKIP LOCKED
         )
-        RETURNING id,post_id,requested_by`,
-      [leaseOwner, leaseUntil],
+        RETURNING id,post_id,requested_by,business_id`,
+      [leaseOwner, leaseUntil, perBusiness],
     )
-    await client.query('COMMIT')
     const row = claimed.rows[0]
+    if (row) {
+      // What the business still has waiting behind this one, so the logs show
+      // its videos being made in turn.
+      const waiting = await client.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM video_renders WHERE business_id=$1 AND status='queued'",
+        [row.business_id],
+      )
+      console.info('A video starts rendering.', {
+        renderId: row.id,
+        postId: row.post_id,
+        businessId: row.business_id,
+        renderingAtOnce: (active.rows[0]?.count || 0) + 1,
+        perBusiness,
+        waitingForBusiness: waiting.rows[0]?.count || 0,
+      })
+    }
+    await client.query('COMMIT')
     return row ? { id: row.id, postId: row.post_id, requestedBy: row.requested_by, leaseOwner } : undefined
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
@@ -113,7 +144,7 @@ export async function runVideoRenderQueue(
       minStepMs: settings.minRenderMs,
       idleMs: settings.pollMs,
       waitWhile: options.waitWhile,
-      claim: () => claimVideoRender(db, leaseOwner, leaseUntil(), settings.concurrency),
+      claim: () => claimVideoRender(db, leaseOwner, leaseUntil(), settings.concurrency, settings.perBusiness),
       // The render records its own failure on the post and gives the credits
       // back, so the run only notes it and moves on.
       run: async (job) => {

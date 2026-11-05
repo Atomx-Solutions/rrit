@@ -1476,6 +1476,49 @@ describe('video render queue', () => {
     await pool.query("UPDATE video_renders SET status='failed' WHERE id=$1", [recentId])
   })
 
+  it('passes over a business with as many renders under way as it may have, for the next in line', async () => {
+    const many = await videoPost()
+    const later = await videoPost()
+    // Two more posts of the same business, each with a render queued earlier
+    // than the other business's one.
+    const morePost = async () => {
+      const postId = randomUUID()
+      await pool.query('INSERT INTO posts(id,business_id,payload) VALUES($1,$2,$3)', [
+        postId,
+        many.id,
+        JSON.stringify({ ...createDemo().posts[0]!, id: postId }),
+      ])
+      return postId
+    }
+    const manyIds = [
+      await queuedRender(many.postId, many.id, many.user),
+      await queuedRender(await morePost(), many.id, many.user),
+      await queuedRender(await morePost(), many.id, many.user),
+    ]
+    const laterId = await queuedRender(later.postId, later.id, later.user)
+    const db = worker()
+    try {
+      const until = new Date(Date.now() + 60_000)
+      const claim = () => claimVideoRender(db, randomUUID(), until, 100, 2)
+      const claimed = [await claim(), await claim(), await claim()].map((render) => render?.id)
+      // Two of the first business, then the other business, not its third.
+      expect(claimed).toEqual([manyIds[0], manyIds[1], laterId])
+      expect(await claim()).toBeUndefined()
+      expect((await pool.query('SELECT status FROM video_renders WHERE id=$1', [manyIds[2]])).rows[0]).toEqual({
+        status: 'queued',
+      })
+      // Once one of its renders is done, its third one is next.
+      await pool.query("UPDATE video_renders SET status='failed',lease_owner=NULL,lease_until=NULL WHERE id=$1", [manyIds[0]])
+      expect((await claim())?.id).toBe(manyIds[2])
+    } finally {
+      await db.end()
+    }
+    await pool.query(
+      "UPDATE video_renders SET status='failed',lease_owner=NULL,lease_until=NULL WHERE id=ANY($1)",
+      [[...manyIds, laterId]],
+    )
+  })
+
   it('claims no render while as many renders as allowed hold a live lease', async () => {
     const busy = await videoPost()
     const waiting = await videoPost()

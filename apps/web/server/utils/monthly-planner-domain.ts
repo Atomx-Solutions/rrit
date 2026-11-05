@@ -1269,6 +1269,10 @@ export async function runClaimedJobs<Job>(input: {
 export function videoQueueSettings(env: Record<string, string | undefined> = process.env) {
   return {
     concurrency: positiveSetting(env.VIDEO_CONCURRENCY, 20),
+    // Videos of one business rendering at once. Its other videos wait their
+    // turn, so one business asking for many never holds every place while
+    // others wait: one at a time, as each business's posts are made.
+    perBusiness: positiveSetting(env.VIDEO_CONCURRENCY_PER_BUSINESS, 1),
     minRenderMs: positiveSetting(env.VIDEO_MIN_RENDER_SECONDS, 600) * 1000,
     pollMs: positiveSetting(env.VIDEO_QUEUE_POLL_SECONDS, 5) * 1000,
   }
