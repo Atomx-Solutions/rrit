@@ -1521,6 +1521,7 @@
   "auth.pkceError": "Öffne den Link in demselben Browser, in dem du das Konto erstellt hast, oder fordere einen neuen Link an.",
   "auth.passwordTooShortError": "Verwende mindestens 12 Zeichen und ein Sonderzeichen.",
   "auth.weakPasswordError": "Wähle ein Passwort mit mindestens 12 Zeichen und einem Sonderzeichen.",
+  "auth.samePasswordError": "Das neue Passwort muss sich von deinem bisherigen unterscheiden.",
   "auth.userBannedError": "Dieses Konto kann derzeit nicht verwendet werden.",
   "auth.networkError": "Die Verbindung zum Server ist fehlgeschlagen. Prüfe deine Internetverbindung und versuche es erneut.",
   "auth.genericError": "Die Aktion konnte nicht abgeschlossen werden. Prüfe die Angaben und versuche es erneut.",

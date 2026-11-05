@@ -1521,6 +1521,7 @@
   "auth.pkceError": "Ouvrez le lien dans le navigateur où vous avez créé le compte, ou demandez un nouveau lien.",
   "auth.passwordTooShortError": "Utilisez au moins 12 caractères et un symbole.",
   "auth.weakPasswordError": "Choisissez un mot de passe d’au moins 12 caractères avec un symbole.",
+  "auth.samePasswordError": "Le nouveau mot de passe doit être différent de l’actuel.",
   "auth.userBannedError": "Ce compte ne peut pas être utilisé pour le moment.",
   "auth.networkError": "La connexion au serveur a échoué. Vérifiez votre connexion internet et réessayez.",
   "auth.genericError": "Impossible de terminer l’action. Vérifiez les informations et réessayez.",

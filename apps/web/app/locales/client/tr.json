@@ -1521,6 +1521,7 @@
   "auth.pkceError": "Bağlantıyı hesabı oluşturduğunuz tarayıcıda açın veya yeni bir bağlantı isteyin.",
   "auth.passwordTooShortError": "En az 12 karakter ve bir sembol kullanın.",
   "auth.weakPasswordError": "En az 12 karakter ve bir sembol içeren bir şifre seçin.",
+  "auth.samePasswordError": "Yeni şifre şu anki şifrenden farklı olmalı.",
   "auth.userBannedError": "Bu hesap şu anda kullanılamıyor.",
   "auth.networkError": "Sunucu bağlantısı başarısız oldu. İnternet bağlantınızı kontrol edip tekrar deneyin.",
   "auth.genericError": "İşlem tamamlanamadı. Bilgileri kontrol edip tekrar deneyin.",
