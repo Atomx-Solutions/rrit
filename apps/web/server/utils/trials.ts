@@ -164,6 +164,52 @@ export async function claimSocialTrialIdentities(
     idempotencyKey: `trial-revoked:${businessId}`,
   })
 }
+/**
+ * Ends the credits a trial left unused once the trial is over, as a package's
+ * unused credits end with the package. Only a balance the trial alone funded
+ * is touched: one still on the trial's own period that no package, top-up or
+ * adjustment has added to since. A package credits the balance as soon as it
+ * becomes active, even before it starts, and those paid credits must never
+ * end with the trial. Each trial's credits end once, however often this runs.
+ */
+export async function expireEndedTrialCredits(client: PoolClient, now = new Date()) {
+  const ended = await client.query<{ organization_id: string; period_start: Date }>(
+    `SELECT b.organization_id, b.period_start
+       FROM credit_balances AS b
+       JOIN trial_grants AS g ON g.business_id = b.organization_id
+      WHERE b.remaining_credits > 0
+        AND g.expires_at <= $1
+        -- The balance keeps the trial's start to the millisecond, as it came
+        -- through the application; the grant keeps it to the microsecond.
+        AND date_trunc('milliseconds', b.period_start) = date_trunc('milliseconds', g.starts_at)
+        -- Nothing but the trial has funded the balance since it started.
+        AND NOT EXISTS (
+          SELECT 1 FROM credit_ledger AS l
+           WHERE l.organization_id = b.organization_id
+             AND l.event_type IN ('grant', 'adjustment', 'refund')
+             AND l.reference_type IS DISTINCT FROM 'subscription_period'
+             AND l.created_at >= g.starts_at
+        )
+        -- An active package not yet over, whether or not it has started.
+        AND NOT EXISTS (
+          SELECT 1 FROM custom_packages AS p
+           WHERE p.organization_id = b.organization_id AND p.status = 'active'
+             AND p.ends_at >= $1
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM entitlements AS e
+           WHERE e.business_id = b.organization_id AND e.valid_from <= $1 AND e.valid_until > $1
+        )`,
+    [now],
+  )
+  for (const row of ended.rows)
+    await expireRemainingCredits(client, {
+      organizationId: row.organization_id,
+      subscriptionId: null,
+      idempotencyKey: `trial-ended:${row.organization_id}:${new Date(row.period_start).toISOString()}`,
+    })
+  return ended.rows.length
+}
 export interface TrialStatus {
   state: string
   startsAt: string | null

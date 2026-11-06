@@ -6,6 +6,7 @@ import {
 } from '../../shared/schemas/custom-package'
 import type { Pool, PoolClient } from 'pg'
 import { withTenantTransaction, type TenantContext } from './database'
+import { expireEndedTrialCredits } from './trials'
 
 /**
  * A package funds the complete lifecycle of each promised post: the first
@@ -123,7 +124,7 @@ const packageExpiryLockTimeout = '5s'
 
 /**
  * One round of package expiry: ended packages are marked expired and their
- * unused credits end with them. Only one round runs at a time; a round that
+ * unused credits end with them, as do the credits of trials that are over. Only one round runs at a time; a round that
  * finds another under way leaves it the work instead of waiting for it, and a
  * row held by a session that froze is given up on rather than waited for, so
  * a stuck round never holds every other one up.
@@ -141,8 +142,9 @@ export async function runPackageExpiry(db: Pool, now = new Date()) {
       return { skipped: true as const }
     }
     const expired = await expireCustomPackages(client, now)
+    const trialCreditsExpired = await expireEndedTrialCredits(client, now)
     await client.query('COMMIT')
-    return { expired }
+    return { expired, trialCreditsExpired }
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     throw error
