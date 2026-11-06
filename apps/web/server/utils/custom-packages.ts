@@ -7,6 +7,7 @@ import {
 import type { Pool, PoolClient } from 'pg'
 import { withTenantTransaction, type TenantContext } from './database'
 import { expireEndedTrialCredits } from './trials'
+import { settleAbandonedRuns } from './monthly-ai'
 
 /**
  * A package funds the complete lifecycle of each promised post: the first
@@ -124,7 +125,8 @@ const packageExpiryLockTimeout = '5s'
 
 /**
  * One round of package expiry: ended packages are marked expired and their
- * unused credits end with them, as do the credits of trials that are over. Only one round runs at a time; a round that
+ * unused credits end with them, as do the credits of trials that are over,
+ * and AI calls nobody will return to give back the credits they held. Only one round runs at a time; a round that
  * finds another under way leaves it the work instead of waiting for it, and a
  * row held by a session that froze is given up on rather than waited for, so
  * a stuck round never holds every other one up.
@@ -143,8 +145,9 @@ export async function runPackageExpiry(db: Pool, now = new Date()) {
     }
     const expired = await expireCustomPackages(client, now)
     const trialCreditsExpired = await expireEndedTrialCredits(client, now)
+    const abandonedRunsSettled = await settleAbandonedRuns(client, now)
     await client.query('COMMIT')
-    return { expired, trialCreditsExpired }
+    return { expired, trialCreditsExpired, abandonedRunsSettled }
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     throw error

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 import { aiCreditCycleStartSql } from './ai-credits'
 import {
   PlannerFailure,
@@ -29,7 +29,7 @@ import {
 } from '../../shared/schemas/monthly-plan'
 import { ctaMaxLength } from '../../shared/schemas/storyboard'
 import { trialStatus } from './trials'
-import { attemptKey, interruptedRunCode, settleInterruptedRun } from './monthly-ai-recovery'
+import { attemptKey, callSettleMarginMs, interruptedRunCode, settleInterruptedRun } from './monthly-ai-recovery'
 import { setTenantContext, type TenantContext } from './database'
 import {
   consumeReservedCredits,
@@ -302,6 +302,59 @@ const imageCallTimeoutMs = 300000
 // How long a reserved call may still be running: its own timeout, plus the
 // time it may have waited for a provider that rate-limited it.
 const runningFor = (callTimeoutMs: number) => callTimeoutMs + rateLimitSettings().waitMs
+
+// Calls one sweep looks at, so a round stays short; the rest wait for the next.
+const abandonedRunBatch = 100
+
+/**
+ * Gives back the credits of calls left reserved or uncertain whose stage will
+ * never be called again: a plan started over, cancelled or changed after a
+ * call of it was cut off. A cut-off call whose stage is called again is
+ * settled then; this sweep catches the ones nobody returns to. A call is taken
+ * only once longer has passed than any call can run, so none still running is
+ * touched. Whether it was an image or a text call, and what it was charged
+ * as, is read from the reservation it made. Each call is settled on its own,
+ * so one that cannot be settled now leaves the others to go ahead.
+ */
+export async function settleAbandonedRuns(client: PoolClient, now = new Date()) {
+  const callTimeoutMs = runningFor(Math.max(textCallTimeoutMs, imageCallTimeoutMs))
+  const runs = await client.query(
+    `SELECT r.*, reserve.usage_kind AS reserve_usage,
+            COALESCE(reserve.idempotency_key LIKE 'monthly-image-credit-reserve:%', false) AS image_call
+       FROM monthly_ai_runs AS r
+       LEFT JOIN LATERAL (
+         SELECT usage_kind, idempotency_key FROM credit_ledger AS l
+          WHERE l.organization_id = r.business_id AND l.reference_id = r.id::text AND l.event_type = 'reserve'
+          ORDER BY l.created_at DESC LIMIT 1
+       ) AS reserve ON true
+      WHERE r.status IN ('reserved', 'uncertain') AND r.created_at < $1
+      ORDER BY r.created_at LIMIT $2`,
+    [new Date(now.getTime() - callTimeoutMs - callSettleMarginMs), abandonedRunBatch],
+  )
+  let settled = 0
+  for (const run of runs.rows) {
+    await client.query('SAVEPOINT abandoned_run')
+    try {
+      await settleInterruptedRun(client, run, {
+        businessId: String(run.business_id),
+        callTimeoutMs,
+        reserveKeyPrefix: run.image_call ? 'monthly-image-credit-reserve' : 'monthly-ai-credit-reserve',
+        releaseKeyPrefix: run.image_call ? 'monthly-image-interrupted-release' : 'monthly-ai-interrupted-release',
+        usageKind: run.reserve_usage === 'research' ? 'research' : 'generation',
+        now: now.getTime(),
+      })
+      await client.query('RELEASE SAVEPOINT abandoned_run')
+      settled++
+    } catch (error) {
+      await client.query('ROLLBACK TO SAVEPOINT abandoned_run')
+      console.warn('An abandoned AI call could not be settled this round.', {
+        runId: String(run.id),
+        error: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+      })
+    }
+  }
+  return settled
+}
 
 export async function recoverPriorRun(priorRun: Record<string, unknown> | undefined) {
   if (!priorRun) return undefined
