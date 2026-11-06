@@ -343,6 +343,7 @@ onBeforeUnmount(removeNavigationGuard)
             :ui="{
               link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs after:w-[3px]',
               linkLeadingIcon: 'size-3.5',
+              linkLabel: state === 'collapsed' ? 'block sr-only' : undefined,
             }"
           />
           <UNavigationMenu
@@ -361,6 +362,7 @@ onBeforeUnmount(removeNavigationGuard)
             :ui="{
               link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs after:w-[3px]',
               linkLeadingIcon: 'size-3.5',
+              linkLabel: state === 'collapsed' ? 'block sr-only' : undefined,
             }"
           />
         </template>

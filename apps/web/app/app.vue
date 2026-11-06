@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { de, en, fr, it, sq, tr } from '@nuxt/ui/locale'
 const { locale: appLocale, t } = useI18n()
+// The document language follows the interface, so screen readers pronounce it right.
+useHead({ htmlAttrs: { lang: appLocale } })
 const locale = computed(() => {
   const base = { 'de-CH': de, 'en-US': en, 'it-CH': it, 'fr-CH': fr, 'tr-TR': tr, 'sq-XK': sq }[appLocale.value] ?? de
   return {
