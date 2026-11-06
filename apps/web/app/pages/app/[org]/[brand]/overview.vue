@@ -195,6 +195,7 @@ const summaries = computed(() => [
         v-for="summary in summaries"
         :key="summary.label"
         :to="summary.to"
+        :aria-label="`${summary.label}: ${summary.value}`"
         variant="outline"
         class="lg:rounded-none lg:first:rounded-l-lg lg:last:rounded-r-lg hover:z-1"
         :ui="{ container: 'p-4 sm:p-5 gap-4' }"
