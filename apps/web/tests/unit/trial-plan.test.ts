@@ -12,7 +12,7 @@ const newBusiness = '00000000-0000-4000-8000-000000000002'
 const trialOwner = '00000000-0000-4000-8000-000000000001'
 
 function claimClient(pageAlreadyUsed: boolean) {
-  const query = vi.fn(async (sql: string) => {
+  const query = vi.fn(async (sql: string, _values?: unknown[]) => {
     if (sql.startsWith('SELECT status FROM trial_grants')) return { rows: [{ status: 'granted' }] }
     if (sql.startsWith('INSERT INTO trial_claims'))
       return { rows: pageAlreadyUsed ? [] : [{ business_id: newBusiness }], rowCount: 1 }
@@ -47,7 +47,7 @@ describe('trial abuse protection', () => {
     expect(
       client.query.mock.calls.some(
         ([sql, values]) =>
-          String(sql).includes('INSERT INTO credit_ledger') && (values as unknown[])[2] === 'expire',
+          String(sql).includes('INSERT INTO credit_ledger') && values?.[2] === 'expire',
       ),
     ).toBe(true)
   })

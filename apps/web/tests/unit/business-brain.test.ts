@@ -221,6 +221,7 @@ describe('Business Brain verification lifecycle', () => {
       text: 'Research fixture',
       sources: [{ url: 'https://example.test/research', title: 'Fixture source' }],
       citations: [],
+      occasions: [],
       researchedAt: now.toISOString(),
     }
     expect(validateEditorialPlan(plan, evidence, research, '2026-10', 1).slots).toHaveLength(1)

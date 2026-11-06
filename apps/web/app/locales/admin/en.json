@@ -16,6 +16,7 @@
   "admin.login.title": "Administrator sign-in",
   "admin.login.description": "If you own the Framic platform, sign in with your administration account.",
   "admin.login.email": "Email",
+  "admin.login.emailPlaceholder": "name@framic.com",
   "admin.login.password": "Password",
   "admin.login.passwordRequired": "Enter your password.",
   "admin.login.submit": "Sign in",

@@ -23,7 +23,7 @@ const brand = {
   updatedAt: '2026-09-10T00:00:00.000Z',
 }
 const client = { query: vi.fn() }
-const withOrganizationTransaction = vi.fn(async (_userId: string, _organizationId: string, work: (client: typeof client) => Promise<unknown>) =>
+const withOrganizationTransaction = vi.fn(async (_userId: string, _organizationId: string, work: (transactionClient: typeof client) => Promise<unknown>) =>
   work(client),
 )
 const createBrand = vi.fn()
@@ -97,7 +97,7 @@ describe('Brand HTTP API handlers', () => {
   it('passes the authenticated user and organization scope to create and returns 201', async () => {
     const created = brand
     createBrand.mockResolvedValue(created)
-    const setResponseStatus = globalThis.setResponseStatus as ReturnType<typeof vi.fn>
+    const setResponseStatus = (globalThis as unknown as { setResponseStatus: ReturnType<typeof vi.fn> }).setResponseStatus
     const { default: handler } = await import('../../server/api/organizations/[organizationId]/brands/index.post')
 
     const result = await (handler as (event: unknown) => Promise<unknown>)(

@@ -22,7 +22,7 @@ const schema = z.object({
 type Schema = z.output<typeof schema>
 
 const fields = computed(() => [
-  { name: 'email', type: 'email' as const, label: t('admin.login.email'), placeholder: 'emri@framic.com', required: true, autocomplete: 'username' },
+  { name: 'email', type: 'email' as const, label: t('admin.login.email'), placeholder: t('admin.login.emailPlaceholder'), required: true, autocomplete: 'username' },
   { name: 'password', type: 'password' as const, label: t('admin.login.password'), required: true, autocomplete: 'current-password' },
 ])
 

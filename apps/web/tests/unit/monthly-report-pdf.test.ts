@@ -32,6 +32,7 @@ describe('monthlyReportPdf', () => {
           url: `https://example.com/research/source-${index + 1}`,
         })),
         citations: [],
+        occasions: [],
         researchedAt: '2026-09-24T10:00:00.000Z',
       },
       strategy: null,
