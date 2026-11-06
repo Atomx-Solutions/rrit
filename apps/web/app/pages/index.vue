@@ -2,7 +2,22 @@
 import '~/assets/css/landing.css'
 import '~/assets/css/landing-scenes.css'
 import { imageFallback, imageSrcset, landingPosterSizes } from '~~/shared/utils/responsive-image'
-definePageMeta({ layout: 'public' })
+definePageMeta({
+  layout: 'public',
+  // Typing the address or opening it in a new tab while signed in leads back to
+  // the workspace. Following a link to the landing from inside the app (the
+  // logo) still shows it, so a signed-in person can read it.
+  middleware: [
+    async (to, from) => {
+      if (import.meta.server || to.fullPath !== from.fullPath) return
+      const { authClient } = await import('~/utils/auth-client')
+      // A full load: a second in-app redirect (/app to the workspace) started
+      // while the landing is still hydrating changes the address but leaves
+      // the /app placeholder on screen until the page is reloaded.
+      if (await authClient.hasSession()) return navigateTo('/app', { replace: true, external: true })
+    },
+  ],
+})
 const landingRoot = ref<HTMLElement>()
 useLandingMotion(landingRoot)
 const { t } = useI18n()
