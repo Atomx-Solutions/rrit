@@ -1040,6 +1040,8 @@ onBeforeUnmount(() => {
                 to: base + '/social-posts',
                 variant: 'outline',
                 color: 'neutral',
+                // The window is left behind the page it opens otherwise.
+                onClick: () => { publishOpen = false },
               },
             ]"
           />
