@@ -131,12 +131,7 @@ async function downloadViewerAsset() {
     const response = await fetch(viewerVideoUrl.value || viewerAsset.value.url, { credentials: 'include' })
     if (!response.ok) throw new Error('download failed')
     const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = isVideo ? `${viewerAsset.value.name || 'framic-video'}.mp4` : viewerAsset.value.name || 'framic-photo.jpg'
-    anchor.click()
-    URL.revokeObjectURL(url)
+    saveFile(blob, viewerAsset.value.name || (isVideo ? 'framic-video' : 'framic-photo'), isVideo ? 'video/mp4' : 'image/jpeg')
   } finally {
     downloading.value = false
   }
