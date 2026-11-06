@@ -43,9 +43,9 @@ const {
   remove: removeNotification,
   removeAll,
 } = useNotifications()
-// Use a new preference key so every existing workspace starts with the compact
-// icon rail, then retain the navigation width chosen by that user.
-const collapsed = useCookie('rrit-sidebar-collapsed-v2', { default: () => true })
+// Use a new preference key so every existing workspace starts with the full
+// sidebar open, then retain the navigation width chosen by that user.
+const collapsed = useCookie('rrit-sidebar-collapsed-v3', { default: () => false })
 const sidebarOpen = ref(!collapsed.value)
 // Tooltips are useful for truncated names on desktop, but touch devices open
 // them on tap and obscure the business switcher instead of helping navigation.
