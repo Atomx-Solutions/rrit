@@ -58,7 +58,7 @@ async function photo() {
 function fakes(lastFrame = Buffer.from('previous-last-frame')) {
   return {
     generate: vi.fn(async () => ({ bytes: Buffer.from('clip'), costUsd: 0.4 })),
-    verify: vi.fn(async () => ({ sameSubject: true, reason: 'same' })),
+    verify: vi.fn(async () => ({ sameSubject: true, reason: 'same', costUsd: 0 })),
     lastFrameOf: vi.fn(async () => lastFrame),
     framesOf: vi.fn(async () => [Buffer.from('f')]),
   }
@@ -151,7 +151,7 @@ describe('generating a storyboard shot by shot', () => {
 
   it('gives the take up when a shot changes the subject, having reported what every shot paid', async () => {
     const deps = { ...fakes(), onCost: vi.fn() }
-    deps.verify.mockResolvedValueOnce({ sameSubject: true, reason: 'same' }).mockResolvedValueOnce({ sameSubject: false, reason: 'different wheels' })
+    deps.verify.mockResolvedValueOnce({ sameSubject: true, reason: 'same', costUsd: 0 }).mockResolvedValueOnce({ sameSubject: false, reason: 'different wheels', costUsd: 0 })
     const result = generateStoryboardShots({ storyboard: board([shot(4), shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
     await expect(result).rejects.toBeInstanceOf(ShotSubjectChanged)
     await expect(result).rejects.toMatchObject({ shot: 2, reason: 'different wheels' })
@@ -162,7 +162,7 @@ describe('generating a storyboard shot by shot', () => {
 
   it('shoots a shot that changed the subject once more on its own before giving up the take', async () => {
     const deps = { ...fakes(), reserveRetry: vi.fn(async () => true) }
-    deps.verify.mockResolvedValueOnce({ sameSubject: false, reason: 'different cup' })
+    deps.verify.mockResolvedValueOnce({ sameSubject: false, reason: 'different cup', costUsd: 0 })
     const result = await generateStoryboardShots({ storyboard: board([shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
     expect(result.clips).toHaveLength(2)
     expect(deps.generate).toHaveBeenCalledTimes(3)
@@ -171,7 +171,7 @@ describe('generating a storyboard shot by shot', () => {
 
   it('gives up the take when the shot shot again still changed the subject', async () => {
     const deps = { ...fakes(), reserveRetry: vi.fn(async () => true) }
-    deps.verify.mockResolvedValue({ sameSubject: false, reason: 'different cup' })
+    deps.verify.mockResolvedValue({ sameSubject: false, reason: 'different cup', costUsd: 0 })
     const result = generateStoryboardShots({ storyboard: board([shot(4), shot(4)]), fitted: await photo(), provider, lastFrameSupported: true }, deps)
     await expect(result).rejects.toMatchObject({ shot: 1, reason: 'different cup' })
     // Each of the two shots was made, shot once more, and still changed.
@@ -180,7 +180,7 @@ describe('generating a storyboard shot by shot', () => {
 
   it('on the delivered take, keeps every shot and reports which changed the subject', async () => {
     const deps = fakes()
-    deps.verify.mockResolvedValueOnce({ sameSubject: false, reason: 'different grille' })
+    deps.verify.mockResolvedValueOnce({ sameSubject: false, reason: 'different grille', costUsd: 0 })
     const result = await generateStoryboardShots({
       storyboard: board([shot(6), shot(6)]),
       fitted: await photo(),

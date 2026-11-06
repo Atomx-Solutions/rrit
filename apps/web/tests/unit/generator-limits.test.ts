@@ -29,7 +29,7 @@ describe('monthly post allowance', () => {
 
 describe('trial post allowance', () => {
   it('reads durable trial usage instead of surviving post rows', async () => {
-    const query = vi.fn(async () => ({ rows: [{ count: 3 }] }))
+    const query = vi.fn(async (_sql: string, _values?: unknown[]) => ({ rows: [{ count: 3 }] }))
     await expect(
       postsCountedForLimit(
         { query } as never,
@@ -42,7 +42,7 @@ describe('trial post allowance', () => {
   })
 
   it('counts a custom package across its exact billing period, not by calendar month', async () => {
-    const query = vi.fn(async () => ({ rows: [{ count: 14 }] }))
+    const query = vi.fn(async (_sql: string, _values?: unknown[]) => ({ rows: [{ count: 14 }] }))
 
     await expect(
       postsCountedForLimit(

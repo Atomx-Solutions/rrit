@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { AuditMetadata } from '../../server/utils/audit'
 import {
   sanitizeAuditMetadata,
   transitionMetadata,
@@ -18,7 +19,7 @@ describe('audit metadata sanitization', () => {
     })
   })
 
-  it.each([
+  it.each<AuditMetadata>([
     { accessToken: 'should-not-be-stored' },
     { nested: { refresh_token: 'should-not-be-stored' } },
     { note: 'Bearer abcdefghijklmnopqrstuvwxyz' },

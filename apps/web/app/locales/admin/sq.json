@@ -16,6 +16,7 @@
   "admin.login.title": "Hyrja e administratorit",
   "admin.login.description": "Nëse je pronar i platformës Framic, hyr me llogarinë tënde të administrimit.",
   "admin.login.email": "Email",
+  "admin.login.emailPlaceholder": "emri@framic.com",
   "admin.login.password": "Fjalëkalimi",
   "admin.login.passwordRequired": "Vendos fjalëkalimin.",
   "admin.login.submit": "Hyr",

@@ -74,10 +74,12 @@ function brainFixture(): PlannerBrain {
 
 function researchFixture(): Research {
   return {
-    markdown: 'Konteksti i vëzhguar [1]',
+    text: 'Konteksti i vëzhguar [1]',
     sources: [{ url: 'https://example.test/local-market', title: 'Local primary source' }],
-    capturedAt: now.toISOString(),
-  } as Research
+    citations: [],
+    occasions: [],
+    researchedAt: now.toISOString(),
+  }
 }
 
 function editorialResponse(overrides: Record<string, unknown> = {}) {
@@ -420,6 +422,7 @@ describe('image prompt', () => {
     headline: 'Kafja jote e përditshme',
     cta: 'Na vizito',
     layout: 'Hierarki rreth filxhanit real.',
+    logoZone: 'auto' as const,
   }
   const slot = {
     channel: 'Instagram' as const,
