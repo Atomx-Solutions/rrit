@@ -15,8 +15,7 @@ const removing = ref(false)
 const uploading = ref(false)
 const progress = ref(0)
 const error = ref('')
-const { watchError } = useFormFeedback()
-watchError(error)
+const { watchError, showError } = useFormFeedback()
 const rights = ref(false)
 const needsRightsConfirmedPhoto = computed(() =>
   !data.value.assets.some((asset) => asset.kind === 'photo' && asset.rights && !asset.generated),
@@ -26,6 +25,11 @@ const highlightRights = computed(() =>
   plannerAttention.value && needsRightsConfirmedPhoto.value,
 )
 const uploadOpen = ref(false)
+// While the upload dialog is open its own alert shows the error; a toast as
+// well would say the same thing twice.
+watch(error, (message) => {
+  if (message && !uploadOpen.value) showError(message)
+})
 const tags = ref('')
 const rightsOpen = ref(false)
 const rightsBusy = ref(false)
@@ -131,12 +135,7 @@ async function downloadViewerAsset() {
     const response = await fetch(viewerVideoUrl.value || viewerAsset.value.url, { credentials: 'include' })
     if (!response.ok) throw new Error('download failed')
     const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = isVideo ? `${viewerAsset.value.name || 'framic-video'}.mp4` : viewerAsset.value.name || 'framic-photo.jpg'
-    anchor.click()
-    URL.revokeObjectURL(url)
+    saveFile(blob, viewerAsset.value.name || (isVideo ? 'framic-video' : 'framic-photo'), isVideo ? 'video/mp4' : 'image/jpeg')
   } finally {
     downloading.value = false
   }
@@ -230,6 +229,20 @@ async function withdrawRights() {
     rightsBusy.value = false
   }
 }
+// What the upload accepts, read both by the upload and by the retry button, so
+// a selection the upload would refuse cannot be retried as it is.
+const uploadTypes = ['image/jpeg', 'image/png', 'image/webp']
+const uploadMaxBytes = 5 * 1024 * 1024
+const uploadMaxFiles = 8
+const uploadableFile = (file: File) => uploadTypes.includes(file.type) && file.size <= uploadMaxBytes
+const selectionRefused = computed(() =>
+  selectedFiles.value.length > uploadMaxFiles || !selectedFiles.value.every(uploadableFile))
+// A refused file is reported the moment it is chosen, before the rights box
+// is ticked, rather than only when an upload is attempted.
+watch(selectedFiles, (files) => {
+  if (files.length > uploadMaxFiles) error.value = t('gallery.maxPhotos')
+  else if (!files.every(uploadableFile)) error.value = t('gallery.invalidFormat')
+})
 function selectFiles(files: File[] | null | undefined) {
   selectedFiles.value = files || []
   error.value = ''
@@ -253,7 +266,7 @@ async function upload(files: File[] | null | undefined) {
     error.value = t('gallery.confirmRightsBeforeUpload')
     return
   }
-  if (files.length > 8) {
+  if (files.length > uploadMaxFiles) {
     error.value = t('gallery.maxPhotos')
     return
   }
@@ -262,10 +275,7 @@ async function upload(files: File[] | null | undefined) {
   try {
     const added: Asset[] = []
     for (const [i, file] of files.entries()) {
-      if (
-        !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
-        file.size > 5 * 1024 * 1024
-      )
+      if (!uploadableFile(file))
         throw new Error(t('gallery.invalidFormat'))
       const bitmap = await createImageBitmap(file)
       if (bitmap.width < 100 || bitmap.height < 100) {
@@ -570,6 +580,12 @@ async function saveMetadata() {
       :description="t('gallery.privateDescription')"
       ><template #body
         ><div class="stack">
+          <!-- While the dialog is open the rest of the page, the toast included,
+               is hidden from screen readers; the error is repeated here, in an
+               alert region inside the dialog, so it is read out as well. -->
+          <div role="alert">
+            <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :title="error" />
+          </div>
           <div v-if="selectedFiles.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div
               v-for="(photo, index) in selectedFiles"
@@ -650,7 +666,7 @@ async function saveMetadata() {
           <UButton
             v-if="error && selectedFiles.length"
             variant="outline"
-            :disabled="!rights"
+            :disabled="!rights || selectionRefused"
             :loading="uploading"
             @click="upload(selectedFiles)"
             >{{ t('gallery.retryUpload') }}</UButton

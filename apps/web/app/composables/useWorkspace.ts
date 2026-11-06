@@ -194,12 +194,7 @@ export function useWorkspace() {
       [JSON.stringify({ workspace: data.value, unsentDrafts: drafts }, null, 2)],
       { type: 'application/json' },
     )
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'framic-business.json'
-    a.click()
-    URL.revokeObjectURL(url)
+    saveFile(blob, 'framic-business.json')
   }
   return {
     data,

@@ -5,31 +5,42 @@ import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
 const props = withDefaults(defineProps<{ showSummary?: boolean }>(), { showSummary: true })
 const postsRequested = ref<number>(DEFAULT_PACKAGE_REQUEST.posts)
 const videosRequested = ref<number>(DEFAULT_PACKAGE_REQUEST.videos)
-const { locale } = useI18n()
-const landingCurrency = 'CHF' as const
-const packagePostPrice = 5.35
-const packageVideoPrice = 12.05
-const packageTotal = computed(() => postsRequested.value * packagePostPrice + videosRequested.value * packageVideoPrice)
-const money = (value: number) => new Intl.NumberFormat(locale.value, { style: 'currency', currency: landingCurrency }).format(value)
+const { t, locale } = useI18n()
+// The same request, key and options as PackageRequestForm, so both read one
+// response and the summary shows the price the form shows.
+const { data: options } = await useFetch<{
+  postOptions: number[]
+  postPriceCents: number
+  videoPriceCents: number
+  currency: 'CHF' | 'EUR'
+}>('/api/package-requests', { key: 'package-request-form-options', server: false })
+const packagePostPrice = computed(() => (options.value?.postPriceCents || 0) / 100)
+const packageVideoPrice = computed(() => (options.value?.videoPriceCents || 0) / 100)
+const packageTotal = computed(() =>
+  postsRequested.value * packagePostPrice.value + videosRequested.value * packageVideoPrice.value)
+const money = (value: number) => new Intl.NumberFormat(locale.value, {
+  style: 'currency',
+  currency: options.value?.currency || 'CHF',
+}).format(value)
 </script>
 
 <template>
   <div class="landing-request">
-    <div v-if="props.showSummary" class="landing-package-summary">
+    <div v-if="props.showSummary && options" class="landing-package-summary">
       <div class="landing-package-summary-top">
-        <strong>Framic Content Paket</strong>
-        <strong>{{ money(packageTotal) }} / Monat</strong>
+        <strong>{{ t('landing.packageSummaryTitle') }}</strong>
+        <strong>{{ t('landing.packagePerMonth', { price: money(packageTotal) }) }}</strong>
       </div>
       <div class="landing-package-summary-line">
-        <span>{{ postsRequested }} Posts</span>
-        <span>{{ money(packagePostPrice) }} pro Post</span>
+        <span>{{ t('landing.packagePosts', { count: postsRequested }) }}</span>
+        <span>{{ t('landing.packagePerPost', { price: money(packagePostPrice) }) }}</span>
       </div>
       <div class="landing-package-summary-line">
-        <span>{{ videosRequested }} Videos</span>
-        <span>{{ money(packageVideoPrice) }} pro Video</span>
+        <span>{{ t('landing.packageVideos', { count: videosRequested }) }}</span>
+        <span>{{ t('landing.packagePerVideo', { price: money(packageVideoPrice) }) }}</span>
       </div>
       <div class="landing-package-summary-total">
-        <span>Gesamt</span>
+        <span>{{ t('landing.packageTotal') }}</span>
         <strong>{{ money(packageTotal) }}</strong>
       </div>
     </div>

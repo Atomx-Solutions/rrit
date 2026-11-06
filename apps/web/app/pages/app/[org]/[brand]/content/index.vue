@@ -48,9 +48,7 @@ const tabs = computed(() => [
   { value: 'all', label: t('overview.all') },
   ...Object.keys(statusLabels).map((value) => ({ value, label: t(`status.${value}`) })),
 ])
-// Format and network wait in a side panel; the button names how many are set.
-const filtersOpen = ref(false)
-// Short labels with an icon each; the panel's headings say what they filter.
+// Short labels with an icon each, shown as toggles above the table.
 const formatItems = computed(() => [
   { label: t('content.filterPosts'), value: 'post' as const, icon: 'i-lucide-image' },
   { label: t('content.filterVideos'), value: 'video' as const, icon: 'i-lucide-circle-play' },
@@ -59,11 +57,6 @@ const networkIcons: Record<string, string> = { Facebook: 'i-lucide-facebook', In
 const networkItems = computed(() => [
   ...postSchema.shape.channel.options.map((value) => ({ label: value, value: value as string, icon: networkIcons[value] })),
 ])
-const activeFilterCount = computed(() => formats.value.length + channels.value.length)
-function clearPanelFilters() {
-  formats.value = []
-  channels.value = []
-}
 const posts = computed(() =>
   data.value.posts.filter(
     (p) =>
@@ -87,24 +80,7 @@ watch([search, filter, channels, formats], () => {
     :toolbar-border="false"
   >
     <template #toolbar>
-      <div class="flex w-full items-center gap-2 sm:gap-3">
-        <UInput
-          v-model="search"
-          icon="i-lucide-search"
-          :placeholder="t('content.searchPlaceholder')"
-          :aria-label="t('content.searchPosts')"
-          class="min-w-0 flex-1 sm:w-72 sm:flex-none"
-        />
-        <UButton
-          variant="outline"
-          icon="i-lucide-sliders-horizontal"
-          class="shrink-0 sm:ml-auto"
-          :aria-label="t('content.filters')"
-          @click="filtersOpen = true"
-        >
-          <span class="hidden sm:inline">{{ t('content.filters') }}</span>
-          <UBadge v-if="activeFilterCount" size="sm" color="primary" variant="solid">{{ activeFilterCount }}</UBadge>
-        </UButton>
+      <div class="flex w-full items-center justify-end">
         <UButton
           :to="`${base}/monthly-planner`"
           variant="outline"
@@ -114,51 +90,6 @@ watch([search, filter, channels, formats], () => {
         />
       </div>
     </template>
-    <USlideover v-model:open="filtersOpen" :title="t('content.filters')" :ui="{ content: 'max-w-sm' }">
-      <template #body>
-        <div class="space-y-6">
-          <fieldset class="space-y-2">
-            <legend class="mb-2 text-sm font-semibold text-highlighted">{{ t('content.formatHeading') }}</legend>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                v-for="item in formatItems"
-                :key="item.value"
-                :icon="item.icon"
-                size="sm"
-                :color="formats.includes(item.value) ? 'primary' : 'neutral'"
-                :variant="formats.includes(item.value) ? 'soft' : 'outline'"
-                :aria-pressed="formats.includes(item.value)"
-                @click="formats = toggled(formats, item.value)"
-                >{{ item.label }}</UButton
-              >
-            </div>
-          </fieldset>
-          <fieldset class="space-y-2">
-            <legend class="mb-2 text-sm font-semibold text-highlighted">{{ t('content.networkHeading') }}</legend>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                v-for="item in networkItems"
-                :key="item.value"
-                :icon="item.icon"
-                size="sm"
-                :color="channels.includes(item.value) ? 'primary' : 'neutral'"
-                :variant="channels.includes(item.value) ? 'soft' : 'outline'"
-                :aria-pressed="channels.includes(item.value)"
-                @click="channels = toggled(channels, item.value)"
-              >
-                <TikTokMark v-if="item.value === 'TikTok'" class="size-4" />{{ item.label }}
-              </UButton>
-            </div>
-          </fieldset>
-        </div>
-      </template>
-      <template #footer>
-        <div class="flex w-full gap-2">
-          <UButton color="neutral" variant="outline" class="flex-1 justify-center" :disabled="!activeFilterCount" @click="clearPanelFilters">{{ t('content.clearFilters') }}</UButton>
-          <UButton class="flex-1 justify-center" @click="filtersOpen = false">{{ t('content.showResults', { count: posts.length }) }}</UButton>
-        </div>
-      </template>
-    </USlideover>
     <!-- Seven statuses wrap onto a second row on a phone and eat the space the
          post list needs, so there they stay on one row and scroll sideways; the
          next tab stays half visible to show there is more. -->
@@ -174,23 +105,62 @@ watch([search, filter, channels, formats], () => {
         trigger: 'grow-0 shrink-0 px-3 min-h-10',
       }"
     />
-    <div class="flex items-center justify-between gap-3">
-      <p role="status" class="text-sm text-muted">
-        {{ t('content.postCount', { visible: posts.length, total: data.posts.length }) }}
-      </p>
-      <UButton
-        v-if="hasFilters"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        icon="i-lucide-x"
-        @click="resetFilters"
-        >{{ t('content.clearFilters') }}</UButton
-      >
-    </div>
-    <UCard v-if="posts.length" as="div" :ui="{ body: 'p-0 sm:p-0' }" class="table-wrap">
-      <PostsTable :posts="paginated" />
-      <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" />
+    <!-- Search and filters sit on the table they narrow, instead of a panel of
+         their own; the count of posts shown is in the pagination below. -->
+    <UCard v-if="data.posts.length" as="div" :ui="{ body: 'p-0 sm:p-0' }" class="table-wrap">
+      <div class="flex flex-wrap items-center gap-2 border-b border-default p-3">
+        <UInput
+          v-model="search"
+          icon="i-lucide-search"
+          :placeholder="t('content.searchPlaceholder')"
+          :aria-label="t('content.searchPosts')"
+          class="w-full sm:w-1/2"
+        />
+        <div class="flex flex-wrap items-center gap-2 sm:ml-auto" role="group" :aria-label="t('content.filters')">
+          <UButton
+            v-for="item in formatItems"
+            :key="item.value"
+            :icon="item.icon"
+            size="sm"
+            :color="formats.includes(item.value) ? 'primary' : 'neutral'"
+            :variant="formats.includes(item.value) ? 'soft' : 'outline'"
+            :aria-pressed="formats.includes(item.value)"
+            @click="formats = toggled(formats, item.value)"
+            >{{ item.label }}</UButton
+          >
+          <UButton
+            v-for="item in networkItems"
+            :key="item.value"
+            :icon="item.icon"
+            size="sm"
+            :color="channels.includes(item.value) ? 'primary' : 'neutral'"
+            :variant="channels.includes(item.value) ? 'soft' : 'outline'"
+            :aria-pressed="channels.includes(item.value)"
+            @click="channels = toggled(channels, item.value)"
+          >
+            <TikTokMark v-if="item.value === 'TikTok'" class="size-4" />{{ item.label }}
+          </UButton>
+          <UButton
+            v-if="hasFilters"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            icon="i-lucide-x"
+            @click="resetFilters"
+            >{{ t('content.clearFilters') }}</UButton
+          >
+        </div>
+      </div>
+      <template v-if="posts.length">
+        <PostsTable :posts="paginated" />
+        <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" />
+      </template>
+      <DashboardEmpty
+        v-else
+        :title="t('content.noPosts')"
+        :description="t('content.noPostsDescription')"
+        icon="i-lucide-search-x"
+      />
     </UCard>
     <DashboardEmpty
       v-else

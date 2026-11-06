@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
+import { isPersonName, keepPersonNameCharacters } from '~~/shared/schemas/person-name'
 import { z } from 'zod'
 
 /**
@@ -42,7 +43,7 @@ const emit = defineEmits<{ sent: [] }>()
 // number is shared rather than duplicated.
 const postsModel = defineModel<number>('posts', { default: 0 })
 const videosModel = defineModel<number>('videos', { default: 0 })
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { onFormError, watchError, showSuccess } = useFormFeedback()
 
 const form = reactive({
@@ -76,8 +77,8 @@ const { data: options } = await useFetch<{
 }>(
   '/api/package-requests',
   {
-    // LandingPackageRequest has its own ready-state default. A separate key
-    // avoids Nuxt merging the two incompatible useFetch option sets.
+    // LandingPackageRequest reads this same response for its price summary,
+    // with the same key and options, so the two never show different prices.
     key: 'package-request-form-options',
     server: false,
   },
@@ -102,7 +103,7 @@ const volumeItems = computed(() => [
   { name: 'videosRequested' as const, label: t('request.videos'), icon: 'i-lucide-clapperboard', price: displayVideoPrice.value },
 ])
 const money = (value: number) =>
-  new Intl.NumberFormat('sq-XK', {
+  new Intl.NumberFormat(locale.value, {
     style: 'currency',
     // Signed-in clients see their own currency; public visitors see the rates
     // in the currency they are stored in.
@@ -113,19 +114,21 @@ const platformOptions = computed(() => [
   { label: t('request.platformFacebook'), value: 'facebook' as const },
   { label: t('request.platformBoth'), value: 'both' as const },
 ])
-// The team answers a cash agreement by calling, so a reachable number is part
-// of the request rather than an extra.
-const phoneField = z
-  .string()
-  .trim()
-  .max(24)
-  .refine(value => value.replace(/\D/g, '').length >= 6, t('request.phoneRequired'))
 // Videos alone are a package too; only an empty request is refused.
 const asksForSomething = (value: { postsRequested: number; videosRequested: number }) =>
   value.postsRequested > 0 || value.videosRequested > 0
-const postsOrVideos = { message: t('request.postsRequired'), path: ['postsRequested'] }
-const schema = computed(() =>
-  props.contactKnown
+// Every message is read inside the computed, so switching the language
+// re-words the errors instead of keeping the language the page opened in.
+const schema = computed(() => {
+  const postsOrVideos = { message: t('request.postsRequired'), path: ['postsRequested'] }
+  // The team answers a cash agreement by calling, so a reachable number is part
+  // of the request rather than an extra.
+  const phoneField = z
+    .string()
+    .trim()
+    .max(24)
+    .refine(value => value.replace(/\D/g, '').length >= 6, t('request.phoneRequired'))
+  return props.contactKnown
     ? z.object({
         postsRequested: z.number().int().min(0).max(1000),
         videosRequested: z.number().int().min(0).max(1000),
@@ -134,7 +137,8 @@ const schema = computed(() =>
     : z.object({
         postsRequested: z.number().int().min(0).max(1000),
         videosRequested: z.number().int().min(0).max(1000),
-        contactName: z.string().trim().min(2, t('request.nameRequired')).max(120),
+        contactName: z.string().trim().min(2, t('request.nameRequired')).max(120)
+          .refine(isPersonName, t('request.nameInvalid')),
         contactEmail: z.email(t('request.emailInvalid')).max(320),
         phone: phoneField,
         businessName: z.string().trim().min(2, t('request.businessRequired')).max(120),
@@ -144,8 +148,8 @@ const schema = computed(() =>
               industry: z.string().trim().min(2, t('request.industryRequired')).max(100),
               platform: z.enum(['instagram', 'facebook', 'both']),
             }),
-      }).refine(asksForSomething, postsOrVideos),
-)
+      }).refine(asksForSomething, postsOrVideos)
+})
 
 // The plus belongs to the field rather than to what is typed, so the country
 // code cannot be deleted by accident and no letter ever reaches the value.
@@ -156,6 +160,18 @@ watch(
     if (digits !== value) form.phone = digits
   },
 )
+// A digit or symbol is taken out of the field itself, not only the value:
+// rewriting the value alone leaves it unchanged for Vue, so the box would keep
+// showing the digits. The field then says why the character did not appear.
+const nameRefused = ref(false)
+function keepNameLetters(event: Event) {
+  const input = event.target as HTMLInputElement
+  const letters = keepPersonNameCharacters(input.value)
+  nameRefused.value = letters !== input.value
+  if (!nameRefused.value) return
+  input.value = letters
+  form.contactName = letters
+}
 const phoneNumber = computed(() => {
   const digits = form.phone.replace(/\s+/g, ' ').trim()
   return digits ? `+${digits}` : ''
@@ -293,12 +309,18 @@ async function submit() {
       />
     </UFormField>
     <div v-else :class="compact ? 'space-y-4' : 'grid gap-4 sm:grid-cols-2'">
-      <UFormField name="contactName" :label="t('request.name')" required>
+      <UFormField
+        name="contactName"
+        :label="t('request.name')"
+        :error="nameRefused ? t('request.nameInvalid') : undefined"
+        required
+      >
         <UInput
           v-model="form.contactName"
           :placeholder="t('request.namePlaceholder')"
           :maxlength="120"
           class="w-full"
+          @input="keepNameLetters"
         />
       </UFormField>
       <UFormField name="contactEmail" :label="t('request.email')" required>

@@ -39,6 +39,8 @@ describe('package request input', () => {
   it('refuses an unusable contact or volume', () => {
     expect(() => packageRequestSchema.parse(request({ contactEmail: 'not-an-email' }))).toThrow()
     expect(() => packageRequestSchema.parse(request({ contactName: 'A' }))).toThrow()
+    expect(() => packageRequestSchema.parse(request({ contactName: '63456' }))).toThrow()
+    expect(() => packageRequestSchema.parse(request({ contactName: 'Altin 2' }))).toThrow()
     expect(() => packageRequestSchema.parse(request({ postsRequested: 0 }))).toThrow()
     expect(() => packageRequestSchema.parse(request({ postsRequested: 1001 }))).toThrow()
   })
