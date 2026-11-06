@@ -199,13 +199,9 @@ const remainingPosts = computed(() => planner.value?.usage?.remaining || 0)
 // A video is a deliverable of its own with its own photograph, so the only
 // bound on it is the videos the package has left; it does not borrow a post.
 const remainingVideos = computed(() => planner.value?.videoUsage?.remaining || 0)
-// How many of the business's videos are made at once. Asking for more is
-// allowed; the planner says up front that the rest wait their turn.
+// How many of the business's videos are made at once; while some wait, the
+// rendering status says how many are queued.
 const videosAtOnce = computed(() => planner.value?.videosAtOnce || 0)
-const videosAtOnceHint = computed(() =>
-  videosAtOnce.value && selectedVideoQuantity.value > videosAtOnce.value
-    ? t(videosAtOnce.value === 1 ? 'monthly.videosOneAtATime' : 'monthly.videosSeveralAtATime', { count: videosAtOnce.value })
-    : undefined)
 const maxVideosThisBatch = computed(() => remainingVideos.value)
 watch(maxVideosThisBatch, (max) => {
   if (selectedVideoQuantity.value > max) selectedVideoQuantity.value = max
@@ -835,7 +831,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
               <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
-            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" :help="videosAtOnceHint" size="xs" class="min-w-0">
+            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
               <LiveInputNumber
                 v-model="selectedVideoQuantity"
                 :min="0"
@@ -972,7 +968,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
               <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
-            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" :help="videosAtOnceHint" size="xs" class="min-w-0">
+            <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
               <LiveInputNumber
                 v-model="selectedVideoQuantity"
                 :min="0"

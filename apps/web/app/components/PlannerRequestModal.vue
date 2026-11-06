@@ -48,13 +48,12 @@ function submit() {
 </script>
 
 <template>
-  <!-- One size whatever the step or the number of posts and videos, so the
-       window never jumps as the business moves through it; what does not
-       fit scrolls inside. -->
+  <!-- As tall as what it holds, up to most of the screen; a long list of
+       posts or videos scrolls inside. -->
   <UModal
     v-model:open="open"
     :title="t('monthly.requestMixedTitle')"
-    :ui="{ title: 'truncate text-base', content: 'sm:max-w-2xl', body: 'h-[65dvh] max-h-[560px] flex-none overflow-y-auto' }"
+    :ui="{ title: 'truncate text-base', content: 'sm:max-w-2xl', body: 'max-h-[65dvh] overflow-y-auto' }"
   >
     <template #body>
       <div v-if="hasSteps" class="mb-3 grid grid-cols-2 gap-2 text-xs font-semibold">
@@ -92,8 +91,10 @@ function submit() {
                 · {{ row.music ? t(`videoMusic.${row.music.source}`) : t('videoMusic.chooseMusic') }}
               </span>
             </p>
+            <p class="mb-1.5 text-xs font-semibold text-muted">{{ t('monthly.choosePlatform') }}</p>
             <ChannelButtons v-model="row.channel" :options="channelOptions" />
-            <VideoMusicChoice v-model="row.music" class="mt-2" />
+            <p class="mb-1.5 mt-3 text-xs font-semibold text-muted">{{ t('videoMusic.chooseMusic') }}</p>
+            <VideoMusicChoice v-model="row.music" />
           </div>
         </div>
       </Transition>
