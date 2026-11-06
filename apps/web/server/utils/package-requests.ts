@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
+import { isPersonName } from '../../shared/schemas/person-name'
 import { withUserTransaction } from './database'
 
 /**
@@ -9,7 +10,7 @@ import { withUserTransaction } from './database'
  */
 export const packageRequestPlatformSchema = z.enum(['instagram', 'facebook', 'both'])
 const packageRequestFields = z.object({
-  contactName: z.string().trim().min(2).max(120),
+  contactName: z.string().trim().min(2).max(120).refine(isPersonName),
   contactEmail: z.email().max(320),
   phone: z.string().trim().min(4).max(40),
   businessName: z.string().trim().min(2).max(120),
