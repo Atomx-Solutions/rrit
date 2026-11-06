@@ -531,8 +531,8 @@ async function setStatus(next: Post['status']) {
       confirmed.value = true
     }
     if (await transition(savedId.value, next)) {
+      // Approval ends here; the calendar opens only when Schedule post is chosen.
       notify(next === 'approved' ? t('content.postApprovedToast') : t('content.statusUpdatedToast'))
-      if (next === 'approved') scheduleOpen.value = true
     }
   } finally {
     statusChanging.value = null
@@ -849,7 +849,7 @@ onBeforeUnmount(() => {
             </li>
           </ul>
           <UCheckbox
-            v-if="post?.status === 'review' || post?.status === 'failed'"
+            v-if="!post || ['draft', 'review', 'failed'].includes(post.status)"
             v-model="confirmed"
             :label="t('coverage.checkedFacts')"
             :description="t('coverage.approvalVersion')"
@@ -932,10 +932,11 @@ onBeforeUnmount(() => {
             <UButton
               v-if="!post || post.status === 'draft'"
               variant="outline"
-              :disabled="!form.title || !form.caption || publishBlocked || syncing || !!statusChanging"
-              :loading="statusChanging === 'review'"
-              @click="setStatus('review')"
-              >{{ t('content.submitApproval') }}</UButton
+              icon="i-lucide-check"
+              :disabled="!form.title || !form.caption || !confirmed || checking || publishBlocked || syncing || !!statusChanging"
+              :loading="checking || statusChanging === 'approved'"
+              @click="setStatus('approved')"
+              >{{ t('content.approvePost') }}</UButton
             ><template v-if="post?.status === 'review'"
               ><UButton
                 variant="outline"

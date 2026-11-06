@@ -19,6 +19,10 @@ describe('workspace invariants', () => {
     const post = createDemo().posts.find((p) => p.status === 'draft')!
     expect(validateTransition(post, 'scheduled')).not.toBeNull()
   })
+  it('lets a draft be approved without a separate review step', () => {
+    const post = createDemo().posts.find((p) => p.status === 'draft' && p.policy !== 'block')!
+    expect(validateTransition(post, 'approved')).toBeNull()
+  })
   it('supports review, approval, schedule and unschedule', () => {
     const post = createDemo().posts[0]!
     expect(validateTransition(post, 'approved')).toBeNull()
