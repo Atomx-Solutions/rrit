@@ -24,7 +24,7 @@ function fakeDatabase(options: { lockFree?: boolean; expired?: number; failExpir
 describe('a round of package expiry', () => {
   it('ends the packages that are over in one short transaction', async () => {
     const { db, asked, release } = fakeDatabase({ expired: 2 })
-    await expect(runPackageExpiry(db)).resolves.toEqual({ expired: 2 })
+    await expect(runPackageExpiry(db)).resolves.toEqual({ expired: 2, trialCreditsExpired: 0 })
     expect(asked[0]).toBe('BEGIN')
     // A row another session holds is given up on, not waited for.
     expect(asked[1]).toMatch(/SET LOCAL lock_timeout/)
