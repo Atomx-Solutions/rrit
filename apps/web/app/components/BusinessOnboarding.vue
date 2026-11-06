@@ -6,7 +6,9 @@ import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 
 const { data, base, context, ready, applyBusiness, commit, syncing } = useWorkspace()
 const { setLocale, t, locale: activeLocale } = useI18n()
-const step = ref(context.value ? Math.min(data.value.onboarding, 2) : 0)
+// Two steps: the business, then its networks. A workspace that stopped on the
+// former third step (a summary) resumes on the networks.
+const step = ref(context.value ? Math.min(data.value.onboarding, 1) : 0)
 
 // Onboarding is the one signed-in screen with no way out. Somebody who opened
 // the wrong account, or whose workspace is gone, would otherwise be stuck here
@@ -66,7 +68,7 @@ watch(
     if (value) setLocale(value)
   },
 )
-const steps = computed(() => [t('onboarding.business'), t('onboarding.networks'), t('onboarding.firstStep')])
+const steps = computed(() => [t('onboarding.business'), t('onboarding.networks')])
 function addFact() {
   form.facts.push({
     id: crypto.randomUUID(),
@@ -135,16 +137,9 @@ async function next() {
         return
       clearRecovery()
       step.value = 1
-    } else if (step.value === 1) {
-      if (
-        await commit((d) => {
-          d.onboarding = 2
-        })
-      ) {
-        clearRecovery()
-        step.value = 2
-      }
     } else {
+      // The networks are the last step; the planner is where the first post
+      // is made, so saving them leads straight there.
       if (
         await commit((d) => {
           d.onboarding = 3
@@ -195,14 +190,14 @@ async function finishLater() {
       <h1 class="mt-4">
         {{
           [
-            t('onboarding.businessIntro'), t('onboarding.networksIntro'), t('onboarding.firstPostIntro'),
+            t('onboarding.businessIntro'), t('onboarding.networksIntro'),
           ][step]
         }}
       </h1>
       <p class="text-sm text-muted leading-relaxed mt-3">
         {{
           [
-            t('onboarding.businessDescription'), t('onboarding.networksDescription'), t('onboarding.firstPostDescription'),
+            t('onboarding.businessDescription'), t('onboarding.networksDescription'),
           ][step]
         }}
       </p>
@@ -276,38 +271,13 @@ async function finishLater() {
           </div>
         </UFormField>
       </template>
-      <template v-else-if="step === 1">
+      <template v-else>
         <LogoUpload />
         <div class="grid gap-3 sm:grid-cols-2">
           <SocialConnections compact />
           <InstagramConnection />
           <TikTokConnection />
         </div>
-      </template>
-      <template v-else>
-        <UCard :ui="{ body: 'p-5 space-y-4' }"
-          ><UUser
-            :name="data.brand.name"
-            :description="data.brand.city"
-            :avatar="{ alt: data.brand.name }"
-          /><USeparator />
-          <p class="text-sm leading-relaxed">{{ data.brand.description }}</p></UCard
-        >
-        <ol class="space-y-4">
-          <li
-            v-for="(item, index) in [
-              t('onboarding.firstPostStepOne'), t('onboarding.firstPostStepTwo'), t('onboarding.firstPostStepThree'),
-            ]"
-            :key="item"
-            class="flex gap-3 items-start text-sm leading-relaxed"
-          >
-            <UBadge color="neutral" variant="outline" class="shrink-0">{{ index + 1 }}</UBadge
-            >{{ item }}
-          </li>
-        </ol>
-        <p class="text-xs text-muted">
-          {{ t('onboarding.firstPostNote') }}
-        </p>
       </template>
       <div class="flex gap-3">
         <UButton
@@ -325,7 +295,7 @@ async function finishLater() {
           trailing-icon="i-lucide-arrow-right"
           class="flex-1 justify-center"
           >{{
-            step === 2 ? t('onboarding.createFirstPost') : step === 1 ? t('onboarding.saveContinue') : t('onboarding.continue')
+            step === 1 ? t('onboarding.saveContinue') : t('onboarding.continue')
           }}</UButton
         >
       </div>
