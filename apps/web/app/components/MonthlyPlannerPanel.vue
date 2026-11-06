@@ -897,7 +897,6 @@ onBeforeUnmount(() => clearInterval(timer))
               variant="outline"
               color="success"
               icon="i-lucide-book-open"
-              size="sm"
               class="flex-1 justify-center whitespace-nowrap rounded-md bg-default"
               @click="researchOpen = true"
             >
@@ -908,7 +907,6 @@ onBeforeUnmount(() => clearInterval(timer))
               class="flex-1 justify-center whitespace-nowrap"
               :color="onlyFailedVideos ? 'warning' : 'success'"
               :to="reviewPath"
-              size="sm"
               trailing-icon="i-lucide-arrow-right"
             >
               {{ t('legacy.reviewPosts') }}
