@@ -4,7 +4,7 @@ import { postSchema } from '../../../../shared/schemas/workspace'
 import { downloadAsset } from '../../../utils/asset-storage'
 import { conformDeliveredMedia } from '../../../utils/delivered-media'
 import {
-  decryptTikTokToken,
+  connectedTikTok,
   TikTokPhotoNotPermitted,
   uploadTikTokDraft,
   uploadTikTokPhotoDraft,
@@ -39,12 +39,8 @@ export default defineEventHandler(async (event) => {
     const row = await client.query<{ payload: unknown }>('SELECT payload FROM posts WHERE id=$1 AND business_id=$2', [id, business.id])
     if (!row.rows[0]) throw createError({ statusCode: 404, message: 'server.POST_NOT_FOUND' })
     const post = postSchema.parse(row.rows[0].payload)
-    const connection = await client.query<{ access_token_ciphertext: string; expires_at: Date; scopes: string[] }>(
-      "SELECT access_token_ciphertext,expires_at,scopes FROM tiktok_connections WHERE business_id=$1 AND status='connected'",
-      [business.id],
-    )
-    const tiktok = connection.rows[0]
-    if (!tiktok || tiktok.expires_at < new Date())
+    const tiktok = await connectedTikTok(business.id, client)
+    if (!tiktok)
       throw createError({ statusCode: 409, message: 'server.TIKTOK_CONNECTION_REQUIRED' })
     // The file TikTok receives, opened, measured and brought to its canvas
     // when it is not already on it.
@@ -63,7 +59,7 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 409, message: 'server.VIDEO_REQUIRED_FOR_TIKTOK' })
       if (!tiktok.scopes.includes('video.upload'))
         throw createError({ statusCode: 409, message: 'server.TIKTOK_CONNECTION_REQUIRED' })
-      return { kind: 'video' as const, path: render.rows[0].storage_path, token: decryptTikTokToken(tiktok.access_token_ciphertext, business.id) }
+      return { kind: 'video' as const, path: render.rows[0].storage_path, token: tiktok.token }
     }
     // The photo goes out on the TikTok canvas: the post's own image, or the
     // copy conformed to the canvas above.
@@ -79,7 +75,7 @@ export default defineEventHandler(async (event) => {
       title: post.title,
       caption: post.caption,
       canUpload: tiktok.scopes.includes('video.upload'),
-      token: decryptTikTokToken(tiktok.access_token_ciphertext, business.id),
+      token: tiktok.token,
     }
   })
 
