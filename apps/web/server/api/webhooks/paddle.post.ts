@@ -1,9 +1,12 @@
-import { paddleEnabled, paddleTransactionBuyer, paddleWebhookSecret, verifyPaddleSignature, type PaddleWebhookEnvelope } from '../../utils/paddle'
+import { paddleEnabled, paddleTransactionBuyer, paddleWebhookSecret, paddleWebhookSourceAllowed, verifyPaddleSignature, type PaddleWebhookEnvelope } from '../../utils/paddle'
 import { database } from '../../utils/database'
 
 export default defineEventHandler(async (event) => {
   if (!paddleEnabled())
     throw createError({ statusCode: 404, message: 'server.NOT_FOUND' })
+
+  if (!await paddleWebhookSourceAllowed(getHeader(event, 'x-vercel-forwarded-for')))
+    throw createError({ statusCode: 403, message: 'server.UNAUTHORIZED' })
 
   const rawBodyValue = await readRawBody(event, false)
   const rawBody = rawBodyValue == null
@@ -28,8 +31,10 @@ export default defineEventHandler(async (event) => {
   const data = payload.data as {
     id?: string
     status?: string
+    currency_code?: string
     custom_data?: { orderId?: string }
-    items?: Array<{ quantity?: number }>
+    details?: { totals?: { subtotal?: string } }
+    items?: Array<{ quantity?: number; price?: { quantity?: { minimum?: number; maximum?: number } } }>
   }
 
   // Read before the database transaction opens, so no lock waits on Paddle.
@@ -48,9 +53,20 @@ export default defineEventHandler(async (event) => {
     if (paid) {
       if (!data.id || !data.custom_data?.orderId)
         throw createError({ statusCode: 400, message: 'server.PADDLE_PAYMENT_REFERENCE_INVALID' })
+      // Only a one-line checkout whose price allows a range lets the customer
+      // change the quantity; a fixed line already matches the order.
+      const bounds = data.items?.length === 1 ? data.items[0]!.price?.quantity : undefined
+      if (bounds && bounds.minimum !== bounds.maximum)
+        await client.query(
+          `SELECT app.sync_paddle_adjusted_quantity($1,$2)`,
+          [data.custom_data.orderId, data.items![0]!.quantity || 1],
+        )
+      // Only the order's latest transaction, in its currency and for its
+      // amount, grants it; the subtotal is before discounts and tax.
+      const subtotal = data.details?.totals?.subtotal
       await client.query(
-        `SELECT app.sync_paddle_adjusted_quantity($1,$2)`,
-        [data.custom_data.orderId, data.items?.[0]?.quantity || 1],
+        `SELECT app.verify_paddle_payment($1,$2,$3,$4)`,
+        [data.custom_data.orderId, data.id, data.currency_code ?? null, subtotal && /^\d+$/.test(subtotal) ? subtotal : null],
       )
       await client.query(
         `SELECT app.process_paddle_payment($1,$2,$3)`,

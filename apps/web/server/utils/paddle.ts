@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import type { PaddlePackageLine } from './paddle-package-lines'
 
 export type PaddleWebhookEnvelope = {
   event_id: string
@@ -6,6 +7,10 @@ export type PaddleWebhookEnvelope = {
   occurred_at: string
   data: Record<string, unknown>
 }
+
+/** How long one Paddle API call may take before the request gives up on it. */
+export const PADDLE_REQUEST_TIMEOUT_MS = 10_000
+const paddleSignal = () => AbortSignal.timeout(PADDLE_REQUEST_TIMEOUT_MS)
 
 export function paddleEnabled() {
   return process.env.PADDLE_ENABLED === 'true'
@@ -19,10 +24,77 @@ export function paddleApiKey() {
   return process.env.PADDLE_API_KEY?.trim() || null
 }
 
+/** Live only when PADDLE_ENV is exactly "production"; anything else is sandbox. */
+export function paddleEnvironment(): 'production' | 'sandbox' {
+  return process.env.PADDLE_ENV === 'production' ? 'production' : 'sandbox'
+}
+
 export function paddleApiBaseUrl() {
-  return (process.env.PADDLE_ENV || 'sandbox') === 'production'
+  return paddleEnvironment() === 'production'
     ? 'https://api.paddle.com'
     : 'https://sandbox-api.paddle.com'
+}
+
+type Ipv4Range = { network: number; mask: number }
+let paddleWebhookIps: { ranges: Ipv4Range[]; expiresAt: number; environment: string } | null = null
+const PADDLE_IPS_TTL_MS = 5 * 60 * 1000
+const PADDLE_IPS_TIMEOUT_MS = 3000
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+
+function ipv4Number(value: string) {
+  const parts = IPV4.exec(value)?.slice(1).map(Number)
+  if (!parts || parts.some(part => part > 255)) return null
+  return ((parts[0]! << 24) | (parts[1]! << 16) | (parts[2]! << 8) | parts[3]!) >>> 0
+}
+
+/** Parses "a.b.c.d/n" (or a bare address) into a range; anything else is null. */
+export function ipv4Range(cidr: string): Ipv4Range | null {
+  const [address = '', bits = '32'] = cidr.split('/')
+  const network = ipv4Number(address)
+  const length = /^\d{1,2}$/.test(bits) ? Number(bits) : NaN
+  if (network === null || !(length >= 0 && length <= 32)) return null
+  const mask = length === 0 ? 0 : (0xFFFFFFFF << (32 - length)) >>> 0
+  return { network: (network & mask) >>> 0, mask }
+}
+
+async function fetchPaddleWebhookRanges() {
+  try {
+    const response = await fetch(`${paddleApiBaseUrl()}/ips`, { signal: AbortSignal.timeout(PADDLE_IPS_TIMEOUT_MS) })
+    if (!response.ok) throw new Error(`status ${response.status}`)
+    const payload = await response.json() as { data?: { ipv4_cidrs?: string[] } }
+    const ranges = (payload.data?.ipv4_cidrs || []).map(ipv4Range).filter((range): range is Ipv4Range => !!range)
+    if (!ranges.length) throw new Error('no usable IPv4 ranges')
+    return ranges
+  } catch (error) {
+    console.error('Paddle webhook IP list could not be loaded', error)
+    return null
+  }
+}
+
+/**
+ * Vercel overwrites this header with the request's public source IP. Paddle's
+ * published ranges are cached; when they cannot be reloaded the last list
+ * stays in use, so a short Paddle outage does not turn paid webhooks away.
+ */
+export async function paddleWebhookSourceAllowed(forwardedFor: string | undefined) {
+  if (process.env.VERCEL !== '1') return true
+  const source = forwardedFor?.split(',')[0]?.trim()
+  const address = source ? ipv4Number(source) : null
+  if (address === null) {
+    console.error(`Paddle webhook rejected: source "${source ?? ''}" is not an IPv4 address`)
+    return false
+  }
+
+  const environment = paddleEnvironment()
+  const cached = paddleWebhookIps?.environment === environment ? paddleWebhookIps : null
+  if (!cached || Date.now() >= cached.expiresAt) {
+    const ranges = await fetchPaddleWebhookRanges()
+    if (ranges) paddleWebhookIps = { ranges, expiresAt: Date.now() + PADDLE_IPS_TTL_MS, environment }
+    else if (!cached) return false
+  }
+  const allowed = paddleWebhookIps!.ranges.some(range => ((address & range.mask) >>> 0) === range.network)
+  if (!allowed) console.error(`Paddle webhook rejected: ${source} is not a published Paddle address`)
+  return allowed
 }
 
 export function paddleProductId() {
@@ -44,7 +116,7 @@ export async function paddleTransactionBuyer(transactionId: string) {
   try {
     const response = await fetch(
       `${paddleApiBaseUrl()}/transactions/${encodeURIComponent(transactionId)}?include=customer,address,business`,
-      { headers: { Authorization: `Bearer ${apiKey}` } },
+      { headers: { Authorization: `Bearer ${apiKey}` }, signal: paddleSignal() },
     )
     if (!response.ok) return null
     const payload = await response.json() as {
@@ -74,21 +146,14 @@ export async function paddleTransactionBuyer(transactionId: string) {
 
 let paddleTaxCategoryCache: { productId: string; taxCategory: string } | null = null
 
+/** The price name Paddle shows under each line: a recurring or a one-off charge. */
+const PADDLE_PRICE_NAMES = { recurring: 'Monthly', oneTime: 'One-time' } as const
+
 export async function createPaddleTransaction(input: {
-  amountCents: number
   currency: string
-  description: string
-  name: string
   recurring: boolean
-  quantity?: number
-  adjustableQuantity?: boolean
-  unitAmountCents?: number
-  lineItems?: Array<{
-    quantity: number
-    unitAmountCents: number
-    name: string
-    description: string
-  }>
+  adjustableQuantity: boolean
+  lineItems: PaddlePackageLine[]
   customData: Record<string, string>
 }) {
   const apiKey = paddleApiKey()
@@ -103,6 +168,7 @@ export async function createPaddleTransaction(input: {
     if (priceId) {
       const priceResponse = await fetch(`${paddleApiBaseUrl()}/prices/${encodeURIComponent(priceId)}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
+        signal: paddleSignal(),
       })
       const pricePayload = await priceResponse.json().catch(() => null) as {
         data?: { product_id?: string }
@@ -120,6 +186,7 @@ export async function createPaddleTransaction(input: {
   if (!taxCategory) {
     const productResponse = await fetch(`${paddleApiBaseUrl()}/products/${encodeURIComponent(productId)}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
+      signal: paddleSignal(),
     })
     const productPayload = await productResponse.json().catch(() => null) as {
       data?: { tax_category?: string }
@@ -132,23 +199,19 @@ export async function createPaddleTransaction(input: {
   const response = await fetch(`${paddleApiBaseUrl()}/transactions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    signal: paddleSignal(),
     body: JSON.stringify({
       collection_mode: 'automatic',
       currency_code: input.currency,
-      items: (input.lineItems?.length ? input.lineItems : [{
-        quantity: input.quantity ?? 1,
-        unitAmountCents: input.unitAmountCents ?? input.amountCents,
-        name: input.name,
-        description: input.description,
-      }]).map((line) => ({
+      items: input.lineItems.map(line => ({
         quantity: line.quantity,
         price: {
           description: line.description,
-          name: input.recurring ? 'Monthly' : 'One-time',
+          name: input.recurring ? PADDLE_PRICE_NAMES.recurring : PADDLE_PRICE_NAMES.oneTime,
           product: { name: line.name, description: line.description, tax_category: taxCategory },
           quantity: {
             minimum: input.adjustableQuantity ? 1 : line.quantity,
-            maximum: input.adjustableQuantity ? 100000 : line.quantity,
+            maximum: input.adjustableQuantity ? line.maximum : line.quantity,
           },
           billing_cycle: input.recurring ? { interval: 'month', frequency: 1 } : null,
           tax_mode: 'account_setting',
