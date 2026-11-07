@@ -25,6 +25,7 @@ const titles = {
       >
       <template v-else-if="kind === 'refund'"
         ><h2>{{ t('policy.refundPaymentTitle') }}</h2><p>{{ t('policy.refundPaymentDescription') }}</p>
+        <h2>{{ t('policy.refundCancelTitle') }}</h2><p>{{ t('policy.refundCancelDescription') }}</p>
         <h2>{{ t('policy.refundWindowTitle') }}</h2><p>{{ t('policy.refundWindowDescription') }}</p>
         <h2>{{ t('policy.refundUsedTitle') }}</h2><p>{{ t('policy.refundUsedDescription') }}</p>
         <h2>{{ t('policy.refundExpiryTitle') }}</h2><p>{{ t('policy.refundExpiryDescription') }}</p>

@@ -25,6 +25,30 @@ export function paddleApiBaseUrl() {
     : 'https://sandbox-api.paddle.com'
 }
 
+let paddleWebhookIps: { addresses: Set<string>; expiresAt: number; environment: string } | null = null
+
+/** Vercel overwrites this header with the request's public source IP. */
+export async function paddleWebhookSourceAllowed(forwardedFor: string | undefined) {
+  if (process.env.VERCEL !== '1') return true
+  const source = forwardedFor?.split(',')[0]?.trim()
+  if (!source || !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(source)) return false
+
+  const environment = process.env.PADDLE_ENV === 'production' ? 'production' : 'sandbox'
+  if (!paddleWebhookIps || paddleWebhookIps.environment !== environment || Date.now() >= paddleWebhookIps.expiresAt) {
+    const response = await fetch(`${paddleApiBaseUrl()}/ips`, { signal: AbortSignal.timeout(3000) })
+    if (!response.ok) return false
+    const payload = await response.json() as { data?: { ipv4_cidrs?: string[] } }
+    const cidrs = payload.data?.ipv4_cidrs
+    if (!Array.isArray(cidrs) || !cidrs.length) return false
+    paddleWebhookIps = {
+      addresses: new Set(cidrs.filter(cidr => /^\d{1,3}(?:\.\d{1,3}){3}\/32$/.test(cidr)).map(cidr => cidr.slice(0, -3))),
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      environment,
+    }
+  }
+  return paddleWebhookIps.addresses.has(source)
+}
+
 export function paddleProductId() {
   return process.env.PADDLE_PRODUCT_ID?.trim() || null
 }
