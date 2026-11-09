@@ -327,6 +327,17 @@ const awaitingTitle = computed(() => {
 const batchCompleted = computed(() =>
   Math.max(0, Math.min(plan.value?.batch?.completed ?? plan.value?.completed ?? 0, batchTotal.value)),
 )
+// The posts of the request in work or just finished, oldest first: the plan's
+// newest posts, as many as the request has produced.
+const batchPosts = computed(() =>
+  [...planPosts.value]
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    .slice(0, batchCompleted.value)
+    .reverse(),
+)
+// Videos still rendering keep the progress view: the request is not done until
+// they are, and the form to ask for more would only get in the way.
+const working = computed(() => active.value || videosRendering.value > 0)
 const automaticRecoveryCodes = [
   'PROVIDER_TEMPORARY',
   'PROVIDER_RATE_LIMITED',
@@ -346,7 +357,8 @@ const recovering = computed(
     (!planner.value?.workerAlive || automaticRecoveryCodes.includes(plan.value?.errorCode || '')),
 )
 const phaseIndex = computed(() => {
-  if (ready.value) return phases.length
+  if (ready.value && !videosRendering.value) return phases.length
+  if (!active.value && videosRendering.value) return phases.length - 1
   return Math.max(
     0,
     phases.findIndex((phase) => phase.key === plan.value?.stage),
@@ -354,6 +366,11 @@ const phaseIndex = computed(() => {
 })
 
 const activeCopy = computed(() => {
+  if (!active.value && videosRendering.value)
+    return {
+      title: t(videosRendering.value === 1 ? 'monthly.videoRenderingTitleOne' : 'monthly.videoRenderingTitleMany', { count: videosRendering.value }),
+      description: t(videosRendering.value === 1 ? 'monthly.videoRenderingDescriptionOne' : 'monthly.videoRenderingDescriptionMany'),
+    }
   if (recovering.value)
     return {
       title: t('monthly.recoveringTitle'),
@@ -519,7 +536,7 @@ onBeforeUnmount(() => clearInterval(timer))
               {{ t('monthly.heading') }}
             </h2>
             <p v-if="planner" class="mt-1 max-w-2xl text-xs leading-5 text-muted">
-              {{ t('monthly.description', { limit: planner.limit }) }}
+              {{ t('monthly.description') }}
             </p>
             <p v-else class="mt-1 text-sm text-muted">{{ t('monthly.checkingService') }}</p>
           </div>
@@ -694,7 +711,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
     </div>
 
-    <div v-else-if="active && plan" class="border-t border-default p-4" aria-live="polite">
+    <div v-else-if="working && plan" class="border-t border-default p-4" aria-live="polite">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="flex items-start gap-3">
           <div
@@ -705,7 +722,7 @@ onBeforeUnmount(() => clearInterval(timer))
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <UBadge :color="recovering ? 'warning' : 'primary'" variant="subtle">
-                {{ recovering ? t('monthly.recoveringShort') : t('monthly.workingShort') }}
+                {{ recovering ? t('monthly.recoveringShort') : !active ? t('monthly.videoRendering') : t('monthly.workingShort') }}
               </UBadge>
               <span class="text-xs text-muted">{{ t('monthly.leavePage') }}</span>
             </div>
@@ -717,23 +734,6 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
 
       <UProgress class="mt-5" :model-value="batchCompleted" :max="batchTotal" size="sm" />
-      <div
-        v-if="plan.stage === 'content'"
-        class="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4"
-      >
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <strong class="text-sm text-highlighted">
-            {{ t('monthly.postProgress', { current: Math.min(batchCompleted + 1, batchTotal), total: batchTotal }) }}
-          </strong>
-          <span class="text-xs text-muted">{{ t('monthly.noAutoRegeneration') }}</span>
-        </div>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <UBadge color="neutral" variant="subtle">{{ t('legacy.oneCopy') }}</UBadge>
-          <UBadge color="neutral" variant="subtle">{{ t('legacy.aiImage') }}</UBadge>
-          <UBadge color="neutral" variant="subtle">{{ t('legacy.check') }}</UBadge>
-          <UBadge color="success" variant="subtle">{{ t('monthly.firstDraftSaved') }}</UBadge>
-        </div>
-      </div>
       <p
         v-if="plan.completed === 0 && plan.stage !== 'content'"
         class="mt-2 text-xs leading-5 text-muted"
@@ -776,6 +776,14 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
         </div>
       </div>
+
+      <PlannerBatchList
+        v-if="batchPosts.length || plan.stage === 'content'"
+        class="mt-4"
+        :posts="batchPosts"
+        :pending="active ? Math.max(0, batchTotal - batchPosts.length) : 0"
+        :working="active"
+      />
 
       <div
         v-if="plan.stage === 'research' && !plan.research"
@@ -861,16 +869,16 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
             <div class="min-w-0">
               <h3 class="text-sm font-semibold text-highlighted">{{ t('monthly.generateMoreTitle') }}</h3>
-              <p class="mt-0.5 text-xs text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
             </div>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
-              <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
+              <LiveInputNumber v-model="selectedQuantity" size="lg" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
             <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
               <LiveInputNumber
-                v-model="selectedVideoQuantity"
+v-model="selectedVideoQuantity"
+                size="lg"
                 :min="0"
                 :max="maxVideosThisBatch"
                 class="w-full"
@@ -951,6 +959,9 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
         </section>
       </div>
+      <!-- The drafts run under both cards, full width, so neither card grows
+           taller than the other and leaves empty space. -->
+      <PlannerBatchStrips v-if="batchPosts.length" class="mt-3" :posts="batchPosts" />
     </div>
     <div v-else-if="ready && plan && !configuringMore" class="border-t border-default p-4">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-success/5 p-4">
@@ -985,6 +996,9 @@ onBeforeUnmount(() => clearInterval(timer))
           </UButton>
         </div>
       </div>
+      <div v-if="batchPosts.length" class="mt-3">
+        <PlannerBatchStrips :posts="batchPosts" />
+      </div>
       <div
         v-if="extendable"
         class="mt-3 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between"
@@ -995,17 +1009,17 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
           <div class="min-w-0">
             <p class="text-sm font-semibold text-highlighted">{{ t('monthly.generateMoreTitle') }}</p>
-            <p class="text-xs leading-5 text-muted">{{ t('monthly.generateMoreHint', { count: remainingPosts }) }}</p>
           </div>
         </div>
         <div class="flex w-full flex-col gap-2 lg:flex-row lg:items-end xl:w-auto xl:shrink-0">
           <div class="grid w-full grid-cols-2 gap-2 rounded-xl border border-primary/10 bg-default/70 p-2 sm:w-[28rem] lg:shrink-0">
             <UFormField :label="t('monthly.postSelectionCount', { selected: selectedQuantity, total: remainingPosts })" size="xs" class="min-w-0">
-              <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
+              <LiveInputNumber v-model="selectedQuantity" size="lg" :min="0" :max="remainingPosts" class="w-full" />
             </UFormField>
             <UFormField :label="t('monthly.videoSelectionCount', { selected: selectedVideoQuantity, total: remainingVideos })" size="xs" class="min-w-0">
               <LiveInputNumber
-                v-model="selectedVideoQuantity"
+v-model="selectedVideoQuantity"
+                size="lg"
                 :min="0"
                 :max="maxVideosThisBatch"
                 class="w-full"
@@ -1054,7 +1068,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <UIcon name="i-lucide-sparkles" class="size-4" />
           </div>
           <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
-          <LiveInputNumber v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
+          <LiveInputNumber v-model="selectedQuantity" size="lg" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
         </div>
         <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -1062,7 +1076,8 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
           <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('video.include') }}</p>
           <LiveInputNumber
-            v-model="selectedVideoQuantity"
+v-model="selectedVideoQuantity"
+            size="lg"
             :min="0"
             :max="maxVideosThisBatch"
             class="w-24 shrink-0"
