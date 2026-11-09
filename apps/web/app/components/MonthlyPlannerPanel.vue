@@ -19,6 +19,14 @@ watch(loadError, (value) => {
   if (value) showError(t('monthly.serverUnavailableDescription'), 'warning')
 }, { immediate: true })
 const researchOpen = ref(false)
+// The plan window covers the whole page, so Back is read as closing it: the
+// page stays and the window closes. Without this the address changed while
+// the window stayed on screen over the page Back led to.
+onBeforeRouteLeave(() => {
+  if (!researchOpen.value) return
+  researchOpen.value = false
+  return false
+})
 const resetOpen = ref(false)
 // A follow-up batch gets its own photo decision. It must not inherit the
 // first batch's allow-list, otherwise a customer cannot use newer or simply
