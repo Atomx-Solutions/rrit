@@ -532,6 +532,18 @@ td {
   width: min(100%, 440px);
   margin: auto;
 }
+/* Side by side, the story keeps the height of the screen instead of the form
+   beside it, so a longer form (sign-up) does not push the story lower than on
+   sign-in: both pages place it at the same height. */
+@media (min-width: 761px) {
+  .auth-story {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    overflow-y: auto;
+    align-self: start;
+  }
+}
 .auth-story h2 {
   font-size: clamp(36px, 3vw, 46px);
   line-height: 1.15;

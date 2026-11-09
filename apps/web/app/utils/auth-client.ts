@@ -91,6 +91,11 @@ function createAuthClient(scope: AuthScope) {
       const result = await auth().getSession()
       return { data: result.data, ...errorResult(result.error) }
     },
+    /** Whether this browser holds a signed-in session. */
+    async hasSession() {
+      const result = await auth().getSession()
+      return Boolean(result.data.session)
+    },
     /** Whether the signed-in person accepted the terms; null without a session. */
     async termsAccepted() {
       const result = await auth().getSession()

@@ -309,7 +309,9 @@ export type Strategy = z.infer<typeof strategySchema>
 
 export function validateTransition(post: Post, next: Post['status']): string | null {
   const allowed: Record<Post['status'], Post['status'][]> = {
-    draft: ['review'],
+    // The person who wrote a draft can approve it in one step; review stays
+    // for drafts the planner hands over for approval.
+    draft: ['review', 'approved'],
     review: ['approved', 'draft'],
     approved: ['scheduled', 'draft'],
     scheduled: ['approved'],

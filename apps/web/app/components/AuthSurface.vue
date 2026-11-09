@@ -4,6 +4,7 @@ import { authClient } from '~/utils/auth-client'
 import { safeRedirect } from '~~/shared/utils/format'
 import { hasPasswordSymbol, PASSWORD_MIN_LENGTH } from '~/utils/password-policy'
 import { workspaceHomeDestination } from '~/utils/workspace-home'
+import { isPersonName, keepPersonNameCharacters } from '~~/shared/schemas/person-name'
 
 const props = defineProps<{
   mode: 'login' | 'signup' | 'forgot' | 'reset' | 'verify' | 'callback'
@@ -13,11 +14,23 @@ const { t } = useI18n()
 const { data: capabilities } = await useFetch('/api/capabilities')
 const pendingEmail = useState('pending-verification-email', () => '')
 const state = reactive({ name: '', email: pendingEmail.value, password: '', confirm: '' })
+// Digits and symbols are taken out of the field itself, as they are typed, and
+// the field says why they did not appear (the same rule as the package form).
+const nameRefused = ref(false)
+function keepNameLetters(event: Event) {
+  const input = event.target as HTMLInputElement
+  const letters = keepPersonNameCharacters(input.value)
+  nameRefused.value = letters !== input.value
+  if (!nameRefused.value) return
+  input.value = letters
+  state.name = letters
+}
 const schema = z
   .object({
     name:
       props.mode === 'signup'
         ? z.string().trim().min(2, t('auth.validationName')).max(100)
+          .refine(isPersonName, t('request.nameInvalid'))
         : z.string(),
     email: props.mode === 'reset' ? z.string() : z.email(t('auth.validationEmail')),
     password: ['login', 'signup', 'reset'].includes(props.mode)
@@ -324,7 +337,12 @@ async function continueWithGoogle() {
     @submit="submit"
     @error="onFormError"
   >
-    <UFormField v-if="mode === 'signup'" :label="t('settings.fullName')" name="name" required
+    <UFormField
+      v-if="mode === 'signup'"
+      :label="t('settings.fullName')"
+      name="name"
+      :error="nameRefused ? t('request.nameInvalid') : undefined"
+      required
       ><UInput
         v-model="state.name"
         :disabled="!hydrated || busy"
@@ -332,6 +350,7 @@ async function continueWithGoogle() {
         class="w-full"
         :placeholder="t('auth.namePlaceholder')"
         maxlength="100"
+        @input="keepNameLetters"
     /></UFormField>
     <UFormField v-if="mode !== 'reset'" :label="t('common.email')" name="email" required
       ><UInput

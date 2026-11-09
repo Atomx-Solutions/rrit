@@ -94,16 +94,10 @@ async function downloadViewerPost() {
     // image, so a static post keeps the exact behaviour it had before.
     const isVideo = viewerPost.value.video?.status === 'ready' && !!viewerVideoUrl.value
     const source = isVideo ? viewerVideoUrl.value! : viewerPost.value.image
-    const extension = isVideo ? 'mp4' : 'jpg'
     const response = await fetch(source, { credentials: 'include' })
     if (!response.ok) throw new Error('download failed')
     const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `${viewerPost.value.title || 'framic-post'}.${extension}`
-    anchor.click()
-    URL.revokeObjectURL(url)
+    saveFile(blob, viewerPost.value.title || 'framic-post', isVideo ? 'video/mp4' : 'image/jpeg')
   } finally {
     downloading.value = false
   }
