@@ -1,15 +1,21 @@
 <script setup lang="ts">
 import '~/assets/css/landing.css'
 import '~/assets/css/landing-scenes.css'
+import { hasStoredSession } from '~/utils/stored-session'
 import { imageFallback, imageSrcset, landingPosterSizes } from '~~/shared/utils/responsive-image'
 definePageMeta({
   layout: 'public',
+  // Every string here comes from t(), so the DOM translator has nothing to do.
+  domTranslation: false,
   // Typing the address or opening it in a new tab while signed in leads back to
   // the workspace. Following a link to the landing from inside the app (the
   // logo) still shows it, so a signed-in person can read it.
   middleware: [
     async (to, from) => {
       if (import.meta.server || to.fullPath !== from.fullPath) return
+      // Without a session cookie there is nothing to redirect to, and the
+      // Supabase SDK stays off the landing page.
+      if (!hasStoredSession()) return
       const { authClient } = await import('~/utils/auth-client')
       // A full load: a second in-app redirect (/app to the workspace) started
       // while the landing is still hydrating changes the address but leaves
@@ -23,21 +29,20 @@ useLandingMotion(landingRoot)
 const { t } = useI18n()
 const requestUrl = useRequestURL()
 const { capabilities } = useLandingOffer()
-// Every hero poster is above the fold and the deck animation can bring any of
-// them forward, so all three are discoverable from the HTML. The space poster
-// is the largest painted element, so it carries the priority hint.
-const heroPosters = ['/images/interior.webp', '/images/table.webp', '/images/burger.webp']
+// The space poster is the largest painted element, so it alone is preloaded
+// with the priority hint. The other two posters are <img> tags in the same
+// server-rendered HTML, which the browser finds without a preload; preloading
+// them too split the mobile bandwidth the largest paint was waiting on.
+const heroPoster = '/images/interior.webp'
 useHead({
-  link: [
-    ...heroPosters.map((poster, index) => ({
-      rel: 'preload' as const,
-      as: 'image' as const,
-      href: imageFallback(poster),
-      imagesrcset: imageSrcset(poster),
-      imagesizes: landingPosterSizes,
-      fetchpriority: index === 0 ? ('high' as const) : ('auto' as const),
-    })),
-  ],
+  link: [{
+    rel: 'preload',
+    as: 'image',
+    href: imageFallback(heroPoster),
+    imagesrcset: imageSrcset(heroPoster),
+    imagesizes: landingPosterSizes,
+    fetchpriority: 'high',
+  }],
 })
 const ogImageUrl = computed(() => new URL('/og-image.png?v=3', requestUrl).toString())
 const structuredData = computed(() => JSON.stringify({
@@ -236,23 +241,19 @@ const questions = computed(() => [
             >
           </div>
           <div class="landing-faq-answers">
-            <UAccordion
-              :items="questions"
-              trailing-icon="i-lucide-plus"
-              :ui="{
-                root: 'landing-faq-accordion',
-                item: 'landing-faq-item',
-                trigger: 'landing-faq-trigger',
-                trailingIcon: 'landing-faq-toggle',
-                body: 'landing-faq-body',
-              }"
-            >
-              <template #leading="{ index }"
-                ><span class="landing-faq-number" aria-hidden="true"
-                  >0{{ index + 1 }}</span
-                ></template
-              >
-            </UAccordion>
+            <!-- Native disclosure rather than UAccordion: it needs no script,
+                 and the accordion measured every answer on mount, a forced
+                 layout that was the landing's longest task on mobile. -->
+            <div class="landing-faq-accordion">
+              <details v-for="(question, index) in questions" :key="question.label" class="landing-faq-item">
+                <summary class="landing-faq-trigger">
+                  <span class="landing-faq-number" aria-hidden="true">0{{ index + 1 }}</span>
+                  <span class="landing-faq-label">{{ question.label }}</span>
+                  <UIcon name="i-lucide-plus" class="landing-faq-toggle" />
+                </summary>
+                <p class="landing-faq-body">{{ question.content }}</p>
+              </details>
+            </div>
           </div>
         </div>
       </UContainer>

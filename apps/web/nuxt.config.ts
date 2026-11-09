@@ -64,6 +64,10 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/eslint', '@vercel/speed-insights'],
   css: ['@fontsource-variable/inter', '~/assets/css/main.css'],
   devtools: { enabled: false },
+  // Inline the global stylesheet into the server-rendered HTML as well as each
+  // component's styles, so the first paint does not wait on a separate
+  // render-blocking request for entry.css.
+  features: { inlineStyles: true },
   experimental: {
     // Prefetching every link as it scrolls into view downloaded the login and
     // dashboard code (Supabase, zod) on the landing page before anyone asked
@@ -117,11 +121,11 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'de-CH' },
       title: 'Framic — KI-Marketing für Deutschland, Österreich und die Schweiz',
       meta: [
-        // iOS zooms into any field set below 16px when it is focused and does
-        // not zoom back out; a fixed scale keeps the app at its designed size.
+        // iOS keeps its no-zoom scale from plugins/ios-field-zoom.client.ts;
+        // elsewhere pinch-zoom stays available.
         {
           name: 'viewport',
-          content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
+          content: 'width=device-width, initial-scale=1, viewport-fit=cover',
         },
         {
           name: 'description',

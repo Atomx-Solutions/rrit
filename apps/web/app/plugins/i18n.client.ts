@@ -168,7 +168,7 @@ export default defineNuxtPlugin(() => {
     // Let Vue finish hydration before mutating rendered text nodes. The
     // dictionaries this needs are fetched here rather than up front, so they
     // stay off the first paint's critical path.
-    window.setTimeout(async () => {
+    const start = () => window.setTimeout(async () => {
       await refresh()
       observer = new MutationObserver(handle)
       observer.observe(document.body, {
@@ -180,6 +180,19 @@ export default defineNuxtPlugin(() => {
       })
       window.addEventListener('rrit-locale-change', () => void refresh())
     }, 50)
+    // A page whose text all comes from t() (the landing) has nothing for this
+    // to translate, so it waits for the first page that may, rather than
+    // downloading two dictionaries on the landing page.
+    const router = useRouter()
+    if (router.currentRoute.value.meta.domTranslation !== false) {
+      start()
+      return
+    }
+    const stop = router.afterEach((to) => {
+      if (to.meta.domTranslation === false) return
+      stop()
+      start()
+    })
   })
   return {
     provide: {
