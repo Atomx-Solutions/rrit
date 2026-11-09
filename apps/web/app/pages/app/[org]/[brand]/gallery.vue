@@ -374,7 +374,7 @@ async function saveMetadata() {
             class="min-w-0 flex-1 sm:w-80 sm:flex-none"
           />
           <div class="ml-auto flex shrink-0 items-center gap-2">
-            <LogoUpload compact class="shrink-0" />
+            <LazyLogoUpload compact class="shrink-0" />
             <UButton variant="outline" icon="i-lucide-image-plus" class="shrink-0" :aria-label="t('gallery.uploadPhotos')" @click="openUpload">
               <span class="hidden sm:inline">{{ t('gallery.uploadPhotos') }}</span>
             </UButton>

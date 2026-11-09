@@ -6,7 +6,6 @@ import {
 } from '~~/shared/schemas/workspace'
 import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 import type { Brand } from '~~/shared/schemas/brand'
-import { authClient } from '~/utils/auth-client'
 
 export function useWorkspace() {
   const { t } = useI18n()
@@ -50,6 +49,7 @@ export function useWorkspace() {
         problem.statusCode === 401 &&
         problem.data?.code === 'AUTH_REQUIRED'
       ) {
+        const { authClient } = await import('~/utils/auth-client')
         const refreshed = await authClient.refreshSession().catch(() => null)
         if (!refreshed?.error && refreshed?.data.session) result = await request()
         else throw error

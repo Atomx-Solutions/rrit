@@ -2,7 +2,6 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { navigation } from '~/data/navigation'
 import { dashboardKey } from '~/utils/dashboard'
-import { authClient } from '~/utils/auth-client'
 import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 const { data, base, ready, context, conflict, reload, exportData } = useWorkspace()
 // The business settings decide the client app's language. A cookie left by an
@@ -18,6 +17,8 @@ watch(
 const toast = useToast()
 const { ask: requestPackage } = useBillingRequest()
 async function signOut() {
+  // Loaded on demand so the Supabase SDK stays off the dashboard's first paint.
+  const { authClient } = await import('~/utils/auth-client')
   const result = await authClient.signOut()
   if (result.error) {
     toast.add({ title: t('dashboard.signOutFailed'), color: 'error' })
