@@ -155,6 +155,10 @@ const filterTabs = computed(() => [
   { label: t('gallery.originalAssets'), value: 'original' },
 ])
 const { page, pageSize, total, paginated } = usePagination(assets)
+// The first rows are on screen at load and hold the page's largest paint, so
+// they load at once instead of waiting for lazy-loading's layout pass. Rows
+// further down stay lazy so a long page does not compete for bandwidth.
+const aboveFoldRows = 4
 watch(query, () => {
   page.value = 1
 })
@@ -400,7 +404,7 @@ async function saveMetadata() {
     <UCard v-if="assets.length" :ui="{ body: 'p-0 sm:p-0' }">
       <div class="divide-y divide-default">
         <article
-          v-for="asset in paginated"
+          v-for="(asset, index) in paginated"
           :key="asset.id"
           class="flex items-center gap-3 sm:gap-4 p-4 sm:p-5"
         >
@@ -423,6 +427,8 @@ async function saveMetadata() {
               class="size-full"
               width="64"
               height="64"
+              :loading="index < aboveFoldRows ? 'eager' : 'lazy'"
+              :fetchpriority="index < aboveFoldRows ? 'high' : 'auto'"
             />
             <MediaImage
               v-else
@@ -432,6 +438,8 @@ async function saveMetadata() {
                 class="size-full"
                 width="64"
                 height="64"
+                :loading="index < aboveFoldRows ? 'eager' : 'lazy'"
+                :fetchpriority="index < aboveFoldRows ? 'high' : 'auto'"
               />
           </UButton>
           <div class="min-w-0 flex-1">

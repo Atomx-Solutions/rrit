@@ -7,6 +7,7 @@ const props = withDefaults(
     width?: string | number
     height?: string | number
     loading?: 'eager' | 'lazy'
+    fetchpriority?: 'high' | 'low' | 'auto'
     fit?: 'cover' | 'contain' | 'natural'
     // A viewer that supplies its own backdrop needs the frame to disappear:
     // otherwise the placeholder surface is painted across the whole stage and
@@ -15,6 +16,7 @@ const props = withDefaults(
   }>(),
   {
     loading: 'lazy',
+    fetchpriority: 'auto',
     src: '',
     width: undefined,
     height: undefined,
@@ -50,6 +52,7 @@ watch(
       :width="width"
       :height="height"
       :loading="loading"
+      :fetchpriority="fetchpriority"
       :class="
         fit === 'natural'
           ? 'block size-auto max-h-full max-w-full object-contain'

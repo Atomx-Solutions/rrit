@@ -7,10 +7,19 @@ const props = withDefaults(
     width?: string | number
     height?: string | number
     loading?: 'eager' | 'lazy'
+    fetchpriority?: 'high' | 'low' | 'auto'
     fit?: 'cover' | 'contain' | 'natural'
     surface?: boolean
   }>(),
-  { alt: '', width: undefined, height: undefined, loading: 'lazy', fit: 'cover', surface: true },
+  {
+    alt: '',
+    width: undefined,
+    height: undefined,
+    loading: 'lazy',
+    fetchpriority: 'auto',
+    fit: 'cover',
+    surface: true,
+  },
 )
 const { t } = useI18n()
 // A post is treated as a playable video only when its structured brief says the
@@ -29,6 +38,7 @@ const isFailedVideo = computed(() => videoStatus.value === 'failed')
       :width="width"
       :height="height"
       :loading="loading"
+      :fetchpriority="fetchpriority"
       :fit="fit"
       :surface="surface"
       class="size-full"
