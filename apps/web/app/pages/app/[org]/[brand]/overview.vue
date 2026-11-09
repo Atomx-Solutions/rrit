@@ -38,18 +38,21 @@ const upcoming = computed(() =>
 const chartDays = 14
 const chartBaseline = 40
 
+// Building an Intl.DateTimeFormat is slow on a phone, so keep one per timezone.
+const dateKeyFormatters = new Map<string, Intl.DateTimeFormat>()
 function dateKey(value: Date | string, timezone: string) {
-  const date = typeof value === 'string' ? new Date(value) : value
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
+  let formatter = dateKeyFormatters.get(timezone)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: timezone,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     })
-      .formatToParts(date)
-      .map((part) => [part.type, part.value]),
-  )
+    dateKeyFormatters.set(timezone, formatter)
+  }
+  const date = typeof value === 'string' ? new Date(value) : value
+  const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]))
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 
@@ -74,15 +77,20 @@ function activityDateLabel(key: string, timezone: string) {
 const activity = computed(() => {
   const timezone = data.value.preferences.timezone
   const today = new Date()
+  // Count posts per day once, instead of re-reading every post for each day.
+  const postsPerDay = new Map<string, number>()
+  for (const post of data.value.posts) {
+    const source = contentActivityDate(post)
+    if (!source) continue
+    const key = dateKey(source, timezone)
+    postsPerDay.set(key, (postsPerDay.get(key) || 0) + 1)
+  }
   const days = Array.from({ length: chartDays }, (_, index) => {
     const date = new Date(today)
     date.setHours(12, 0, 0, 0)
     date.setDate(date.getDate() - (chartDays - index - 1))
     const key = dateKey(date, timezone)
-    const value = data.value.posts.filter((post) => {
-      const source = contentActivityDate(post)
-      return source ? dateKey(source, timezone) === key : false
-    }).length
+    const value = postsPerDay.get(key) || 0
 
     return {
       key,
