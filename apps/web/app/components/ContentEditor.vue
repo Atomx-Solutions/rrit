@@ -28,6 +28,10 @@ const { data: capabilities } = await useFetch('/api/capabilities')
 const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const { data: tiktokStatus } = await useFetch('/api/tiktok/status', { key: 'tiktok-status' })
 const { data: instagramStatus } = await useFetch('/api/instagram/status', { key: 'instagram-status' })
+// A TikTok post is published directly once the connection allows it; until
+// then it is handed over as a draft the account holder finishes in the app.
+const tiktokDirect = computed(() => !!tiktokStatus.value?.connection?.canPublish)
+const tiktokSettings = ref<{ save: () => Promise<boolean> } | null>(null)
 const existing = computed(() => data.value.posts.find((p) => p.id === props.id))
 // A post whose video could not be made, or whose content the checks blocked,
 // has nothing that may be published: it cannot go for approval, be approved,
@@ -184,7 +188,7 @@ async function publishNow() {
       error.value ||= t(form.channel === 'TikTok' ? 'content.tiktokNotConfirmed' : 'content.metaNotConfirmed')
       return
     }
-    if (form.channel === 'TikTok') {
+    if (form.channel === 'TikTok' && !tiktokDirect.value) {
       const sent = await $fetch(`/api/posts/${post.value.id}/tiktok-upload`, { method: 'POST', body: {}, retry: 0 })
       publishOpen.value = false
       await initLive()
@@ -192,6 +196,7 @@ async function publishNow() {
       // business to post by hand; it is said so, never reported as sent.
       notify(t(sent.mode === 'manual' ? 'tiktok.photoManual' : post.value.video ? 'tiktok.uploadSucceeded' : 'tiktok.photoSent'))
     } else {
+      if (form.channel === 'TikTok' && !(await tiktokSettings.value?.save())) return
       await $fetch(`/api/posts/${post.value.id}/publish`, {
         method: 'POST',
         body: { confirmed: true, version: post.value.version },
@@ -199,7 +204,9 @@ async function publishNow() {
       })
       publishOpen.value = false
       await initLive()
-      notify(t('content.publishQueued'))
+      // TikTok processes a direct post after it is sent, so it is not on the
+      // profile at once; the business is told so instead of looking for it.
+      notify(t(form.channel === 'TikTok' ? 'tiktok.directPostProcessing' : 'content.publishQueued'))
     }
   } catch (problem) {
     error.value = t(
@@ -548,6 +555,10 @@ async function schedulePost() {
   }
   scheduleBusy.value = true
   try {
+    if (automatic.value && form.channel === 'TikTok' && !(await tiktokSettings.value?.save())) {
+      scheduleError.value = t('tiktokSettings.incomplete')
+      return
+    }
     if (automatic.value && !(await checkPost('publication'))) {
       scheduleError.value =
         error.value || t('content.automaticRequirements')
@@ -950,7 +961,7 @@ onBeforeUnmount(() => {
               ></template
             ><template v-if="post?.status === 'approved'"
               ><UButton variant="outline" icon="i-lucide-send" :disabled="publishBlocked" @click="publishOpen = true"
-                >{{ form.channel === 'TikTok' ? t('content.sendToTikTok') : t('content.publishNow') }}</UButton
+                >{{ form.channel === 'TikTok' && !tiktokDirect ? t('content.sendToTikTok') : t('content.publishNow') }}</UButton
               ><UButton variant="outline" icon="i-lucide-calendar-plus" :disabled="publishBlocked" @click="scheduleOpen = true"
                 >{{ t('content.schedulePost') }}</UButton
               ><UButton color="neutral" variant="outline" :disabled="syncing || !!statusChanging" :loading="statusChanging === 'draft'" @click="setStatus('draft')"
@@ -1052,6 +1063,11 @@ onBeforeUnmount(() => {
             :image="form.image"
             :caption="form.caption"
             :video-url="previewVideoUrl"
+          /><TikTokPostSettings
+            v-if="form.channel === 'TikTok' && tiktokDirect && canPublish && post"
+            ref="tiktokSettings"
+            :post-id="post.id"
+            :video="!!post.video"
           /><UButton
             block
             variant="outline"
@@ -1138,9 +1154,9 @@ onBeforeUnmount(() => {
           playsinline
           class="mx-auto max-h-[72vh] w-full rounded-lg bg-black"
         />
-        <!-- TikTok has no scheduled publish of its own, so a video bound for it
-             is pushed as a draft the account holder finishes in the app. An
-             Instagram or Facebook video goes out through the normal schedule. -->
+        <!-- A TikTok video can always be handed over as a draft the account
+             holder finishes in the app; with Direct Post it can also go out
+             through the normal schedule, as an Instagram or Facebook video does. -->
         <div v-if="form.channel === 'TikTok'" class="mt-4 flex justify-end">
           <UButton icon="i-lucide-send" :loading="videoBusy" @click="sendVideoToTikTok">
             {{ t('tiktok.send') }}
@@ -1164,13 +1180,19 @@ onBeforeUnmount(() => {
           /></UFormField>
           <UCheckbox
             v-model="automatic"
-            :disabled="!canPublish || scheduleBusy"
+            :disabled="!canPublish || scheduleBusy || (form.channel === 'TikTok' && !tiktokDirect)"
             :label="t('content.publishAutomatically')"
             :description="
               canPublish
                 ? t('content.automaticEnabledDescription')
                 : t('content.automaticDisabledDescription')
             "
+          />
+          <TikTokPostSettings
+            v-if="automatic && form.channel === 'TikTok' && post"
+            ref="tiktokSettings"
+            :post-id="post.id"
+            :video="!!post.video"
           />
           <UAlert
             color="neutral"

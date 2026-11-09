@@ -1,4 +1,4 @@
-import { decryptTikTokToken, uploadTikTokDraft } from '../../utils/tiktok'
+import { connectedTikTok, uploadTikTokDraft } from '../../utils/tiktok'
 
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
@@ -7,15 +7,8 @@ export default defineEventHandler(async (event) => {
   const video = form?.find((part) => part.name === 'video')
   if (!video?.data?.length || !['video/mp4', 'video/quicktime'].includes(video.type || ''))
     throw createError({ statusCode: 400, message: 'server.VIDEO_FORMAT_REQUIRED' })
-  const connection = await withBusinessTransaction(user.id, async (client, business) => {
-    const result = await client.query<{ access_token_ciphertext: string; expires_at: Date; scopes: string[] }>(
-      "SELECT access_token_ciphertext,expires_at,scopes FROM tiktok_connections WHERE business_id=$1 AND status='connected'",
-      [business.id],
-    )
-    return { business, row: result.rows[0] }
-  })
-  if (!connection.row || connection.row.expires_at < new Date() || !connection.row.scopes.includes('video.upload'))
+  const connection = await withBusinessTransaction(user.id, (client, business) => connectedTikTok(business.id, client))
+  if (!connection || !connection.scopes.includes('video.upload'))
     throw createError({ statusCode: 409, message: 'server.TIKTOK_CONNECTION_REQUIRED_UPLOAD' })
-  const token = decryptTikTokToken(connection.row.access_token_ciphertext, connection.business.id)
-  return uploadTikTokDraft(token, video.data, video.type || 'video/mp4')
+  return uploadTikTokDraft(connection.token, video.data, video.type || 'video/mp4')
 })
