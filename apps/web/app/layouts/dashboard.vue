@@ -513,13 +513,15 @@ onBeforeUnmount(removeNavigationGuard)
       ></USlideover
     >
     <USlideover
+      v-if="copilotOpen"
       v-model:open="copilotOpen"
       :title="t('nav.copilotTitle')"
       :description="t('nav.copilotDescription')"
       ><template #body><LazyCopilotPanel @navigate="copilotOpen = false" /></template
     ></USlideover>
-    <LazyFeedbackForm v-model:open="feedbackOpen" />
+    <LazyFeedbackForm v-if="feedbackOpen" v-model:open="feedbackOpen" />
     <UModal
+      v-if="conflict"
       :open="conflict"
       :dismissible="false"
       :title="t('nav.conflictTitle')"

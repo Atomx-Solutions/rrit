@@ -189,18 +189,18 @@ async function focusRightsConfirmation() {
   await nextTick()
   document.getElementById('upload-rights-input')?.focus()
 }
-watch(
-  () => route.query.upload,
-  (upload) => {
+// The server renders the gallery; the upload dialog and URL cleanup are
+// client-only, so the first check waits for mount instead of running on SSR.
+function openUploadFromQuery(upload: unknown) {
     if (upload !== '1') return
     openUpload()
     void navigateTo({
       path: route.path,
       query: { ...route.query, upload: undefined, focus: undefined, attention: undefined },
     }, { replace: true })
-  },
-  { immediate: true },
-)
+}
+watch(() => route.query.upload, openUploadFromQuery)
+onMounted(() => openUploadFromQuery(route.query.upload))
 watch(uploadOpen, (open) => {
   if (!open) plannerAttention.value = false
 })
@@ -485,6 +485,7 @@ async function saveMetadata() {
       "
       />
     <UModal
+      v-if="viewerOpen"
       v-model:open="viewerOpen"
       fullscreen
       :title="viewerAsset?.name || t('gallery.photoViewer')"
@@ -573,6 +574,7 @@ async function saveMetadata() {
       </template>
     </UModal>
     <UModal
+      v-if="uploadOpen"
       v-model:open="uploadOpen"
       :dismissible="false"
       :close="true"
@@ -678,6 +680,7 @@ async function saveMetadata() {
       ></UModal
     >
     <UModal
+      v-if="selectedPreviewOpen"
       v-model:open="selectedPreviewOpen"
       :dismissible="false"
       :title="selectedPreviewFile?.name || t('gallery.photoViewer')"
@@ -698,6 +701,7 @@ async function saveMetadata() {
       </template>
     </UModal>
     <USlideover
+      v-if="detail"
       :open="!!detail"
       :title="detail?.name"
       :description="t('gallery.detailsDescription')"
@@ -735,6 +739,7 @@ async function saveMetadata() {
       ></USlideover
     >
     <UModal
+      v-if="rightsOpen"
       v-model:open="rightsOpen"
       :title="t('gallery.withdrawRightsTitle')"
       :description="t('gallery.withdrawRightsDescription')"
@@ -751,6 +756,7 @@ async function saveMetadata() {
       </template>
     </UModal>
     <UModal
+      v-if="deleteOpen"
       v-model:open="deleteOpen"
       :dismissible="!removing"
       :close="!removing"
