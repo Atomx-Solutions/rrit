@@ -159,6 +159,12 @@ export default defineNuxtConfig({
   routeRules: {
     '/app': { ssr: false },
     '/app/**': { ssr: false, headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+    // Render the planner's first meaningful state with the authenticated request.
+    // Its private HTML must never be stored by a shared or browser cache.
+    '/app/*/*/monthly-planner': {
+      ssr: true,
+      headers: { 'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'private, no-store' },
+    },
     '/onboarding': { ssr: false },
     // The invitation preview is a same-origin POST, and a server-rendered
     // request carries no Origin header for requireSameOrigin to accept.

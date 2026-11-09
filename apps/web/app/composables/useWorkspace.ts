@@ -36,7 +36,7 @@ export function useWorkspace() {
     conflict.value = false
   }
   async function initLive() {
-    const request = () => $fetch<{
+    const request = () => (import.meta.server ? useRequestFetch() : $fetch)<{
       user: { name: string; email: string }
       business: { id: string; slug: string; workspace: Workspace; brand?: Brand | null } | null
     }>('/api/business')

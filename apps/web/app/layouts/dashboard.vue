@@ -53,9 +53,14 @@ const sidebarOpen = ref(!collapsed.value)
 // viewport is known at setup: on a phone the menus are built only while the
 // drawer is open.
 const desktopQuery = import.meta.client ? window.matchMedia('(min-width: 1024px)') : undefined
-const desktopNav = ref(desktopQuery?.matches ?? true)
+// Match the server's first render during hydration; reveal desktop navigation
+// once the real viewport is known on the client.
+const desktopNav = ref(false)
 const updateDesktopNav = () => (desktopNav.value = desktopQuery?.matches ?? true)
-onMounted(() => desktopQuery?.addEventListener('change', updateDesktopNav))
+onMounted(() => {
+  updateDesktopNav()
+  desktopQuery?.addEventListener('change', updateDesktopNav)
+})
 onBeforeUnmount(() => desktopQuery?.removeEventListener('change', updateDesktopNav))
 // USidebar starts "open" on every viewport and only closes its phone drawer
 // once it has mounted, so the drawer state is trusted from the tick after that.
