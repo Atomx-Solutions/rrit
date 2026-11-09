@@ -47,7 +47,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
   font-weight: 600;
   letter-spacing: 1.25px;
@@ -104,7 +104,7 @@
   background: var(--rrit-color-marketing-action-hover);
 }
 .landing-smallprint {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--landing-muted);
   margin-top: 16px;
   line-height: 1.8;
@@ -816,7 +816,7 @@
 }
 .landing-final-note {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--landing-muted);
 }
 /*
@@ -889,7 +889,7 @@
     gap: 30px;
   }
   .landing-kicker {
-    font-size: 8px;
+    font-size: 12px;
     letter-spacing: 0.9px;
   }
   .landing h1 {
@@ -914,7 +914,7 @@
     font-size: 12px;
   }
   .landing-smallprint {
-    font-size: 10px;
+    font-size: 12px;
     margin-top: 11px;
   }
   .landing-post-deck {
@@ -954,7 +954,7 @@
     display: none;
   }
   .landing-process li p {
-    font-size: 10px;
+    font-size: 12px;
   }
   .landing-process-cta {
     display: block;
