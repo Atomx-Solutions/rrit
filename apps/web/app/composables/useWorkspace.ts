@@ -21,8 +21,14 @@ export function useWorkspace() {
   const base = computed(() =>
     context.value ? `/app/${context.value.id}/${context.value.slug}` : '/app',
   )
-  function applyBusiness(business: { id: string; slug: string; workspace: Workspace; brand?: Brand | null }) {
-    data.value = workspaceSchema.parse(business.workspace)
+  // `trusted` skips the client-side parse for GET /api/business: the server's
+  // loadWorkspace already ran the same schema, and re-parsing the full
+  // workspace was the longest task on a phone's first dashboard paint.
+  function applyBusiness(
+    business: { id: string; slug: string; workspace: Workspace; brand?: Brand | null },
+    trusted = false,
+  ) {
+    data.value = trusted ? business.workspace : workspaceSchema.parse(business.workspace)
     context.value = { id: business.id, slug: business.slug }
     canonicalBrand.value = business.brand || null
     ready.value = true
@@ -49,7 +55,7 @@ export function useWorkspace() {
         else throw error
       } else throw error
     }
-    if (result.business) applyBusiness(result.business)
+    if (result.business) applyBusiness(result.business, true)
     else {
       data.value = emptyWorkspace(result.user.name, result.user.email)
       context.value = null

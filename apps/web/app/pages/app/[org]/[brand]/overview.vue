@@ -28,9 +28,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', refreshConnectionsWhenVisible)
   window.removeEventListener('focus', refreshConnectionsWhenVisible)
 })
-// The summary cards render at once; the activity chart and the cards below it
-// follow in their own tasks, so a phone never renders the whole page in one.
-const stage = useStagedRender(2)
 const reviews = computed(() => data.value.posts.filter((p) => p.status === 'review'))
 const upcoming = computed(() =>
   data.value.posts
@@ -213,7 +210,7 @@ const summaries = computed(() => [
       </UPageCard>
     </UPageGrid>
 
-    <UCard v-if="stage >= 1" :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden">
+    <UCard :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden">
       <div class="flex flex-wrap items-start justify-between gap-4 px-5 pt-5 sm:px-6 sm:pt-6">
         <div>
           <div class="flex items-center gap-2">
@@ -335,7 +332,7 @@ const summaries = computed(() => [
         </p>
       </div>
     </UCard>
-    <UPageGrid v-if="stage >= 2" class="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
+    <UPageGrid class="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
       <UCard :ui="{ body: 'p-4 sm:p-6' }">
         <div class="flex justify-between items-center gap-3 mb-3 sm:mb-5">
           <h2 class="text-sm font-semibold">{{ t('overview.nextCalendarPost') }}</h2>
