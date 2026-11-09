@@ -11,6 +11,16 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 useFollowVideos()
 const { t } = useI18n()
+// The server renders the phone calendar. Desktop switches to its larger grid
+// after hydration, without constructing both grids on every phone visit.
+const desktopQuery = import.meta.client ? window.matchMedia('(min-width: 768px)') : undefined
+const desktopGrid = ref(false)
+const updateDesktopGrid = () => (desktopGrid.value = desktopQuery?.matches ?? false)
+onMounted(() => {
+  updateDesktopGrid()
+  desktopQuery?.addEventListener('change', updateDesktopGrid)
+})
+onBeforeUnmount(() => desktopQuery?.removeEventListener('change', updateDesktopGrid))
 useSeoMeta({ title: () => `${t('nav.calendar')} · Framic` })
 const today = computed(() => dayInZone(new Date(), data.value.preferences.timezone))
 const anchor = ref(today.value)
@@ -188,7 +198,7 @@ function move(direction: number) {
         <span>{{ visible.length }} {{ t('calendar.postsIn') }} {{ view === 'week' ? t('calendar.weekLower') : t('calendar.monthLower') }}</span
         ><span class="hidden sm:inline">{{ t('calendar.localTime') }} · {{ data.preferences.timezone }}</span>
       </div>
-      <div v-if="view !== 'list'" class="hidden md:block">
+      <div v-if="view !== 'list' && desktopGrid">
         <div class="grid grid-cols-7">
           <div
             v-for="day in weekdayNames"
@@ -215,7 +225,7 @@ function move(direction: number) {
               >{{ day.day }}</span
             >
             <ULink
-              v-for="post in posts.filter((p) => localDay(p.scheduledAt!) === day.key)"
+              v-for="post in dayPosts(day.key)"
               :key="post.id"
               :to="`${base}/content/${post.id}`"
               class="block border border-default rounded-md p-1.5 mt-1.5 hover:border-primary text-[11px] text-default"
@@ -245,7 +255,7 @@ function move(direction: number) {
       </div>
       <!-- The phone grid: a day is a number and a dot per post, and tapping one
            filters the list below to that day. -->
-      <div v-if="view !== 'list'" class="md:hidden">
+      <div v-if="view !== 'list' && !desktopGrid" class="md:hidden">
         <div class="grid grid-cols-7">
           <div
             v-for="(day, index) in weekdayNarrow"
@@ -290,7 +300,7 @@ function move(direction: number) {
           {{ activeDayLabel }}
         </p>
       </div>
-      <div :class="view !== 'list' ? 'md:hidden' : ''">
+      <div v-if="view === 'list' || !desktopGrid" :class="view !== 'list' ? 'md:hidden' : ''">
         <template v-if="dayList.length"
           ><PostsTable :posts="paginated" /><ListPagination
             v-model:page="page"
