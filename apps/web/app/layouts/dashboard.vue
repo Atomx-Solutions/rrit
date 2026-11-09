@@ -74,10 +74,6 @@ async function checkPublishedPosts() {
   }
 }
 watch(() => route.path, () => void checkPublishedPosts())
-// The command palette and notification drawer are closed on load, yet
-// building them took part of the first long task on a phone. They mount once
-// the browser is idle, or at once when someone opens them.
-const overlaysReady = ref(false)
 function whenIdle(run: () => void) {
   if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 2000 })
   else setTimeout(run, 1)
@@ -86,7 +82,6 @@ watch(ready, (isReady) => {
   if (isReady) whenIdle(() => void checkPublishedPosts())
 })
 onMounted(() => {
-  whenIdle(() => (overlaysReady.value = true))
   touchInputMedia = window.matchMedia('(hover: none), (pointer: coarse)')
   updateTouchInput()
   touchInputMedia.addEventListener('change', updateTouchInput)
@@ -106,6 +101,23 @@ watch(sidebarOpen, (open) => {
 const searchOpen = ref(false)
 const notificationsOpen = ref(false)
 provide(dashboardKey, { sidebarOpen, notificationsOpen })
+// The command palette and notification drawer are closed on load. Mounting
+// them, even on idle, was a 500 ms task on a throttled phone, so each one
+// mounts the first time it is opened and then stays mounted.
+const searchMounted = ref(false)
+const notificationsMounted = ref(false)
+watch(notificationsOpen, (open) => {
+  if (open) notificationsMounted.value = true
+})
+// Until the palette exists nothing listens for its button or shortcut, so
+// the layout opens it the first time; after that the palette handles both.
+function openSearchFirstTime() {
+  if (searchMounted.value) return
+  searchMounted.value = true
+  searchOpen.value = true
+}
+useRuntimeHook('dashboard:search:toggle', openSearchFirstTime)
+defineShortcuts({ meta_k: { usingInput: true, handler: openSearchFirstTime } })
 const copilotOpen = ref(false)
 watch(searchOpen, (open) => {
   if (open && window.matchMedia('(max-width: 1023px)').matches) sidebarOpen.value = false
@@ -398,7 +410,7 @@ onBeforeUnmount(removeNavigationGuard)
       <main id="main" tabindex="-1" class="flex min-w-0 flex-1 overflow-hidden"><slot /></main>
     </UDashboardGroup>
     <UDashboardSearch
-      v-if="overlaysReady || searchOpen"
+      v-if="searchMounted"
       v-model:open="searchOpen"
       :groups="commands"
       :color-mode="false"
@@ -406,7 +418,7 @@ onBeforeUnmount(removeNavigationGuard)
       :placeholder="t('nav.searchPages')"
     />
     <USlideover
-      v-if="overlaysReady || notificationsOpen"
+      v-if="notificationsMounted"
       v-model:open="notificationsOpen"
       :title="t('nav.notifications')"
       :description="t('nav.notificationsDescription')"
