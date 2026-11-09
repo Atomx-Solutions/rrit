@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sizedMediaUrl } from '~~/shared/utils/media-width'
 const props = withDefaults(
   defineProps<{
     src?: string
@@ -22,6 +23,9 @@ const props = withDefaults(
   },
 )
 const { t } = useI18n()
+// An uploaded image is requested at the size its box needs rather than in
+// full, so a 64px thumbnail no longer downloads the whole picture.
+const imageSrc = computed(() => sizedMediaUrl(props.src, props.width))
 const failed = ref(false)
 watch(
   () => props.src,
@@ -41,7 +45,7 @@ watch(
   >
     <img
       v-if="src && !failed"
-      :src="src"
+      :src="imageSrc"
       :alt="alt"
       :width="width"
       :height="height"
