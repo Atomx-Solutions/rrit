@@ -29,21 +29,20 @@ useLandingMotion(landingRoot)
 const { t } = useI18n()
 const requestUrl = useRequestURL()
 const { capabilities } = useLandingOffer()
-// Every hero poster is above the fold and the deck animation can bring any of
-// them forward, so all three are discoverable from the HTML. The space poster
-// is the largest painted element, so it carries the priority hint.
-const heroPosters = ['/images/interior.webp', '/images/table.webp', '/images/burger.webp']
+// The space poster is the largest painted element, so it alone is preloaded
+// with the priority hint. The other two posters are <img> tags in the same
+// server-rendered HTML, which the browser finds without a preload; preloading
+// them too split the mobile bandwidth the largest paint was waiting on.
+const heroPoster = '/images/interior.webp'
 useHead({
-  link: [
-    ...heroPosters.map((poster, index) => ({
-      rel: 'preload' as const,
-      as: 'image' as const,
-      href: imageFallback(poster),
-      imagesrcset: imageSrcset(poster),
-      imagesizes: landingPosterSizes,
-      fetchpriority: index === 0 ? ('high' as const) : ('auto' as const),
-    })),
-  ],
+  link: [{
+    rel: 'preload',
+    as: 'image',
+    href: imageFallback(heroPoster),
+    imagesrcset: imageSrcset(heroPoster),
+    imagesizes: landingPosterSizes,
+    fetchpriority: 'high',
+  }],
 })
 const ogImageUrl = computed(() => new URL('/og-image.png?v=3', requestUrl).toString())
 const structuredData = computed(() => JSON.stringify({

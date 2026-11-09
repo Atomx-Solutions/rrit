@@ -64,6 +64,10 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/eslint', '@vercel/speed-insights'],
   css: ['@fontsource-variable/inter', '~/assets/css/main.css'],
   devtools: { enabled: false },
+  // Inline the global stylesheet into the server-rendered HTML as well as each
+  // component's styles, so the first paint does not wait on a separate
+  // render-blocking request for entry.css.
+  features: { inlineStyles: true },
   experimental: {
     // Prefetching every link as it scrolls into view downloaded the login and
     // dashboard code (Supabase, zod) on the landing page before anyone asked
