@@ -9,13 +9,7 @@ const {
   data: planner,
   error: loadError,
   refresh,
-} = useFetch('/api/ai/monthly-plan', {
-  query: computed(() => ({ month: props.month })),
-  key: 'monthly-planner',
-  // The card paints its own "checking" state, so the page does not wait for
-  // the plan before showing anything.
-  lazy: true,
-})
+} = useMonthlyPlannerData()
 
 const busy = ref(false)
 const error = ref('')
@@ -1330,7 +1324,8 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
     </div>
 
-    <PlannerRequestModal
+    <LazyPlannerRequestModal
+      v-if="requestOpen"
       v-model:open="requestOpen"
       :post-count="selectedQuantity"
       :video-count="selectedVideoQuantity"
@@ -1340,6 +1335,7 @@ onBeforeUnmount(() => clearInterval(timer))
     />
 
     <UModal
+      v-if="resetOpen"
       v-model:open="resetOpen"
       :dismissible="false"
       :title="t('monthly.resetTitle')"
@@ -1379,6 +1375,7 @@ onBeforeUnmount(() => clearInterval(timer))
     </UModal>
 
     <UModal
+      v-if="researchOpen"
       v-model:open="researchOpen"
       fullscreen
       :title="t('monthly.planResearchTitle')"
@@ -1434,12 +1431,12 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
           </div>
 
-          <MonthlyStrategyView
+          <LazyMonthlyStrategyView
             v-if="plan?.strategy"
             :strategy="plan.strategy"
             :assets="originalPhotos"
           />
-          <ResearchEvidence v-if="plan?.research" :research="plan.research" />
+          <LazyResearchEvidence v-if="plan?.research" :research="plan.research" />
         </div>
       </template>
     </UModal>

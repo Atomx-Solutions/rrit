@@ -1,11 +1,19 @@
 import { canReuseWorkspaceRedirect } from '~/utils/workspace-redirect'
 import { authClient } from '~/utils/auth-client'
 
+function startMonthlyPlannerLoad(path: string) {
+  if (!/\/monthly-planner\/?$/.test(path)) return
+  // The endpoint derives the current month from the saved workspace timezone.
+  // It can run alongside /api/business once the session check is complete.
+  useMonthlyPlannerData()
+}
+
 export default defineNuxtRouteMiddleware(async (to) => {
   // An account opened through Google skips the sign-up form; nothing in the
   // workspace opens until its terms are accepted on the consent step.
   if (import.meta.client && (await authClient.termsAccepted()) === false)
     return navigateTo({ path: '/auth/callback', query: { next: to.fullPath } }, { replace: true })
+  startMonthlyPlannerLoad(to.path)
   const workspace = useWorkspace()
   const { t } = useI18n()
   const pendingRedirect = useState<string | null>('workspace-home-redirect', () => null)
