@@ -3,14 +3,13 @@ import { belowPaddleMinimum, paddleMinimumCents } from '~~/shared/utils/paddle-m
 import type { AdminPackageRequest } from './AdminPackageRequestDetails.vue'
 
 /**
- * Answering a request for posts.
+ * Answering a request for posts, and for the videos and credits asked for with
+ * them in the same request.
  *
- * A post package is sold by the post, so the only amounts here are the post
- * count, the per-post rate and the total they agree on. Videos and credits have
- * their own proposals and are deliberately absent: this form never sends
- * either, so a post package cannot quietly carry something the customer did not
- * ask for. The request says what was asked; this is where the team writes what
- * was actually sold.
+ * Each kind is priced by its own rate and the offer is their sum. Videos and
+ * credits show only when the request asked for them, so a package cannot
+ * quietly carry something the customer did not ask for. The request says what
+ * was asked; this is where the team writes what was actually sold.
  */
 const props = defineProps<{ request: AdminPackageRequest | null }>()
 const emit = defineEmits<{ close: []; done: [] }>()
@@ -89,18 +88,21 @@ const form = reactive({
   name: '',
   postsIncluded: 20,
   videosIncluded: 0,
+  creditsIncluded: 0,
   postPriceEuro: 1.5,
   videoPriceEuro: 0,
-  priceEuro: 30,
+  creditPriceEuro: 0,
   startsAt: '',
   endsAt: '',
   notes: '',
 })
 const postPriceCents = computed(() => Math.round(form.postPriceEuro * 100))
 const videoPriceCents = computed(() => Math.round(form.videoPriceEuro * 100))
-const suggestedCents = computed(() => form.postsIncluded * postPriceCents.value + form.videosIncluded * videoPriceCents.value)
+// A credit costs a fraction of a cent, so credits are priced as one total.
+const creditsCents = computed(() => Math.round(form.creditsIncluded * form.creditPriceEuro * 100))
+const suggestedCents = computed(() => form.postsIncluded * postPriceCents.value + form.videosIncluded * videoPriceCents.value + creditsCents.value)
 // Paddle cannot charge less than its minimum, so such an offer could never be paid.
-const priceBelowMinimum = computed(() => belowPaddleMinimum(Math.round(form.priceEuro * 100), currency.value))
+const priceBelowMinimum = computed(() => belowPaddleMinimum(suggestedCents.value, currency.value))
 const minimumPriceMessage = computed(() =>
   priceBelowMinimum.value
     ? t('admin.packages.paddleMinimum', { price: formatMoney(paddleMinimumCents(currency.value)! / 100, currency.value) })
@@ -110,8 +112,18 @@ watch(platformSettings, (settings) => {
   if (!settings) return
   form.postPriceEuro = settings.custom_package_post_price_cents / 100
   form.videoPriceEuro = settings.custom_package_video_price_cents / 100
-  form.priceEuro = suggestedCents.value / 100
 }, { immediate: true })
+// The credit rate is set on the credits screen, not in the platform settings.
+const creditRateReady = ref(false)
+onMounted(async () => {
+  try {
+    const plans = await $fetch<{ credit_pricing: { credit_price_cents: number } }>('/api/admin/plans')
+    form.creditPriceEuro = plans.credit_pricing.credit_price_cents / 100
+    creditRateReady.value = form.creditPriceEuro > 0
+  } catch {
+    // Without the rate a request with credits cannot be priced, so it waits.
+  }
+})
 // The rate cannot always divide the total evenly, so an agreed total of 45.61
 // over 30 posts keeps that total and shows the nearest rate beside it.
 
@@ -132,6 +144,7 @@ watch(
       name: request.organization_name || request.business_name || request.contact_name,
       postsIncluded: request.posts_requested,
       videosIncluded: request.videos_requested || 0,
+      creditsIncluded: request.credits_requested || 0,
       startsAt: today.toISOString().slice(0, 10),
       endsAt: inAMonth.toISOString().slice(0, 10),
       notes: request.message || '',
@@ -144,8 +157,7 @@ watch(
     if (!request.organization_id) await refreshOrganizations()
     // Start with the dynamic net package total. The admin can still override
     // the agreed price manually before sending the proposal.
-    form.priceEuro = suggestedCents.value / 100
-  },
+    },
   { immediate: true },
 )
 
@@ -157,11 +169,12 @@ const pricingReady = computed(() => {
   return !!settings
     && settings.custom_package_post_price_cents > 0
     && settings.custom_package_video_price_cents > 0
+    && (form.creditsIncluded === 0 || creditRateReady.value)
 })
 
 async function submit() {
   if (!props.request) return
-  if (!pricingReady.value || Math.round(form.priceEuro * 100) <= 0 || priceBelowMinimum.value) return
+  if (!pricingReady.value || suggestedCents.value <= 0 || priceBelowMinimum.value) return
   if (!form.organizationId) {
     error.value = t('admin.requests.convertNeedsOrganization')
     return
@@ -175,11 +188,12 @@ async function submit() {
         name: form.name.trim(),
         posts_included: form.postsIncluded,
         videos_included: form.videosIncluded,
+        credits_included: form.creditsIncluded,
         post_price_cents: postPriceCents.value,
         video_price_cents: videoPriceCents.value,
-        // The admin can negotiate this total independently of the suggested
-        // item rates. VAT is added later when the invoice is issued.
-        price_cents: Math.round(form.priceEuro * 100),
+        // The offer is what the form shows: the sum of the rates, so it also
+        // follows a count changed here. VAT is added when the invoice is issued.
+        price_cents: suggestedCents.value,
         starts_at: dayToIso(form.startsAt),
         ends_at: dayToIso(form.endsAt),
         status: 'draft',
@@ -278,11 +292,30 @@ async function copyInvitationLink() {
             <LiveInputNumber v-model="form.videoPriceEuro" :min="0.01" :max="10000" :step="0.01" :format-options="{ style: 'currency', currency }" class="w-full" />
           </UFormField>
         </div>
+        <div v-if="request?.credits_requested" class="grid gap-4 sm:grid-cols-2">
+          <UFormField
+            name="creditsIncluded"
+            :label="t('admin.packages.credits')"
+            :hint="t('admin.requests.askedForCredits', { count: request?.credits_requested ?? 0 })"
+            required
+          >
+            <LiveInputNumber v-model="form.creditsIncluded" :min="0" :max="1000000" :step="100" :step-snapping="false" class="w-full" />
+          </UFormField>
+          <UFormField name="creditPriceEuro" :label="`${t('admin.requests.creditPrice')} (${currency})`" required>
+            <LiveInputNumber
+              v-model="form.creditPriceEuro"
+              :min="0"
+              :step="0.01"
+              :format-options="{ style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 4 }"
+              class="w-full"
+            />
+          </UFormField>
+        </div>
         <UFormField
           name="priceEuro"
           :error="minimumPriceMessage"
           label="Offer price"
-          :hint="`Calculated from the configured post and video prices. VAT is added on the invoice.`"
+          :hint="`Calculated from the configured post, video and credit prices. VAT is added on the invoice.`"
           required
         >
           <LiveInputNumber
@@ -303,7 +336,7 @@ async function copyInvitationLink() {
         <UFormField name="notes" :label="t('admin.packages.notes')">
           <UTextarea v-model="form.notes" :rows="2" :maxlength="2000" class="w-full" />
         </UFormField>
-        <UButton type="submit" :loading="saving || !pricingReady" :disabled="!pricingReady || Math.round(form.priceEuro * 100) <= 0 || priceBelowMinimum" :label="t('admin.requests.sendProposal')" block />
+        <UButton type="submit" :loading="saving || !pricingReady" :disabled="!pricingReady || suggestedCents <= 0 || priceBelowMinimum" :label="t('admin.requests.sendProposal')" block />
       </UForm>
     </template>
   </UModal>

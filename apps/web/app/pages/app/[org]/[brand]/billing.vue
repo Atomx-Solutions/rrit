@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
+import { ADD_ON_LIMITS, DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
+import type { AddOnItem, AddOnKind } from '~/components/BillingAddOnModal.vue'
 
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 
@@ -47,13 +48,18 @@ const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/
 const { data: platformPricing } = await useFetch<{ videoPriceCents: number; postPriceCents: number }>('/api/package-requests', { lazy: true, key: 'package-pricing' })
 
 const requestOpen = ref(false)
-const postRequestOpen = ref(false)
-const postsRequested = ref(DEFAULT_PACKAGE_REQUEST.posts)
-const sendingPostRequest = ref(false)
-const videoRequestOpen = ref(false)
-const videosRequested = ref(1)
-const sendingVideoRequest = ref(false)
-const creditRequestOpen = ref(false)
+// Posts, videos and credits are asked for together in one dialog; the card it
+// is opened from starts with its usual amount, the others at zero.
+const addOnOpen = ref(false)
+const addOnPrimary = ref<AddOnKind>('posts')
+const addOnDefaults: Record<AddOnKind, number> = { posts: DEFAULT_PACKAGE_REQUEST.posts, videos: 1, credits: 500 }
+const addOnAmounts = ref<Record<AddOnKind, number>>({ posts: 0, videos: 0, credits: 0 })
+const sendingAddOns = ref(false)
+function openAddOns(kind: AddOnKind) {
+  if (!addOnAmounts.value[kind]) addOnAmounts.value = { ...addOnAmounts.value, [kind]: addOnDefaults[kind] }
+  addOnPrimary.value = kind
+  addOnOpen.value = true
+}
 // The low-credit reminder asks for a request dialog, from this page or another
 // one; a direct link with ?request= does the same.
 const route = useRoute()
@@ -62,7 +68,7 @@ function openRequested(request: unknown) {
   // Opened after the click that asked for it, so that click does not count as
   // a click outside the dialog and close it again.
   setTimeout(() => {
-    if (request === 'credits') creditRequestOpen.value = true
+    if (request === 'credits') openAddOns('credits')
     if (request === 'package') requestOpen.value = true
   }, 0)
 }
@@ -83,9 +89,7 @@ watch(pendingRequest, (asked) => {
 })
 const offerOpen = ref(false)
 const paidProposalId = ref<string | null>(null)
-const creditsRequested = ref(500)
 const creditMessage = ref('')
-const sendingCreditRequest = ref(false)
 const payingProposal = ref(false)
 const decliningProposal = ref(false)
 const preparedProposalId = ref<string | null>(null)
@@ -160,51 +164,49 @@ const creditPrice = computed(() => billing.value?.creditPrice || 0)
 const canBuyCredits = computed(() => !!customPackage.value)
 const videoPrice = computed(() => ((platformPricing.value?.videoPriceCents ?? 200) / 100) * (billing.value?.exchangeRate || 1))
 const postPrice = computed(() => ((platformPricing.value?.postPriceCents ?? 0) / 100) * (billing.value?.exchangeRate || 1))
-// With a package running, posts are added to it rather than asking for a new
-// package, so this request carries posts only.
-async function sendPostRequest() {
-  if (sendingPostRequest.value || postsRequested.value < 1) return
-  sendingPostRequest.value = true
-  postRequestOpen.value = false
-  try {
-    await $fetch('/api/billing/package-request', { method: 'POST', body: { postsRequested: postsRequested.value, videosRequested: 0 } })
-    showSuccess(t('billing.postRequestSent'))
-  } catch (error) {
-    showError((error as { data?: { message?: string } }).data?.message || t('billing.postRequestFailed'))
-  } finally { sendingPostRequest.value = false }
+const addOnItems = computed<AddOnItem[]>(() => [
+  { kind: 'posts', label: t('billing.posts'), icon: 'i-lucide-image', unitPrice: postPrice.value, max: ADD_ON_LIMITS.posts, defaultAmount: addOnDefaults.posts },
+  { kind: 'videos', label: t('billing.videos'), icon: 'i-lucide-clapperboard', unitPrice: videoPrice.value, max: ADD_ON_LIMITS.videos, defaultAmount: addOnDefaults.videos },
+  ...(canBuyCredits.value
+    ? [{ kind: 'credits' as const, label: t('billing.credits'), icon: 'i-lucide-coins', unitPrice: creditPrice.value, max: ADD_ON_LIMITS.credits, defaultAmount: addOnDefaults.credits }]
+    : []),
+])
+const addOnTitles: Record<AddOnKind, [title: string, description: string]> = {
+  posts: ['billing.requestPostsTitle', 'billing.requestPostsDescription'],
+  videos: ['billing.requestVideosTitle', 'billing.requestVideosDescription'],
+  credits: ['billing.buyCreditsTitle', 'billing.buyCreditsDescription'],
 }
-async function sendVideoRequest() {
-  if (sendingVideoRequest.value || videosRequested.value < 1) return
-  sendingVideoRequest.value = true
-  videoRequestOpen.value = false
-  try {
-    await $fetch('/api/billing/package-request', { method: 'POST', body: { postsRequested: 0, creditsRequested: 0, videosRequested: videosRequested.value } })
-    showSuccess(t('billing.videoRequestSent'))
-  } catch (error) {
-    showError((error as { data?: { message?: string } }).data?.message || t('billing.videoRequestFailed'))
-  } finally { sendingVideoRequest.value = false }
+const addOnMessages: Record<AddOnKind, [sent: string, failed: string]> = {
+  posts: ['billing.postRequestSent', 'billing.postRequestFailed'],
+  videos: ['billing.videoRequestSent', 'billing.videoRequestFailed'],
+  credits: ['billing.creditRequestSent', 'billing.creditRequestFailed'],
 }
-async function sendCreditRequest() {
-  if (sendingCreditRequest.value || creditsRequested.value < 1) return
-  sendingCreditRequest.value = true
-  creditRequestOpen.value = false
+// With a package running, what is asked for is added to it, as one request.
+async function sendAddOns() {
+  if (sendingAddOns.value) return
+  const amounts = { ...addOnAmounts.value }
+  const kinds = (Object.keys(amounts) as AddOnKind[]).filter(kind => amounts[kind] > 0)
+  if (!kinds.length) return
+  const messages: [string, string] = kinds.length === 1 ? addOnMessages[kinds[0]!] : ['billing.combinedRequestSent', 'billing.combinedRequestFailed']
+  sendingAddOns.value = true
+  addOnOpen.value = false
   try {
     await $fetch('/api/billing/package-request', {
       method: 'POST',
       body: {
-        postsRequested: 0,
-        creditsRequested: creditsRequested.value,
-        ...(creditMessage.value.trim() ? { message: creditMessage.value.trim() } : {}),
+        postsRequested: amounts.posts,
+        videosRequested: amounts.videos,
+        creditsRequested: amounts.credits,
+        ...(amounts.credits > 0 && creditMessage.value.trim() ? { message: creditMessage.value.trim() } : {}),
       },
     })
+    addOnAmounts.value = { posts: 0, videos: 0, credits: 0 }
     creditMessage.value = ''
-    showSuccess(t('billing.creditRequestSent'))
+    showSuccess(t(messages[0]))
   } catch (error) {
-    showError(
-      (error as { data?: { message?: string } }).data?.message || t('billing.creditRequestFailed'),
-    )
+    showError((error as { data?: { message?: string } }).data?.message || t(messages[1]))
   } finally {
-    sendingCreditRequest.value = false
+    sendingAddOns.value = false
   }
 }
 
@@ -507,7 +509,7 @@ async function declineProposal() {
           icon="i-lucide-image"
           :label="t('billing.requestPosts')"
           class="mt-auto w-full justify-center"
-          @click="postRequestOpen = true"
+          @click="openAddOns('posts')"
         />
       </UCard>
       <UCard as="section" :ui="{ body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
@@ -525,7 +527,7 @@ async function declineProposal() {
           icon="i-lucide-clapperboard"
           :label="t('billing.requestVideos')"
           class="mt-auto w-full justify-center"
-          @click="videoRequestOpen = true"
+          @click="openAddOns('videos')"
         />
       </UCard>
       <UCard v-if="canBuyCredits" as="section" :ui="{ body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
@@ -543,53 +545,24 @@ async function declineProposal() {
           icon="i-lucide-coins"
           :label="t('billing.buyCredits')"
           class="mt-auto w-full justify-center"
-          @click="creditRequestOpen = true"
+          @click="openAddOns('credits')"
         />
       </UCard>
     </div>
 
     <BillingAddOnModal
-      v-model:open="postRequestOpen"
-      v-model:amount="postsRequested"
-      :title="t('billing.requestPostsTitle')"
-      :description="t('billing.requestPostsDescription')"
-      icon="i-lucide-image"
-      :label="t('billing.posts')"
-      :unit-price="postPrice"
-      :submit-label="t('billing.requestPostsSubmit')"
-      :format-money="formatMoney"
-      :loading="sendingPostRequest"
-      @submit="sendPostRequest"
-    />
-    <BillingAddOnModal
-      v-model:open="videoRequestOpen"
-      v-model:amount="videosRequested"
-      :title="t('billing.requestVideosTitle')"
-      :description="t('billing.requestVideosDescription')"
-      icon="i-lucide-clapperboard"
-      :label="t('billing.videoQuantity')"
-      :unit-price="videoPrice"
-      :submit-label="t('billing.requestVideosSubmit')"
-      :format-money="formatMoney"
-      :loading="sendingVideoRequest"
-      @submit="sendVideoRequest"
-    />
-    <BillingAddOnModal
-      v-model:open="creditRequestOpen"
-      v-model:amount="creditsRequested"
+      v-model:open="addOnOpen"
+      v-model:amounts="addOnAmounts"
       v-model:message="creditMessage"
-      :title="t('billing.buyCreditsTitle')"
-      :description="t('billing.buyCreditsDescription')"
-      icon="i-lucide-coins"
-      :label="t('billing.buyCreditsAmount')"
-      :unit-price="creditPrice"
-      :max="1000000"
-      :submit-label="t('billing.buyCreditsSubmit')"
+      :title="t(addOnTitles[addOnPrimary][0])"
+      :description="t(addOnTitles[addOnPrimary][1])"
+      :primary="addOnPrimary"
+      :items="addOnItems"
+      :submit-label="t('billing.sendCombinedRequest')"
       :format-money="formatMoney"
-      :loading="sendingCreditRequest"
-      with-message
-      :note="t('billing.buyCreditsNote')"
-      @submit="sendCreditRequest"
+      :loading="sendingAddOns"
+      :note="canBuyCredits ? t('billing.buyCreditsNote') : ''"
+      @submit="sendAddOns"
     />
   </DashboardPage>
 </template>

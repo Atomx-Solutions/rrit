@@ -1,3 +1,4 @@
+import { ADD_ON_LIMITS } from '../../shared/utils/package-defaults'
 import { createHmac } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
@@ -39,9 +40,9 @@ export const appPackageRequestSchema = packageRequestFields
     // Inside the app a request may be for posts, for credits, or for both.
     // Zero means "not asking for this", and asking for neither is not a
     // request at all.
-    postsRequested: z.number().int().min(0).max(1000).default(0),
-    creditsRequested: z.number().int().min(0).max(10_000_000).default(0),
-    videosRequested: z.number().int().min(0).max(1000).default(0),
+    postsRequested: z.number().int().min(0).max(ADD_ON_LIMITS.posts).default(0),
+    creditsRequested: z.number().int().min(0).max(ADD_ON_LIMITS.credits).default(0),
+    videosRequested: z.number().int().min(0).max(ADD_ON_LIMITS.videos).default(0),
   })
   .refine((value) => value.postsRequested > 0 || value.creditsRequested > 0 || value.videosRequested > 0, {
     message: 'server.REQUEST_POSTS_OR_CREDITS',
