@@ -1612,6 +1612,7 @@
   "monthly.phaseContentDescription": "Text, design and review",
   "monthly.selectPhotoRequired": "Choose at least one photo or let AI decide.",
   "monthly.changeNotSaved": "The change was not saved. Try again.",
+  "monthly.reportDownloadFailed": "The PDF could not be downloaded. Try again.",
   "monthly.choosePackage": "Choose a package",
   "monthly.recoveringTitle": "Preparing the next version",
   "monthly.recoveringDescription": "Nothing was lost. It continues where it stopped.",

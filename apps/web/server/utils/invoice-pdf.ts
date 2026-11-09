@@ -5,44 +5,7 @@ import type { Invoice } from './invoices'
 // A dependency-free single-page PDF using the standard Helvetica fonts with
 // WinAnsi encoding, which covers Albanian (ë, ç) and the euro sign.
 
-// --- Logo (SVG paths → PDF vector graphics) ---------------------------------
-
 function r(n: number) { return String(Math.round(n * 100) / 100) }
-
-// Converts SVG path data (M/m/L/l/H/h/V/v/C/c/Z/z) to PDF path operators.
-// All PDF operators use absolute coordinates; Y is flipped (SVG↓ → PDF↑).
-function svgToPdf(d: string, xOff: number, yBase: number, s: number): string {
-  const T = (x: number, y: number) => `${r(xOff + x * s)} ${r(yBase - y * s)}`
-  const tok = d.match(/[MmLlHhVvCcZz]|[-+]?(?:\d*\.?\d+)/g) ?? []
-  let i = 0, cx = 0, cy = 0
-  const out: string[] = []
-  const n = () => parseFloat(tok[i++]!)
-  while (i < tok.length) {
-    const cmd = tok[i++]!
-    switch (cmd) {
-      case 'M': cx = n(); cy = n(); out.push(`${T(cx, cy)} m`); break
-      case 'm': cx += n(); cy += n(); out.push(`${T(cx, cy)} m`); break
-      case 'L': cx = n(); cy = n(); out.push(`${T(cx, cy)} l`); break
-      case 'l': { const dx = n(), dy = n(); cx += dx; cy += dy; out.push(`${T(cx, cy)} l`); break }
-      case 'H': cx = n(); out.push(`${T(cx, cy)} l`); break
-      case 'h': cx += n(); out.push(`${T(cx, cy)} l`); break
-      case 'V': cy = n(); out.push(`${T(cx, cy)} l`); break
-      case 'v': cy += n(); out.push(`${T(cx, cy)} l`); break
-      case 'C': {
-        const x1=n(),y1=n(),x2=n(),y2=n(),x=n(),y=n()
-        out.push(`${T(x1,y1)} ${T(x2,y2)} ${T(x,y)} c`)
-        cx=x; cy=y; break
-      }
-      case 'c': {
-        const dx1=n(),dy1=n(),dx2=n(),dy2=n(),dx=n(),dy=n()
-        out.push(`${T(cx+dx1,cy+dy1)} ${T(cx+dx2,cy+dy2)} ${T(cx+dx,cy+dy)} c`)
-        cx+=dx; cy+=dy; break
-      }
-      case 'Z': case 'z': out.push('h'); break
-    }
-  }
-  return out.join('\n')
-}
 
 // Framic F logo helpers.
 function logoPdfAsset() {
@@ -63,19 +26,6 @@ function logoImagePdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110, left?
   return `q\n${r(logoWidth)} 0 0 ${r(logoHeight)} ${r(x)} ${r(y)} cm\n/Im1 Do\nQ`
 }
 
-// Used by the monthly report PDF, whose page builder does not include image
-// XObjects. Invoice PDFs use the exact image above.
-export function logoPdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110, left?: number): string {
-  const s = logoWidth / 102
-  const xOff = left ?? pageWidth - topMargin - logoWidth
-  const yBase = 842 - topMargin
-  const paths = [
-    'M4 37V20C4 10 10 4 20 4h32v7H20c-5 0-8 3-8 9v17Z',
-    'M12 22h32v7H12Z',
-  ]
-  const allPaths = paths.map(d => svgToPdf(d, xOff, yBase, s)).join('\n')
-  return `0.09 0.41 0.30 rg\n${allPaths}\nf`
-}
 const winAnsiExtras: Record<string, number> = { '€': 0x80, '–': 0x96, '—': 0x97, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '…': 0x85 }
 
 export function pdfText(value: string) {

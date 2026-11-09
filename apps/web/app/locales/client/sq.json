@@ -1612,6 +1612,7 @@
   "monthly.phaseContentDescription": "Teksti, dizajni dhe kontrolli",
   "monthly.selectPhotoRequired": "Zgjidh të paktën një fotografi ose lëre AI të vendosë.",
   "monthly.changeNotSaved": "Ndryshimi nuk u ruajt. Provo sërish.",
+  "monthly.reportDownloadFailed": "PDF-ja nuk u shkarkua. Provo sërish.",
   "monthly.choosePackage": "Zgjidh një pako",
   "monthly.recoveringTitle": "Po përgatitim versionin e radhës",
   "monthly.recoveringDescription": "Asgjë nuk humbi. Vazhdon aty ku u ndal.",

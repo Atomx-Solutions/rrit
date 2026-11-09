@@ -1612,6 +1612,7 @@
   "monthly.phaseContentDescription": "Testo, design e revisione",
   "monthly.selectPhotoRequired": "Scegli almeno una foto o lascia decidere all’IA.",
   "monthly.changeNotSaved": "La modifica non è stata salvata. Riprova.",
+  "monthly.reportDownloadFailed": "Impossibile scaricare il PDF. Riprova.",
   "monthly.choosePackage": "Scegli un pacchetto",
   "monthly.recoveringTitle": "Preparazione della prossima versione",
   "monthly.recoveringDescription": "Non si è perso nulla. Riprende da dove si era fermato.",

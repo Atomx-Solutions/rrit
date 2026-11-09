@@ -138,10 +138,24 @@ function togglePhoto(id: string, kind: 'post' | 'video') {
   list.value = [...list.value, id]
 }
 
-function openReport(type: 'research' | 'strategy') {
-  if (!import.meta.client) return
-  const url = `${base.value}/monthly-report?month=${encodeURIComponent(props.month)}&type=${type}`
-  window.open(url, '_blank', 'noopener,noreferrer')
+// The export buttons download the PDF the server already builds, instead of
+// opening the report page in a tab to save it from there.
+const exporting = ref<'research' | 'strategy' | null>(null)
+async function downloadReport(type: 'research' | 'strategy') {
+  if (!import.meta.client || exporting.value) return
+  exporting.value = type
+  try {
+    const response = await fetch(
+      `/api/ai/monthly-report.pdf?month=${encodeURIComponent(props.month)}&type=${type}`,
+      { credentials: 'include' },
+    )
+    if (!response.ok) throw new Error('report download failed')
+    saveFile(await response.blob(), `framic-${type}-${props.month}`, 'application/pdf')
+  } catch {
+    error.value = t('monthly.reportDownloadFailed')
+  } finally {
+    exporting.value = null
+  }
 }
 
 function prerequisitePath(id: string) {
@@ -1394,7 +1408,8 @@ onBeforeUnmount(() => clearInterval(timer))
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-file-text"
-                @click="openReport('research')"
+                :loading="exporting === 'research'"
+                @click="downloadReport('research')"
               >
                 {{ t('monthly.exportResearchPdf') }}
               </UButton>
@@ -1403,7 +1418,8 @@ onBeforeUnmount(() => clearInterval(timer))
                 color="primary"
                 variant="solid"
                 icon="i-lucide-file-down"
-                @click="openReport('strategy')"
+                :loading="exporting === 'strategy'"
+                @click="downloadReport('strategy')"
               >
                 {{ t('monthly.exportStrategyPdf') }}
               </UButton>

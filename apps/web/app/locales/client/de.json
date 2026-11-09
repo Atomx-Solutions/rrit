@@ -1612,6 +1612,7 @@
   "monthly.phaseContentDescription": "Text, Gestaltung und Prüfung",
   "monthly.selectPhotoRequired": "Wähle mindestens ein Foto aus oder lass die KI entscheiden.",
   "monthly.changeNotSaved": "Die Änderung wurde nicht gespeichert. Versuche es erneut.",
+  "monthly.reportDownloadFailed": "Das PDF konnte nicht heruntergeladen werden. Bitte versuche es erneut.",
   "monthly.choosePackage": "Wähle ein Paket",
   "monthly.recoveringTitle": "Die nächste Version wird vorbereitet",
   "monthly.recoveringDescription": "Nichts ist verloren. Es geht dort weiter, wo es aufgehört hat.",

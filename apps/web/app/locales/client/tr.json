@@ -1612,6 +1612,7 @@
   "monthly.phaseContentDescription": "Metin, tasarım ve inceleme",
   "monthly.selectPhotoRequired": "En az bir fotoğraf seçin veya yapay zekânın karar vermesine izin verin.",
   "monthly.changeNotSaved": "Değişiklik kaydedilmedi. Tekrar deneyin.",
+  "monthly.reportDownloadFailed": "PDF indirilemedi. Tekrar dene.",
   "monthly.choosePackage": "Bir paket seçin",
   "monthly.recoveringTitle": "Sonraki sürüm hazırlanıyor",
   "monthly.recoveringDescription": "Hiçbir şey kaybolmadı. Kaldığı yerden devam ediyor.",
