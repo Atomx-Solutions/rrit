@@ -47,6 +47,23 @@ const {
 // sidebar open, then retain the navigation width chosen by that user.
 const collapsed = useCookie('rrit-sidebar-collapsed-v3', { default: () => false })
 const sidebarOpen = ref(!collapsed.value)
+// USidebar always builds its desktop column, even on a phone where CSS hides
+// it, and that column (business switcher, two navigation menus, profile menu)
+// was a large part of the first render's long task. /app is client-only, so the
+// viewport is known at setup: on a phone the menus are built only while the
+// drawer is open.
+const desktopQuery = import.meta.client ? window.matchMedia('(min-width: 1024px)') : undefined
+const desktopNav = ref(desktopQuery?.matches ?? true)
+const updateDesktopNav = () => (desktopNav.value = desktopQuery?.matches ?? true)
+onMounted(() => desktopQuery?.addEventListener('change', updateDesktopNav))
+onBeforeUnmount(() => desktopQuery?.removeEventListener('change', updateDesktopNav))
+// USidebar starts "open" on every viewport and only closes its phone drawer
+// once it has mounted, so the drawer state is trusted from the tick after that.
+const drawerStateKnown = ref(false)
+onMounted(() => nextTick(() => (drawerStateKnown.value = true)))
+const navContentReady = computed(
+  () => desktopNav.value || (drawerStateKnown.value && sidebarOpen.value),
+)
 // Tooltips are useful for truncated names on desktop, but touch devices open
 // them on tap and obscure the business switcher instead of helping navigation.
 const touchInput = ref(false)
@@ -294,6 +311,7 @@ onBeforeUnmount(removeNavigationGuard)
       >
         <template #header="{ state, close }">
           <UDropdownMenu
+            v-if="navContentReady"
             :items="businessMenu"
             :content="{ align: 'start', collisionPadding: 12 }"
             :ui="{ content: 'w-72 max-w-[calc(100vw-1.5rem)]' }"
@@ -343,7 +361,7 @@ onBeforeUnmount(removeNavigationGuard)
             @click="close"
           />
         </template>
-        <template #default="{ state }">
+        <template v-if="navContentReady" #default="{ state }">
           <UDashboardSearchButton
             :collapsed="state === 'collapsed'"
             :label="t('nav.search')"
@@ -389,6 +407,7 @@ onBeforeUnmount(removeNavigationGuard)
         </template>
         <template #footer="{ state }">
           <UDropdownMenu
+            v-if="navContentReady"
             :items="profileMenu"
             :content="{ align: 'center', side: 'top', collisionPadding: 12 }"
             :ui="{ content: 'w-(--reka-dropdown-menu-trigger-width) min-w-48' }"
