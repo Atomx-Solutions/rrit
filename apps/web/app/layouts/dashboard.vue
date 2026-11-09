@@ -74,14 +74,23 @@ async function checkPublishedPosts() {
   }
 }
 watch(() => route.path, () => void checkPublishedPosts())
+// The command palette and notification drawer are closed on load, yet
+// building them took part of the first long task on a phone. They mount once
+// the browser is idle, or at once when someone opens them.
+const overlaysReady = ref(false)
+function whenIdle(run: () => void) {
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 2000 })
+  else setTimeout(run, 1)
+}
 watch(ready, (isReady) => {
-  if (isReady) void checkPublishedPosts()
+  if (isReady) whenIdle(() => void checkPublishedPosts())
 })
 onMounted(() => {
+  whenIdle(() => (overlaysReady.value = true))
   touchInputMedia = window.matchMedia('(hover: none), (pointer: coarse)')
   updateTouchInput()
   touchInputMedia.addEventListener('change', updateTouchInput)
-  void checkPublishedPosts()
+  whenIdle(() => void checkPublishedPosts())
   publishedCheckTimer = setInterval(() => void checkPublishedPosts(), publishedCheckIntervalMs)
 })
 onBeforeUnmount(() => {
@@ -389,6 +398,7 @@ onBeforeUnmount(removeNavigationGuard)
       <main id="main" tabindex="-1" class="flex min-w-0 flex-1 overflow-hidden"><slot /></main>
     </UDashboardGroup>
     <UDashboardSearch
+      v-if="overlaysReady || searchOpen"
       v-model:open="searchOpen"
       :groups="commands"
       :color-mode="false"
@@ -396,6 +406,7 @@ onBeforeUnmount(removeNavigationGuard)
       :placeholder="t('nav.searchPages')"
     />
     <USlideover
+      v-if="overlaysReady || notificationsOpen"
       v-model:open="notificationsOpen"
       :title="t('nav.notifications')"
       :description="t('nav.notificationsDescription')"
