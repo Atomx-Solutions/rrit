@@ -1,11 +1,5 @@
 import { authScopeForPath } from '~~/shared/utils/auth-scope'
-
-// Supabase stores both sessions in cookies it names after the storage key.
-const SESSION_COOKIE_PREFIX = 'sb-'
-
-function hasStoredSession() {
-  return document.cookie.split('; ').some((entry) => entry.startsWith(SESSION_COOKIE_PREFIX))
-}
+import { hasStoredSession } from '~/utils/stored-session'
 
 export default defineNuxtPlugin(() => {
   let refreshing = false

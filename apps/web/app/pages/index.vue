@@ -1,15 +1,21 @@
 <script setup lang="ts">
 import '~/assets/css/landing.css'
 import '~/assets/css/landing-scenes.css'
+import { hasStoredSession } from '~/utils/stored-session'
 import { imageFallback, imageSrcset, landingPosterSizes } from '~~/shared/utils/responsive-image'
 definePageMeta({
   layout: 'public',
+  // Every string here comes from t(), so the DOM translator has nothing to do.
+  domTranslation: false,
   // Typing the address or opening it in a new tab while signed in leads back to
   // the workspace. Following a link to the landing from inside the app (the
   // logo) still shows it, so a signed-in person can read it.
   middleware: [
     async (to, from) => {
       if (import.meta.server || to.fullPath !== from.fullPath) return
+      // Without a session cookie there is nothing to redirect to, and the
+      // Supabase SDK stays off the landing page.
+      if (!hasStoredSession()) return
       const { authClient } = await import('~/utils/auth-client')
       // A full load: a second in-app redirect (/app to the workspace) started
       // while the landing is still hydrating changes the address but leaves
