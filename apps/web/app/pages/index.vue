@@ -241,23 +241,19 @@ const questions = computed(() => [
             >
           </div>
           <div class="landing-faq-answers">
-            <UAccordion
-              :items="questions"
-              trailing-icon="i-lucide-plus"
-              :ui="{
-                root: 'landing-faq-accordion',
-                item: 'landing-faq-item',
-                trigger: 'landing-faq-trigger',
-                trailingIcon: 'landing-faq-toggle',
-                body: 'landing-faq-body',
-              }"
-            >
-              <template #leading="{ index }"
-                ><span class="landing-faq-number" aria-hidden="true"
-                  >0{{ index + 1 }}</span
-                ></template
-              >
-            </UAccordion>
+            <!-- Native disclosure rather than UAccordion: it needs no script,
+                 and the accordion measured every answer on mount, a forced
+                 layout that was the landing's longest task on mobile. -->
+            <div class="landing-faq-accordion">
+              <details v-for="(question, index) in questions" :key="question.label" class="landing-faq-item">
+                <summary class="landing-faq-trigger">
+                  <span class="landing-faq-number" aria-hidden="true">0{{ index + 1 }}</span>
+                  <span class="landing-faq-label">{{ question.label }}</span>
+                  <UIcon name="i-lucide-plus" class="landing-faq-toggle" />
+                </summary>
+                <p class="landing-faq-body">{{ question.content }}</p>
+              </details>
+            </div>
           </div>
         </div>
       </UContainer>

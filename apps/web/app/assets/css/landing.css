@@ -707,14 +707,18 @@
   display: grid;
   gap: 16px;
 }
-.landing-faq-item,
-.landing-faq-item[data-state='open'] {
+.landing-faq-item {
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 .landing-faq-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  cursor: pointer;
+  list-style: none;
   gap: 22px;
   min-height: 76px;
   padding: 18px 0;
@@ -722,6 +726,13 @@
   font-size: 17px;
   line-height: 1.5;
   font-weight: 500;
+}
+.landing-faq-trigger::-webkit-details-marker {
+  display: none;
+}
+.landing-faq-label {
+  flex: 1;
+  min-width: 0;
 }
 .landing-faq-trigger:hover {
   text-decoration: none;
@@ -738,14 +749,17 @@
   font-variant-numeric: tabular-nums;
 }
 .landing-faq-toggle {
+  flex-shrink: 0;
+  transition: transform var(--rrit-motion-standard) var(--rrit-ease-standard);
   width: 24px;
   height: 24px;
   color: var(--landing-green);
 }
-.landing-faq-trigger[data-state='open'] .landing-faq-toggle {
+.landing-faq-item[open] .landing-faq-toggle {
   transform: rotate(45deg);
 }
 .landing-faq-body {
+  margin: 0;
   max-width: 510px;
   padding: 0 32px 18px 36px;
   color: var(--landing-muted);
