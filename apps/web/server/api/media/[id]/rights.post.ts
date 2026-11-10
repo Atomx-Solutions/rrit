@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
         post.publicationMode = 'manual'
         post.policy = 'block'
         post.policyReason =
-          'Të drejtat e kësaj fotografie janë tërhequr. Zgjidh një fotografi tjetër.'
+          'server.PHOTO_RIGHTS_WITHDRAWN'
         post.version++
         await client.query('UPDATE posts SET payload=$1,updated_at=now() WHERE id=$2', [
           JSON.stringify(post),

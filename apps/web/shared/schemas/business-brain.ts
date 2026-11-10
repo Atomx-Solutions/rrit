@@ -192,13 +192,13 @@ export function factIsUsable(fact: BrandFact, day: string) {
 }
 export function factInputProblem(fact: BrandFact) {
   if (fact.verified && (!fact.text || !fact.source))
-    return 'Fakti i konfirmuar kërkon tekst dhe burim.'
+    return 'server.FACT_VERIFIED_NEEDS_TEXT_AND_SOURCE'
   if (fact.validFrom && fact.validUntil && fact.validUntil < fact.validFrom)
-    return 'Përfundimi duhet të jetë pas fillimit të vlefshmërisë.'
+    return 'server.FACT_VALID_UNTIL_BEFORE_FROM'
   if (fact.kind === 'offer' && fact.verified && (!fact.validFrom || !fact.validUntil))
-    return 'Oferta kërkon datën e fillimit dhe të përfundimit.'
+    return 'server.FACT_OFFER_NEEDS_DATES'
   if (fact.amountCents != null && !['EUR', 'CHF'].includes(fact.currency || ''))
-    return 'Çmimi duhet të ketë monedhën EUR ose CHF.'
+    return 'server.FACT_PRICE_CURRENCY_REQUIRED'
   return null
 }
 export function sameFactContent(first: BrandFact, second: BrandFact) {

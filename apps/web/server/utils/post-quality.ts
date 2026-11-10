@@ -144,7 +144,7 @@ export async function reviewPostQuality(
       quality.reasons.join(' ') ||
       (language === 'en-US'
         ? 'Review the facts and design before approval.'
-        : 'Kontrollo faktet dhe dizajnin përpara miratimit.')
+        : 'server.CHECK_FACTS_AND_DESIGN')
     await client.query(
       "UPDATE posts SET payload=jsonb_set(jsonb_set(jsonb_set(payload,'{policy}',to_jsonb($1::text)),'{policyReason}',to_jsonb($2::text)),'{aiProvenance,quality}',$5::jsonb) WHERE id=$3 AND business_id=$4",
       [

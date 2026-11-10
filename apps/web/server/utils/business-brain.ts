@@ -610,7 +610,7 @@ export async function syncBusinessBrain(
 ) {
   const seen = new Set<string>()
   const facts = input.facts.map((fact) => {
-    if (seen.has(fact.id)) throw new BrainFailure('Çdo fakt duhet të ketë identifikues të veçantë.')
+    if (seen.has(fact.id)) throw new BrainFailure('server.FACT_DUPLICATE_ID')
     seen.add(fact.id)
     return normalizeBrandFact(
       fact,
@@ -662,7 +662,7 @@ export async function syncBusinessBrain(
       ],
     )
     if (!saved.rowCount)
-      throw new BrainFailure('Ky identifikues i përket një fakti të arkivuar. Shto një fakt të ri.')
+      throw new BrainFailure('server.FACT_ID_ARCHIVED')
   }
   await client.query(
     "UPDATE business_facts SET status='archived',verified_by=NULL,verified_at=NULL,revision=revision+1,updated_at=now() WHERE business_id=$1 AND status<>'archived' AND NOT(id=ANY($2::text[]))",

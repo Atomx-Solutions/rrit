@@ -2,6 +2,7 @@ import { monthlyAiConfigured } from '../utils/monthly-ai'
 import { onVercel } from '../utils/host'
 import { closeMonthlyWorkerDatabase, runMonthlyPlannerBatch } from '../utils/monthly-planner'
 import { runVideoRenderQueue } from '../utils/video-queue'
+import { runImageEditQueue } from '../utils/image-edit-queue'
 
 export default defineNitroPlugin((nitro) => {
   if (!monthlyAiConfigured() || !['planner', 'all'].includes(process.env.PROCESS_ROLE || 'all'))
@@ -79,17 +80,31 @@ export default defineNitroPlugin((nitro) => {
         rendering = undefined
       })
   }
+  let editing: Promise<void> | undefined
+  function editTick() {
+    if (closing || editing) return
+    editing = runImageEditQueue()
+      .catch((error: unknown) =>
+        console.error('The photo edit queue stopped this tick.', {
+          error: error instanceof Error ? error.message.slice(0, 500) : 'unknown',
+        }))
+      .finally(() => {
+        editing = undefined
+      })
+  }
   const timer = setInterval(() => {
     tick()
     renderTick()
+    editTick()
   }, 15000)
   timer.unref()
   tick()
   renderTick()
+  editTick()
   nitro.hooks.hook('close', async () => {
     closing = true
     clearInterval(timer)
-    await Promise.all([current, rendering])
+    await Promise.all([current, rendering, editing])
     await closeMonthlyWorkerDatabase()
   })
 })

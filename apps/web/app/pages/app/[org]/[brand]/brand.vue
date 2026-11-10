@@ -165,7 +165,7 @@ async function save() {
   }
   const problem = snapshot.facts.map(factInputProblem).find(Boolean)
   if (problem) {
-    notify(problem)
+    notify(t(problem))
     return
   }
   if (

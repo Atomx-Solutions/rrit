@@ -434,8 +434,8 @@ export async function providerPostChecks(
         key: 'meta',
         passed: false,
         message: metaConfigured()
-          ? 'Meta nuk konfirmoi qasjen. Kontrollo lidhjen dhe provo sërish.'
-          : 'Lidhja me Meta ende nuk është aktivizuar nga platforma.',
+          ? 'server.META_ACCESS_UNCONFIRMED'
+          : 'server.META_NOT_ENABLED',
       },
     ]
   }
@@ -473,8 +473,8 @@ export async function requireFreshValidation(
       statusCode: 422,
       message:
         scope === 'publication'
-          ? 'Kontrollo lidhjen me Meta përpara publikimit. Kontrolli duhet të jetë i suksesshëm dhe i freskët.'
-          : 'Rikontrollo përmbajtjen përpara miratimit. Nuk kërkohet lidhje me Meta.',
+          ? 'server.PUBLISH_CHECK_REQUIRED'
+          : 'server.CONTENT_RECHECK_REQUIRED',
     })
 }
 

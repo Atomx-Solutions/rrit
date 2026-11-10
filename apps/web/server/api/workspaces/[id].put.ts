@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
   const id = uuid.safeParse(getRouterParam(event, 'id'))
   if (!id.success) throw createError({ statusCode: 404, message: 'server.BUSINESS_NOT_FOUND' })
   const parsed = schema.safeParse(await boundedBody(event))
-  if (!parsed.success) fail('Kontrollo fushat. Një vlerë është jashtë kufijve të lejuar.')
+  if (!parsed.success) fail('server.FIELDS_OUT_OF_RANGE')
   const input = parsed.data
   const client = await database().connect()
   const decoded = new Map<string, Awaited<ReturnType<typeof decodePhoto>>>()
@@ -71,7 +71,7 @@ export default defineEventHandler(async (event) => {
         ? /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/
         : /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/
       if (!asset.rights || !dataUrl.test(asset.url))
-        fail(asset.kind === 'brand' ? 'Ngarko një logo të vlefshme dhe konfirmo të drejtat.' : 'Ngarko JPG dhe konfirmo të drejtat.')
+        fail(asset.kind === 'brand' ? 'server.UPLOAD_VALID_LOGO' : 'server.UPLOAD_JPG_CONFIRM_RIGHTS')
       const bytes = Buffer.from(asset.url.split(',')[1]!, 'base64')
       if (bytes.length > 2097152) fail('Fotografia tejkalon 2 MB.')
       decoded.set(asset.id, await (asset.kind === 'brand' ? decodeBrandLogo(bytes) : decodePhoto(bytes)))
@@ -152,7 +152,7 @@ export default defineEventHandler(async (event) => {
           ),
       )
     )
-      fail('Fotografia lidhet me një publikim që pret konfirmim dhe nuk mund të ndryshohet ende.')
+      fail('server.PHOTO_LOCKED_BY_PUBLICATION')
     if (JSON.stringify(input.assets) !== JSON.stringify(current.assets))
       await requireEntitlement(id.data, 'media', client)
     if (
@@ -172,12 +172,12 @@ export default defineEventHandler(async (event) => {
       new Set(input.posts.map((p) => p.id)).size !== input.posts.length ||
       new Set(input.assets.map((a) => a.id)).size !== input.assets.length
     )
-      fail('Përmbajtja përmban identifikues të përsëritur.')
+      fail('server.CONTENT_DUPLICATE_IDS')
     if (
       input.posts.some((p) => !uuid.safeParse(p.id).success) ||
       input.assets.some((a) => !uuid.safeParse(a.id).success)
     )
-      fail('Identifikues i pavlefshëm.')
+      fail('server.INVALID_IDENTIFIER')
     const images = new Map<string, string>()
     for (const asset of input.assets) {
       const previous = current.assets.find((a) => a.id === asset.id)
@@ -186,10 +186,10 @@ export default defineEventHandler(async (event) => {
         asset.tags.length > 20 ||
         asset.tags.some((t) => t.length > 100)
       )
-        fail('Përdor një emër dhe etiketa më të shkurtra për fotografinë.')
+        fail('server.PHOTO_NAME_TOO_LONG')
       if (previous) {
         if (asset.url !== previous.url)
-          fail('Fotografia ekzistuese nuk mund të zëvendësohet në këtë mënyrë.')
+          fail('server.PHOTO_REPLACE_NOT_ALLOWED')
         await client.query(
           'UPDATE assets SET name = $1, tags = $2, rights = $3, kind = $4 WHERE id = $5 AND business_id = $6',
           [asset.name, JSON.stringify(asset.tags), asset.rights, asset.kind, asset.id, id.data],
@@ -199,13 +199,13 @@ export default defineEventHandler(async (event) => {
           ? /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/
           : /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/
         if (!asset.rights || !dataUrl.test(asset.url))
-          fail(asset.kind === 'brand' ? 'Ngarko një logo të vlefshme dhe konfirmo të drejtat.' : 'Ngarko një fotografi JPG dhe konfirmo të drejtat.')
+          fail(asset.kind === 'brand' ? 'server.UPLOAD_VALID_LOGO' : 'server.UPLOAD_JPG_CONFIRM_RIGHTS')
         const photo = decoded.get(asset.id)
         if (!photo) fail('Fotografia nuk u verifikua.')
         const bytes = photo.data
         if (asset.kind === 'brand') {
           if (bytes.length > 2097152 || bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80 || bytes[2] !== 78 || bytes[3] !== 71)
-            fail('Logoja nuk është një PNG e vlefshme deri në 2 MB.')
+            fail('server.LOGO_INVALID_PNG')
         } else if (
           bytes.length > 2097152 ||
           bytes.length < 4 ||
@@ -214,7 +214,7 @@ export default defineEventHandler(async (event) => {
           bytes[bytes.length - 2] !== 255 ||
           bytes[bytes.length - 1] !== 217
         )
-          fail('Fotografia nuk është një JPG i vlefshëm deri në 2 MB.')
+          fail('server.PHOTO_INVALID_JPG')
         const storagePath = assetStoragePath(assetStorageFolder(owner.slug, id.data), asset.name)
         await uploadAsset(storagePath, bytes)
         uploadedStoragePaths.push(storagePath)
@@ -252,10 +252,10 @@ export default defineEventHandler(async (event) => {
         candidate.scheduledAt !== previous.scheduledAt ||
         (candidate.publicationMode || 'manual') !== (previous.publicationMode || 'manual')
       if (postChanged && (!candidate.caption.trim() || !allowedImages.has(candidate.image)))
-        fail('Plotëso tekstin dhe zgjidh një fotografi me të drejta të konfirmuara.')
+        fail('server.POST_TEXT_AND_PHOTO_REQUIRED')
       let post: Post
       if (!previous) {
-        if (candidate.status !== 'draft') fail('Postimi i ri duhet të nisë si draft.')
+        if (candidate.status !== 'draft') fail('server.NEW_POST_MUST_BE_DRAFT')
         post = {
           ...candidate,
           status: 'draft',
@@ -269,7 +269,7 @@ export default defineEventHandler(async (event) => {
           aiProvenance: undefined,
           publicationMode: 'manual',
           policy: 'warn',
-          policyReason: 'Kontrollo faktet dhe fotografinë përpara miratimit.',
+          policyReason: 'server.CHECK_FACTS_AND_PHOTO',
         }
       } else {
         const changed = editableKeys.some((key) => candidate[key] !== previous[key])
@@ -279,10 +279,10 @@ export default defineEventHandler(async (event) => {
           changed &&
           (!['draft', 'review'].includes(previous.status) || candidate.status !== 'draft')
         )
-          fail('Rihap postimin si draft për ta redaktuar.')
+          fail('server.REOPEN_AS_DRAFT')
         if (statusChanged && !changed) {
           if (inFlight.rows.some((job) => job.post_id === previous.id))
-            fail('Publikimi pret konfirmim nga Meta. Kontrollo gjendjen përpara ndryshimit.')
+            fail('server.META_PUBLICATION_PENDING')
           const error = validateTransition(previous, candidate.status)
           if (error) fail(error)
           if (candidate.status === 'approved' && previous.status !== 'scheduled')
@@ -320,7 +320,7 @@ export default defineEventHandler(async (event) => {
             )
             if (processing.rows.length)
               fail(
-                'Publikimi ka filluar ose pret konfirmim. Kontrollo gjendjen përpara ndryshimit.',
+                'server.PUBLICATION_IN_PROGRESS',
               )
             await client.query(
               "UPDATE publication_jobs SET status='cancelled',updated_at=now() WHERE post_id=$1 AND status='pending'",
@@ -329,12 +329,12 @@ export default defineEventHandler(async (event) => {
           }
         }
         if (!statusChanged && candidate.scheduledAt !== previous.scheduledAt)
-          fail('Hiqe postimin nga kalendari përpara ndryshimit të orarit.')
+          fail('server.UNSCHEDULE_BEFORE_TIME_CHANGE')
         if (
           !statusChanged &&
           (candidate.publicationMode || 'manual') !== (previous.publicationMode || 'manual')
         )
-          fail('Hiqe postimin nga kalendari përpara ndryshimit të mënyrës së publikimit.')
+          fail('server.UNSCHEDULE_BEFORE_MODE_CHANGE')
         if (
           candidate.status === 'scheduled' &&
           (statusChanged || candidate.scheduledAt !== previous.scheduledAt) &&
@@ -342,7 +342,7 @@ export default defineEventHandler(async (event) => {
             !Number.isFinite(Date.parse(candidate.scheduledAt)) ||
             Date.parse(candidate.scheduledAt) <= Date.now())
         )
-          fail('Zgjidh një orar të vlefshëm në të ardhmen.')
+          fail('server.FUTURE_TIME_REQUIRED')
         post = { ...previous }
         if (changed) {
           for (const key of editableKeys) Object.assign(post, { [key]: candidate[key] })
@@ -356,7 +356,7 @@ export default defineEventHandler(async (event) => {
           post.contentVersion = postContentVersion(previous) + 1
           post.policy = 'warn'
           post.policyReason =
-            'Përmbajtja ndryshoi. Kontrollo faktet dhe fotografinë përpara miratimit.'
+            'server.CONTENT_CHANGED_RECHECK'
         } else if (statusChanged) {
           post.status = candidate.status
           post.scheduledAt = candidate.status === 'scheduled' ? candidate.scheduledAt : null
@@ -369,7 +369,7 @@ export default defineEventHandler(async (event) => {
         const checks = await localPostChecks(post, id.data, client)
         post.policy = blockingPostChecks(checks).every((check) => check.passed) ? 'warn' : 'block'
         post.policyReason = checks.every((check) => check.passed)
-          ? 'Kontrollet e përmbajtjes kaluan. Konfirmo faktet përpara miratimit. Meta është opsionale për kalendarin.'
+          ? 'server.CONTENT_CHECKS_PASSED_CONFIRM_FACTS'
           : checks
               .filter((check) => !check.passed)
               .map((check) => check.message)
@@ -380,7 +380,7 @@ export default defineEventHandler(async (event) => {
         'INSERT INTO posts (id, business_id, payload, content_version) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, content_version = EXCLUDED.content_version, updated_at = now() WHERE posts.business_id = EXCLUDED.business_id',
         [post.id, id.data, JSON.stringify(post), postContentVersion(post)],
       )
-      if (!saved.rowCount) fail('Identifikuesi i postimit nuk është i disponueshëm.')
+      if (!saved.rowCount) fail('server.POST_ID_UNAVAILABLE')
       if (contentChanged) {
         const recorded = await client.query(
           "INSERT INTO post_content_versions (post_id,business_id,content_version,fingerprint,snapshot,source,actor_id) VALUES ($1,$2,$3,$4,$5,'editor',$6) ON CONFLICT DO NOTHING RETURNING post_id",
@@ -394,7 +394,7 @@ export default defineEventHandler(async (event) => {
           ],
         )
         if (!recorded.rowCount)
-          fail('Versioni i përmbajtjes ekziston tashmë. Ngarko versionin e fundit.')
+          fail('server.CONTENT_VERSION_EXISTS')
       }
       if (approvalDecision) {
         await client.query(
@@ -457,7 +457,7 @@ export default defineEventHandler(async (event) => {
     }
     if (newPostCount) await recordTrialPostUsage(client, id.data, newPostCount)
     if (current.posts.some((p) => !input.posts.some((incoming) => incoming.id === p.id)))
-      fail('Heqja e postimeve nuk mbështetet nga ky veprim.')
+      fail('server.POST_REMOVAL_UNSUPPORTED')
     const removedAssets = current.assets.filter(
       (a) => !input.assets.some((incoming) => incoming.id === a.id),
     )
@@ -469,7 +469,7 @@ export default defineEventHandler(async (event) => {
       removedStoragePaths.push(...stored.rows.map((row) => row.storage_path as string))
     }
     for (const asset of removedAssets) {
-      if (input.posts.some((p) => p.image === asset.url)) fail('Fotografia përdoret në një postim.')
+      if (input.posts.some((p) => p.image === asset.url)) fail('server.PHOTO_USED_IN_POST')
       await client.query('DELETE FROM assets WHERE id = $1 AND business_id = $2', [
         asset.id,
         id.data,

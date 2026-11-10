@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { getDeadline, waitUntil } from '@vercel/functions'
 import { runMonthlyPlannerBatch } from './monthly-planner'
 import { runVideoRenderQueue } from './video-queue'
+import { runImageEditQueue } from './image-edit-queue'
 import { onVercel } from './host'
 
 /**
@@ -30,13 +31,14 @@ export async function runPlannerAndVideos(options: { deadline: number; discover?
   let planning = true
   // Both are awaited to the end even when one fails, so the function is never
   // stopped while the other is still working.
-  const [plans, videos] = await Promise.allSettled([
+  const results = await Promise.allSettled([
     runMonthlyPlannerBatch(undefined, options).finally(() => {
       planning = false
     }),
     runVideoRenderQueue(undefined, { deadline: options.deadline, waitWhile: () => planning }),
+    runImageEditQueue(undefined, { deadline: options.deadline, waitWhile: () => planning }),
   ])
-  const failed = [plans, videos].find((result) => result.status === 'rejected')
+  const failed = results.find((result) => result.status === 'rejected')
   if (failed) throw failed.reason
 }
 
@@ -69,5 +71,14 @@ export function startVideoRenderNow(event: H3Event, started: number) {
   keepRunningAfterReply(
     runVideoRenderQueue(undefined, { deadline: invocationDeadline(event, started) }),
     'video queue',
+  )
+}
+
+/** Starts a photo edit the business has just queued, the same way. */
+export function startImageEditNow(event: H3Event, started: number) {
+  if (!onVercel()) return
+  keepRunningAfterReply(
+    runImageEditQueue(undefined, { deadline: invocationDeadline(event, started) }),
+    'photo edit queue',
   )
 }

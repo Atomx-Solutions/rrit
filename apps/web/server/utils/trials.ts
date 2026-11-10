@@ -390,7 +390,7 @@ export async function trialStatus(
     [businessId],
   )
   const row = result.rows[0]
-  if (!row) throw createError({ statusCode: 503, message: 'Gjendja e paketës nuk u lexua.' })
+  if (!row) throw createError({ statusCode: 503, message: 'server.PACKAGE_STATE_UNREADABLE' })
   const policy = parseTrialPolicy(row?.policy)
   const state = row?.trial_status
     ? row.trial_status === 'granted'
@@ -451,8 +451,8 @@ export async function requireEntitlement(
       statusCode: 402,
       message:
         access.state === 'blocked' || access.state === 'revoked'
-          ? 'Trial-i falas është përdorur më parë për këtë identitet ose pajisje. Të dhënat e tua mbeten të disponueshme.'
-          : 'Trial-i falas ka përfunduar. Të dhënat e tua mbeten të disponueshme.',
+          ? 'server.TRIAL_ALREADY_USED'
+          : 'server.TRIAL_ENDED',
       data: { code: 'ENTITLEMENT_REQUIRED', feature },
     })
 }

@@ -158,7 +158,7 @@ export async function submitVideoJob(
   const response = await sendWithRateLimitRetry(send, settings.rateLimit, withRandom(clock))
   const submitted = await response.json().catch(() => ({})) as OpenRouterVideoStatus
   if (!response.ok || !submitted.id)
-    throw createError({ statusCode: 502, message: providerError(submitted) || 'OpenRouter nuk e pranoi kërkesën për video.' })
+    throw createError({ statusCode: 502, message: providerError(submitted) || 'server.AI_VIDEO_REQUEST_REJECTED' })
   return submitted
 }
 
