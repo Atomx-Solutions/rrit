@@ -754,6 +754,9 @@ describe('AI creative generation', () => {
     expect(edited).toContain('it overrides the approved copy')
     expect(edited).toContain('Never render the instruction itself')
     expect(edited).toContain('inside quotation marks, render those words verbatim')
+    // An edit about an object leaves the copy alone instead of turning the
+    // instruction into a headline.
+    expect(edited).toContain('apply it to the visual only and keep the existing approved copy exactly as it is')
   })
 
   it('paints and crops each channel to its own canvas', () => {

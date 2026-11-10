@@ -1276,8 +1276,12 @@ export async function runClaimedJobs<Job>(input: {
  */
 export function imageEditQueueSettings(env: Record<string, string | undefined> = process.env) {
   return {
-    concurrency: positiveSetting(env.IMAGE_EDIT_CONCURRENCY, 50),
+    // Paid and trial businesses edit in separate pools, so trials never take
+    // a paying customer's place.
+    concurrency: positiveSetting(env.IMAGE_EDIT_CONCURRENCY, 40),
     perBusiness: positiveSetting(env.IMAGE_EDIT_CONCURRENCY_PER_BUSINESS, 3),
+    trialConcurrency: positiveSetting(env.IMAGE_EDIT_TRIAL_CONCURRENCY, 10),
+    trialPerBusiness: positiveSetting(env.IMAGE_EDIT_TRIAL_CONCURRENCY_PER_BUSINESS, 1),
     minEditMs: positiveSetting(env.IMAGE_EDIT_MIN_SECONDS, 330) * 1000,
     pollMs: positiveSetting(env.IMAGE_EDIT_QUEUE_POLL_SECONDS, 3) * 1000,
   }

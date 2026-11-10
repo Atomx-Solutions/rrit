@@ -58,10 +58,11 @@ export function queueImageEdit(userId: string, postId: string, input: { contentV
     )
     if (!source.rowCount)
       throw createError({ statusCode: 422, message: 'server.PHOTO_RIGHTS_EXPIRED' })
+    const trial = !(await trialStatus(business.id, client)).paid
     const edit = await client.query<{ id: string }>(
-      `INSERT INTO image_edits(business_id,post_id,requested_by,instruction,content_version,status)
-       VALUES($1,$2,$3,$4,$5,'queued') RETURNING id`,
-      [business.id, postId, userId, input.instruction, input.contentVersion],
+      `INSERT INTO image_edits(business_id,post_id,requested_by,instruction,content_version,status,trial)
+       VALUES($1,$2,$3,$4,$5,'queued',$6) RETURNING id`,
+      [business.id, postId, userId, input.instruction, input.contentVersion, trial],
     ).catch((error: unknown) => {
       // One edit at a time for a post: a second request finds the first.
       if (typeof error === 'object' && error && 'code' in error && error.code === '23505')
@@ -83,27 +84,37 @@ export type ClaimedImageEdit = {
   leaseOwner: string
 }
 
+export type ImageEditPools = {
+  concurrency: number
+  perBusiness: number
+  trialConcurrency: number
+  trialPerBusiness: number
+}
+
 /**
- * Takes the oldest queued edit, unless IMAGE_EDIT_CONCURRENCY edits already
- * hold a live lease. A business with `perBusiness` edits under way is passed
- * over for the next business in line. Claims are taken one at a time, so two
- * runs can never both read room for one more edit and both take it.
+ * Takes the oldest queued edit whose pool still has room. Paid and trial
+ * edits each have a pool of their own (`concurrency` / `trialConcurrency`
+ * edits holding a live lease), and a business with its pool's per-business
+ * number under way is passed over for the next business in line. Claims are
+ * taken one at a time, so two runs can never both read room for one more edit.
  */
 export async function claimImageEdit(
   db: Pool,
   leaseOwner: string,
   leaseUntil: Date,
-  concurrency: number,
-  perBusiness = imageEditQueueSettings().perBusiness,
+  pools: ImageEditPools = imageEditQueueSettings(),
 ): Promise<ClaimedImageEdit | undefined> {
   const client = await db.connect()
   try {
     await client.query('BEGIN')
     await client.query("SELECT pg_advisory_xact_lock(hashtext('image_edits.claim'))")
-    const active = await client.query<{ count: number }>(
-      "SELECT count(*)::integer AS count FROM image_edits WHERE status='editing' AND lease_until>now()",
+    const active = await client.query<{ paid: number; trial: number }>(
+      `SELECT count(*) FILTER (WHERE NOT trial)::integer AS paid, count(*) FILTER (WHERE trial)::integer AS trial
+         FROM image_edits WHERE status='editing' AND lease_until>now()`,
     )
-    if ((active.rows[0]?.count || 0) >= concurrency) {
+    const paidRoom = (active.rows[0]?.paid || 0) < pools.concurrency
+    const trialRoom = (active.rows[0]?.trial || 0) < pools.trialConcurrency
+    if (!paidRoom && !trialRoom) {
       await client.query('COMMIT')
       return undefined
     }
@@ -119,15 +130,16 @@ export async function claimImageEdit(
         WHERE id=(
           SELECT queued.id FROM image_edits AS queued
            WHERE queued.status='queued'
+             AND (CASE WHEN queued.trial THEN $5::boolean ELSE $3::boolean END)
              AND (
                SELECT count(*) FROM image_edits AS active
                 WHERE active.business_id=queued.business_id
                   AND active.status='editing' AND active.lease_until>now()
-             ) < $3
+             ) < (CASE WHEN queued.trial THEN $6::integer ELSE $4::integer END)
            ORDER BY queued.created_at,queued.id LIMIT 1 FOR UPDATE SKIP LOCKED
         )
         RETURNING id,post_id,business_id,requested_by,instruction,content_version`,
-      [leaseOwner, leaseUntil, perBusiness],
+      [leaseOwner, leaseUntil, paidRoom, pools.perBusiness, trialRoom, pools.trialPerBusiness],
     )
     await client.query('COMMIT')
     const row = claimed.rows[0]
@@ -328,7 +340,7 @@ async function settleStoppedEdits(db: Pool) {
 
 /**
  * Makes queued photo edits until `deadline` (epoch ms). Up to
- * IMAGE_EDIT_CONCURRENCY run at once, and one is started only while
+ * IMAGE_EDIT_CONCURRENCY paid and IMAGE_EDIT_TRIAL_CONCURRENCY trial edits run at once, and one is started only while
  * IMAGE_EDIT_MIN_SECONDS of the run are still left. Leases follow the video
  * queue's: with a deadline they end a margin after it, otherwise they are renewed.
  */
@@ -354,12 +366,12 @@ export async function runImageEditQueue(
   try {
     await settleStoppedEdits(db)
     await runClaimedJobs<ClaimedImageEdit>({
-      concurrency: settings.concurrency,
+      concurrency: settings.concurrency + settings.trialConcurrency,
       deadline,
       minStepMs: settings.minEditMs,
       idleMs: settings.pollMs,
       waitWhile: options.waitWhile,
-      claim: () => claimImageEdit(db, leaseOwner, leaseUntil(), settings.concurrency, settings.perBusiness),
+      claim: () => claimImageEdit(db, leaseOwner, leaseUntil(), settings),
       run: (job) => runClaimedImageEdit(job, db),
       onError: (error) => warnQueue('A queued photo edit could not be claimed or made', error),
     })
