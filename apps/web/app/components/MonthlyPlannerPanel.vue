@@ -778,10 +778,9 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
 
       <PlannerBatchList
-        v-if="batchPosts.length || plan.stage === 'content'"
+        v-if="batchPosts.length"
         class="mt-4"
         :posts="batchPosts"
-        :pending="active ? Math.max(0, batchTotal - batchPosts.length) : 0"
         :working="active"
       />
 
@@ -819,7 +818,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
 
       <div
-        v-if="plan.research"
+        v-if="plan.research && plan.stage !== 'content'"
         class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success/20 bg-success/5 p-4"
       >
         <div class="flex items-start gap-3">
