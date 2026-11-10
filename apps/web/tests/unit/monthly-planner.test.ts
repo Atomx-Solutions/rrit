@@ -749,6 +749,11 @@ describe('AI creative generation', () => {
     expect(edited).toContain(sceneDressingRule)
     expect(edited).toContain('typographic designer')
     expect(edited).toContain('no more than two weights')
+    // The instruction is a direction: new copy replaces the old, the
+    // instruction itself is never painted, and only quoted words are verbatim.
+    expect(edited).toContain('it overrides the approved copy')
+    expect(edited).toContain('Never render the instruction itself')
+    expect(edited).toContain('inside quotation marks, render those words verbatim')
   })
 
   it('paints and crops each channel to its own canvas', () => {

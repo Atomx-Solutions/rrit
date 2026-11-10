@@ -3,14 +3,20 @@ import type { Post } from '~~/shared/schemas/workspace'
 
 const props = defineProps<{ post: Post; disabled?: boolean }>()
 const emit = defineEmits<{ saved: [image: string] }>()
-const { applyBusiness } = useWorkspace()
+const { data, initLive, notify } = useWorkspace()
 const { t } = useI18n()
 const open = ref(false)
 const busy = ref(false)
 const error = ref('')
 const aiInstruction = ref('')
+// The instruction of the last edit, so a failed edit can be asked for again.
+const lastInstruction = ref('')
 const { watchError } = useFormFeedback()
 watchError(error)
+
+type EditStatus = 'queued' | 'editing' | 'ready' | 'failed'
+const editStatus = ref<EditStatus | null>(null)
+const editInProgress = computed(() => editStatus.value === 'queued' || editStatus.value === 'editing')
 
 watch(open, (value) => {
   if (value && props.post.aiProvenance) {
@@ -19,24 +25,61 @@ watch(open, (value) => {
   }
 })
 
-async function generateWithAi() {
-  if (busy.value || props.disabled || aiInstruction.value.trim().length < 5) return
+// The edit is made on the server after the request is answered, so its status
+// is read again until it is ready or has failed, also after a reload.
+let timer: ReturnType<typeof setInterval> | undefined
+function stopFollowing() {
+  clearInterval(timer)
+  timer = undefined
+}
+async function readEdit() {
+  try {
+    const result = await $fetch(`/api/posts/${props.post.id}/creative`)
+    const previous = editStatus.value
+    editStatus.value = result.edit?.status || null
+    if (editInProgress.value) return follow()
+    stopFollowing()
+    if (!previous || previous === editStatus.value) return
+    if (editStatus.value === 'ready') {
+      await initLive()
+      const image = data.value.posts.find((post) => post.id === props.post.id)?.image
+      if (image) emit('saved', image)
+      notify(t('creative.ready'))
+    } else if (editStatus.value === 'failed') {
+      error.value = t(result.edit?.failureReason || 'creative.error')
+    }
+  } catch {
+    /* The edit's status is read again on the next tick. */
+  }
+}
+function follow() {
+  if (timer) return
+  timer = setInterval(() => {
+    if (!document.hidden) void readEdit()
+  }, videoFollowMs)
+}
+onMounted(readEdit)
+onBeforeUnmount(stopFollowing)
+
+async function queueEdit(instruction: string) {
+  if (busy.value || props.disabled || editInProgress.value || instruction.trim().length < 5) return
   busy.value = true
   error.value = ''
   try {
-    const result = await $fetch(`/api/posts/${props.post.id}/creative`, {
+    const queued = await $fetch(`/api/posts/${props.post.id}/creative`, {
       method: 'POST',
       body: {
         action: 'ai-edit',
         contentVersion: props.post.contentVersion || 1,
-        instruction: aiInstruction.value,
+        instruction,
       },
       retry: 0,
-      timeout: 330000,
     })
-    applyBusiness(result.business)
-    emit('saved', result.image)
+    lastInstruction.value = instruction
+    editStatus.value = queued.status
     open.value = false
+    notify(t('creative.queued'))
+    follow()
   } catch (problem) {
     error.value = t(
       (problem as { data?: { message?: string } }).data?.message || 'creative.error')
@@ -45,16 +88,38 @@ async function generateWithAi() {
   }
 }
 
+function generateWithAi() {
+  return queueEdit(aiInstruction.value)
+}
+
+// A failed edit is asked for again as it was; after a reload the instruction
+// is no longer known, so it is written again.
+function retryEdit() {
+  if (lastInstruction.value) return queueEdit(lastInstruction.value)
+  open.value = true
+}
+
 </script>
 
 <template>
   <UButton
+    v-if="editStatus === 'failed'"
+    variant="outline"
+    color="error"
+    icon="i-lucide-rotate-ccw"
+    :loading="busy"
+    :disabled="disabled"
+    @click="retryEdit"
+    >{{ t('creative.tryAgain') }}</UButton
+  >
+  <UButton
     variant="outline"
     color="neutral"
     icon="i-lucide-sparkles"
-    :disabled="disabled"
+    :loading="editInProgress"
+    :disabled="disabled || editInProgress"
     @click="open = true"
-    >{{ t('creative.improveWithAi') }}</UButton
+    >{{ editInProgress ? t(editStatus === 'queued' ? 'creative.queued' : 'creative.editing') : t('creative.improveWithAi') }}</UButton
   >
   <UModal
     v-model:open="open"

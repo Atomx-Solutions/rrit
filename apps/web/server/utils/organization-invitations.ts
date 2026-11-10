@@ -140,7 +140,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
         code: error.code,
         message: error.message,
       })
-    raise(error.message, 'Ftesa nuk u ruajt.')
+    raise(error.message, 'server.INVITATION_NOT_SAVED')
   }
   return data as Record<string, unknown>
 }
@@ -285,7 +285,7 @@ export async function acceptInvitation(
   try {
     return await withUserTransaction(user.id, async (client) => {
       const preview = await readPreview(client, hash)
-      if (!preview.valid) raise('INVITATION_NOT_FOUND', 'Ftesa nuk u pranua.')
+      if (!preview.valid) raise('INVITATION_NOT_FOUND', 'server.INVITATION_NOT_ACCEPTED')
 
       const businessName = preview.profile.businessName || preview.organizationName
       const state = emptyWorkspace(user.name, user.email)
@@ -317,6 +317,6 @@ export async function acceptInvitation(
     })
   } catch (error) {
     if (typeof error === 'object' && error && 'statusCode' in error) throw error
-    raise(databaseMessage(error), 'Ftesa nuk u pranua.')
+    raise(databaseMessage(error), 'server.INVITATION_NOT_ACCEPTED')
   }
 }

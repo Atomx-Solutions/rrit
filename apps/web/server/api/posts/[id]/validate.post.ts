@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
     checks,
     checkedAt: new Date().toISOString(),
     manualReview:
-      'Konfirmo vetë çmimet, datat, premtimet dhe të drejtat. Kontrollet teknike nuk vërtetojnë saktësinë e këtyre fakteve.',
+      'server.MANUAL_REVIEW_FACTS',
   }
   const client = await database().connect()
   try {
@@ -86,7 +86,7 @@ export default defineEventHandler(async (event) => {
       [
         !contentPassed ? 'block' : advisoryWarnings.length ? 'warn' : 'pass',
         contentPassed && !advisoryWarnings.length
-          ? 'Kontrollet e përmbajtjes kaluan. Mund ta miratosh dhe ta shtosh në kalendar pa lidhur Meta.'
+          ? 'server.CONTENT_CHECKS_PASSED'
           : contentChecks
               .filter((check) => !check.passed)
               .map((check) => check.message)

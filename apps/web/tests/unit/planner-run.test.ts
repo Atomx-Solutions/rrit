@@ -18,6 +18,10 @@ const videos = vi.hoisted(() => ({
   runVideoRenderQueue: vi.fn(async (_db?: unknown, _options?: VideoQueueOptions) => undefined),
 }))
 vi.mock('../../server/utils/video-queue', () => videos)
+const imageEdits = vi.hoisted(() => ({
+  runImageEditQueue: vi.fn(async (_db?: unknown, _options?: VideoQueueOptions) => undefined),
+}))
+vi.mock('../../server/utils/image-edit-queue', () => imageEdits)
 
 const { invocationDeadline, runPlannerAndVideos, startMonthlyPlannerNow, startVideoRenderNow } = await import('../../server/utils/planner-run')
 const event = {} as H3Event

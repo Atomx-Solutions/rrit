@@ -1274,6 +1274,15 @@ export async function runClaimedJobs<Job>(input: {
  * must be left to start one, and how often a run that is still planning looks
  * for videos its plans have just queued.
  */
+export function imageEditQueueSettings(env: Record<string, string | undefined> = process.env) {
+  return {
+    concurrency: positiveSetting(env.IMAGE_EDIT_CONCURRENCY, 50),
+    perBusiness: positiveSetting(env.IMAGE_EDIT_CONCURRENCY_PER_BUSINESS, 3),
+    minEditMs: positiveSetting(env.IMAGE_EDIT_MIN_SECONDS, 330) * 1000,
+    pollMs: positiveSetting(env.IMAGE_EDIT_QUEUE_POLL_SECONDS, 3) * 1000,
+  }
+}
+
 export function videoQueueSettings(env: Record<string, string | undefined> = process.env) {
   return {
     concurrency: positiveSetting(env.VIDEO_CONCURRENCY, 20),

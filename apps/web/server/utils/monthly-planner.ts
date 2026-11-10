@@ -2295,7 +2295,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
             // critical, and the business decides at approval.
             policy: 'warn',
             policyReason:
-              quality.reasons.join(' ') || 'Kontrollo faktet dhe dizajnin përpara miratimit.',
+              quality.reasons.join(' ') || 'server.CHECK_FACTS_AND_DESIGN',
             aiProvenance: provenance,
           }),
         )
