@@ -26,7 +26,11 @@ export default defineEventHandler(async (event) => {
   const width = mediaWidthFor(Number(getQuery(event).w))
   const resize = width && RESIZABLE.has(result.rows[0].mime)
   setHeader(event, 'Content-Type', resize ? 'image/webp' : result.rows[0].mime)
-  setHeader(event, 'Cache-Control', 'private, no-store')
+  // An asset's bytes never change under its id (an edit makes a new asset),
+  // so the browser keeps it: reopening the gallery shows it at once instead
+  // of downloading and resizing every photo again. "private" keeps it out of
+  // shared caches.
+  setHeader(event, 'Cache-Control', 'private, max-age=31536000, immutable')
   setHeader(event, 'X-Content-Type-Options', 'nosniff')
   if (!resize) return original
   return sharp(original, { limitInputPixels: 16000000 })
