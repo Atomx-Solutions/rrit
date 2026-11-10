@@ -22,6 +22,21 @@ describe('Supabase authentication configuration', () => {
     expect(config.requireEmailVerification).toBe(false)
   })
 
+  it('trusts a Vercel preview its own address, and production only APP_URL', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('APP_URL', 'https://framic.ch')
+    vi.stubEnv('VERCEL_URL', 'framic-abc123-atomx.vercel.app')
+    vi.stubEnv('VERCEL_BRANCH_URL', 'framic-git-feature-atomx.vercel.app')
+    vi.stubEnv('VERCEL_ENV', 'preview')
+    expect(authConfiguration().trustedOrigins).toEqual(expect.arrayContaining([
+      'https://framic.ch',
+      'https://framic-abc123-atomx.vercel.app',
+      'https://framic-git-feature-atomx.vercel.app',
+    ]))
+    vi.stubEnv('VERCEL_ENV', 'production')
+    expect(authConfiguration().trustedOrigins).toEqual(['https://framic.ch'])
+  })
+
   it('supports opting back in to local verification', () => {
     vi.stubEnv('APP_URL', 'http://localhost:3000')
     vi.stubEnv('AUTH_REQUIRE_EMAIL_VERIFICATION', 'true')

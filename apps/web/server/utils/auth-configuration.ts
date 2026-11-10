@@ -28,6 +28,13 @@ export function authConfiguration() {
       }
     }
   }
+  // A Vercel preview runs on its own *.vercel.app address, not APP_URL. Only
+  // there, that deployment's own addresses (set by Vercel) are trusted too.
+  if (process.env.VERCEL_ENV === 'preview') {
+    for (const host of [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]) {
+      if (host) origins.add(`https://${host}`)
+    }
+  }
   return {
     baseURL: url.origin,
     trustedOrigins: [...origins],
