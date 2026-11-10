@@ -2460,5 +2460,19 @@
   "server.MANUAL_REVIEW_FACTS": "Konfirmo vetë çmimet, datat, premtimet dhe të drejtat. Kontrollet teknike nuk vërtetojnë saktësinë e këtyre fakteve.",
   "server.CONTENT_CHECKS_PASSED": "Kontrollet e përmbajtjes kaluan. Mund ta miratosh dhe ta shtosh në kalendar pa lidhur Meta.",
   "server.INVITATION_NOT_SAVED": "Ftesa nuk u ruajt.",
-  "server.INVITATION_NOT_ACCEPTED": "Ftesa nuk u pranua."
+  "server.INVITATION_NOT_ACCEPTED": "Ftesa nuk u pranua.",
+  "onboarding.improveWithAi": "Përmirëso me AI",
+  "onboarding.improving": "Po përmirësohet…",
+  "onboarding.improveHint": "AI e rishkruan qartë që postimet të dalin më mirë. Asgjë s’ndryshon pa e zgjedhur ti.",
+  "onboarding.improveWriteFirst": "Shkruaj fillimisht disa fjalë.",
+  "onboarding.improveRemaining": "{count} falas të mbetura",
+  "onboarding.improveUsedUp": "Përmirësimet falas u përdorën. Mund të përmirësosh më vonë te Biznesi im.",
+  "onboarding.improveFailed": "AI nuk arriti ta përmirësojë. Teksti yt nuk ndryshoi.",
+  "onboarding.aiSuggestion": "Sugjerimi i AI",
+  "onboarding.useSuggestion": "Përdore",
+  "onboarding.keepMine": "Mbaje timen",
+  "server.BRIEF_TEXT_REQUIRED": "Shkruaj disa fjalë para se ta përmirësosh me AI.",
+  "server.BRIEF_IMPROVEMENTS_USED": "Përmirësimet falas u përdorën. Mund të përmirësosh më vonë te Biznesi im.",
+  "brand.improveUsesCredits": "Përdor kredite",
+  "onboarding.improveFailedShort": "S’u përmirësua. Provo përsëri."
 }

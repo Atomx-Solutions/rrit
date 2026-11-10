@@ -2460,5 +2460,19 @@
   "server.MANUAL_REVIEW_FACTS": "Fiyatları, tarihleri, vaatleri ve hakları kendiniz doğrulayın. Teknik kontroller bu bilgileri doğrulamaz.",
   "server.CONTENT_CHECKS_PASSED": "İçerik kontrolleri geçti. Meta bağlamadan onaylayıp takvime ekleyebilirsiniz.",
   "server.INVITATION_NOT_SAVED": "Davet kaydedilemedi.",
-  "server.INVITATION_NOT_ACCEPTED": "Davet kabul edilemedi."
+  "server.INVITATION_NOT_ACCEPTED": "Davet kabul edilemedi.",
+  "onboarding.improveWithAi": "Yapay zekâ ile iyileştir",
+  "onboarding.improving": "İyileştiriliyor…",
+  "onboarding.improveHint": "Yapay zekâ bunu daha net yazar, gönderilerin daha iyi olur. Sen seçmeden hiçbir şey değişmez.",
+  "onboarding.improveWriteFirst": "Önce birkaç kelime yaz.",
+  "onboarding.improveRemaining": "{count} ücretsiz hak kaldı",
+  "onboarding.improveUsedUp": "Ücretsiz iyileştirmeler bitti. Daha sonra İşletmem bölümünde yapabilirsin.",
+  "onboarding.improveFailed": "Yapay zekâ bunu iyileştiremedi. Metnin değişmedi.",
+  "onboarding.aiSuggestion": "Yapay zekâ önerisi",
+  "onboarding.useSuggestion": "Bunu kullan",
+  "onboarding.keepMine": "Benimkini koru",
+  "server.BRIEF_TEXT_REQUIRED": "Yapay zekâ ile iyileştirmeden önce birkaç kelime yaz.",
+  "server.BRIEF_IMPROVEMENTS_USED": "Ücretsiz iyileştirmeler bitti. Daha sonra İşletmem bölümünde yapabilirsin.",
+  "brand.improveUsesCredits": "Kredi kullanır",
+  "onboarding.improveFailedShort": "İyileştirilemedi. Tekrar dene."
 }

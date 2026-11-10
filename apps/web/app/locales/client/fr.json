@@ -2460,5 +2460,19 @@
   "server.MANUAL_REVIEW_FACTS": "Confirmez vous-même les prix, dates, promesses et droits. Les vérifications techniques ne valident pas ces faits.",
   "server.CONTENT_CHECKS_PASSED": "Les vérifications du contenu ont réussi. Vous pouvez l’approuver et l’ajouter au calendrier sans connecter Meta.",
   "server.INVITATION_NOT_SAVED": "L’invitation n’a pas pu être enregistrée.",
-  "server.INVITATION_NOT_ACCEPTED": "L’invitation n’a pas pu être acceptée."
+  "server.INVITATION_NOT_ACCEPTED": "L’invitation n’a pas pu être acceptée.",
+  "onboarding.improveWithAi": "Améliorer avec l'IA",
+  "onboarding.improving": "Amélioration…",
+  "onboarding.improveHint": "L'IA reformule clairement pour de meilleures publications. Rien ne change sans ton choix.",
+  "onboarding.improveWriteFirst": "Écris d'abord quelques mots.",
+  "onboarding.improveRemaining": "{count} gratuites restantes",
+  "onboarding.improveUsedUp": "Améliorations gratuites utilisées. Possible plus tard dans Mon entreprise.",
+  "onboarding.improveFailed": "L'IA n'a pas pu l'améliorer. Ton texte est inchangé.",
+  "onboarding.aiSuggestion": "Suggestion de l'IA",
+  "onboarding.useSuggestion": "Utiliser",
+  "onboarding.keepMine": "Garder le mien",
+  "server.BRIEF_TEXT_REQUIRED": "Écris quelques mots avant d'améliorer avec l'IA.",
+  "server.BRIEF_IMPROVEMENTS_USED": "Améliorations gratuites utilisées. Possible plus tard dans Mon entreprise.",
+  "brand.improveUsesCredits": "Utilise des crédits",
+  "onboarding.improveFailedShort": "Échec. Réessaie."
 }

@@ -1274,6 +1274,12 @@ export async function runClaimedJobs<Job>(input: {
  * must be left to start one, and how often a run that is still planning looks
  * for videos its plans have just queued.
  */
+// "Improve with AI" on the sign-up brief is free, so each person has a fixed
+// number of them in total across every field.
+export function onboardingAiImprovements(env: Record<string, string | undefined> = process.env) {
+  return positiveSetting(env.ONBOARDING_AI_IMPROVEMENTS, 5)
+}
+
 export function imageEditQueueSettings(env: Record<string, string | undefined> = process.env) {
   return {
     // Paid and trial businesses edit in separate pools, so trials never take

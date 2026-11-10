@@ -16,6 +16,14 @@ const eventCategories = eventResearchCategoryKeys
 // recovered form is brought up to the current brand shape before it is bound.
 if (!form.videoDeliverables) form.videoDeliverables = { ...videoDeliverablesDefault }
 const baseline = ref(JSON.stringify(form))
+// What "Improve with AI" reads to understand the field it improves.
+const briefContext = computed(() => ({
+  name: form.name,
+  city: form.city,
+  industry: form.industry,
+  description: form.description,
+  audience: form.audience,
+}))
 const openAccordion = ref<string | undefined>()
 // Form values live in the draft, so inactive tabs do not need mounted fields.
 type BrandTab = 'profile' | 'audience' | 'facts' | 'rules' | 'planning'
@@ -295,7 +303,13 @@ function setPrice(fact: BrandFact, value: string | number) {
               v-model="form.description"
               :rows="4"
               maxlength="2000"
-              class="w-full" /></UFormField>
+              class="w-full" /><BriefImprove
+              paid
+              class="mt-2"
+              field="description"
+              :text="form.description"
+              :business="briefContext"
+              @apply="form.description = $event" /></UFormField>
           <!-- Every required field sits on this first tab, so the business can
                finish the essentials here; the other tabs are optional. -->
           <UFormField id="audience" :label="t('brand.audience')" name="audience" required
@@ -307,7 +321,13 @@ function setPrice(fact: BrandFact, value: string | number) {
               class="w-full"
               :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': hasAttention('audience') }"
               :placeholder="t('brand.audiencePlaceholder')"
-          /></UFormField>
+          /><BriefImprove
+              paid
+              class="mt-2"
+              field="audience"
+              :text="form.audience"
+              :business="briefContext"
+              @apply="form.audience = $event" /></UFormField>
           <div class="grid sm:grid-cols-2 gap-5">
             <UFormField :label="t('brand.color')" name="color"
               ><UInput v-model="form.color" type="color" class="w-full h-10" /></UFormField
@@ -376,7 +396,13 @@ v-if="activeTab === 'facts'"
                       :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': i === 0 && hasAttention('fact-text') }"
                       :rows="2"
                       maxlength="1000"
-                      @update:model-value="invalidateFact(fact)" /></UFormField
+                      @update:model-value="invalidateFact(fact)" /><BriefImprove
+                      paid
+                      class="mt-2"
+                      field="fact"
+                      :text="fact.text"
+                      :business="briefContext"
+                      @apply="fact.text = $event; invalidateFact(fact)" /></UFormField
                   ><UFormField :label="t('brand.source')" required
                     ><UInput
                       :id="i === 0 ? 'fact-source-input' : undefined"

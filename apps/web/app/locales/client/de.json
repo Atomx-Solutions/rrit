@@ -2460,5 +2460,19 @@
   "server.MANUAL_REVIEW_FACTS": "Bestätige Preise, Daten, Versprechen und Rechte selbst. Die technischen Prüfungen bestätigen diese Fakten nicht.",
   "server.CONTENT_CHECKS_PASSED": "Die Inhaltsprüfungen sind bestanden. Du kannst ihn freigeben und ohne Meta-Verbindung in den Kalender aufnehmen.",
   "server.INVITATION_NOT_SAVED": "Die Einladung konnte nicht gespeichert werden.",
-  "server.INVITATION_NOT_ACCEPTED": "Die Einladung konnte nicht angenommen werden."
+  "server.INVITATION_NOT_ACCEPTED": "Die Einladung konnte nicht angenommen werden.",
+  "onboarding.improveWithAi": "Mit KI verbessern",
+  "onboarding.improving": "Wird verbessert…",
+  "onboarding.improveHint": "Die KI formuliert dies klarer, damit deine Beiträge besser werden. Nichts ändert sich, bevor du es wählst.",
+  "onboarding.improveWriteFirst": "Schreib zuerst ein paar Worte.",
+  "onboarding.improveRemaining": "Noch {count} gratis",
+  "onboarding.improveUsedUp": "Gratis-Verbesserungen aufgebraucht. Später unter Mein Unternehmen möglich.",
+  "onboarding.improveFailed": "Die KI konnte dies nicht verbessern. Dein Text ist unverändert.",
+  "onboarding.aiSuggestion": "KI-Vorschlag",
+  "onboarding.useSuggestion": "Übernehmen",
+  "onboarding.keepMine": "Meins behalten",
+  "server.BRIEF_TEXT_REQUIRED": "Schreib ein paar Worte, bevor du mit KI verbesserst.",
+  "server.BRIEF_IMPROVEMENTS_USED": "Gratis-Verbesserungen aufgebraucht. Später unter Mein Unternehmen möglich.",
+  "brand.improveUsesCredits": "Verbraucht Credits",
+  "onboarding.improveFailedShort": "Nicht verbessert. Erneut versuchen."
 }
