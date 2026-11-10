@@ -20,15 +20,26 @@ const viewerVideoUrl = computed(() => {
   if (!post || post.video?.status !== 'ready') return null
   return videoPreviews.value[post.id] ?? null
 })
+// A video the user already stepped past can still finish loading after it is
+// gone from the viewer, and a detached video plays its sound unseen. So only
+// the video still on screen starts, and leaving a post pauses its video.
+const playingVideo = ref<HTMLVideoElement | null>(null)
 async function playWithSound(event: Event) {
   const video = event.target as HTMLVideoElement
+  if (!video.isConnected || !viewerOpen.value) return
+  playingVideo.value = video
   try {
     await video.play()
   } catch {
+    if (!video.isConnected) return
     video.muted = true
     await video.play().catch(() => {})
   }
 }
+watch([viewerOpen, viewerIndex], () => {
+  playingVideo.value?.pause()
+  playingVideo.value = null
+})
 async function resolveViewerVideo() {
   const post = viewerPost.value
   if (!post || post.video?.status !== 'ready') return
@@ -67,7 +78,13 @@ function onViewerKeydown(event: KeyboardEvent) {
 const viewerFrame = computed(() => {
   if (!viewerPost.value) return undefined
   const { width, height } = channelCanvas(viewerPost.value.channel)
-  return { aspectRatio: `${width} / ${height}` }
+  // Sized against the stage (a size container), so the frame is exactly the
+  // post's shape at the largest size that fits: the rounded corners sit on
+  // the picture itself and the arrows never get pushed out.
+  return {
+    aspectRatio: `${width} / ${height}`,
+    width: `min(100cqw, 100cqh * ${width} / ${height})`,
+  }
 })
 // The photos either side are fetched ahead, so stepping to them is instant.
 watch([viewerOpen, viewerIndex], ([open]) => {
@@ -117,40 +134,44 @@ async function downloadViewerPost() {
             color="neutral"
             variant="outline"
             size="lg"
-            class="shrink-0 rounded-full"
+            class="absolute left-2 z-10 shrink-0 rounded-full bg-black/15 text-white ring-white/50 backdrop-blur-sm sm:static sm:bg-transparent sm:text-default sm:ring-default sm:backdrop-blur-none"
             icon="i-lucide-chevron-left"
             :aria-label="t('content.previousPostPhoto')"
             @click="moveViewer(-1)"
           />
           <!-- The video starts on its own with sound when opened. Opening it is a
                click, so browsers normally allow that; one that still refuses
-               gets it muted rather than not playing. -->
-          <template v-if="viewerVideoUrl">
-            <video
-              :key="`video-${viewerPost.id}`"
-              :src="viewerVideoUrl"
-              :poster="viewerPost.image"
-              controls
-              playsinline
-              class="h-full w-auto max-w-full rounded-xl bg-black ring-1 ring-default"
-              @loadeddata="playWithSound"
-            />
-          </template>
-          <div v-if="!viewerVideoUrl" class="h-full max-w-full min-w-0" :style="viewerFrame">
+               gets it muted rather than not playing. The photo shows whole, at
+               its own shape and the largest size that fits, so nothing is
+               cropped and the corners sit on it. On a phone the arrows float
+               over the picture so it can use the full width. -->
+          <div class="flex h-full min-w-0 flex-1 items-center justify-center" style="container-type: size">
+            <div v-if="viewerVideoUrl" class="overflow-hidden rounded-xl ring-1 ring-default" :style="viewerFrame">
+              <video
+                :key="`video-${viewerPost.id}`"
+                :src="viewerVideoUrl"
+                :poster="viewerPost.image"
+                controls
+                playsinline
+                class="size-full bg-black object-contain"
+                @loadeddata="playWithSound"
+              />
+            </div>
             <MediaImage
+              v-else
               :src="viewerPost.image"
               :alt="viewerPost.title"
-              fit="contain"
+              fit="natural"
               loading="eager"
               :surface="false"
-              class="size-full rounded-xl"
+              class="size-full [&_img]:rounded-xl"
             />
           </div>
           <UButton
             color="neutral"
             variant="outline"
             size="lg"
-            class="shrink-0 rounded-full"
+            class="absolute right-2 z-10 shrink-0 rounded-full bg-black/15 text-white ring-white/50 backdrop-blur-sm sm:static sm:bg-transparent sm:text-default sm:ring-default sm:backdrop-blur-none"
             icon="i-lucide-chevron-right"
             :aria-label="t('content.nextPostPhoto')"
             @click="moveViewer(1)"
