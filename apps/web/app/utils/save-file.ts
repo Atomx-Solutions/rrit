@@ -2,6 +2,7 @@
 // PNG is never saved as .jpg and a name without an extension still opens.
 const extensionByType: Record<string, string> = {
   'application/json': 'json',
+  'application/pdf': 'pdf',
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',

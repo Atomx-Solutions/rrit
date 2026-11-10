@@ -1,7 +1,8 @@
 import type { Research } from '../../shared/schemas/monthly-plan'
 import en from '../../app/locales/client/en.json'
 import sq from '../../app/locales/client/sq.json'
-import { logoPdfOps, pdfText } from './invoice-pdf'
+import { pdfText } from './invoice-pdf'
+import { wordmarkImageObject, wordmarkPdfOps, wordmarkResource } from './pdf-wordmark'
 
 type StrategySlot = {
   day: number
@@ -332,7 +333,7 @@ function legacyMonthlyReportPdf(input: ReportInput) {
     pages.push([])
     // Leave a clear margin above the continuation-page branding.
     y = 764
-    add(logoPdfOps(595, 52, 76))
+    add(wordmarkPdfOps(595, 52, 76))
     y = 758
     text(44, copy.reportLabel, 7, true, colors.green)
     y -= 16
@@ -385,7 +386,7 @@ function legacyMonthlyReportPdf(input: ReportInput) {
   const coverRows = wrap(coverText, 90).slice(0, 4)
   const researchDate = input.research?.researchedAt?.slice(0, 10) || input.month
 
-  add(logoPdfOps(595, 30, 76, coverX))
+  add(wordmarkPdfOps(595, 30, 76, coverX))
   y = 790
   text(420, `${input.businessName} · ${input.month}`, 7, true, colors.green)
   y = 756
@@ -566,6 +567,8 @@ function legacyMonthlyReportPdf(input: ReportInput) {
   const regularFont = 3 + pageCount
   const boldFont = regularFont + 1
   const contentStart = boldFont + 1
+  // The wordmark image follows the page contents, the last object.
+  const logoImage = contentStart + pageCount
   for (const current of pages) {
     const stream = current.join('\n')
     contentObjects.push(
@@ -575,7 +578,7 @@ function legacyMonthlyReportPdf(input: ReportInput) {
   for (let index = 0; index < pageCount; index += 1) {
     const contentId = contentStart + index
     pageObjects.push(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${regularFont} 0 R /F2 ${boldFont} 0 R >> >> /Contents ${contentId} 0 R >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${regularFont} 0 R /F2 ${boldFont} 0 R >> /XObject << ${wordmarkResource} ${logoImage} 0 R >> >> /Contents ${contentId} 0 R >>`,
     )
   }
   const objects = [
@@ -585,6 +588,7 @@ function legacyMonthlyReportPdf(input: ReportInput) {
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     ...contentObjects,
+    wordmarkImageObject(),
   ]
   let body = '%PDF-1.4\n'
   const offsets: number[] = []
@@ -644,7 +648,7 @@ export function monthlyReportPdf(input: ReportInput) {
   const startPage = (section?: string, description?: string) => {
     page += 1
     pages.push([])
-    add(logoPdfOps(pageWidth, 34, 66))
+    add(wordmarkPdfOps(pageWidth, 34, 66))
     drawText(marginX, 790, copy.reportLabel, 7, true, colors.green)
     drawText(marginX, 772, documentTitle, 15, true, colors.ink)
     drawText(marginX, 752, `${input.businessName} - ${input.month}`, 8, false, colors.muted)
@@ -710,7 +714,7 @@ export function monthlyReportPdf(input: ReportInput) {
   }
 
   // Cover page: a calm editorial hierarchy without stacked card containers.
-  add(logoPdfOps(pageWidth, 34, 72, marginX))
+  add(wordmarkPdfOps(pageWidth, 34, 72, marginX))
   drawText(
     pageWidth - marginX - 154,
     790,
@@ -929,6 +933,8 @@ export function monthlyReportPdf(input: ReportInput) {
   const regularFont = 3 + pageCount
   const boldFont = regularFont + 1
   const contentStart = boldFont + 1
+  // The wordmark image follows the page contents, the last object.
+  const logoImage = contentStart + pageCount
   for (const current of pages) {
     const stream = current.join('\n')
     contentObjects.push(
@@ -937,7 +943,7 @@ export function monthlyReportPdf(input: ReportInput) {
   }
   for (let index = 0; index < pageCount; index += 1) {
     pageObjects.push(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${regularFont} 0 R /F2 ${boldFont} 0 R >> >> /Contents ${contentStart + index} 0 R >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${regularFont} 0 R /F2 ${boldFont} 0 R >> /XObject << ${wordmarkResource} ${logoImage} 0 R >> >> /Contents ${contentStart + index} 0 R >>`,
     )
   }
   const objects = [
@@ -947,6 +953,7 @@ export function monthlyReportPdf(input: ReportInput) {
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     ...contentObjects,
+    wordmarkImageObject(),
   ]
   let body = '%PDF-1.4\n'
   const offsets: number[] = []
