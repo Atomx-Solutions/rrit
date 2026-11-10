@@ -8,7 +8,6 @@ const runtimeConfig = useRuntimeConfig()
 type PaddleEvent = { name?: string }
 type PaddleApi = { Initialize: (options: { token: string; eventCallback?: (event: PaddleEvent) => void }) => void; Environment: { set: (environment: 'sandbox' | 'production') => void }; Checkout: { open: (options: { transactionId: string; settings?: { showAddDiscounts: boolean } }) => void } }
 declare global { interface Window { Paddle?: PaddleApi } }
-useHead({ script: [{ src: 'https://cdn.paddle.com/paddle/v2/paddle.js', defer: true }] })
 const paddleReady = ref(false)
 function initializePaddle() {
   const token = String(runtimeConfig.public.paddleClientToken || '')
@@ -28,22 +27,37 @@ function initializePaddle() {
   })
   paddleReady.value = true
 }
-onMounted(() => {
-  initializePaddle()
-  if (!paddleReady.value) {
-    const timer = window.setInterval(() => {
+let paddleLoadPromise: Promise<void> | undefined
+function loadPaddle() {
+  if (paddleReady.value) return Promise.resolve()
+  if (paddleLoadPromise) return paddleLoadPromise
+  paddleLoadPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://cdn.paddle.com/paddle/v2/paddle.js'
+    script.async = true
+    script.onload = () => {
       initializePaddle()
-      if (paddleReady.value) window.clearInterval(timer)
-    }, 100)
-    window.setTimeout(() => window.clearInterval(timer), 10000)
-  }
-})
+      if (paddleReady.value) resolve()
+      else reject(new Error('PADDLE_CHECKOUT_UNAVAILABLE'))
+    }
+    script.onerror = () => reject(new Error('PADDLE_CHECKOUT_UNAVAILABLE'))
+    document.head.append(script)
+  }).catch((error) => {
+    paddleLoadPromise = undefined
+    throw error
+  })
+  return paddleLoadPromise
+}
 const formatMoney = (value: number) => new Intl.NumberFormat('sq-XK', { style: 'currency', currency: billing.value?.currency || 'CHF' }).format(value)
 const { showError, showSuccess } = useFormFeedback()
 useSeoMeta({ title: () => `${t('nav.billing')} · Framic` })
 
-const { data: usage, error: usageError, refresh: refreshUsage } = await useFetch('/api/usage', { lazy: true, key: 'usage' })
-const { data: billing, refresh: refreshBilling } = await useFetch('/api/billing/subscription', { lazy: true, key: 'billing-subscription-currency-v2' })
+const [usageRequest, billingRequest] = await Promise.all([
+  useFetch('/api/usage', { key: 'usage' }),
+  useFetch('/api/billing/subscription', { key: 'billing-subscription-currency-v2' }),
+])
+const { data: usage, error: usageError, refresh: refreshUsage } = usageRequest
+const { data: billing, refresh: refreshBilling } = billingRequest
 const { data: platformPricing } = await useFetch<{ videoPriceCents: number; postPriceCents: number }>('/api/package-requests', { lazy: true, key: 'package-pricing' })
 
 const requestOpen = ref(false)
@@ -113,8 +127,7 @@ watch(usageError, (value) => {
 }, { immediate: true })
 
 const customPackage = computed(() => billing.value?.customPackage || null)
-const { data: headerUsage } = useHeaderUsage()
-const creditBalance = computed(() => headerUsage.value?.credits?.remaining)
+const creditBalance = computed(() => usage.value?.credits?.remaining)
 const serverPackageProposal = computed(() => billing.value?.packageProposal || null)
 // Videos and credits are only sold on top of a running package, so without one
 // only an offer with posts is shown.
@@ -310,9 +323,12 @@ async function payForProposal() {
   offerOpen.value = false
   payingProposal.value = true
   try {
-      const transactionId = preparedProposalId.value === packageProposal.value.id && preparedTransactionId.value
-        ? preparedTransactionId.value
-        : await prepareProposalPayment()
+      const [transactionId] = await Promise.all([
+        preparedProposalId.value === packageProposal.value.id && preparedTransactionId.value
+          ? Promise.resolve(preparedTransactionId.value)
+          : prepareProposalPayment(),
+        loadPaddle(),
+      ])
       await offerClosed
       if (!paddleReady.value || !window.Paddle) throw new Error('PADDLE_CHECKOUT_UNAVAILABLE')
       window.Paddle.Checkout.open({ transactionId, settings: { showAddDiscounts: true } })
@@ -450,20 +466,20 @@ async function declineProposal() {
             <p class="text-2xl font-semibold tabular-nums leading-none">{{ creditBalance }}</p>
             <p class="mt-1 text-xs text-muted">{{ t('billing.credits') }}</p>
           </div>
+          <UButton
+            v-if="!customPackage"
+            trailing-icon="i-lucide-arrow-right"
+            :label="t('request.appCta')"
+            class="ml-auto justify-center whitespace-nowrap sm:ml-0"
+            @click="requestOpen = true"
+          />
           <UModal
+            v-if="requestOpen"
             v-model:open="requestOpen"
             :dismissible="false"
             :close="true"
             :title="customPackage ? t('request.appRenewTitle') : t('request.appTitle')"
           >
-            <!-- A running package grows through the add-on cards below rather
-                 than being replaced, so the button shows only without one. -->
-            <UButton
-              v-if="!customPackage"
-              trailing-icon="i-lucide-arrow-right"
-              :label="customPackage ? t('request.appRenewCta') : t('request.appCta')"
-              class="ml-auto justify-center whitespace-nowrap sm:ml-0"
-            />
             <template #body>
               <PackageRequestForm
                 endpoint="/api/billing/package-request"
@@ -549,6 +565,7 @@ async function declineProposal() {
     </div>
 
     <BillingAddOnModal
+      v-if="postRequestOpen"
       v-model:open="postRequestOpen"
       v-model:amount="postsRequested"
       :title="t('billing.requestPostsTitle')"
@@ -562,6 +579,7 @@ async function declineProposal() {
       @submit="sendPostRequest"
     />
     <BillingAddOnModal
+      v-if="videoRequestOpen"
       v-model:open="videoRequestOpen"
       v-model:amount="videosRequested"
       :title="t('billing.requestVideosTitle')"
@@ -575,6 +593,7 @@ async function declineProposal() {
       @submit="sendVideoRequest"
     />
     <BillingAddOnModal
+      v-if="creditRequestOpen"
       v-model:open="creditRequestOpen"
       v-model:amount="creditsRequested"
       v-model:message="creditMessage"
