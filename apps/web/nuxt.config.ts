@@ -189,6 +189,10 @@ export default defineNuxtConfig({
       ssr: true,
       headers: { 'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'private, no-store' },
     },
+    '/app/*/*/settings': {
+      ssr: true,
+      headers: { 'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'private, no-store' },
+    },
     '/onboarding': { ssr: false },
     // The invitation preview is a same-origin POST, and a server-rendered
     // request carries no Origin header for requireSameOrigin to accept.
