@@ -96,6 +96,7 @@ onMounted(() => {
     </div>
   </UCard>
   <UModal
+    v-if="disconnecting"
     v-model:open="disconnecting"
     :dismissible="false"
     :title="t('instagram.disconnectTitle')"
