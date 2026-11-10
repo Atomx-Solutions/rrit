@@ -396,6 +396,7 @@ v-if="activeTab === 'facts'"
                       :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': i === 0 && hasAttention('fact-text') }"
                       :rows="2"
                       maxlength="1000"
+                      :placeholder="t('onboarding.firstFactPlaceholder')"
                       @update:model-value="invalidateFact(fact)" /><BriefImprove
                       paid
                       class="mt-2"
