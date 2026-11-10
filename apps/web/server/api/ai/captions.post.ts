@@ -312,7 +312,7 @@ export default defineEventHandler(async (event) => {
           idempotencyKey: `caption-credit-release:${input.data.requestId}`,
         })
       await settlement.query(
-        "UPDATE ai_cost_ledger SET status='committed',actual_input_tokens=$1,actual_output_tokens=$2,actual_cost_micro_eur=$3,settled_at=now(),provider_cost_usd=$6,provider_key_fingerprint=$7,provider_response_id=$8,provider_model=$9,provider_input_tokens=$1,provider_output_tokens=$2 WHERE generation_id=$4 AND business_id=$5 AND status='reserved'",
+        "UPDATE ai_cost_ledger SET status='committed',actual_input_tokens=$1,actual_output_tokens=$2,actual_cost_micro_eur=$3,settled_at=now(),provider_cost_usd=$6,provider_key_fingerprint=$7,provider_response_id=$8,provider_model=$9,provider_input_tokens=$10,provider_output_tokens=$11 WHERE generation_id=$4 AND business_id=$5 AND status='reserved'",
         [
           inputTokens,
           outputTokens,
@@ -323,6 +323,10 @@ export default defineEventHandler(async (event) => {
           aiProviderConfiguration().keyFingerprint,
           result.id ?? null,
           result.model ?? model,
+          // The provider token columns are bigint and the actual ones integer,
+          // so each gets its own parameter: one parameter cannot be both.
+          inputTokens,
+          outputTokens,
         ],
       )
       await settlement.query('COMMIT')

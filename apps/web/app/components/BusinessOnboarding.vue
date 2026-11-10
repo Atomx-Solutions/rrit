@@ -69,6 +69,22 @@ watch(
   },
 )
 const steps = computed(() => [t('onboarding.business'), t('onboarding.networks')])
+// The free "Improve with AI" allowance, shared by every field.
+const improvementsLeft = ref<number | null>(null)
+onMounted(async () => {
+  try {
+    improvementsLeft.value = (await $fetch<{ remaining: number }>('/api/onboarding/improve')).remaining
+  } catch {
+    // The count is only shown; the server still enforces the limit.
+  }
+})
+const briefContext = computed(() => ({
+  name: form.name,
+  city: form.city,
+  industry: form.industry,
+  description: form.description,
+  audience: form.audience,
+}))
 function addFact() {
   form.facts.push({
     id: crypto.randomUUID(),
@@ -248,6 +264,13 @@ async function finishLater() {
             :rows="3"
             :placeholder="t('onboarding.offerDescription')"
             class="w-full"
+          /><BriefImprove
+            v-model:remaining="improvementsLeft"
+            class="mt-2"
+            field="description"
+            :text="form.description"
+            :business="briefContext"
+            @apply="form.description = $event"
         /></UFormField>
         <UFormField :label="t('brand.audience')" name="audience" required
           ><UTextarea
@@ -257,6 +280,13 @@ async function finishLater() {
             :rows="2"
             :placeholder="t('brand.audiencePlaceholder')"
             class="w-full"
+          /><BriefImprove
+            v-model:remaining="improvementsLeft"
+            class="mt-2"
+            field="audience"
+            :text="form.audience"
+            :business="briefContext"
+            @apply="form.audience = $event"
         /></UFormField>
         <UFormField v-if="form.facts[0]" :label="t('onboarding.firstFact')" required>
           <div class="space-y-2">
@@ -266,6 +296,13 @@ async function finishLater() {
               maxlength="1000"
               class="w-full"
               :placeholder="t('onboarding.firstFactPlaceholder')"
+            />
+            <BriefImprove
+              v-model:remaining="improvementsLeft"
+              field="fact"
+              :text="form.facts[0].text"
+              :business="briefContext"
+              @apply="form.facts[0]!.text = $event"
             />
             <UCheckbox v-model="form.facts[0].verified" :label="t('onboarding.factChecked')" />
           </div>
