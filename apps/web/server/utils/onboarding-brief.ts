@@ -117,7 +117,12 @@ export async function improveBriefField(
       },
     }),
   })
-  if (!response.ok) throw new Error('AI provider rejected the brief improvement')
+  if (!response.ok) {
+    // The provider's own reason (limit reached, model unavailable, bad request)
+    // goes to the log, so a failure can be told apart without guessing.
+    const reason = (await response.text().catch(() => '')).slice(0, 300)
+    throw new Error(`AI provider rejected the brief improvement (${response.status} ${model}): ${reason}`)
+  }
   const result = (await response.json()) as {
     id?: string
     model?: string
