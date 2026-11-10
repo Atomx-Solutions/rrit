@@ -76,35 +76,34 @@ watch([search, filter, channels, formats], () => {
 <template>
   <DashboardPage
     :title="t('content.yourPosts')"
-    :description="t('content.yourPostsDescription')"
     :toolbar-border="false"
   >
-    <template #toolbar>
-      <div class="flex w-full items-center justify-end">
-        <UButton
-          :to="`${base}/monthly-planner`"
-          variant="outline"
-          icon="i-lucide-plus"
-          :label="t('content.createPost')"
-          class="shrink-0"
-        />
-      </div>
-    </template>
     <!-- Seven statuses wrap onto a second row on a phone and eat the space the
          post list needs, so there they stay on one row and scroll sideways; the
          next tab stays half visible to show there is more. -->
-    <UTabs
-      v-model="filter"
-      :items="tabs"
-      value-key="value"
-      :content="false"
-      variant="link"
-      class="border-b border-default"
-      :ui="{
-        list: 'gap-1 flex-nowrap overflow-x-auto overflow-y-hidden sm:flex-wrap sm:overflow-x-visible',
-        trigger: 'grow-0 shrink-0 px-3 min-h-10',
-      }"
-    />
+    <div class="flex min-w-0 items-end gap-3 border-b border-default">
+      <UTabs
+        v-model="filter"
+        :items="tabs"
+        value-key="value"
+        :content="false"
+        variant="link"
+        class="min-w-0 flex-1"
+        :ui="{
+          list: 'gap-1 flex-nowrap overflow-x-auto overflow-y-hidden sm:flex-wrap sm:overflow-x-visible',
+          trigger: 'grow-0 shrink-0 px-3 min-h-10',
+        }"
+      />
+      <UButton
+        :to="`${base}/monthly-planner`"
+        variant="outline"
+        icon="i-lucide-plus"
+        :aria-label="t('content.createPost')"
+        class="mb-1 shrink-0"
+      >
+        <span class="hidden sm:inline">{{ t('content.createPost') }}</span>
+      </UButton>
+    </div>
     <!-- Search and filters sit on the table they narrow, instead of a panel of
          their own; the count of posts shown is in the pagination below. -->
     <UCard v-if="data.posts.length" as="div" :ui="{ body: 'p-0 sm:p-0' }" class="table-wrap">
@@ -114,9 +113,9 @@ watch([search, filter, channels, formats], () => {
           icon="i-lucide-search"
           :placeholder="t('content.searchPlaceholder')"
           :aria-label="t('content.searchPosts')"
-          class="w-full sm:w-1/2"
+          class="min-w-0 basis-full sm:flex-1 sm:basis-auto"
         />
-        <div class="flex flex-wrap items-center gap-2 sm:ml-auto" role="group" :aria-label="t('content.filters')">
+        <div class="flex max-w-full shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" :aria-label="t('content.filters')">
           <UButton
             v-for="item in formatItems"
             :key="item.value"
@@ -124,10 +123,12 @@ watch([search, filter, channels, formats], () => {
             size="sm"
             :color="formats.includes(item.value) ? 'primary' : 'neutral'"
             :variant="formats.includes(item.value) ? 'soft' : 'outline'"
+            class="shrink-0"
             :aria-pressed="formats.includes(item.value)"
             @click="formats = toggled(formats, item.value)"
             >{{ item.label }}</UButton
           >
+          <span class="mx-1 h-5 w-px shrink-0 self-center border-s border-default" aria-hidden="true" />
           <UButton
             v-for="item in networkItems"
             :key="item.value"
@@ -135,6 +136,7 @@ watch([search, filter, channels, formats], () => {
             size="sm"
             :color="channels.includes(item.value) ? 'primary' : 'neutral'"
             :variant="channels.includes(item.value) ? 'soft' : 'outline'"
+            class="shrink-0"
             :aria-pressed="channels.includes(item.value)"
             @click="channels = toggled(channels, item.value)"
           >
@@ -143,11 +145,15 @@ watch([search, filter, channels, formats], () => {
           <UButton
             v-if="hasFilters"
             color="neutral"
-            variant="ghost"
+            variant="soft"
             size="sm"
             icon="i-lucide-x"
+            :aria-label="t('content.clearFilters')"
+            class="shrink-0 whitespace-nowrap"
             @click="resetFilters"
-            >{{ t('content.clearFilters') }}</UButton
+          >
+            <span class="hidden sm:inline">{{ t('content.clearFilters') }}</span>
+          </UButton
           >
         </div>
       </div>
