@@ -17,8 +17,7 @@ const eventCategories = eventResearchCategoryKeys
 if (!form.videoDeliverables) form.videoDeliverables = { ...videoDeliverablesDefault }
 const baseline = ref(JSON.stringify(form))
 const openAccordion = ref<string | undefined>()
-// The page is split into tabs by what the business has in mind; every tab's
-// fields stay mounted, so switching never loses what was typed.
+// Form values live in the draft, so inactive tabs do not need mounted fields.
 type BrandTab = 'profile' | 'audience' | 'facts' | 'rules' | 'planning'
 const activeTab = ref<BrandTab>('profile')
 // Leaving a tab with unsaved profile changes asks first, as leaving the page does.
@@ -268,7 +267,7 @@ function setPrice(fact: BrandFact, value: string | number) {
             <UAvatar :icon="currentTab.icon" size="md" />
             <h2 class="text-base font-semibold">{{ currentTab.label }}</h2>
           </div>
-          <div v-show="activeTab === 'profile'" class="space-y-6">
+          <div v-if="activeTab === 'profile'" class="space-y-6">
           <UFormField :label="t('brand.name')" name="name" required
             ><UInput v-model="form.name" class="w-full" maxlength="120"
           /></UFormField>
@@ -322,7 +321,7 @@ function setPrice(fact: BrandFact, value: string | number) {
             /></UFormField>
           </div>
           </div>
-          <div v-show="activeTab === 'audience'" class="space-y-6 border-b border-default pb-6">
+          <div v-if="activeTab === 'audience'" class="space-y-6 border-b border-default pb-6">
           <div class="space-y-3">
             <div>
               <h3 class="text-sm font-semibold">{{ t('brand.goals') }}</h3>
@@ -354,7 +353,7 @@ function setPrice(fact: BrandFact, value: string | number) {
           </div>
           </div>
           <UAccordion
-v-show="activeTab === 'facts'"
+v-if="activeTab === 'facts'"
             id="facts"
             v-model="openAccordion"
             class="border-b border-default"
@@ -468,7 +467,7 @@ v-show="activeTab === 'facts'"
               </div></template
             ></UAccordion
           >
-          <div v-show="activeTab === 'planning'">
+          <div v-if="activeTab === 'planning'">
           <UAccordion class="border-b border-default" :items="[{ label: t('brand.researchSources'), slot: 'sources', value: 'sources' }]">
             <template #sources>
               <div class="space-y-3 pb-4">
@@ -543,7 +542,7 @@ v-show="activeTab === 'facts'"
             </template>
           </UAccordion>
           </div>
-          <UAccordion v-show="activeTab === 'rules'" class="border-b border-default" :items="[{ label: t('brand.guardrails'), slot: 'guardrails', value: 'guardrails' }]">
+          <UAccordion v-if="activeTab === 'rules'" class="border-b border-default" :items="[{ label: t('brand.guardrails'), slot: 'guardrails', value: 'guardrails' }]">
             <template #guardrails>
               <div class="space-y-3 pb-4">
                 <p class="text-sm text-muted">
@@ -601,6 +600,7 @@ v-show="activeTab === 'facts'"
             </div>
     </div>
     <UnsavedChangesModal
+      v-if="pendingTab"
       :open="!!pendingTab"
       :saving="syncing"
       @update:open="closeTabGuard"
@@ -608,6 +608,7 @@ v-show="activeTab === 'facts'"
       @discard="discardAndSwitch"
     />
     <UnsavedChangesModal
+      v-if="leaveOpen"
       :open="leaveOpen"
       :saving="syncing"
       @update:open="handleLeaveOpen"
