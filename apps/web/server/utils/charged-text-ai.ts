@@ -141,7 +141,7 @@ export async function chargedTextAi<T>(
         idempotencyKey: `${args.kind}-credit-release:${args.requestId}`,
       })
     await settlement.query(
-      "UPDATE ai_cost_ledger SET status='committed',actual_input_tokens=$1,actual_output_tokens=$2,actual_cost_micro_eur=$3,settled_at=now(),provider_cost_usd=$6,provider_key_fingerprint=$7,provider_response_id=$8,provider_model=$9,provider_input_tokens=$1,provider_output_tokens=$2 WHERE generation_id=$4 AND business_id=$5 AND status='reserved'",
+      "UPDATE ai_cost_ledger SET status='committed',actual_input_tokens=$1,actual_output_tokens=$2,actual_cost_micro_eur=$3,settled_at=now(),provider_cost_usd=$6,provider_key_fingerprint=$7,provider_response_id=$8,provider_model=$9,provider_input_tokens=$10,provider_output_tokens=$11 WHERE generation_id=$4 AND business_id=$5 AND status='reserved'",
       [
         inputTokens,
         outputTokens,
@@ -152,15 +152,23 @@ export async function chargedTextAi<T>(
         aiProviderConfiguration().keyFingerprint,
         result.usage.responseId ?? null,
         result.usage.model ?? model,
+        // The provider token columns are bigint and the actual ones integer,
+        // so each gets its own parameter: one parameter cannot be both.
+        inputTokens,
+        outputTokens,
       ],
     )
     await settlement.query('COMMIT')
   } catch (error) {
     await settlement.query('ROLLBACK')
-    throw error
-  } finally {
+    // A settlement that cannot be written must not leave the credits reserved
+    // forever: the reservation is given back and the failure reported.
     settlement.release()
+    await releaseCharge(userId, businessId, args.requestId, args.kind, reservedCost)
+    if (error instanceof Error) console.error(`A ${args.kind} charge could not be settled`, { error: error.message })
+    throw createError({ statusCode: 502, message: 'server.AI_RESPONSE_INCOMPLETE' })
   }
+  settlement.release()
   return result.output
 }
 
