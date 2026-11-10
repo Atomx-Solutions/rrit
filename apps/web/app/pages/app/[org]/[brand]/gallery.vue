@@ -155,6 +155,10 @@ const filterTabs = computed(() => [
   { label: t('gallery.originalAssets'), value: 'original' },
 ])
 const { page, pageSize, total, paginated } = usePagination(assets)
+// The first rows are on screen at load and hold the page's largest paint, so
+// they load at once instead of waiting for lazy-loading's layout pass. Rows
+// further down stay lazy so a long page does not compete for bandwidth.
+const aboveFoldRows = 4
 watch(query, () => {
   page.value = 1
 })
@@ -189,18 +193,18 @@ async function focusRightsConfirmation() {
   await nextTick()
   document.getElementById('upload-rights-input')?.focus()
 }
-watch(
-  () => route.query.upload,
-  (upload) => {
+// The server renders the gallery; the upload dialog and URL cleanup are
+// client-only, so the first check waits for mount instead of running on SSR.
+function openUploadFromQuery(upload: unknown) {
     if (upload !== '1') return
     openUpload()
     void navigateTo({
       path: route.path,
       query: { ...route.query, upload: undefined, focus: undefined, attention: undefined },
     }, { replace: true })
-  },
-  { immediate: true },
-)
+}
+watch(() => route.query.upload, openUploadFromQuery)
+onMounted(() => openUploadFromQuery(route.query.upload))
 watch(uploadOpen, (open) => {
   if (!open) plannerAttention.value = false
 })
@@ -370,7 +374,7 @@ async function saveMetadata() {
             class="min-w-0 flex-1 sm:w-80 sm:flex-none"
           />
           <div class="ml-auto flex shrink-0 items-center gap-2">
-            <LogoUpload compact class="shrink-0" />
+            <LazyLogoUpload compact class="shrink-0" />
             <UButton variant="outline" icon="i-lucide-image-plus" class="shrink-0" :aria-label="t('gallery.uploadPhotos')" @click="openUpload">
               <span class="hidden sm:inline">{{ t('gallery.uploadPhotos') }}</span>
             </UButton>
@@ -400,7 +404,7 @@ async function saveMetadata() {
     <UCard v-if="assets.length" :ui="{ body: 'p-0 sm:p-0' }">
       <div class="divide-y divide-default">
         <article
-          v-for="asset in paginated"
+          v-for="(asset, index) in paginated"
           :key="asset.id"
           class="flex items-center gap-3 sm:gap-4 p-4 sm:p-5"
         >
@@ -423,6 +427,8 @@ async function saveMetadata() {
               class="size-full"
               width="64"
               height="64"
+              :loading="index < aboveFoldRows ? 'eager' : 'lazy'"
+              :fetchpriority="index < aboveFoldRows ? 'high' : 'auto'"
             />
             <MediaImage
               v-else
@@ -432,6 +438,8 @@ async function saveMetadata() {
                 class="size-full"
                 width="64"
                 height="64"
+                :loading="index < aboveFoldRows ? 'eager' : 'lazy'"
+                :fetchpriority="index < aboveFoldRows ? 'high' : 'auto'"
               />
           </UButton>
           <div class="min-w-0 flex-1">
@@ -485,6 +493,7 @@ async function saveMetadata() {
       "
       />
     <UModal
+      v-if="viewerOpen"
       v-model:open="viewerOpen"
       fullscreen
       :title="viewerAsset?.name || t('gallery.photoViewer')"
@@ -573,6 +582,7 @@ async function saveMetadata() {
       </template>
     </UModal>
     <UModal
+      v-if="uploadOpen"
       v-model:open="uploadOpen"
       :dismissible="false"
       :close="true"
@@ -678,6 +688,7 @@ async function saveMetadata() {
       ></UModal
     >
     <UModal
+      v-if="selectedPreviewOpen"
       v-model:open="selectedPreviewOpen"
       :dismissible="false"
       :title="selectedPreviewFile?.name || t('gallery.photoViewer')"
@@ -698,6 +709,7 @@ async function saveMetadata() {
       </template>
     </UModal>
     <USlideover
+      v-if="detail"
       :open="!!detail"
       :title="detail?.name"
       :description="t('gallery.detailsDescription')"
@@ -735,6 +747,7 @@ async function saveMetadata() {
       ></USlideover
     >
     <UModal
+      v-if="rightsOpen"
       v-model:open="rightsOpen"
       :title="t('gallery.withdrawRightsTitle')"
       :description="t('gallery.withdrawRightsDescription')"
@@ -751,6 +764,7 @@ async function saveMetadata() {
       </template>
     </UModal>
     <UModal
+      v-if="deleteOpen"
       v-model:open="deleteOpen"
       :dismissible="!removing"
       :close="!removing"

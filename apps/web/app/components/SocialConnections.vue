@@ -182,6 +182,7 @@ onMounted(async () => {
         </div>
       </UCard>
     <UModal
+      v-if="selecting"
       v-model:open="selecting"
       :title="t('social.chooseBusiness')"
       :description="t('social.chooseBusinessDescription')"
@@ -242,6 +243,7 @@ onMounted(async () => {
       >
     </UModal>
     <UModal
+      v-if="disconnecting"
       v-model:open="disconnecting"
       :dismissible="false"
       :title="t('social.disconnectTitle')"

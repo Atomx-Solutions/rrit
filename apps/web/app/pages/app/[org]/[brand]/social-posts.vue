@@ -25,7 +25,7 @@ const {
   error: loadError,
   status,
   refresh,
-} = await useFetch('/api/meta/posts', { lazy: true, key: 'social-posts', query })
+} = await useFetch('/api/meta/posts', { key: 'social-posts', query })
 const { data: connection } = await useFetch('/api/meta/status', { lazy: true, key: 'meta-status' })
 const selected = ref<NonNullable<typeof result.value>['posts'][number] | null>(null)
 const importing = ref(false)
@@ -136,7 +136,7 @@ const networkFilters = computed(() => [
         <span class="hidden sm:inline">{{ t('social.refreshPosts') }}</span>
       </UButton>
     </div>
-    <USlideover v-model:open="filtersOpen" :title="t('content.filters')" :ui="{ content: 'max-w-sm' }">
+    <USlideover v-if="filtersOpen" v-model:open="filtersOpen" :title="t('content.filters')" :ui="{ content: 'max-w-sm' }">
       <template #body>
         <div class="space-y-6">
           <fieldset class="space-y-2">
@@ -245,6 +245,7 @@ const networkFilters = computed(() => [
       :actions="[{ label: t('content.createPost'), to: base + '/monthly-planner', color: 'primary', icon: 'i-lucide-plus' }]"
     />
     <USlideover
+      v-if="selected"
       :open="!!selected"
       :title="t('social.postFromNetwork')"
       :description="t('social.postFromNetworkDescription')"
@@ -262,7 +263,7 @@ const networkFilters = computed(() => [
               sandbox="allow-scripts allow-same-origin allow-popups"
             />
           </div>
-          <ChannelPreview
+          <LazyChannelPreview
             v-if="!(selected.channel === 'TikTok' && selected.permalink)"
             :channel="selected.channel"
             :name="data.brand.name"

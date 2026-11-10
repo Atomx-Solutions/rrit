@@ -69,6 +69,7 @@ async function disconnect() {
     </div>
   </UCard>
     <UModal
+      v-if="disconnecting"
       v-model:open="disconnecting"
       :dismissible="false"
       :title="t('tiktok.disconnectTitle')"

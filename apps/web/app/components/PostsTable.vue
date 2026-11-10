@@ -6,6 +6,16 @@ import { formatDate } from '~~/shared/utils/format'
 const props = defineProps<{ posts: Post[] }>()
 const { base, data } = useWorkspace()
 const { t, locale } = useI18n()
+// Match the server's mobile-first HTML during hydration. Only mount the
+// desktop table once the viewport is known; phones never build both layouts.
+const desktopQuery = import.meta.client ? window.matchMedia('(min-width: 768px)') : undefined
+const desktopPosts = ref(false)
+const updateDesktopPosts = () => (desktopPosts.value = desktopQuery?.matches ?? false)
+onMounted(() => {
+  updateDesktopPosts()
+  desktopQuery?.addEventListener('change', updateDesktopPosts)
+})
+onBeforeUnmount(() => desktopQuery?.removeEventListener('change', updateDesktopPosts))
 const viewerOpen = ref(false)
 const viewerIndex = ref(0)
 const downloading = ref(false)
@@ -111,7 +121,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
 ])
 </script>
 <template>
-  <div class="md:hidden divide-y divide-default">
+  <div v-if="!desktopPosts" class="divide-y divide-default md:hidden">
     <ULink
       v-for="post in posts"
       :key="post.id"
@@ -154,8 +164,8 @@ const columns = computed<TableColumn<Post>[]>(() => [
       <UIcon name="i-lucide-chevron-right" class="size-4 text-muted shrink-0 self-center" />
     </ULink>
   </div>
-  <UTable
-    class="hidden md:block"
+  <LazyUTable
+    v-else
     :data="posts"
     :columns="columns"
     :empty="t('content.noPostsSelection')"
@@ -222,8 +232,9 @@ const columns = computed<TableColumn<Post>[]>(() => [
         class="hover:bg-primary/10 hover:text-primary hover:ring-primary/40"
         :aria-label="t('content.openPost', { title: row.original.title })"
     /></template>
-  </UTable>
+  </LazyUTable>
   <UModal
+    v-if="viewerOpen"
     v-model:open="viewerOpen"
     fullscreen
     :title="viewerPost?.title || t('content.postPhotoViewer')"

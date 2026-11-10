@@ -9,10 +9,7 @@ const {
   data: planner,
   error: loadError,
   refresh,
-} = await useFetch('/api/ai/monthly-plan', {
-  query: computed(() => ({ month: props.month })),
-  key: 'monthly-planner',
-})
+} = useMonthlyPlannerData()
 
 const busy = ref(false)
 const error = ref('')
@@ -53,6 +50,24 @@ const videoGroups = ref<string[][]>(
   ]),
 )
 const activeVideo = ref(0)
+// The plan loads after the first paint; take its saved photo choices once it
+// arrives, unless the customer already started choosing.
+let photoPreferenceApplied = false
+watch(
+  () => planner.value?.photoPreference,
+  (preference) => {
+    if (!preference || photoPreferenceApplied) return
+    photoPreferenceApplied = true
+    if (selectedPhotoIds.value.length || videoGroups.value.length) return
+    photoMode.value = preference.mode || 'auto'
+    const allowed = new Set(originalPhotos.value.map((asset) => asset.id))
+    selectedPhotoIds.value = (preference.selectedAssetIds || []).filter((id) => allowed.has(id))
+    videoGroups.value = (preference.selectedVideoAssetIds || [])
+      .map((id) => [id, ...(preference.videoExtraAssetIds?.[id] || [])].filter((item) => allowed.has(item)))
+      .filter((group) => group.length)
+  },
+  { immediate: true },
+)
 const selectedVideoPhotoIds = computed(() => videoGroups.value.filter((group) => group.length).map((group) => group[0]!))
 const videoExtraAssetIds = computed(() => Object.fromEntries(
   videoGroups.value.filter((group) => group.length > 1).map((group) => [group[0]!, group.slice(1)]),
@@ -1309,7 +1324,8 @@ onBeforeUnmount(() => clearInterval(timer))
       </div>
     </div>
 
-    <PlannerRequestModal
+    <LazyPlannerRequestModal
+      v-if="requestOpen"
       v-model:open="requestOpen"
       :post-count="selectedQuantity"
       :video-count="selectedVideoQuantity"
@@ -1319,6 +1335,7 @@ onBeforeUnmount(() => clearInterval(timer))
     />
 
     <UModal
+      v-if="resetOpen"
       v-model:open="resetOpen"
       :dismissible="false"
       :title="t('monthly.resetTitle')"
@@ -1358,6 +1375,7 @@ onBeforeUnmount(() => clearInterval(timer))
     </UModal>
 
     <UModal
+      v-if="researchOpen"
       v-model:open="researchOpen"
       fullscreen
       :title="t('monthly.planResearchTitle')"
@@ -1413,12 +1431,12 @@ onBeforeUnmount(() => clearInterval(timer))
             </div>
           </div>
 
-          <MonthlyStrategyView
+          <LazyMonthlyStrategyView
             v-if="plan?.strategy"
             :strategy="plan.strategy"
             :assets="originalPhotos"
           />
-          <ResearchEvidence v-if="plan?.research" :research="plan.research" />
+          <LazyResearchEvidence v-if="plan?.research" :research="plan.research" />
         </div>
       </template>
     </UModal>

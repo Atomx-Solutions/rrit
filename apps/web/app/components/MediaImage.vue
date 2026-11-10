@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sizedMediaUrl } from '~~/shared/utils/media-width'
 const props = withDefaults(
   defineProps<{
     src?: string
@@ -6,6 +7,7 @@ const props = withDefaults(
     width?: string | number
     height?: string | number
     loading?: 'eager' | 'lazy'
+    fetchpriority?: 'high' | 'low' | 'auto'
     fit?: 'cover' | 'contain' | 'natural'
     // A viewer that supplies its own backdrop needs the frame to disappear:
     // otherwise the placeholder surface is painted across the whole stage and
@@ -14,6 +16,7 @@ const props = withDefaults(
   }>(),
   {
     loading: 'lazy',
+    fetchpriority: 'auto',
     src: '',
     width: undefined,
     height: undefined,
@@ -22,6 +25,9 @@ const props = withDefaults(
   },
 )
 const { t } = useI18n()
+// An uploaded image is requested at the size its box needs rather than in
+// full, so a 64px thumbnail no longer downloads the whole picture.
+const imageSrc = computed(() => sizedMediaUrl(props.src, props.width))
 const failed = ref(false)
 watch(
   () => props.src,
@@ -41,11 +47,12 @@ watch(
   >
     <img
       v-if="src && !failed"
-      :src="src"
+      :src="imageSrc"
       :alt="alt"
       :width="width"
       :height="height"
       :loading="loading"
+      :fetchpriority="fetchpriority"
       :class="
         fit === 'natural'
           ? 'block size-auto max-h-full max-w-full object-contain'

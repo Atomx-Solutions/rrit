@@ -2,6 +2,9 @@
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t } = useI18n()
+// The planner card grows once its plan arrives; showing the card below it only
+// then keeps that growth from pushing already painted content down.
+const { data: planner } = useNuxtData('monthly-planner')
 useSeoMeta({ title: () => `${t('monthly.pageTitle')} · Framic` })
 const month = computed(() =>
   new Intl.DateTimeFormat('en-CA', {
@@ -45,7 +48,7 @@ const month = computed(() =>
 
     <MonthlyPlannerPanel :month="month" />
 
-    <UCard :ui="{ body: 'p-4 sm:p-5' }">
+    <UCard v-if="planner" :ui="{ body: 'p-4 sm:p-5' }">
       <div class="grid gap-4 sm:grid-cols-3">
         <div class="flex items-start gap-3">
           <UIcon name="i-lucide-search" class="mt-0.5 size-4 shrink-0 text-primary" />

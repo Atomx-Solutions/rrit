@@ -130,7 +130,7 @@ async function saveAndLeave() {
       class="max-w-3xl"
     />
     <UCard class="max-w-3xl" :ui="{ body: 'p-5 sm:p-7' }"
-      ><AccountSecurity v-if="tab === 'security'" /><UForm
+      ><LazyAccountSecurity v-if="tab === 'security'" /><UForm
         v-else
         :state="form"
         :schema="schema"
@@ -228,6 +228,7 @@ async function saveAndLeave() {
       </UForm></UCard
     >
     <UnsavedChangesModal
+      v-if="leaveOpen"
       :open="leaveOpen"
       :saving="syncing"
       @update:open="handleLeaveOpen"

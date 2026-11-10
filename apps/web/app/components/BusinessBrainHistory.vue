@@ -29,6 +29,7 @@ async function show() {
     <span class="hidden sm:inline">{{ t('brain.historyButton') }}</span>
   </UButton>
   <USlideover
+    v-if="open"
     v-model:open="open"
     :title="t('brain.historyTitle')"
     :description="t('brain.historyDescription')"

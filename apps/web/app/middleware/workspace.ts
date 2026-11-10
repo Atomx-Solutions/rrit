@@ -1,11 +1,30 @@
 import { canReuseWorkspaceRedirect } from '~/utils/workspace-redirect'
-import { authClient } from '~/utils/auth-client'
+
+function startMonthlyPlannerLoad(path: string) {
+  if (!/\/monthly-planner\/?$/.test(path)) return null
+  // The endpoint derives the current month from the saved workspace timezone.
+  // It can run alongside /api/business once the session check is complete.
+  return useMonthlyPlannerData()
+}
 
 export default defineNuxtRouteMiddleware(async (to) => {
   // An account opened through Google skips the sign-up form; nothing in the
   // workspace opens until its terms are accepted on the consent step.
-  if (import.meta.client && (await authClient.termsAccepted()) === false)
-    return navigateTo({ path: '/auth/callback', query: { next: to.fullPath } }, { replace: true })
+  if (import.meta.client) {
+    const consentStep = { path: '/auth/callback', query: { next: to.fullPath } }
+    const termsAccepted = () =>
+      import('~/utils/auth-client').then(({ authClient }) => authClient.termsAccepted())
+    // A server-rendered page is already on screen, so the Supabase SDK the
+    // check needs loads after hydration instead of delaying it.
+    if (useNuxtApp().isHydrating) {
+      termsAccepted()
+        .then((accepted) => {
+          if (accepted === false) navigateTo(consentStep, { replace: true })
+        })
+        .catch(() => {})
+    } else if ((await termsAccepted()) === false) return navigateTo(consentStep, { replace: true })
+  }
+  const plannerLoad = startMonthlyPlannerLoad(to.path)
   const workspace = useWorkspace()
   const { t } = useI18n()
   const pendingRedirect = useState<string | null>('workspace-home-redirect', () => null)
@@ -21,6 +40,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // before the page shows; refresh it in the background instead.
   const loaded = workspace.ready.value ? workspace.context.value : null
   if (loaded && to.params.org === loaded.id && to.params.brand === loaded.slug) {
+    // The server rendered this page from the same workspace a moment ago, so
+    // hydration reuses its payload instead of downloading it again.
+    if (import.meta.client && useNuxtApp().isHydrating) return
     workspace.initLive().catch((error) => {
       if ((error as { statusCode?: number }).statusCode === 401)
         navigateTo({ path: '/login', query: { redirect: to.fullPath } })
@@ -42,6 +64,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
       (to.params.org !== business.id || to.params.brand !== business.slug)
     )
       return abortNavigation(createError({ statusCode: 404, statusMessage: t('workspace.notFound') }))
+    // The client still navigates immediately; on the server the plan must be
+    // ready before HTML is sent or the main content would remain client-only.
+    if (import.meta.server && plannerLoad) await plannerLoad
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode
     if (status === 401) return navigateTo({ path: '/login', query: { redirect: to.fullPath } })

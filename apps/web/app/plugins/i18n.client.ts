@@ -13,6 +13,14 @@ function collapse(value: string) {
 // a session only ever translates one way, and walking both dictionaries costs
 // more than the page's own startup work. The dictionaries arrive as their own
 // chunks after hydration, so this never sits on the critical path.
+// Entries handled before handing the main thread back, small enough that no
+// slice reaches the 50 ms a long task starts at on a slow phone.
+const LOOKUP_SLICE = 500
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => setTimeout(resolve))
+}
+
 const lookups = new Map<Language, Map<string, string>>()
 const lookupPending = new Map<Language, Promise<void>>()
 
@@ -21,19 +29,26 @@ async function ensureLookup(language: Language) {
   let run = lookupPending.get(language)
   if (!run) {
     run = (async () => {
+      // Superadmin copy is only on screen under /admin; elsewhere its two
+      // dictionaries were downloaded and walked for nothing.
+      const admin = needsAdminDictionary()
       const [source, target] = await Promise.all([
-        loadDictionary(language === 'en' ? 'sq' : 'en', true),
-        loadDictionary(language === 'en' ? 'en' : 'sq', true),
+        loadDictionary(language === 'en' ? 'sq' : 'en', admin),
+        loadDictionary(language === 'en' ? 'en' : 'sq', admin),
       ])
       const lookup = new Map<string, string>()
+      const entries = Object.entries(source)
       // Whitespace-collapsed keys go in first so an exact key always wins.
-      for (const [key, value] of Object.entries(source)) {
-        const translated = target[key]
-        if (translated) lookup.set(collapse(value), translated)
-      }
-      for (const [key, value] of Object.entries(source)) {
-        const translated = target[key]
-        if (translated) lookup.set(value, translated)
+      // Built in slices that yield to the browser between them: walking
+      // thousands of entries in one go was the app's longest blocking task.
+      for (const exact of [false, true]) {
+        for (let start = 0; start < entries.length; start += LOOKUP_SLICE) {
+          for (const [key, value] of entries.slice(start, start + LOOKUP_SLICE)) {
+            const translated = target[key]
+            if (translated) lookup.set(exact ? value : collapse(value), translated)
+          }
+          await yieldToBrowser()
+        }
       }
       lookups.set(language, lookup)
     })()

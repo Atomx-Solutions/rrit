@@ -122,6 +122,7 @@ watch(rights, (confirmed) => {
   </UButton>
 
   <UModal
+    v-if="open"
     v-model:open="open"
     :dismissible="false"
     :close="true"
@@ -191,6 +192,7 @@ watch(rights, (confirmed) => {
   </UModal>
 
   <UModal
+    v-if="previewOpen"
     v-model:open="previewOpen"
     :dismissible="false"
     :title="file?.name || t('logo.title')"

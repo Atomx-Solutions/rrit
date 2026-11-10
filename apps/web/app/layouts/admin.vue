@@ -173,7 +173,7 @@ const profileMenu = computed(() => [
           :square="state === 'collapsed'"
           :label="state === 'collapsed' ? undefined : 'Framic Admin'"
           aria-label="Framic Admin"
-          :avatar="{ src: '/f-logo.png', alt: '', size: 'xs' }"
+          :avatar="{ src: '/f-logo.webp', alt: '', size: 'xs' }"
           class="min-w-0 w-full overflow-hidden"
           :ui="{ label: 'truncate flex-1 text-left font-semibold' }"
         />

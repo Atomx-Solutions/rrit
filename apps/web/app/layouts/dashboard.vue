@@ -2,7 +2,6 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { navigation } from '~/data/navigation'
 import { dashboardKey } from '~/utils/dashboard'
-import { authClient } from '~/utils/auth-client'
 import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 const { data, base, ready, context, conflict, reload, exportData } = useWorkspace()
 // The business settings decide the client app's language. A cookie left by an
@@ -18,6 +17,8 @@ watch(
 const toast = useToast()
 const { ask: requestPackage } = useBillingRequest()
 async function signOut() {
+  // Loaded on demand so the Supabase SDK stays off the dashboard's first paint.
+  const { authClient } = await import('~/utils/auth-client')
   const result = await authClient.signOut()
   if (result.error) {
     toast.add({ title: t('dashboard.signOutFailed'), color: 'error' })
@@ -47,6 +48,28 @@ const {
 // sidebar open, then retain the navigation width chosen by that user.
 const collapsed = useCookie('rrit-sidebar-collapsed-v3', { default: () => false })
 const sidebarOpen = ref(!collapsed.value)
+// USidebar always builds its desktop column, even on a phone where CSS hides
+// it, and that column (business switcher, two navigation menus, profile menu)
+// was a large part of the first render's long task. /app is client-only, so the
+// viewport is known at setup: on a phone the menus are built only while the
+// drawer is open.
+const desktopQuery = import.meta.client ? window.matchMedia('(min-width: 1024px)') : undefined
+// Match the server's first render during hydration; reveal desktop navigation
+// once the real viewport is known on the client.
+const desktopNav = ref(false)
+const updateDesktopNav = () => (desktopNav.value = desktopQuery?.matches ?? true)
+onMounted(() => {
+  updateDesktopNav()
+  desktopQuery?.addEventListener('change', updateDesktopNav)
+})
+onBeforeUnmount(() => desktopQuery?.removeEventListener('change', updateDesktopNav))
+// USidebar starts "open" on every viewport and only closes its phone drawer
+// once it has mounted, so the drawer state is trusted from the tick after that.
+const drawerStateKnown = ref(false)
+onMounted(() => nextTick(() => (drawerStateKnown.value = true)))
+const navContentReady = computed(
+  () => desktopNav.value || (drawerStateKnown.value && sidebarOpen.value),
+)
 // Tooltips are useful for truncated names on desktop, but touch devices open
 // them on tap and obscure the business switcher instead of helping navigation.
 const touchInput = ref(false)
@@ -74,14 +97,18 @@ async function checkPublishedPosts() {
   }
 }
 watch(() => route.path, () => void checkPublishedPosts())
+function whenIdle(run: () => void) {
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 2000 })
+  else setTimeout(run, 1)
+}
 watch(ready, (isReady) => {
-  if (isReady) void checkPublishedPosts()
+  if (isReady) whenIdle(() => void checkPublishedPosts())
 })
 onMounted(() => {
   touchInputMedia = window.matchMedia('(hover: none), (pointer: coarse)')
   updateTouchInput()
   touchInputMedia.addEventListener('change', updateTouchInput)
-  void checkPublishedPosts()
+  whenIdle(() => void checkPublishedPosts())
   publishedCheckTimer = setInterval(() => void checkPublishedPosts(), publishedCheckIntervalMs)
 })
 onBeforeUnmount(() => {
@@ -97,6 +124,23 @@ watch(sidebarOpen, (open) => {
 const searchOpen = ref(false)
 const notificationsOpen = ref(false)
 provide(dashboardKey, { sidebarOpen, notificationsOpen })
+// The command palette and notification drawer are closed on load. Mounting
+// them, even on idle, was a 500 ms task on a throttled phone, so each one
+// mounts the first time it is opened and then stays mounted.
+const searchMounted = ref(false)
+const notificationsMounted = ref(false)
+watch(notificationsOpen, (open) => {
+  if (open) notificationsMounted.value = true
+})
+// Until the palette exists nothing listens for its button or shortcut, so
+// the layout opens it the first time; after that the palette handles both.
+function openSearchFirstTime() {
+  if (searchMounted.value) return
+  searchMounted.value = true
+  searchOpen.value = true
+}
+useRuntimeHook('dashboard:search:toggle', openSearchFirstTime)
+defineShortcuts({ meta_k: { usingInput: true, handler: openSearchFirstTime } })
 const copilotOpen = ref(false)
 watch(searchOpen, (open) => {
   if (open && window.matchMedia('(max-width: 1023px)').matches) sidebarOpen.value = false
@@ -273,6 +317,7 @@ onBeforeUnmount(removeNavigationGuard)
       >
         <template #header="{ state, close }">
           <UDropdownMenu
+            v-if="navContentReady"
             :items="businessMenu"
             :content="{ align: 'start', collisionPadding: 12 }"
             :ui="{ content: 'w-72 max-w-[calc(100vw-1.5rem)]' }"
@@ -308,7 +353,7 @@ onBeforeUnmount(removeNavigationGuard)
                 }"
               >
                 <template #leading
-                  ><img src="/f-logo.png" alt="" width="26" height="26" class="shrink-0"
+                  ><img src="/f-logo.webp" alt="" width="26" height="26" class="shrink-0"
                 /></template>
               </UButton>
             </UTooltip>
@@ -322,7 +367,7 @@ onBeforeUnmount(removeNavigationGuard)
             @click="close"
           />
         </template>
-        <template #default="{ state }">
+        <template v-if="navContentReady" #default="{ state }">
           <UDashboardSearchButton
             :collapsed="state === 'collapsed'"
             :label="t('nav.search')"
@@ -368,6 +413,7 @@ onBeforeUnmount(removeNavigationGuard)
         </template>
         <template #footer="{ state }">
           <UDropdownMenu
+            v-if="navContentReady"
             :items="profileMenu"
             :content="{ align: 'center', side: 'top', collisionPadding: 12 }"
             :ui="{ content: 'w-(--reka-dropdown-menu-trigger-width) min-w-48' }"
@@ -389,6 +435,7 @@ onBeforeUnmount(removeNavigationGuard)
       <main id="main" tabindex="-1" class="flex min-w-0 flex-1 overflow-hidden"><slot /></main>
     </UDashboardGroup>
     <UDashboardSearch
+      v-if="searchMounted"
       v-model:open="searchOpen"
       :groups="commands"
       :color-mode="false"
@@ -396,6 +443,7 @@ onBeforeUnmount(removeNavigationGuard)
       :placeholder="t('nav.searchPages')"
     />
     <USlideover
+      v-if="notificationsMounted"
       v-model:open="notificationsOpen"
       :title="t('nav.notifications')"
       :description="t('nav.notificationsDescription')"
@@ -466,13 +514,15 @@ onBeforeUnmount(removeNavigationGuard)
       ></USlideover
     >
     <USlideover
+      v-if="copilotOpen"
       v-model:open="copilotOpen"
       :title="t('nav.copilotTitle')"
       :description="t('nav.copilotDescription')"
       ><template #body><LazyCopilotPanel @navigate="copilotOpen = false" /></template
     ></USlideover>
-    <LazyFeedbackForm v-model:open="feedbackOpen" />
+    <LazyFeedbackForm v-if="feedbackOpen" v-model:open="feedbackOpen" />
     <UModal
+      v-if="conflict"
       :open="conflict"
       :dismissible="false"
       :title="t('nav.conflictTitle')"

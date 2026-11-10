@@ -32,7 +32,7 @@ const {
   const result = await authClient.listSessions()
   if (result.error) throw new Error(t('security.sessionReadError'))
   return result.data || []
-})
+}, { server: false })
 const items = computed(() => sessions.value || [])
 const { page, pageSize, total, paginated } = usePagination(items, 5)
 async function changePassword() {
@@ -155,7 +155,7 @@ async function revokeOthers() {
         t('legacy.signOutOtherSessions')
       }}</UButton>
     </div>
-    <USkeleton v-if="status === 'pending'" class="h-20 w-full" />
+    <USkeleton v-if="status === 'idle' || status === 'pending'" class="h-48 w-full" />
     <UAlert
       v-else-if="status === 'error'"
       color="warning"
@@ -163,7 +163,7 @@ async function revokeOthers() {
       :title="t('security.sessionsLoadError')"
       :actions="[{ label: t('common.retry'), onClick: () => refresh() }]"
     />
-    <UCard v-else :ui="{ body: 'p-0 sm:p-0' }"
+    <UCard v-else class="min-h-48" :ui="{ body: 'p-0 sm:p-0' }"
       ><ul class="divide-y divide-default">
         <li v-for="session in paginated" :key="session.id" class="p-4 flex gap-3">
           <UIcon name="i-lucide-monitor-smartphone" class="size-5 shrink-0 text-muted mt-0.5" />
