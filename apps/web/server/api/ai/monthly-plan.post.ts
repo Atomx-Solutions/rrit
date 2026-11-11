@@ -57,8 +57,7 @@ export default defineEventHandler(async (event) => {
   // Every action that leads to new posts: a first request, more posts, and
   // continuing a stopped preparation.
   if (['prepare', 'generate', 'restart'].includes(input.data.action)) {
-    const owned = await withUserTransaction(user.id, (client) => businessForUser(user.id, client)).catch(() => null)
-    if (owned) await refreshBrandPalette(owned.id)
+    await refreshBrandPalette(user.id)
   }
   try {
     const result = await withBusinessTransaction(user.id, async (client, business) => {

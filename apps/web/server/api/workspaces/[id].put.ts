@@ -541,7 +541,7 @@ export default defineEventHandler(async (event) => {
     // A new logo is the best source of the brand colour, so it is chosen again
     // now; a business without one gets it here once. Best-effort, after commit.
     if (uploads.some((asset) => asset.kind === 'brand') || !current.brand.palette?.primary)
-      await refreshBrandPalette(id.data)
+      await refreshBrandPalette(user.id)
     for (const storagePath of removedStoragePaths) {
       try {
         await removeAsset(storagePath)

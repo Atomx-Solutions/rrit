@@ -231,6 +231,16 @@ describe('Business Brain facts join the single fact list', () => {
     expect(plannerPrerequisites(workspace, now, month, [brainFact()])).toEqual([])
   })
 
+  it('shows the writers the chosen brand colour, never the old hand-picked one', () => {
+    const workspace = createDemo()
+    workspace.brand.color = '#137d59'
+    const evidence = plannerEvidence(workspace, now, month)
+    expect(promptEvidence(evidence).brand).not.toHaveProperty('color')
+    evidence.brand.palette = { primary: '#c0392b', onPrimary: '#ffffff', source: 'logo' }
+    expect(promptEvidence(evidence).brand).toMatchObject({ color: '#c0392b' })
+    expect(promptEvidence(evidence).brand).not.toHaveProperty('palette')
+  })
+
   it('asks for a lasting product before planning when the only confirmed fact is an offer', () => {
     const workspace = createDemo()
     const offer = {

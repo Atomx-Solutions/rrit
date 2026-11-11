@@ -153,43 +153,49 @@ export async function bestBrandColor(
 }
 
 /**
- * Chooses and stores the brand colour for one business. Never throws and never
- * holds a lock while a model or the storage is called: the business row is
- * only touched for the final, conditional write.
+ * Chooses and stores the brand colour for the business of this user. Never
+ * throws and never keeps a transaction open while a model is called: the
+ * business is read in one short transaction and written in another, both under
+ * the owner's tenant context, since the tables are row-level secured.
  */
-export async function refreshBrandPalette(businessId: string) {
+export async function refreshBrandPalette(userId: string) {
   try {
-    const db = database()
-    const row = await db.query<{ brand: PaletteState | null }>(
-      "SELECT state->'brand' AS brand FROM businesses WHERE id=$1",
-      [businessId],
-    )
-    const current = row.rows[0]?.brand
-    if (!current) return
-    const chosen = await bestBrandColor(current, {
-      logo: async () => (await loadBrandLogo(db, businessId))?.bytes,
-      pagePalette: async () =>
-        (
-          await db.query<{ palette: unknown }>(
-            `SELECT snapshot.summary->'profile'->'palette' AS palette
-               FROM style_snapshots snapshot
-               JOIN brands brand ON brand.id=snapshot.brand_id
-              WHERE brand.organization_id=$1 AND brand.status='active'
-              ORDER BY snapshot.updated_at DESC LIMIT 1`,
-            [businessId],
-          )
-        ).rows[0]?.palette,
+    const found = await withBusinessTransaction(userId, async (client, business) => {
+      const row = await client.query<{ brand: PaletteState | null }>(
+        "SELECT state->'brand' AS brand FROM businesses WHERE id=$1",
+        [business.id],
+      )
+      const page = await client.query<{ palette: unknown }>(
+        `SELECT snapshot.summary->'profile'->'palette' AS palette
+           FROM style_snapshots snapshot
+           JOIN brands brand ON brand.id=snapshot.brand_id
+          WHERE brand.organization_id=$1 AND brand.status='active'
+          ORDER BY snapshot.updated_at DESC LIMIT 1`,
+        [business.id],
+      )
+      return {
+        current: row.rows[0]?.brand,
+        logo: (await loadBrandLogo(client, business.id))?.bytes,
+        pagePalette: page.rows[0]?.palette,
+      }
+    })
+    if (!found.current) return
+    const chosen = await bestBrandColor(found.current, {
+      logo: async () => found.logo,
+      pagePalette: async () => found.pagePalette,
       industry: industryColor,
     })
     if (!chosen) return
-    // Written only if no better colour arrived meanwhile.
-    await db.query(
-      `UPDATE businesses
-          SET state=jsonb_set(state, '{brand,palette}', $2::jsonb, true), updated_at=now()
-        WHERE id=$1
-          AND COALESCE(array_position($3::text[], state->'brand'->'palette'->>'source'), 0)
-              < array_position($3::text[], $4::text)`,
-      [businessId, JSON.stringify(chosen), [...brandPaletteSources], chosen.source],
+    await withBusinessTransaction(userId, (client, business) =>
+      // Written only if no better colour arrived meanwhile.
+      client.query(
+        `UPDATE businesses
+            SET state=jsonb_set(state, '{brand,palette}', $2::jsonb, true), updated_at=now()
+          WHERE id=$1
+            AND COALESCE(array_position($3::text[], state->'brand'->'palette'->>'source'), 0)
+                < array_position($3::text[], $4::text)`,
+        [business.id, JSON.stringify(chosen), [...brandPaletteSources], chosen.source],
+      ),
     )
   } catch (error) {
     console.error('Brand colour could not be chosen; generation continues without it.', error)
