@@ -75,6 +75,7 @@ import {
   PlannerFailure,
   plannerFailureCode,
   brainForSlot,
+  slotFeatured,
   evidenceHash,
   earliestPlanningDate,
   eventResearchWindow,
@@ -1990,6 +1991,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
         previousGeneratedPostCount: previousGeneratedAssets.length,
         revisionFeedback,
         guardrails: slotBrain.guardrails.map((guardrail) => guardrail.text),
+        featured: slotFeatured(plan.evidence.brand.facts, slot.factIds, slotBrain.offer),
       })
       imageGeneration = await timed('content.image', monthlyImageCall(db, {
         ...slotCommon,

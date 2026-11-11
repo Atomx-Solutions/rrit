@@ -10,6 +10,7 @@ import {
   plannerPrerequisites,
   plannerVoice,
   promptEvidence,
+  slotFeatured,
 } from '../../server/utils/monthly-planner-domain'
 import { monthlyImagePrompt } from '../../server/utils/monthly-ai'
 import {
@@ -483,5 +484,38 @@ describe('image prompt', () => {
     expect(prompt).not.toContain('2.5')
     expect(prompt).toContain('never invent a branded product, person, venue feature, sign, offer')
     expect(prompt).toContain(sceneDressingRule)
+  })
+
+  it('shows the products and offer the post is about, never their price', () => {
+    const prompt = monthlyImagePrompt({
+      brand,
+      creative,
+      slot,
+      featured: ['Muffin me boronicë', ' Muffin me boronicë ', 'Kapuçino'],
+    })
+    expect(prompt).toContain('["Muffin me boronicë","Kapuçino"]')
+    expect(prompt).toContain('no price, amount, discount or other number')
+    expect(monthlyImagePrompt({ brand, creative, slot })).not.toContain('This post is about these products')
+  })
+
+  it('features the cited products and offers and the slot offer, not plain facts', () => {
+    const facts = [
+      { id: 'p', text: 'Kapuçino', source: 'Biznesi', verified: true, kind: 'product' as const },
+      { id: 'o', text: 'Kafe + boronicë', source: 'Biznesi', verified: true, kind: 'offer' as const },
+      { id: 'f', text: 'Hapur 08:00–23:00', source: 'Biznesi', verified: true, kind: 'fact' as const },
+    ]
+    const offer = {
+      id: 'o',
+      name: 'Kafe + boronicë',
+      description: '',
+      currency: 'EUR' as const,
+      amount: 1,
+      validFrom: '2026-11-10',
+      validUntil: '2026-11-24',
+      source: 'Biznesi',
+    }
+    expect(slotFeatured(facts, ['p', 'f', 'missing'], null)).toEqual(['Kapuçino'])
+    expect(slotFeatured(facts, ['o'], offer)).toEqual(['Kafe + boronicë'])
+    expect(slotFeatured(facts, ['f'], null)).toEqual([])
   })
 })

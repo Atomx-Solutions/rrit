@@ -409,6 +409,23 @@ export function promptEvidence(evidence: PlannerEvidence) {
  * to a post about one offer invites the model to mix them. Guardrails and the
  * voice are never narrowed — they apply to every post equally.
  */
+/**
+ * What a post's picture should show of the business's own offering: the
+ * products and offers among the facts the slot cites, and the offer planning
+ * gave it. Plain facts (an address, opening hours) are not something to show.
+ */
+export function slotFeatured(
+  facts: BrandFact[],
+  factIds: string[],
+  offer: PlannerBrainOffer | null,
+) {
+  const cited = factIds
+    .map((id) => facts.find((fact) => fact.id === id))
+    .filter((fact): fact is BrandFact => !!fact && (fact.kind === 'product' || fact.kind === 'offer'))
+    .map((fact) => fact.text.trim())
+  return [...new Set([...cited, ...(offer ? [offer.name.trim()] : [])].filter(Boolean))]
+}
+
 export function brainForSlot(
   brain: PlannerBrain,
   slot: { audienceId?: string | null; offerId?: string | null },
