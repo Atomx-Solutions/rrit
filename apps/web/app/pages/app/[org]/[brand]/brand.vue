@@ -262,10 +262,13 @@ function addFact(kind: FactKind) {
 }
 function setFactKind(fact: BrandFact, kind: FactKind) {
   fact.kind = kind
-  // A product is sold for as long as it is listed, so it keeps no dates.
+  // A product is sold for as long as it is listed, so it keeps no dates, and
+  // its price is published with an offer, not with the product.
   if (kind === 'product') {
     fact.validFrom = null
     fact.validUntil = null
+    fact.amountCents = null
+    fact.currency = null
   }
   invalidateFact(fact)
 }
@@ -571,9 +574,9 @@ v-if="activeTab === 'facts'"
                     </UFormField>
                   </div>
                   <UFormField
-                    v-if="fact.kind === 'offer' || fact.kind === 'product'"
+                    v-if="fact.kind === 'offer'"
                     :label="t('brand.price')"
-                    :description="fact.kind === 'offer' ? t('brand.priceDescription') : t('brand.productPriceDescription')"
+                    :description="t('brand.priceDescription')"
                   >
                     <UInput
                       type="number"
