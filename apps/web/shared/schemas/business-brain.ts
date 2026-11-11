@@ -141,6 +141,11 @@ export type UpdateFact = z.infer<typeof updateFactSchema>
 export type CreateOffer = z.infer<typeof createOfferSchema>
 export type UpdateOffer = z.infer<typeof updateOfferSchema>
 
+// What a business states about itself: a product or service it sells, an offer
+// it runs for a while, or any other fact. All three live in business_facts.
+export const brandFactKindSchema = z.enum(['fact', 'offer', 'product'])
+export type BrandFactKind = z.infer<typeof brandFactKindSchema>
+
 // Backward-compatible input shape; server synchronization owns provenance and
 // verification metadata. A legacy checkbox does not imply independent verification.
 export const brandFactSchema = z.object({
@@ -148,7 +153,7 @@ export const brandFactSchema = z.object({
   text: z.string().trim().max(1000),
   source: z.string().trim().max(500),
   verified: z.boolean(),
-  kind: z.enum(['fact', 'offer']).optional(),
+  kind: brandFactKindSchema.optional(),
   validFrom: z.iso.date().nullable().optional(),
   validUntil: z.iso.date().nullable().optional(),
   amountCents: z.number().int().positive().max(100000000).nullable().optional(),

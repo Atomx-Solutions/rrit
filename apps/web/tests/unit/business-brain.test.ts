@@ -168,6 +168,32 @@ describe('Business Brain verification lifecycle', () => {
     ).toThrow()
     expect(() => normalizeBrandFact({ ...base, amountCents: 200 }, undefined, actor)).toThrow()
   })
+  it('keeps a product with its price and no dates, usable on any day', () => {
+    const product = normalizeBrandFact(
+      {
+        ...base,
+        text: 'Blueberry muffin',
+        kind: 'product',
+        verified: true,
+        amountCents: 250,
+        currency: 'EUR',
+        validFrom: '2026-09-01',
+        validUntil: '2026-09-02',
+      },
+      undefined,
+      actor,
+      now,
+    )
+    expect(product).toMatchObject({
+      kind: 'product',
+      amountCents: 250,
+      currency: 'EUR',
+      validFrom: null,
+      validUntil: null,
+      verified: true,
+    })
+    expect(factIsUsable(product, '2027-01-15')).toBe(true)
+  })
   it('excludes rejected, archived, expired and not-yet-valid facts', () => {
     const fact: BrandFact = {
       ...base,

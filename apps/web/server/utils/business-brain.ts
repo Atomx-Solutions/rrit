@@ -578,11 +578,14 @@ export function normalizeBrandFact(
   if (problem) throw new BrainFailure(problem)
   const confirming = verified && !previous?.verified
   const state = verified ? 'verified' : next.state === 'rejected' ? 'rejected' : 'proposed'
+  // A product is sold for as long as the business lists it, so it keeps no
+  // window of its own; only an offer or a dated fact does.
+  const dated = next.kind !== 'product'
   return {
     ...next,
     kind: next.kind || 'fact',
-    validFrom: next.validFrom || null,
-    validUntil: next.validUntil || null,
+    validFrom: dated ? next.validFrom || null : null,
+    validUntil: dated ? next.validUntil || null : null,
     amountCents: next.amountCents ?? null,
     currency: next.amountCents != null ? 'EUR' : null,
     verified,
