@@ -777,12 +777,9 @@ onBeforeUnmount(() => clearInterval(timer))
         </div>
       </div>
 
-      <PlannerBatchList
-        v-if="batchPosts.length"
-        class="mt-4"
-        :posts="batchPosts"
-        :working="active"
-      />
+      <div v-if="batchPosts.length" class="mt-6">
+        <PlannerBatchList :posts="batchPosts" :working="active" />
+      </div>
 
       <div
         v-if="plan.stage === 'research' && !plan.research"
