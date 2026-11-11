@@ -106,7 +106,7 @@ export function evidenceHash(value: unknown) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
 export type PlannerPrerequisite = {
-  id: 'industry' | 'audience' | 'fact-text' | 'fact-source' | 'fact-confirmation' | 'owned-photo'
+  id: 'industry' | 'audience' | 'fact-text' | 'fact-source' | 'fact-confirmation' | 'product' | 'owned-photo'
   code: string
   labelKey: string
   descriptionKey: string
@@ -175,6 +175,17 @@ export function plannerPrerequisites(
         descriptionKey: 'monthly.prerequisiteFactConfirmationDescription',
       })
   }
+  // Every post must stand on at least one confirmed fact, and an offer can only
+  // carry the posts inside its own dates. With offers alone, any post planned
+  // after an offer ends has nothing to stand on and the whole plan is refused,
+  // so a lasting product or fact is asked for before anything is spent.
+  else if (!facts.some((fact) => fact.kind !== 'offer'))
+    missing.push({
+      id: 'product',
+      code: 'VERIFIED_FACTS_REQUIRED',
+      labelKey: 'monthly.prerequisiteProductLabel',
+      descriptionKey: 'monthly.prerequisiteProductDescription',
+    })
   if (!workspace.assets.some((asset) => asset.kind === 'photo' && asset.rights && !asset.generated))
     missing.push({
       id: 'owned-photo',
@@ -409,6 +420,23 @@ export function promptEvidence(evidence: PlannerEvidence) {
  * to a post about one offer invites the model to mix them. Guardrails and the
  * voice are never narrowed — they apply to every post equally.
  */
+/**
+ * What a post's picture should show of the business's own offering: the
+ * products and offers among the facts the slot cites, and the offer planning
+ * gave it. Plain facts (an address, opening hours) are not something to show.
+ */
+export function slotFeatured(
+  facts: BrandFact[],
+  factIds: string[],
+  offer: PlannerBrainOffer | null,
+) {
+  const cited = factIds
+    .map((id) => facts.find((fact) => fact.id === id))
+    .filter((fact): fact is BrandFact => !!fact && (fact.kind === 'product' || fact.kind === 'offer'))
+    .map((fact) => fact.text.trim())
+  return [...new Set([...cited, ...(offer ? [offer.name.trim()] : [])].filter(Boolean))]
+}
+
 export function brainForSlot(
   brain: PlannerBrain,
   slot: { audienceId?: string | null; offerId?: string | null },
@@ -809,7 +837,7 @@ export function validateEditorialPlan(
     )
     if (invalidFactIds.length)
       throw new PlannerFailure('UNGROUNDED_PLAN', [
-        `Postimi ${index + 1}: hiq ose korrigjo factIds të pavlefshme: ${invalidFactIds.join(', ')}. Përdor vetëm: ${[...facts.keys()].join(', ')}.`,
+        `Postimi ${index + 1}: hiq ose korrigjo factIds të pavlefshme: ${invalidFactIds.join(', ')}. Për ditën ${slot.day} përdor vetëm: ${[...facts.values()].filter((fact) => factIsUsable(fact, date.slice(0, 10))).map((fact) => fact.id).join(', ') || '—'}.`,
       ])
     const invalidSourceUrls = slot.sourceUrls.filter(
       (url) => !sources.has(canonicalSourceUrl(url)),

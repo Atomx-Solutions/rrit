@@ -146,17 +146,8 @@ export default defineEventHandler(async (event) => {
     if (result.rows.length) {
       const brandId = initialBrand.rows[0]?.id
       if (brandId) {
-        for (const fact of parsed.data.facts) {
-          const text = fact.text.trim()
-          const source = fact.source.trim() || 'Plotësuar nga biznesi'
-          if (!text) continue
-          await client.query(
-            `INSERT INTO brand_facts
-              (organization_id, brand_id, kind, status, text, source, source_type, confidence, verified_at)
-             VALUES ($1,$2,'explicit',$3,$4,$5,'manual',1,CASE WHEN $3='verified' THEN now() ELSE NULL END)`,
-            [id, brandId, fact.verified ? 'verified' : 'proposed', text, source],
-          )
-        }
+        // The sign-up facts are already in the workspace brand above, the one
+        // place My business shows them and the planner reads them.
         const voice = parsed.data.voice.trim()
         if (voice) {
           await client.query(

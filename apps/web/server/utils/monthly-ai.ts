@@ -756,7 +756,7 @@ const evidenceFirstInstruction = {
   research:
     'Evidence-first rule: every market, audience, platform or seasonal statement must be supported by a source returned by live search. For timing, use only the supplied timingEvidence timestamps. If timingEvidence is empty, state that there is no observed timing data and do not recommend or imply an optimal hour. Never write a timing hypothesis or present a generic best-practice time as evidence.',
   planning:
-    'Evidence-first rule: strategy must be grounded in verified factIds, exact research sourceUrls and the supplied timingEvidence. Set timingBasis to social_history only when the chosen hour is present in real connected social history, platform_history only when it is present in real published platform history, and no_data when no observed timestamp supports the hour. With no_data, explain the data gap plainly; never call the chosen time optimal, proven or a hypothesis. Do not invent audience behavior, competitor facts, performance numbers or account insights.',
+    'Evidence-first rule: strategy must be grounded in verified factIds, exact research sourceUrls and the supplied timingEvidence. A fact whose kind is offer, or that has a validFrom or validUntil, may be cited only by a slot whose day falls inside those dates; every other slot cites the lasting products and facts. Set timingBasis to social_history only when the chosen hour is present in real connected social history, platform_history only when it is present in real published platform history, and no_data when no observed timestamp supports the hour. With no_data, explain the data gap plainly; never call the chosen time optimal, proven or a hypothesis. Do not invent audience behavior, competitor facts, performance numbers or account insights.',
   content:
     'Evidence-first rule: use only the verified factIds and the exact strategy slot. Research sources explain market context, never new facts about the business. Never turn an unverified timing choice, market assumption or generated visual detail into a factual business claim.',
   quality:
@@ -1639,8 +1639,13 @@ export function monthlyImagePrompt(input: {
   // classification, and the model is better placed to judge which of its own
   // choices a rule constrains.
   guardrails?: string[]
+  // The business's own products and offer that this post is about, in its own
+  // words, so the picture shows what the post says. Without them the painter
+  // only knows the kind of business and dresses the scene generically.
+  featured?: string[]
 }) {
   const { brand, slot, previousPageStyle, revisionFeedback = [], guardrails = [] } = input
+  const featured = [...new Set((input.featured || []).map((item) => item.trim()).filter(Boolean))]
   const languageName = contentLanguageForLocale(input.language || 'sq-XK')
   const geometry = creativeGeometry(slot.channel)
   const ratio = geometry.finalRatio
@@ -1657,6 +1662,11 @@ export function monthlyImagePrompt(input: {
   return [
     `Edit the supplied customer-owned photograph into one complete, original, premium ${ratio} social-media post for ${slot.channel}. You are solely responsible for the final visual design; no application template or hard-coded layout will be added afterward. The approved logo, if available, is the only deterministic post-processing element and will be placed dynamically in a clear region.`,
     `Business: ${brand.name}. Industry: ${brand.industry}. Audience: ${brand.audience}.`,
+    ...(featured.length
+      ? [
+          `This post is about these products or offers of the business, as it describes them: ${JSON.stringify(featured)}. Make them what the picture shows: keep them where the photograph already shows them, and otherwise place them, as ordinary unbranded items true to that description, on the surfaces or in the free space as scene dressing. They are shown, never written: no price, amount, discount or other number for them appears anywhere in the image.`,
+        ]
+      : []),
     ...(brand.color
       ? [
           `Application brand control: the configured brand color is ${brand.color}. Keep it as the primary color anchor when color is used; compatible shades and neutral supporting colors are allowed, but do not replace it with an unrelated palette.`,

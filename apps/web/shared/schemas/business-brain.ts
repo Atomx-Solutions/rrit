@@ -141,6 +141,11 @@ export type UpdateFact = z.infer<typeof updateFactSchema>
 export type CreateOffer = z.infer<typeof createOfferSchema>
 export type UpdateOffer = z.infer<typeof updateOfferSchema>
 
+// What a business states about itself: a product or service it sells, an offer
+// it runs for a while, or any other fact. All three live in business_facts.
+export const brandFactKindSchema = z.enum(['fact', 'offer', 'product'])
+export type BrandFactKind = z.infer<typeof brandFactKindSchema>
+
 // Backward-compatible input shape; server synchronization owns provenance and
 // verification metadata. A legacy checkbox does not imply independent verification.
 export const brandFactSchema = z.object({
@@ -148,7 +153,7 @@ export const brandFactSchema = z.object({
   text: z.string().trim().max(1000),
   source: z.string().trim().max(500),
   verified: z.boolean(),
-  kind: z.enum(['fact', 'offer']).optional(),
+  kind: brandFactKindSchema.optional(),
   validFrom: z.iso.date().nullable().optional(),
   validUntil: z.iso.date().nullable().optional(),
   amountCents: z.number().int().positive().max(100000000).nullable().optional(),
@@ -216,7 +221,8 @@ export const plannerBrainAudienceSchema = z.object({
   description: z.string().trim().max(1000),
 })
 export const plannerBrainOfferSchema = z.object({
-  id: z.uuid(),
+  // The id of the offer fact in the workspace, which is not always a uuid.
+  id: z.string().trim().min(1).max(100),
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(1000),
   currency: z.enum(['EUR', 'CHF', 'ALL']),
@@ -292,6 +298,37 @@ export function mergeBrandFacts(profileFacts: BrandFact[], brainFacts: BrandFact
     return true
   })
   return [...profileFacts, ...extra]
+}
+
+// Offers are written in My business as facts of kind `offer`, the one place
+// the business keeps them. The planner reasons about them as offers (one slot
+// each, only inside their window), so each confirmed, dated offer is projected
+// into that shape under its own id.
+export function offersFromFacts(facts: BrandFact[]): PlannerBrainOffer[] {
+  return facts
+    .filter(
+      (fact) =>
+        fact.kind === 'offer' &&
+        fact.verified &&
+        !['rejected', 'archived'].includes(fact.state || '') &&
+        !!fact.text.trim() &&
+        !!fact.source.trim() &&
+        !!fact.validFrom &&
+        !!fact.validUntil,
+    )
+    .map((fact) => {
+      const text = fact.text.trim()
+      return plannerBrainOfferSchema.parse({
+        id: fact.id,
+        name: text.slice(0, 120),
+        description: text.length > 120 ? text : '',
+        currency: fact.currency || 'EUR',
+        amount: fact.amountCents != null ? fact.amountCents / 100 : null,
+        validFrom: fact.validFrom,
+        validUntil: fact.validUntil,
+        source: fact.source.trim(),
+      })
+    })
 }
 
 // An offer may only reach a post whose publication day falls inside the window

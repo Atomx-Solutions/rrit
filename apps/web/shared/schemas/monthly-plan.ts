@@ -129,7 +129,7 @@ export const slotBriefSchema = z.object({
   // categories. Optional here so plans snapshotted before Business Brain
   // reached generation still parse and finish.
   audienceId: z.uuid().nullable().default(null),
-  offerId: z.uuid().nullable().default(null),
+  offerId: z.string().trim().min(1).max(100).nullable().default(null),
   // Structured shot direction for video slots. Optional with safe defaults so
   // older plans and non-video slots parse without emitting it; null is what a
   // generated static slot carries, since structured outputs cannot omit it.
@@ -170,7 +170,7 @@ export const editorialPlanSchema = z.object({
 // required-but-nullable.
 export const slotBriefGenerationSchema = slotBriefSchema.extend({
   audienceId: z.uuid().nullable(),
-  offerId: z.uuid().nullable(),
+  offerId: z.string().trim().min(1).max(100).nullable(),
   deliverable: slotDeliverableSchema,
   shot: shotDirectionSchema.nullable(),
   locale: researchLocaleSchema.nullable(),
