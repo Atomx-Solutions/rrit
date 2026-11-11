@@ -315,9 +315,8 @@ export function plannerEvidence(
     // run. Bumping it deliberately prevents a reset from replaying research
     // created before the audience-language decision became mandatory.
     generationVersion: 'audience-language-v2',
-    // Business Brain is the current declaration of who the business serves.
-    // Do not send a stale audience copied from the older profile alongside it:
-    // research would otherwise receive conflicting markets and languages.
+    // The profile is the one declaration of who the business serves. A plan
+    // snapshotted before that still carries the audiences it was made with.
     brand: {
       ...workspace.brand,
       audience: declaredAudience || workspace.brand.audience,

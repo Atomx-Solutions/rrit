@@ -97,10 +97,14 @@ export const updateFactSchema = createFactSchema.pick({
 
 export const updateBrainSchema = z.object({
   revision: z.number().int().positive(),
-  voice: z.object({
-    text: z.string().trim().min(1).max(1000),
-    source: z.string().trim().min(1).max(500),
-  }),
+  // The tone and audience now live in the workspace profile; an editor that
+  // only saves rules leaves them out, and they are then not touched here.
+  voice: z
+    .object({
+      text: z.string().trim().min(1).max(1000),
+      source: z.string().trim().min(1).max(500),
+    })
+    .optional(),
   audiences: z
     .array(
       z.object({
@@ -109,7 +113,8 @@ export const updateBrainSchema = z.object({
         description: z.string().trim().max(1000),
       }),
     )
-    .max(20),
+    .max(20)
+    .optional(),
   guardrails: z
     .array(
       z.object({
