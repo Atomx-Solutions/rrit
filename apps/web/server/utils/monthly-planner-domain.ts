@@ -106,7 +106,7 @@ export function evidenceHash(value: unknown) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
 export type PlannerPrerequisite = {
-  id: 'industry' | 'audience' | 'fact-text' | 'fact-source' | 'fact-confirmation' | 'owned-photo'
+  id: 'industry' | 'audience' | 'fact-text' | 'fact-source' | 'fact-confirmation' | 'product' | 'owned-photo'
   code: string
   labelKey: string
   descriptionKey: string
@@ -175,6 +175,17 @@ export function plannerPrerequisites(
         descriptionKey: 'monthly.prerequisiteFactConfirmationDescription',
       })
   }
+  // Every post must stand on at least one confirmed fact, and an offer can only
+  // carry the posts inside its own dates. With offers alone, any post planned
+  // after an offer ends has nothing to stand on and the whole plan is refused,
+  // so a lasting product or fact is asked for before anything is spent.
+  else if (!facts.some((fact) => fact.kind !== 'offer'))
+    missing.push({
+      id: 'product',
+      code: 'VERIFIED_FACTS_REQUIRED',
+      labelKey: 'monthly.prerequisiteProductLabel',
+      descriptionKey: 'monthly.prerequisiteProductDescription',
+    })
   if (!workspace.assets.some((asset) => asset.kind === 'photo' && asset.rights && !asset.generated))
     missing.push({
       id: 'owned-photo',
@@ -826,7 +837,7 @@ export function validateEditorialPlan(
     )
     if (invalidFactIds.length)
       throw new PlannerFailure('UNGROUNDED_PLAN', [
-        `Postimi ${index + 1}: hiq ose korrigjo factIds të pavlefshme: ${invalidFactIds.join(', ')}. Përdor vetëm: ${[...facts.keys()].join(', ')}.`,
+        `Postimi ${index + 1}: hiq ose korrigjo factIds të pavlefshme: ${invalidFactIds.join(', ')}. Për ditën ${slot.day} përdor vetëm: ${[...facts.values()].filter((fact) => factIsUsable(fact, date.slice(0, 10))).map((fact) => fact.id).join(', ') || '—'}.`,
       ])
     const invalidSourceUrls = slot.sourceUrls.filter(
       (url) => !sources.has(canonicalSourceUrl(url)),

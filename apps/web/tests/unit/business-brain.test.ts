@@ -255,6 +255,19 @@ describe('Business Brain verification lifecycle', () => {
       { ...base, verified: true, kind: 'offer', validFrom: '2026-10-10', validUntil: '2026-10-15' },
     ]
     expect(() => plannerEvidence(workspace, now, '2026-09')).toThrow('VERIFIED_FACTS_REQUIRED')
+    // An offer alone cannot carry a month either: the posts after it ends
+    // need a lasting product to stand on.
+    expect(() => plannerEvidence(workspace, now, '2026-10')).toThrow('VERIFIED_FACTS_REQUIRED')
+    workspace.brand.facts.push({
+      id: 'lasting-product',
+      text: 'Espresso',
+      source: 'Business price list',
+      verified: true,
+      kind: 'product',
+    })
+    expect(plannerEvidence(workspace, now, '2026-09').brand.facts.map((fact) => fact.id)).toEqual([
+      'lasting-product',
+    ])
     const evidence = plannerEvidence(workspace, now, '2026-10')
     const plan = {
       objective: 'Explain the real coffee offer',

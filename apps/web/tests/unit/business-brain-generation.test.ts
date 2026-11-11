@@ -231,6 +231,28 @@ describe('Business Brain facts join the single fact list', () => {
     expect(plannerPrerequisites(workspace, now, month, [brainFact()])).toEqual([])
   })
 
+  it('asks for a lasting product before planning when the only confirmed fact is an offer', () => {
+    const workspace = createDemo()
+    const offer = {
+      id: 'offer',
+      text: 'Makiato + muffin me boronicë',
+      source: 'Biznesi',
+      verified: true,
+      kind: 'offer' as const,
+      validFrom: `${month}-01`,
+      validUntil: `${month}-28`,
+      amountCents: 100,
+      currency: 'EUR' as const,
+    }
+    workspace.brand.facts = [offer]
+    expect(plannerPrerequisites(workspace, now, month).map((item) => item.id)).toEqual(['product'])
+    workspace.brand.facts = [
+      offer,
+      { id: 'product', text: 'Kapuçino', source: 'Biznesi', verified: true, kind: 'product' },
+    ]
+    expect(plannerPrerequisites(workspace, now, month)).toEqual([])
+  })
+
   it('does not cite the same sentence twice when onboarding copied it across', () => {
     const workspace = createDemo()
     const duplicate = brainFact({ text: workspace.brand.facts[0]!.text })
