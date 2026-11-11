@@ -27,7 +27,9 @@ const briefContext = computed(() => ({
 }))
 const openAccordion = ref<string | undefined>()
 // Form values live in the draft, so inactive tabs do not need mounted fields.
-type BrandTab = 'profile' | 'audience' | 'facts' | 'rules' | 'planning'
+// Three tabs: who the business is (with its tone and goals), what it sells,
+// and the rules and planning settings the AI follows.
+type BrandTab = 'profile' | 'facts' | 'rules'
 const activeTab = ref<BrandTab>('profile')
 // Leaving a tab with unsaved profile changes asks first, as leaving the page does.
 const pendingTab = ref<BrandTab | null>(null)
@@ -57,11 +59,20 @@ async function saveAndSwitch() {
 }
 const tabs = computed(() => [
   { label: t('brand.tabProfile'), value: 'profile', icon: 'i-lucide-store' },
-  { label: t('brand.tabAudience'), value: 'audience', icon: 'i-lucide-message-circle' },
   { label: t('brand.tabFacts'), value: 'facts', icon: 'i-lucide-badge-check' },
-  { label: t('brand.tabRules'), value: 'rules', icon: 'i-lucide-shield' },
-  { label: t('brand.tabPlanning'), value: 'planning', icon: 'i-lucide-settings-2' },
+  { label: t('brand.tabRulesPlanning'), value: 'rules', icon: 'i-lucide-shield' },
 ])
+// The tone of the posts, the same three choices as at sign-up. What is stored
+// is a short description in the person's language, since that is what AI reads.
+const voiceOptions = ['friendly', 'professional', 'playful'] as const
+const voiceIcons = {
+  friendly: 'i-lucide-smile',
+  professional: 'i-lucide-briefcase',
+  playful: 'i-lucide-party-popper',
+} as const
+const chosenVoice = computed(() =>
+  voiceOptions.find((option) => form.voice === t(`onboarding.voiceValue.${option}`)),
+)
 const attentionTarget = ref('')
 const saved = ref(false)
 const formError = ref('')
@@ -395,8 +406,45 @@ function setPrice(fact: BrandFact, value: string | number) {
               :text="form.audience"
               :business="briefContext"
               @apply="form.audience = $event" /></UFormField>
-          </div>
-          <div v-if="activeTab === 'audience'" class="space-y-6 border-b border-default pb-6">
+          <UFormField :label="t('onboarding.voice')" :description="t('brand.voiceHint')">
+            <div class="grid gap-3 sm:grid-cols-3" role="radiogroup" :aria-label="t('onboarding.voice')">
+              <UButton
+                v-for="option in voiceOptions"
+                :key="option"
+                type="button"
+                role="radio"
+                :aria-checked="chosenVoice === option"
+                color="neutral"
+                variant="outline"
+                class="relative h-full flex-col items-start gap-2 rounded-xl p-4 text-left font-normal transition"
+                :class="
+                  chosenVoice === option
+                    ? 'ring-2 ring-primary bg-primary/5 hover:bg-primary/10'
+                    : 'hover:ring-1 hover:ring-primary/40'
+                "
+                @click="form.voice = t(`onboarding.voiceValue.${option}`)"
+              >
+                <span
+                  class="flex size-9 items-center justify-center rounded-full"
+                  :class="chosenVoice === option ? 'bg-primary text-inverted' : 'bg-elevated text-primary'"
+                >
+                  <UIcon :name="voiceIcons[option]" class="size-5" />
+                </span>
+                <span class="text-sm font-semibold text-highlighted">{{ t(`onboarding.voiceOption.${option}`) }}</span>
+                <span class="text-xs leading-5 text-muted">{{ t(`onboarding.voiceExample.${option}`) }}</span>
+                <UIcon
+                  v-if="chosenVoice === option"
+                  name="i-lucide-circle-check"
+                  class="absolute right-3 top-3 size-5 text-primary"
+                />
+              </UButton>
+            </div>
+            <!-- A tone written before these choices existed is kept and shown, so
+                 nothing the business wrote is lost until it picks a choice. -->
+            <p v-if="form.voice.trim() && !chosenVoice" class="mt-2 text-xs text-muted">
+              {{ t('brand.voiceCurrent', { voice: form.voice }) }}
+            </p>
+          </UFormField>
           <div class="space-y-3">
             <div>
               <h3 class="text-sm font-semibold">{{ t('brand.goals') }}</h3>
@@ -627,7 +675,7 @@ v-if="activeTab === 'facts'"
               </div></template
             ></UAccordion
           >
-          <div v-if="activeTab === 'planning'">
+          <div v-if="activeTab === 'rules'">
           <UAccordion class="border-b border-default" :items="[{ label: t('brand.researchSources'), slot: 'sources', value: 'sources' }]">
             <template #sources>
               <div class="space-y-3 pb-4">
@@ -737,10 +785,9 @@ v-if="activeTab === 'facts'"
           <!-- The form's space-y leaves a gap after the section above; the
                editor closes it so every section sits the same distance apart. -->
           <BusinessBrainEditor
-            v-if="activeTab === 'audience' || activeTab === 'rules'"
+            v-if="activeTab === 'rules'"
             ref="brainEditor"
             class="-mt-6"
-            :section="activeTab"
             embedded
           />
           <div class="-mx-5 flex items-center justify-between gap-3 border-t border-default px-5 pt-4 sm:-mx-7 sm:px-7">

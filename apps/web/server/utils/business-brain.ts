@@ -169,11 +169,11 @@ export async function getBusinessBrain(
 /**
  * Business Brain as the monthly planner consumes it.
  *
- * Only what the business has actually committed to reaches generation: the
- * active voice version, non-archived audiences and active guardrails. Facts and
- * offers have one home, the workspace facts that My business edits, so they are
- * not read from the Business Brain tables: the offers are projected from the
- * workspace's own offer facts, and the facts list is the workspace's.
+ * Only what the business has actually committed to reaches generation: its
+ * active guardrails. Facts, offers, the tone and the audience have one home,
+ * the workspace profile that My business edits, so they are not read from the
+ * Business Brain tables: the offers are projected from the workspace's own
+ * offer facts, and the tone and audience are read from the profile.
  *
  * This is one sequential read per plan, not per post.
  */
@@ -183,19 +183,9 @@ export async function loadPlannerBrain(
   brandId: string,
   workspaceFacts: BrandFact[],
 ): Promise<{ brain: PlannerBrain; facts: BrandFact[] }> {
-  // A PoolClient runs one query at a time; keep these sequential.
-  const voice = await client.query<VoiceRow>(
-    `SELECT ${voiceColumns} FROM brand_voice_versions
-      WHERE brand_id=$1 AND organization_id=$2 AND active=true
-      ORDER BY version DESC LIMIT 1`,
-    [brandId, organizationId],
-  )
-  const audiences = await client.query<AudienceRow>(
-    `SELECT ${audienceColumns} FROM brand_audiences
-      WHERE brand_id=$1 AND organization_id=$2 AND status='active'
-      ORDER BY created_at LIMIT 20`,
-    [brandId, organizationId],
-  )
+  // The tone and the audience live in the workspace profile, the one place My
+  // business edits them, so the Brain carries neither; the planner reads them
+  // from the profile.
   const guardrails = await client.query<GuardrailRow>(
     `SELECT ${guardrailColumns} FROM brand_guardrails
       WHERE brand_id=$1 AND organization_id=$2 AND status='active'
@@ -203,12 +193,8 @@ export async function loadPlannerBrain(
     [brandId, organizationId],
   )
   const brain = plannerBrainSchema.parse({
-    voice: voice.rows[0] ? toVoice(voice.rows[0]).text : '',
-    audiences: audiences.rows.map(toAudience).map((audience) => ({
-      id: audience.id,
-      name: audience.name,
-      description: audience.description,
-    })),
+    voice: '',
+    audiences: [],
     offers: offersFromFacts(workspaceFacts).slice(0, 20),
     guardrails: guardrails.rows.map(toGuardrail).map((guardrail) => ({
       id: guardrail.id,
@@ -463,8 +449,8 @@ export async function updateBusinessBrainSettings(
   brandId: string,
   input: {
     revision: number
-    voice: { text: string; source: string }
-    audiences: Array<{ id?: string; name: string; description: string }>
+    voice?: { text: string; source: string }
+    audiences?: Array<{ id?: string; name: string; description: string }>
     guardrails: Array<{ id?: string; text: string; source: string }>
   },
 ) {
@@ -474,46 +460,49 @@ export async function updateBusinessBrainSettings(
       statusCode: 409,
       message: 'server.BUSINESS_BRAIN_CHANGED_OTHER_DEVICE',
     })
-  await client.query(
-    'UPDATE brand_voice_versions SET active=false WHERE brand_id=$1 AND organization_id=$2 AND active=true',
-    [brandId, organizationId],
-  )
-  const currentVoice = await client.query<{ version: number }>(
-    'SELECT COALESCE(MAX(version),0) AS version FROM brand_voice_versions WHERE brand_id=$1 AND organization_id=$2',
-    [brandId, organizationId],
-  )
-  await client.query(
-    'INSERT INTO brand_voice_versions (organization_id,brand_id,version,text,source,active) VALUES ($1,$2,$3,$4,$5,true)',
-    [
-      organizationId,
-      brandId,
-      Number(currentVoice.rows[0]!.version) + 1,
-      input.voice.text,
-      input.voice.source,
-    ],
-  )
-
-  const submittedAudienceIds = input.audiences.flatMap((audience) =>
-    audience.id ? [audience.id] : [],
-  )
-  await client.query(
-    `UPDATE brand_audiences SET status='archived',updated_at=now()
-     WHERE brand_id=$1 AND organization_id=$2 AND status='active'
-       AND (cardinality($3::uuid[]) = 0 OR id <> ALL($3::uuid[]))`,
-    [brandId, organizationId, submittedAudienceIds],
-  )
-  for (const audience of input.audiences) {
-    if (audience.id) {
-      const updated = await client.query(
-        "UPDATE brand_audiences SET name=$1,description=$2,status='active',updated_at=now() WHERE id=$3 AND brand_id=$4 AND organization_id=$5",
-        [audience.name, audience.description, audience.id, brandId, organizationId],
-      )
-      if (updated.rowCount) continue
-    }
+  if (input.voice) {
     await client.query(
-      'INSERT INTO brand_audiences (organization_id,brand_id,name,description) VALUES ($1,$2,$3,$4)',
-      [organizationId, brandId, audience.name, audience.description],
+      'UPDATE brand_voice_versions SET active=false WHERE brand_id=$1 AND organization_id=$2 AND active=true',
+      [brandId, organizationId],
     )
+    const currentVoice = await client.query<{ version: number }>(
+      'SELECT COALESCE(MAX(version),0) AS version FROM brand_voice_versions WHERE brand_id=$1 AND organization_id=$2',
+      [brandId, organizationId],
+    )
+    await client.query(
+      'INSERT INTO brand_voice_versions (organization_id,brand_id,version,text,source,active) VALUES ($1,$2,$3,$4,$5,true)',
+      [
+        organizationId,
+        brandId,
+        Number(currentVoice.rows[0]!.version) + 1,
+        input.voice.text,
+        input.voice.source,
+      ],
+    )
+  }
+  if (input.audiences) {
+    const submittedAudienceIds = input.audiences.flatMap((audience) =>
+      audience.id ? [audience.id] : [],
+    )
+    await client.query(
+      `UPDATE brand_audiences SET status='archived',updated_at=now()
+       WHERE brand_id=$1 AND organization_id=$2 AND status='active'
+         AND (cardinality($3::uuid[]) = 0 OR id <> ALL($3::uuid[]))`,
+      [brandId, organizationId, submittedAudienceIds],
+    )
+    for (const audience of input.audiences) {
+      if (audience.id) {
+        const updated = await client.query(
+          "UPDATE brand_audiences SET name=$1,description=$2,status='active',updated_at=now() WHERE id=$3 AND brand_id=$4 AND organization_id=$5",
+          [audience.name, audience.description, audience.id, brandId, organizationId],
+        )
+        if (updated.rowCount) continue
+      }
+      await client.query(
+        'INSERT INTO brand_audiences (organization_id,brand_id,name,description) VALUES ($1,$2,$3,$4)',
+        [organizationId, brandId, audience.name, audience.description],
+      )
+    }
   }
   for (const guardrail of input.guardrails) {
     if (guardrail.id) {
@@ -528,15 +517,19 @@ export async function updateBusinessBrainSettings(
       [organizationId, brandId, guardrail.text, guardrail.source],
     )
   }
-  const audienceText = input.audiences
-    .map((item) => item.name)
-    .filter(Boolean)
-    .join(', ')
-  await client.query(
-    `UPDATE brands SET profile=jsonb_set(jsonb_set(COALESCE(profile, '{}'::jsonb), '{voice}', to_jsonb($1::text), true), '{audience}', to_jsonb($2::text), true), updated_at=now()
-     WHERE id=$3 AND organization_id=$4`,
-    [input.voice.text, audienceText, brandId, organizationId],
-  )
+  if (input.voice || input.audiences) {
+    const audienceText = input.audiences
+      ?.map((item) => item.name)
+      .filter(Boolean)
+      .join(', ')
+    await client.query(
+      `UPDATE brands SET profile=jsonb_set(jsonb_set(COALESCE(profile, '{}'::jsonb),
+         '{voice}', COALESCE(to_jsonb($1::text), profile->'voice', '""'::jsonb), true),
+         '{audience}', COALESCE(to_jsonb($2::text), profile->'audience', '""'::jsonb), true), updated_at=now()
+       WHERE id=$3 AND organization_id=$4`,
+      [input.voice?.text ?? null, audienceText ?? null, brandId, organizationId],
+    )
+  }
   await bumpBrand(client, organizationId, brandId)
   return getBusinessBrain(client, organizationId, brandId)
 }

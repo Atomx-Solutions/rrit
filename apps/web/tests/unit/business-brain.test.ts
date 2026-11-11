@@ -95,6 +95,12 @@ describe('Business Brain contracts', () => {
       }).success,
     ).toBe(false)
   })
+
+  it('lets the rules editor save rules alone, leaving the tone and audience untouched', () => {
+    const parsed = updateBrainSchema.parse({ revision: 3, guardrails: [] })
+    expect(parsed).not.toHaveProperty('voice')
+    expect(parsed).not.toHaveProperty('audiences')
+  })
 })
 
 const actor = '00000000-0000-4000-8000-000000000001'
