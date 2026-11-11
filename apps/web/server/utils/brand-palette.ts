@@ -18,35 +18,41 @@ import { brandPaletteSources, type BrandPaletteSource } from '../../shared/schem
 const rank = (source?: BrandPaletteSource) => (source ? brandPaletteSources.indexOf(source) : -1)
 
 /**
- * The most present colour of an image that reads as a colour: pixels that are
- * almost white, almost black, transparent or grey are left out, since a logo
- * on a white square should give its ink, not the paper.
+ * The colour a logo is recognised by. Pixels are grouped by hue, so a gradient
+ * of many blues counts as one blue, and each pixel weighs by how vivid it is,
+ * so a large vivid shape outweighs small dark details. Near white, near black,
+ * grey and transparent pixels are left out: a logo on white gives its ink.
  */
 export async function dominantColor(bytes: Buffer) {
   const { data, info } = await sharp(bytes)
     .ensureAlpha()
-    .resize(48, 48, { fit: 'inside' })
+    .resize(64, 64, { fit: 'inside' })
     .raw()
     .toBuffer({ resolveWithObject: true })
-  const buckets = new Map<string, { count: number; r: number; g: number; b: number }>()
+  const hues = new Map<number, { weight: number; r: number; g: number; b: number }>()
   for (let index = 0; index < data.length; index += info.channels) {
     const [r, g, b, a] = [data[index]!, data[index + 1]!, data[index + 2]!, data[index + 3]!]
     const max = Math.max(r, g, b)
     const min = Math.min(r, g, b)
-    if (a < 128 || max < 30 || min > 225 || max - min < 30) continue
-    // Nearby shades count as one colour.
-    const key = [r, g, b].map((value) => value >> 5).join(',')
-    const bucket = buckets.get(key) || { count: 0, r: 0, g: 0, b: 0 }
-    bucket.count += 1
-    bucket.r += r
-    bucket.g += g
-    bucket.b += b
-    buckets.set(key, bucket)
+    const delta = max - min
+    if (a < 128 || max < 40 || min > 225 || delta < 30) continue
+    const saturation = delta / max
+    const hue =
+      max === r ? ((g - b) / delta + 6) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4
+    // Twelve hue families of thirty degrees each.
+    const family = Math.floor(hue * 2) % 12
+    const weight = saturation * (max / 255)
+    const bucket = hues.get(family) || { weight: 0, r: 0, g: 0, b: 0 }
+    bucket.weight += weight
+    bucket.r += r * weight
+    bucket.g += g * weight
+    bucket.b += b * weight
+    hues.set(family, bucket)
   }
-  const top = [...buckets.values()].sort((left, right) => right.count - left.count)[0]
+  const top = [...hues.values()].sort((left, right) => right.weight - left.weight)[0]
   if (!top) return undefined
   return `#${[top.r, top.g, top.b]
-    .map((sum) => Math.round(sum / top.count).toString(16).padStart(2, '0'))
+    .map((sum) => Math.round(sum / top.weight).toString(16).padStart(2, '0'))
     .join('')}`
 }
 
@@ -129,10 +135,13 @@ export async function bestBrandColor(
     pagePalette: () => Promise<unknown>
     industry: (industry: string, description: string) => Promise<string | undefined>
   },
+  // A source whose input just changed (a new logo) may replace a colour it
+  // gave before; otherwise only a better source replaces the current one.
+  recheck?: BrandPaletteSource,
 ): Promise<{ primary: string; onPrimary: string; source: BrandPaletteSource } | undefined> {
   const have = rank(current.palette?.primary ? current.palette.source || 'industry' : undefined)
   const attempt = async (source: BrandPaletteSource, find: () => Promise<string | undefined>) => {
-    if (rank(source) <= have) return undefined
+    if (rank(source) < have || (rank(source) === have && source !== recheck)) return undefined
     try {
       const primary = await find()
       return primary ? { primary, onPrimary: readableOn(primary), source } : undefined
@@ -158,7 +167,7 @@ export async function bestBrandColor(
  * business is read in one short transaction and written in another, both under
  * the owner's tenant context, since the tables are row-level secured.
  */
-export async function refreshBrandPalette(userId: string) {
+export async function refreshBrandPalette(userId: string, recheck?: BrandPaletteSource) {
   try {
     const found = await withBusinessTransaction(userId, async (client, business) => {
       const row = await client.query<{ brand: PaletteState | null }>(
@@ -184,7 +193,7 @@ export async function refreshBrandPalette(userId: string) {
       logo: async () => found.logo,
       pagePalette: async () => found.pagePalette,
       industry: industryColor,
-    })
+    }, recheck)
     if (!chosen) return
     await withBusinessTransaction(userId, (client, business) =>
       // Written only if no better colour arrived meanwhile.
@@ -192,9 +201,10 @@ export async function refreshBrandPalette(userId: string) {
         `UPDATE businesses
             SET state=jsonb_set(state, '{brand,palette}', $2::jsonb, true), updated_at=now()
           WHERE id=$1
-            AND COALESCE(array_position($3::text[], state->'brand'->'palette'->>'source'), 0)
-                < array_position($3::text[], $4::text)`,
-        [business.id, JSON.stringify(chosen), [...brandPaletteSources], chosen.source],
+            AND (COALESCE(array_position($3::text[], state->'brand'->'palette'->>'source'), 0)
+                   < array_position($3::text[], $4::text)
+                 OR ($5::boolean AND state->'brand'->'palette'->>'source' = $4::text))`,
+        [business.id, JSON.stringify(chosen), [...brandPaletteSources], chosen.source, chosen.source === recheck],
       ),
     )
   } catch (error) {

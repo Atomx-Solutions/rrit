@@ -20,6 +20,25 @@ describe('choosing the brand colour', () => {
     expect(parseInt(color!.slice(1, 3), 16)).toBeGreaterThan(150)
   })
 
+  it('picks the vivid colour of a logo over its small dark details', async () => {
+    // A logo mostly in shades of blue, with a dark brown coffee detail.
+    const shades = ['#0d47a1', '#1565c0', '#1e88e5', '#42a5f5', '#29b6f6']
+    const logo = await sharp({ create: { width: 100, height: 100, channels: 4, background: '#ffffff' } })
+      .composite([
+        ...shades.map((background, index) => ({
+          input: { create: { width: 100, height: 12, channels: 4 as const, background } },
+          left: 0,
+          top: index * 12,
+        })),
+        { input: { create: { width: 100, height: 30, channels: 4 as const, background: '#381000' } }, left: 0, top: 65 },
+      ])
+      .png()
+      .toBuffer()
+    const color = (await dominantColor(logo))!
+    const [r, , b] = [1, 3, 5].map((start) => parseInt(color.slice(start, start + 2), 16)) as [number, number, number]
+    expect(b).toBeGreaterThan(r + 80)
+  })
+
   it('finds no colour in an image that is only white, black or grey', async () => {
     expect(await dominantColor(await square('#ffffff', '#000000'))).toBeUndefined()
     expect(await dominantColor(await square('#808080'))).toBeUndefined()
@@ -56,6 +75,14 @@ describe('choosing the brand colour', () => {
     expect(kept).toBeUndefined()
     expect(logo).toHaveBeenCalled()
     expect(industry).not.toHaveBeenCalled()
+  })
+
+  it('lets a new logo replace the colour an older logo gave', async () => {
+    const logo = await square('#ffffff', '#1e88e5')
+    const sources = { logo: async () => logo, pagePalette: async () => undefined, industry: async () => undefined }
+    const current = { palette: { primary: '#381000', source: 'logo' as const } }
+    expect(await bestBrandColor(current, sources)).toBeUndefined()
+    expect((await bestBrandColor(current, sources, 'logo'))?.source).toBe('logo')
   })
 
   it('gives up quietly when every source fails, so generation goes on', async () => {
