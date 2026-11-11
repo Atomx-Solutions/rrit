@@ -203,6 +203,8 @@ function addFact() {
     text: '',
     source: t('brand.defaultSource'),
     verified: false,
+    // What a business most often needs to add is what it sells.
+    kind: 'product',
   })
 }
 onBeforeRouteLeave(() => {
@@ -418,19 +420,25 @@ v-if="activeTab === 'facts'"
                       <USelect
                         :model-value="fact.kind || 'fact'"
                         :items="[
-                          { label: t('brand.fact'), value: 'fact' },
+                          { label: t('brand.productType'), value: 'product' },
                           { label: t('brand.offerType'), value: 'offer' },
+                          { label: t('brand.fact'), value: 'fact' },
                         ]"
                         class="w-full"
                         @update:model-value="
                           (value) => {
-                            fact.kind = value === 'offer' ? 'offer' : 'fact'
+                            fact.kind = value === 'offer' || value === 'product' ? value : 'fact'
+                            // A product is sold for as long as it is listed, so it keeps no dates.
+                            if (fact.kind === 'product') {
+                              fact.validFrom = null
+                              fact.validUntil = null
+                            }
                             invalidateFact(fact)
                           }
                         "
                       />
                     </UFormField>
-                    <UFormField :label="t('brand.validFromLabel')">
+                    <UFormField v-if="fact.kind !== 'product'" :label="t('brand.validFromLabel')">
                       <UInput
                         type="date"
                         :model-value="fact.validFrom || ''"
@@ -443,7 +451,7 @@ v-if="activeTab === 'facts'"
                         "
                       />
                     </UFormField>
-                    <UFormField :label="t('brand.validUntilLabel')">
+                    <UFormField v-if="fact.kind !== 'product'" :label="t('brand.validUntilLabel')">
                       <UInput
                         type="date"
                         :model-value="fact.validUntil || ''"
@@ -458,9 +466,9 @@ v-if="activeTab === 'facts'"
                     </UFormField>
                   </div>
                   <UFormField
-                    v-if="fact.kind === 'offer'"
+                    v-if="fact.kind === 'offer' || fact.kind === 'product'"
                     :label="t('brand.price')"
-                    :description="t('brand.priceDescription')"
+                    :description="fact.kind === 'offer' ? t('brand.priceDescription') : t('brand.productPriceDescription')"
                   >
                     <UInput
                       type="number"
@@ -604,7 +612,7 @@ v-if="activeTab === 'facts'"
           <!-- The form's space-y leaves a gap after the section above; the
                editor closes it so every section sits the same distance apart. -->
           <BusinessBrainEditor
-            v-if="activeTab === 'audience' || activeTab === 'facts' || activeTab === 'rules'"
+            v-if="activeTab === 'audience' || activeTab === 'rules'"
             ref="brainEditor"
             class="-mt-6"
             :section="activeTab"
