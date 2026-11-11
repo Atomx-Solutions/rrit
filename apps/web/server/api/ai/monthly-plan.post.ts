@@ -54,7 +54,9 @@ export default defineEventHandler(async (event) => {
   // The brand colour is chosen before planning, outside its transaction, so a
   // slow logo download or model call never holds the business lock. A failure
   // only means the plan generates with colours from its photographs.
-  if (input.data.action === 'prepare' || input.data.action === 'generate') {
+  // Every action that leads to new posts: a first request, more posts, and
+  // continuing a stopped preparation.
+  if (['prepare', 'generate', 'restart'].includes(input.data.action)) {
     const owned = await withUserTransaction(user.id, (client) => businessForUser(user.id, client)).catch(() => null)
     if (owned) await refreshBrandPalette(owned.id)
   }
