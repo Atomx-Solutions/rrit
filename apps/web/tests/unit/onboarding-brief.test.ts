@@ -35,7 +35,10 @@ describe('brief improvement prompt', () => {
     expect(briefImprovementInstructions('audience', 'en-US')).toContain('instead of rewording')
   })
 
-  it('writes in the language of the screen', () => {
+  it('answers in the language of the text, and in the screen language only as a fallback', () => {
+    const prompt = briefImprovementInstructions('description', 'en-US')
+    expect(prompt).toContain('Write in the language "text" is written in')
+    expect(prompt).toContain('only when that language cannot be told, write in English')
     expect(briefImprovementInstructions('description', 'sq-XK')).toContain('Albanian')
   })
 })
