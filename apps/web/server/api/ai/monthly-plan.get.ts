@@ -14,6 +14,7 @@ import {
 } from '../../utils/monthly-planner-domain'
 import { getBrandForBusiness } from '../../utils/brands'
 import { loadPlannerBrain } from '../../utils/business-brain'
+import { emptyPlannerBrain, offersFromFacts } from '../../../shared/schemas/business-brain'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
@@ -36,12 +37,11 @@ export default defineEventHandler(async (event) => {
     )
     let prerequisite: string | null = null
     // Readiness must judge the same inputs generation will use, or a business
-    // whose facts live only in Business Brain is told it is not ready while
-    // the planner would happily run.
+    // is told it is not ready while the planner would happily run.
     const brand = await getBrandForBusiness(client, business.id, business.slug)
     const businessBrain = brand
-      ? await loadPlannerBrain(client, business.id, brand.id)
-      : { brain: undefined, facts: [] }
+      ? await loadPlannerBrain(client, business.id, brand.id, workspace.brand.facts)
+      : { brain: { ...emptyPlannerBrain, offers: offersFromFacts(workspace.brand.facts) }, facts: [] }
     const prerequisites = plannerPrerequisites(
       workspace,
       new Date(),

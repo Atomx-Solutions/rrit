@@ -4,6 +4,8 @@ import {
   createFactSchema,
   createOfferSchema,
   factIsUsable,
+  offersFromFacts,
+  sameBrainCommitments,
   updateBrainSchema,
   type BrandFact,
 } from '../../shared/schemas/business-brain'
@@ -193,6 +195,44 @@ describe('Business Brain verification lifecycle', () => {
       verified: true,
     })
     expect(factIsUsable(product, '2027-01-15')).toBe(true)
+  })
+  it('gives the planner only confirmed, dated offer facts as its offers', () => {
+    const offer: BrandFact = {
+      ...base,
+      id: 'offer-1',
+      text: 'Kafe + boronicë',
+      kind: 'offer',
+      verified: true,
+      validFrom: '2026-11-10',
+      validUntil: '2026-11-24',
+      amountCents: 100,
+      currency: 'EUR',
+    }
+    const offers = offersFromFacts([
+      offer,
+      { ...offer, id: 'unconfirmed', verified: false },
+      { ...offer, id: 'undated', validUntil: null },
+      { ...offer, id: 'product', kind: 'product' },
+      { ...base, id: 'fact', verified: true },
+    ])
+    expect(offers).toEqual([
+      {
+        id: 'offer-1',
+        name: 'Kafe + boronicë',
+        description: '',
+        currency: 'EUR',
+        amount: 1,
+        validFrom: '2026-11-10',
+        validUntil: '2026-11-24',
+        source: base.source,
+      },
+    ])
+    // The same facts give the same offers, so a running plan sees no drift.
+    const brain = { voice: '', audiences: [], offers, guardrails: [] }
+    expect(sameBrainCommitments(brain, { ...brain, offers: offersFromFacts([offer]) })).toBe(true)
+    expect(
+      sameBrainCommitments(brain, { ...brain, offers: offersFromFacts([{ ...offer, amountCents: 200 }]) }),
+    ).toBe(false)
   })
   it('excludes rejected, archived, expired and not-yet-valid facts', () => {
     const fact: BrandFact = {

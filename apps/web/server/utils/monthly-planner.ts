@@ -20,8 +20,10 @@ import {
   emptyPlannerBrain,
   factIsUsable,
   mergeBrandFacts,
+  offersFromFacts,
   sameBrainCommitments,
   sameFactContent,
+  type BrandFact,
 } from '../../shared/schemas/business-brain'
 import { zonedToIso } from '../../shared/utils/format'
 import { loadWorkspace } from './workspaces'
@@ -183,10 +185,17 @@ function packagePlanningDates(
  * way it did before Business Brain reached generation; a missing brand must
  * never block a plan the customer has already paid for.
  */
-async function plannerBrainFor(client: PoolClient, businessId: string, businessSlug: string) {
+async function plannerBrainFor(
+  client: PoolClient,
+  businessId: string,
+  businessSlug: string,
+  workspaceFacts: BrandFact[],
+) {
   const brand = await getBrandForBusiness(client, businessId, businessSlug)
-  if (!brand) return { brain: emptyPlannerBrain, facts: [] }
-  return loadPlannerBrain(client, businessId, brand.id)
+  // The offers are the workspace's own, so they reach the plan with or
+  // without a brand row.
+  if (!brand) return { brain: { ...emptyPlannerBrain, offers: offersFromFacts(workspaceFacts) }, facts: [] }
+  return loadPlannerBrain(client, businessId, brand.id, workspaceFacts)
 }
 
 /**
@@ -323,7 +332,7 @@ export async function ensureMonthlyPlan(
   const queuedStatus = generate > 0 ? 'queued' : 'idle'
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
   const businessBrain = await plannerStep('ensure.business_brain', () =>
-    plannerBrainFor(client, businessId, slug),
+    plannerBrainFor(client, businessId, slug, workspace.brand.facts),
   )
   const evidence = plannerEvidence(
     workspace,
@@ -456,7 +465,7 @@ export async function requestMonthlyPosts(
   if (addedVideos > 0 && photoSelection.selectedVideoAssetIds.length > addedVideos)
     throw new PlannerFailure('TOO_MANY_SELECTED_VIDEO_PHOTOS')
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
-  const businessBrain = await plannerBrainFor(client, businessId, slug)
+  const businessBrain = await plannerBrainFor(client, businessId, slug, workspace.brand.facts)
   const evidence = plannerEvidence(
     workspace,
     new Date(),
@@ -598,7 +607,7 @@ export async function restartMonthlyPlan(
   if (photoSelection.selectedAssetIds.length > target)
     throw new PlannerFailure('TOO_MANY_SELECTED_PHOTOS')
   const timingSamples = await loadPlannerTimingSamples(client, businessId, workspace)
-  const businessBrain = await plannerBrainFor(client, businessId, slug)
+  const businessBrain = await plannerBrainFor(client, businessId, slug, workspace.brand.facts)
   const evidence = plannerEvidence(
     workspace,
     new Date(),
@@ -1336,7 +1345,7 @@ async function assertCurrentEvidence(db: Pool | PoolClient, plan: PlanRow) {
     throw new PlannerFailure('PHOTO_SELECTION_CHANGED')
   // The snapshot's facts may come from either editor, so the comparison is
   // against the same merged list the snapshot was built from.
-  const live = await plannerBrainFor(db as PoolClient, plan.business_id, slug)
+  const live = await plannerBrainFor(db as PoolClient, plan.business_id, slug, workspace.brand.facts)
   const current = mergeBrandFacts(workspace.brand.facts, live.facts).filter(
     (fact) => fact.verified,
   )
