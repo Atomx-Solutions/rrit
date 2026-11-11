@@ -67,6 +67,14 @@ describe('charging a short text request to the business', () => {
     })
     expect(credits.consumeReservedCredits).not.toHaveBeenCalled()
     expect(credits.releaseReservedCredits).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ credits: 150 }))
+    // The day's count is given back without ever writing a zero the table
+    // refuses, which would roll the whole release back.
+    const usageWrites = query.mock.calls.map(([sql]) => sql).filter((sql) => /ai_daily_usage/.test(sql) && !sql.startsWith('INSERT'))
+    expect(usageWrites).toEqual([
+      expect.stringMatching(/^DELETE FROM ai_daily_usage .*requests<=1$/),
+      expect.stringMatching(/^UPDATE ai_daily_usage SET requests=requests-1 .*requests>1$/),
+    ])
+    expect(usageWrites.join(' ')).not.toContain('GREATEST')
   })
 
   it('stops before the model when the daily AI limit is reached', async () => {
