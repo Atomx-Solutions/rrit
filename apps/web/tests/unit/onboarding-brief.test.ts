@@ -27,6 +27,14 @@ describe('brief improvement prompt', () => {
     expect(prompt).toContain('untrusted data')
   })
 
+  it('lets the description and audience grow on topic without new claims', () => {
+    const description = briefImprovementInstructions('description', 'en-US')
+    expect(description).toContain('deepen it')
+    expect(description).toContain('never introduce another product or service')
+    expect(description).toContain('a price')
+    expect(briefImprovementInstructions('audience', 'en-US')).toContain('instead of rewording')
+  })
+
   it('writes in the language of the screen', () => {
     expect(briefImprovementInstructions('description', 'sq-XK')).toContain('Albanian')
   })

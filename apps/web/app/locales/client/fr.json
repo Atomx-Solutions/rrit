@@ -2471,6 +2471,8 @@
   "onboarding.aiSuggestion": "Suggestion de l'IA",
   "onboarding.useSuggestion": "Utiliser",
   "onboarding.keepMine": "Garder le mien",
+  "onboarding.improveAlreadyGood": "Le texte est déjà bien. Répondez aux questions ci-dessous pour le renforcer.",
+  "onboarding.close": "Fermer",
   "server.BRIEF_TEXT_REQUIRED": "Écris quelques mots avant d'améliorer avec l'IA.",
   "server.BRIEF_IMPROVEMENTS_USED": "Améliorations gratuites utilisées. Possible plus tard dans Mon entreprise.",
   "brand.improveUsesCredits": "Utilise des crédits",

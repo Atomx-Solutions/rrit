@@ -2471,6 +2471,8 @@
   "onboarding.aiSuggestion": "Sugjerimi i AI",
   "onboarding.useSuggestion": "Përdore",
   "onboarding.keepMine": "Mbaje timen",
+  "onboarding.improveAlreadyGood": "Teksti është tashmë i mirë. Përgjigju pyetjeve më poshtë për ta bërë më të fortë.",
+  "onboarding.close": "Mbyll",
   "server.BRIEF_TEXT_REQUIRED": "Shkruaj disa fjalë para se ta përmirësosh me AI.",
   "server.BRIEF_IMPROVEMENTS_USED": "Përmirësimet falas u përdorën. Mund të përmirësosh më vonë te Biznesi im.",
   "brand.improveUsesCredits": "Përdor kredite",
