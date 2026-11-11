@@ -6,9 +6,10 @@ import { emptyWorkspace } from '~~/shared/utils/empty-workspace'
 
 const { data, base, context, ready, applyBusiness, commit, syncing } = useWorkspace()
 const { setLocale, t, locale: activeLocale } = useI18n()
-// Two steps: the business, then its networks. A workspace that stopped on the
-// former third step (a summary) resumes on the networks.
-const step = ref(context.value ? Math.min(data.value.onboarding, 1) : 0)
+// Three steps: the business, what it sells, then its photos and networks.
+// What AI needs to make a good first post is asked for here, not left for
+// later: a product to show and a photograph to build on.
+const step = ref(context.value ? Math.min(data.value.onboarding, 2) : 0)
 
 // Onboarding is the one signed-in screen with no way out. Somebody who opened
 // the wrong account, or whose workspace is gone, would otherwise be stuck here
@@ -53,22 +54,59 @@ const {
   voice: data.value.brand.voice,
   audience: data.value.brand.audience,
   goals: [...data.value.brand.goals],
-  facts: data.value.brand.facts.map((fact) => ({ ...fact })),
   timezone: browserTimezone() || data.value.preferences.timezone,
   // The language the person is already reading is the one they chose; a new
   // workspace's stored default must not contradict the screen.
   locale: activeLocale.value,
 })
 watchError(localError, 'warning')
-// One fact is needed before AI planning can start, so the first screen has one.
-if (!form.facts.length) addFact()
+// The tone of the posts, chosen with a tap. What is stored is a short
+// description in the person's language, since that is what AI reads.
+const voiceOptions = ['friendly', 'professional', 'playful'] as const
+const voiceIcons = {
+  friendly: 'i-lucide-smile',
+  professional: 'i-lucide-briefcase',
+  playful: 'i-lucide-party-popper',
+} as const
+const chosenVoice = computed(() =>
+  voiceOptions.find((option) => form.voice === t(`onboarding.voiceValue.${option}`)),
+)
+// Up to three products; the first is required. Each is stored as a confirmed
+// product fact, the kind the planner shows in pictures and cites in posts.
+const maxProducts = 3
+const products = reactive(
+  (() => {
+    const existing = data.value.brand.facts
+      .filter((fact) => fact.kind === 'product')
+      .map((fact) => ({
+        id: fact.id,
+        text: fact.text,
+        price: fact.amountCents == null ? '' : String(fact.amountCents / 100),
+      }))
+    return existing.length ? existing : [{ id: crypto.randomUUID(), text: '', price: '' }]
+  })(),
+)
+const productsChecked = ref(
+  data.value.brand.facts.some((fact) => fact.kind === 'product' && fact.verified),
+)
+function addProduct() {
+  if (products.length < maxProducts) products.push({ id: crypto.randomUUID(), text: '', price: '' })
+}
+// Photographs the business owns and may use; at least one is needed to plan.
+const ownedPhotos = computed(() =>
+  data.value.assets.filter((asset) => asset.kind === 'photo' && asset.rights && !asset.generated),
+)
 watch(
   () => form.locale,
   (value) => {
     if (value) setLocale(value)
   },
 )
-const steps = computed(() => [t('onboarding.business'), t('onboarding.networks')])
+const steps = computed(() => [
+  t('onboarding.business'),
+  t('onboarding.products'),
+  t('onboarding.networks'),
+])
 // The free "Improve with AI" allowance, shared by every field.
 const improvementsLeft = ref<number | null>(null)
 onMounted(async () => {
@@ -85,29 +123,19 @@ const briefContext = computed(() => ({
   description: form.description,
   audience: form.audience,
 }))
-function addFact() {
-  form.facts.push({
-    id: crypto.randomUUID(),
-    text: '',
-    source: t('brand.defaultSource'),
-    verified: false,
-  })
-}
 async function next() {
   if (busy.value || syncing.value) return
   error.value = ''
   busy.value = true
   try {
     if (step.value === 0) {
-      const fact = form.facts[0]
       if (
         form.name.trim().length < 2 ||
         form.city.trim().length < 2 ||
         !form.industry.trim() ||
         form.description.trim().length < 10 ||
         !form.audience.trim() ||
-        !fact?.text.trim() ||
-        !fact.verified
+        !form.voice.trim()
       ) {
         error.value = t('onboarding.requiredBusinessFields')
         return
@@ -124,7 +152,6 @@ async function next() {
               voice: form.voice,
               audience: form.audience,
               goals: form.goals,
-              facts: form.facts,
               timezone: form.timezone,
               locale: form.locale,
             },
@@ -141,7 +168,6 @@ async function next() {
             voice: form.voice,
             audience: form.audience,
             goals: form.goals,
-            facts: form.facts,
           })
           Object.assign(d.preferences, {
             timezone: form.timezone,
@@ -151,9 +177,43 @@ async function next() {
         }))
       )
         return
-      clearRecovery()
       step.value = 1
+    } else if (step.value === 1) {
+      const listed = products.filter((product) => product.text.trim())
+      if (!listed.length || !productsChecked.value) {
+        error.value = t('onboarding.requiredProducts')
+        return
+      }
+      const others = data.value.brand.facts.filter((fact) => fact.kind !== 'product')
+      if (
+        !(await commit((d) => {
+          d.brand.facts = [
+            ...listed.map((product) => {
+              const price = Number(String(product.price).replace(',', '.'))
+              const priced = String(product.price).trim() !== '' && price > 0
+              return {
+                id: product.id,
+                text: product.text.trim(),
+                source: t('brand.defaultSource'),
+                verified: true,
+                kind: 'product' as const,
+                amountCents: priced ? Math.round(price * 100) : null,
+                currency: priced ? ('EUR' as const) : null,
+              }
+            }),
+            ...others,
+          ]
+          d.onboarding = Math.max(d.onboarding, 2)
+        }))
+      )
+        return
+      clearRecovery()
+      step.value = 2
     } else {
+      if (!ownedPhotos.value.length) {
+        error.value = t('onboarding.requiredPhoto')
+        return
+      }
       // The networks are the last step; the planner is where the first post
       // is made, so saving them leads straight there.
       if (
@@ -190,30 +250,17 @@ async function finishLater() {
 <template>
   <div class="space-y-6">
     <div>
-      <div class="flex items-start justify-between gap-3">
-        <UBadge color="neutral" variant="outline">{{ t('onboarding.welcome') }}</UBadge>
-        <UButton
-          type="button"
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-log-out"
-          :loading="leaving"
-          @click="signOut"
-          >{{ t('onboarding.signOut') }}</UButton
-        >
-      </div>
-      <h1 class="mt-4">
+      <h1>
         {{
           [
-            t('onboarding.businessIntro'), t('onboarding.networksIntro'),
+            t('onboarding.businessIntro'), t('onboarding.productsIntro'), t('onboarding.networksIntro'),
           ][step]
         }}
       </h1>
       <p class="text-sm text-muted leading-relaxed mt-3">
         {{
           [
-            t('onboarding.businessDescription'), t('onboarding.networksDescription'),
+            t('onboarding.businessDescription'), t('onboarding.productsDescription'), t('onboarding.photosDescription'),
           ][step]
         }}
       </p>
@@ -288,27 +335,86 @@ async function finishLater() {
             :business="briefContext"
             @apply="form.audience = $event"
         /></UFormField>
-        <UFormField v-if="form.facts[0]" :label="t('onboarding.firstFact')" required>
-          <div class="space-y-2">
-            <UInput
-              v-model="form.facts[0].text"
-              required
-              maxlength="1000"
-              class="w-full"
-              :placeholder="t('onboarding.firstFactPlaceholder')"
-            />
-            <BriefImprove
-              v-model:remaining="improvementsLeft"
-              field="fact"
-              :text="form.facts[0].text"
-              :business="briefContext"
-              @apply="form.facts[0]!.text = $event"
-            />
-            <UCheckbox v-model="form.facts[0].verified" :label="t('onboarding.factChecked')" />
+        <UFormField :label="t('onboarding.voice')" :description="t('onboarding.voiceHint')" required>
+          <div class="grid gap-3 sm:grid-cols-3" role="radiogroup" :aria-label="t('onboarding.voice')">
+            <UButton
+              v-for="option in voiceOptions"
+              :key="option"
+              type="button"
+              role="radio"
+              :aria-checked="chosenVoice === option"
+              color="neutral"
+              variant="outline"
+              class="relative h-full flex-col items-start gap-2 rounded-xl p-4 text-left font-normal transition"
+              :class="
+                chosenVoice === option
+                  ? 'ring-2 ring-primary bg-primary/5 hover:bg-primary/10'
+                  : 'hover:ring-1 hover:ring-primary/40'
+              "
+              @click="form.voice = t(`onboarding.voiceValue.${option}`)"
+            >
+              <span
+                class="flex size-9 items-center justify-center rounded-full"
+                :class="chosenVoice === option ? 'bg-primary text-inverted' : 'bg-elevated text-primary'"
+              >
+                <UIcon :name="voiceIcons[option]" class="size-5" />
+              </span>
+              <span class="text-sm font-semibold text-highlighted">{{ t(`onboarding.voiceOption.${option}`) }}</span>
+              <span class="text-xs leading-5 text-muted">{{ t(`onboarding.voiceExample.${option}`) }}</span>
+              <UIcon
+                v-if="chosenVoice === option"
+                name="i-lucide-circle-check"
+                class="absolute right-3 top-3 size-5 text-primary"
+              />
+            </UButton>
           </div>
         </UFormField>
       </template>
+      <template v-else-if="step === 1">
+        <div
+          v-for="(product, i) in products"
+          :key="product.id"
+          class="grid gap-3 sm:grid-cols-[1fr_8rem]"
+        >
+          <UFormField :label="t('onboarding.productLabel', { index: i + 1 })" :required="i === 0">
+            <UInput
+              v-model="product.text"
+              maxlength="1000"
+              class="w-full"
+              :placeholder="t('brand.kindPlaceholder.product')"
+            />
+            <BriefImprove
+              v-model:remaining="improvementsLeft"
+              class="mt-2"
+              field="fact"
+              :text="product.text"
+              :business="briefContext"
+              @apply="product.text = $event"
+            />
+          </UFormField>
+          <UFormField :label="t('brand.price')">
+            <UInput v-model="product.price" type="number" min="0.01" step="0.01" class="w-full" />
+          </UFormField>
+        </div>
+        <UButton
+          v-if="products.length < maxProducts"
+          type="button"
+          variant="outline"
+          icon="i-lucide-plus"
+          @click="addProduct"
+          >{{ t('brand.add.product') }}</UButton
+        >
+        <UCheckbox v-model="productsChecked" :label="t('onboarding.productsChecked')" />
+      </template>
       <template v-else>
+        <UFormField :label="t('onboarding.photos')" :description="t('onboarding.photosHint')" required>
+          <div class="flex flex-wrap items-center gap-3">
+            <PhotoUpload />
+            <UBadge :color="ownedPhotos.length ? 'success' : 'warning'" variant="subtle">{{
+              t('onboarding.photosCount', { count: ownedPhotos.length })
+            }}</UBadge>
+          </div>
+        </UFormField>
         <LogoUpload />
         <div class="grid gap-3 sm:grid-cols-2">
           <SocialConnections compact />
@@ -332,13 +438,27 @@ async function finishLater() {
           trailing-icon="i-lucide-arrow-right"
           class="flex-1 justify-center"
           >{{
-            step === 1 ? t('onboarding.saveContinue') : t('onboarding.continue')
+            step === 2 ? t('onboarding.saveContinue') : t('onboarding.continue')
           }}</UButton
         >
       </div>
       <UButton v-if="context" type="button" variant="ghost" color="neutral" block @click="finishLater"
         >{{ t('onboarding.finishLater') }}</UButton
       >
+      <!-- The one way out of onboarding, for someone signed in to the wrong
+           account; kept small, since it is rarely what anyone came for. -->
+      <div class="flex justify-center">
+        <UButton
+          type="button"
+          size="xs"
+          color="neutral"
+          variant="link"
+          icon="i-lucide-log-out"
+          :loading="leaving"
+          @click="signOut"
+          >{{ t('onboarding.signOut') }}</UButton
+        >
+      </div>
     </UForm>
   </div>
 </template>

@@ -44,15 +44,19 @@ function glideTo(target: number) {
       </div>
     </aside>
     <main ref="form" class="auth-form">
-      <UButton
-        to="/"
-        icon="i-lucide-arrow-left"
-        color="neutral"
-        variant="soft"
-        size="sm"
-        class="mb-8 rounded-full"
-        >{{ t('public.backToFramic') }}</UButton
-      ><slot />
+      <!-- Just the arrow; its name stays for screen readers and on hover. -->
+      <UTooltip :text="t('public.backToFramic')">
+        <UButton
+          to="/"
+          icon="i-lucide-arrow-left"
+          color="neutral"
+          variant="soft"
+          size="sm"
+          square
+          class="mb-8 rounded-full"
+          :aria-label="t('public.backToFramic')"
+        />
+      </UTooltip><slot />
     </main>
   </div>
 </template>
