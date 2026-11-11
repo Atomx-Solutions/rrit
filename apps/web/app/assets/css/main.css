@@ -128,6 +128,17 @@ button:not(:disabled),
 select {
   cursor: pointer;
 }
+/* iOS zooms into any focused field whose type is under 16px, and the
+   viewport's maximum-scale is rewritten by the head manager on navigation,
+   so touch devices get fields at the base size instead. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  [contenteditable='true'] {
+    font-size: max(var(--rrit-text-base), 1em) !important;
+  }
+}
 :focus-visible {
   outline: 3px solid var(--rrit-color-focus);
   outline-offset: 4px;
