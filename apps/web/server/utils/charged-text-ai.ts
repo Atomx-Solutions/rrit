@@ -194,8 +194,15 @@ async function releaseCharge(userId: string, businessId: string, requestId: stri
         referenceId: requestId,
         idempotencyKey: `${kind}-credit-release:${requestId}`,
       })
+      // A day's count is always at least one, so giving back the only request
+      // removes the row instead of leaving a zero the table refuses; a refusal
+      // here would roll back the whole release and keep the credits reserved.
       await release.query(
-        "UPDATE ai_daily_usage SET requests=GREATEST(requests-1,0) WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date",
+        "DELETE FROM ai_daily_usage WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date AND requests<=1",
+        [businessId],
+      )
+      await release.query(
+        "UPDATE ai_daily_usage SET requests=requests-1 WHERE business_id=$1 AND usage_day=(now() AT TIME ZONE 'UTC')::date AND requests>1",
         [businessId],
       )
     }
