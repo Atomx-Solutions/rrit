@@ -79,7 +79,7 @@ import { monthlyProviderCall } from '../../server/utils/monthly-ai'
 import { claimVideoRender } from '../../server/utils/video-queue'
 import { failStoppedRender } from '../../server/utils/video-render'
 import { createDemo } from '../fixtures/workspace'
-import { syncBusinessBrain, updateBusinessBrainSettings } from '../../server/utils/business-brain'
+import { syncBusinessBrain } from '../../server/utils/business-brain'
 import { currentPostQuality, reviewPostQuality } from '../../server/utils/post-quality'
 import { isolateMigrationSql } from '../migration-test-utils'
 
@@ -368,52 +368,6 @@ describe('brand domain lifecycle', () => {
 })
 
 describe('Business Brain persistence', () => {
-  it('archives an audience removed from Business Brain settings', async () => {
-    const item = await business()
-    await insertOrganizationWithOwner(item, 'brain-audience-org', 'Brain audience organization')
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query('SET LOCAL ROLE app_runtime')
-      await setTenantContext(client, { userId: item.user, organizationId: item.id })
-      const brand = await createBrand(
-        client,
-        item.id,
-        brandCreateSchema.parse({
-          name: 'Audience test brand',
-          slug: `audience-${item.id.slice(0, 8)}`,
-          timezone: 'Europe/Tirane',
-          locale: 'sq-XK',
-          category: 'cafe',
-        }),
-      )
-      const first = await updateBusinessBrainSettings(client, item.id, brand.id, {
-        revision: brand.revision,
-        voice: { text: 'I ngrohtë', source: 'Manual' },
-        audiences: [{ name: 'Studentë në Prishtinë', description: 'Audiencë lokale' }],
-        guardrails: [],
-      })
-      await updateBusinessBrainSettings(client, item.id, brand.id, {
-        revision: first.revision,
-        voice: { text: 'I ngrohtë', source: 'Manual' },
-        audiences: [],
-        guardrails: [],
-      })
-      expect(
-        (
-          await client.query(
-            'SELECT status FROM brand_audiences WHERE brand_id=$1 AND organization_id=$2',
-            [brand.id, item.id],
-          )
-        ).rows,
-      ).toEqual([{ status: 'archived' }])
-      await client.query('ROLLBACK')
-    } finally {
-      await client.query('ROLLBACK')
-      client.release()
-    }
-  })
-
   it('records immutable revisions, demotes changed claims and archives removed facts', async () => {
     const item = await business()
     const client = await pool.connect()

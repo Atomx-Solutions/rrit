@@ -281,11 +281,9 @@ export function plannerEvidence(
   // Offers whose window cannot overlap this month are dropped here so no later
   // stage can reach for one that was never publishable.
   //
-  // The brand profile still carries a voice and a guardrail list of its own
-  // from the older editor. They are reconciled here so the stages never see
-  // two answers to the same question: the Business Brain voice wins because it
-  // is the versioned one, while guardrails are unioned because dropping a
-  // prohibition is worse than repeating one.
+  // The tone and the rules come from the profile, their one home. A plan made
+  // before carries the Brain's own in its snapshot; the rules are unioned so a
+  // prohibition is never dropped by where it was typed.
   const legacyGuardrails = (workspace.brand.guardrails || [])
     .map((text) => text.trim())
     .filter(Boolean)

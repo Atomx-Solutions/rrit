@@ -14,7 +14,6 @@ import {
   aiProviderStructuredRouting,
   providerCostMicroEur,
 } from '../../utils/ai-provider'
-import { getBusinessBrain } from '../../utils/business-brain'
 import { getBrandBySlug } from '../../utils/brands'
 import { contentLanguageForLocale, contentLocaleForPreferences } from '../../../shared/schemas/workspace'
 import { audienceLanguageFromResearch } from '../../utils/audience-language'
@@ -152,7 +151,7 @@ export default defineEventHandler(async (event) => {
     client.release()
   }
   try {
-    const { workspace, brain, styleSnapshot, history, language } = await withBusinessTransaction(
+    const { workspace, styleSnapshot, history, language } = await withBusinessTransaction(
       user.id,
       async (client, currentBusiness) => {
         if (currentBusiness.id !== business.id)
@@ -161,7 +160,6 @@ export default defineEventHandler(async (event) => {
         if (!brand) throw createError({ statusCode: 404, message: 'server.BRAND_NOT_FOUND' })
         return {
           workspace: (await loadWorkspace(client, business.id, user.id)).workspace,
-          brain: await getBusinessBrain(client, business.id, brand.id),
           // The monthly style snapshot (PRC-04); reading it never calls Meta.
           styleSnapshot: await client.query<{ summary: CachedPageStyle | null }>(
             'SELECT summary FROM style_snapshots WHERE brand_id=$1',
@@ -194,17 +192,15 @@ export default defineEventHandler(async (event) => {
         name: workspace.brand.name,
         description: workspace.brand.description,
         city: workspace.brand.city,
-        // Business Brain owns the voice and versions it; the brand profile
-        // field is only a fallback for a brand that has no voice version yet.
-        voice: brain.voiceVersions.find((version) => version.active)?.text || workspace.brand.voice,
+        // The tone, audience, facts and rules all come from the profile, the
+        // one place My business keeps them, as the planner reads them too.
+        voice: workspace.brand.voice,
         audience: workspace.brand.audience,
       },
-      confirmedFacts: brain.facts
-        .filter((f) => f.status === 'verified')
-        .map((f) => ({ text: f.text, source: f.source, confidence: f.confidence })),
-      guardrails: brain.guardrails
-        .filter((item) => item.status === 'active')
-        .map((item) => item.text),
+      confirmedFacts: workspace.brand.facts
+        .filter((fact) => fact.verified && fact.kind !== 'offer')
+        .map((fact) => ({ text: fact.text, source: fact.source, confidence: fact.confidence ?? 1 })),
+      guardrails: (workspace.brand.guardrails || []).map((text) => text.trim()).filter(Boolean),
       ...(pageStyle?.profile
         ? {
             pageStyle: {
