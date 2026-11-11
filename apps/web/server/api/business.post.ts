@@ -144,20 +144,8 @@ export default defineEventHandler(async (event) => {
       ],
     )
     if (result.rows.length) {
-      const brandId = initialBrand.rows[0]?.id
-      if (brandId) {
-        // The sign-up facts are already in the workspace brand above, the one
-        // place My business shows them and the planner reads them.
-        const voice = parsed.data.voice.trim()
-        if (voice) {
-          await client.query(
-            `INSERT INTO brand_voice_versions
-              (organization_id, brand_id, version, text, source, active)
-             VALUES ($1,$2,1,$3,$4,true)`,
-            [id, brandId, voice, 'Plotësuar nga biznesi'],
-          )
-        }
-      }
+      // The sign-up facts and tone are already in the workspace brand above,
+      // the one place My business shows them and the planner reads them.
       await recordAuditEvent(client, {
         actorId: user.id,
         organizationId: id,

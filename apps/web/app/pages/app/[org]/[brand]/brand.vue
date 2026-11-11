@@ -47,7 +47,6 @@ function closeTabGuard(open: boolean) {
 }
 function discardAndSwitch() {
   Object.assign(form, JSON.parse(baseline.value))
-  brainEditor.value?.resetSettings()
   activeTab.value = pendingTab.value!
   pendingTab.value = null
 }
@@ -80,12 +79,10 @@ const { onFormError, watchError } = useFormFeedback()
 watchError(formError)
 watchError(localError, 'warning')
 const profileDirty = computed(() => JSON.stringify(form) !== baseline.value)
-const brainEditor = ref<{ saveSettings: () => Promise<void>; settingsDirty: boolean; resetSettings: () => void } | null>(null)
-const dirty = computed(() => profileDirty.value || !!brainEditor.value?.settingsDirty)
-// The tab's one save button stores whichever part changed.
+const dirty = computed(() => profileDirty.value)
+// The one save button stores the whole profile, rules included.
 async function saveAll() {
   if (profileDirty.value) await save()
-  if (brainEditor.value?.settingsDirty) await brainEditor.value.saveSettings()
 }
 const focusTarget = computed(() => {
   if (route.query.attention !== 'planner') return ''
@@ -782,14 +779,6 @@ v-if="activeTab === 'facts'"
               </div>
             </template>
           </UAccordion>
-          <!-- The form's space-y leaves a gap after the section above; the
-               editor closes it so every section sits the same distance apart. -->
-          <BusinessBrainEditor
-            v-if="activeTab === 'rules'"
-            ref="brainEditor"
-            class="-mt-6"
-            embedded
-          />
           <div class="-mx-5 flex items-center justify-between gap-3 border-t border-default px-5 pt-4 sm:-mx-7 sm:px-7">
             <span role="status" class="min-w-0 flex-1 truncate text-xs text-muted">{{
               dirty
