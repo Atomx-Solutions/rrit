@@ -16,6 +16,7 @@ import {
   plannerMessageKey,
 } from '../../utils/monthly-planner-domain'
 import { startMonthlyPlannerNow } from '../../utils/planner-run'
+import { refreshBrandPalette } from '../../utils/brand-palette'
 
 export default defineEventHandler(async (event) => {
   const started = Date.now()
@@ -50,6 +51,14 @@ export default defineEventHandler(async (event) => {
     .safeParse(await boundedBody(event, 16384))
   if (!input.success)
     throw createError({ statusCode: 422, message: 'server.REQUEST_INVALID' })
+  // The brand colour is chosen before planning, outside its transaction, so a
+  // slow logo download or model call never holds the business lock. A failure
+  // only means the plan generates with colours from its photographs.
+  // Every action that leads to new posts: a first request, more posts, and
+  // continuing a stopped preparation.
+  if (['prepare', 'generate', 'restart'].includes(input.data.action)) {
+    await refreshBrandPalette(user.id)
+  }
   try {
     const result = await withBusinessTransaction(user.id, async (client, business) => {
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [business.id])

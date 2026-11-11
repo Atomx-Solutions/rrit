@@ -17,6 +17,7 @@ import {
 } from '../../utils/asset-storage'
 import { setTenantContext, setUserContext } from '../../utils/database'
 import { BrainFailure, syncBusinessBrain } from '../../utils/business-brain'
+import { refreshBrandPalette } from '../../utils/brand-palette'
 import { recordTrialPostUsage } from '../../utils/trials'
 import { getBrandForBusiness } from '../../utils/brands'
 
@@ -105,6 +106,9 @@ export default defineEventHandler(async (event) => {
         message: 'server.BRAND_CHANGED_OTHER_DEVICE',
       })
     input.brand = await syncBusinessBrain(client, id.data, user.id, input.brand, current.brand)
+    // The brand colour is the application's to choose; a screen opened before
+    // it was chosen must not erase it on save.
+    input.brand.palette = current.brand.palette
     const organization = await client.query<{ name: string }>(
       'SELECT name FROM organizations WHERE id=$1 FOR UPDATE',
       [id.data],
@@ -534,6 +538,10 @@ export default defineEventHandler(async (event) => {
     const brand = await getBrandForBusiness(client, id.data, result.slug)
     if (brand) result.workspace.brand.status = brand.status
     await client.query('COMMIT')
+    // A new logo is the best source of the brand colour, so it is chosen again
+    // now; a business without one gets it here once. Best-effort, after commit.
+    if (uploads.some((asset) => asset.kind === 'brand')) await refreshBrandPalette(user.id, 'logo')
+    else if (!current.brand.palette?.primary) await refreshBrandPalette(user.id)
     for (const storagePath of removedStoragePaths) {
       try {
         await removeAsset(storagePath)

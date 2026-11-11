@@ -138,7 +138,6 @@ const schema = z.object({
   voice: z.string(),
   audience: z.string(),
   industry: z.string().max(200),
-  color: z.string().regex(/^#[0-9a-f]{6}$/i, t('brand.colorInvalid')),
   goals: z
     .array(z.string().trim().min(2, t('brand.goalMinLength')).max(120))
     .max(10),
@@ -393,18 +392,6 @@ function setPrice(fact: BrandFact, value: string | number) {
               :text="form.audience"
               :business="briefContext"
               @apply="form.audience = $event" /></UFormField>
-          <div class="grid sm:grid-cols-2 gap-5">
-            <UFormField :label="t('brand.color')" name="color"
-              ><UInput v-model="form.color" type="color" class="w-full h-10" /></UFormField
-            ><UFormField :label="t('brand.status')" name="status"
-              ><USelect
-                v-model="form.status"
-                :items="[
-                  { label: t('brand.active'), value: 'active' },
-                  { label: t('brand.archived'), value: 'archived' },
-                ]"
-            /></UFormField>
-          </div>
           </div>
           <div v-if="activeTab === 'audience'" class="space-y-6 border-b border-default pb-6">
           <div class="space-y-3">

@@ -46,7 +46,7 @@ import {
   providerCostMicroEur,
 } from './ai-provider'
 import { contentLanguageForLocale, type AppLocaleValue } from '../../shared/schemas/workspace'
-import { sceneDressingReview, sceneDressingRule } from './scene-dressing'
+import { sceneDressingDirection, sceneDressingReview, sceneDressingRule } from './scene-dressing'
 import { providerFailureKind } from './ai-provider-alert'
 import { rateLimitSettings, sendWithRateLimitRetry } from './provider-rate-limit'
 
@@ -756,9 +756,9 @@ const evidenceFirstInstruction = {
   research:
     'Evidence-first rule: every market, audience, platform or seasonal statement must be supported by a source returned by live search. For timing, use only the supplied timingEvidence timestamps. If timingEvidence is empty, state that there is no observed timing data and do not recommend or imply an optimal hour. Never write a timing hypothesis or present a generic best-practice time as evidence.',
   planning:
-    'Evidence-first rule: strategy must be grounded in verified factIds, exact research sourceUrls and the supplied timingEvidence. A fact whose kind is offer, or that has a validFrom or validUntil, may be cited only by a slot whose day falls inside those dates; every other slot cites the lasting products and facts. Set timingBasis to social_history only when the chosen hour is present in real connected social history, platform_history only when it is present in real published platform history, and no_data when no observed timestamp supports the hour. With no_data, explain the data gap plainly; never call the chosen time optimal, proven or a hypothesis. Do not invent audience behavior, competitor facts, performance numbers or account insights.',
+    'Evidence-first rule: strategy must be grounded in verified factIds, exact research sourceUrls and the supplied timingEvidence. A fact whose kind is offer, or that has a validFrom or validUntil, may be cited only by a slot whose day falls inside those dates; every other slot cites the lasting products and facts. Set timingBasis to social_history only when the chosen hour is present in real connected social history, platform_history only when it is present in real published platform history, and no_data when no observed timestamp supports the hour. With no_data, explain the data gap plainly; never call the chosen time optimal, proven or a hypothesis. Do not invent audience behavior, competitor facts, performance numbers or account insights. ' + sceneDressingDirection + '',
   content:
-    'Evidence-first rule: use only the verified factIds and the exact strategy slot. Research sources explain market context, never new facts about the business. Never turn an unverified timing choice, market assumption or generated visual detail into a factual business claim.',
+    'Evidence-first rule: use only the verified factIds and the exact strategy slot. Research sources explain market context, never new facts about the business. Never turn an unverified timing choice, market assumption or generated visual detail into a factual business claim. ' + sceneDressingDirection + '',
   quality:
     'Evidence-first rule: block factual inventions and unsupported business claims. Treat the uploaded photo as the source of truth for real products, people, spaces, signage and material objects; AI may improve quality and composition but may not fabricate evidence. ' + sceneDressingReview,
   style:
@@ -1669,7 +1669,7 @@ export function monthlyImagePrompt(input: {
       : []),
     ...(brand.color
       ? [
-          `Application brand control: the configured brand color is ${brand.color}. Keep it as the primary color anchor when color is used; compatible shades and neutral supporting colors are allowed, but do not replace it with an unrelated palette.`,
+          `Application brand control: the brand color is ${brand.color}. Keep it as the primary color anchor when color is used; compatible shades and neutral supporting colors are allowed, but do not replace it with an unrelated palette.`,
         ]
       : []),
     `Editorial topic: ${slot.topic}. Intent: ${slot.intent}. Audience hook: ${slot.hook}. Purpose: ${slot.purpose}.`,

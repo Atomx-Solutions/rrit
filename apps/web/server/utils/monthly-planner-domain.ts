@@ -408,7 +408,11 @@ export function promptEvidence(evidence: PlannerEvidence) {
   const { brain: _brain, ...rest } = evidence as PlannerEvidence & { brain?: PlannerBrain }
   // The music is laid under the finished video; the writer has no use for it.
   const { videoMusic: _music, ...photoSelection } = rest.photoSelection as PlannerEvidence['photoSelection'] & { videoMusic?: unknown }
-  return { ...rest, photoSelection }
+  // The brand colour is the one the application chose; the old hand-picked
+  // field, still stored on older workspaces, must not reach the writers.
+  if (!rest.brand) return { ...rest, photoSelection }
+  const { color: _color, palette, ...brand } = rest.brand
+  return { ...rest, brand: { ...brand, ...(palette?.primary ? { color: palette.primary } : {}) }, photoSelection }
 }
 
 /**

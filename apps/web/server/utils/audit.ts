@@ -122,7 +122,6 @@ export function workspaceAuditMetadata(current: Workspace, input: Workspace): Au
   trackValue('business_name', current.brand.name, input.brand.name)
   trackValue('city', current.brand.city, input.brand.city)
   trackValue('industry', current.brand.industry, input.brand.industry)
-  trackValue('color', current.brand.color, input.brand.color)
 
   return changedFields.length
     ? {
@@ -162,7 +161,6 @@ export function brandAuditMetadata(before: Brand, after: Brand): AuditMetadata {
       slug: [before.slug, after.slug],
       city: [before.profile.city, after.profile.city],
       industry: [before.profile.industry, after.profile.industry],
-      color: [before.profile.color, after.profile.color],
       category: [before.category, after.category],
       timezone: [before.timezone, after.timezone],
       locale: [before.locale, after.locale],
