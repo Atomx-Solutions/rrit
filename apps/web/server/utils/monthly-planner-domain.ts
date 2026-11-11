@@ -1309,7 +1309,7 @@ export async function runClaimedJobs<Job>(input: {
 // "Improve with AI" on the sign-up brief is free, so each person has a fixed
 // number of them in total across every field.
 export function onboardingAiImprovements(env: Record<string, string | undefined> = process.env) {
-  return positiveSetting(env.ONBOARDING_AI_IMPROVEMENTS, 5)
+  return positiveSetting(env.ONBOARDING_AI_IMPROVEMENTS, 10)
 }
 
 export function imageEditQueueSettings(env: Record<string, string | undefined> = process.env) {

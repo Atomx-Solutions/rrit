@@ -73,6 +73,7 @@ const chosenVoice = computed(() =>
 )
 // Up to three products; the first is required. Each is stored as a confirmed
 // product fact, the kind the planner shows in pictures and cites in posts.
+// A product carries no price: a business publishes prices with its offers.
 const maxProducts = 3
 const products = reactive(
   (() => {
@@ -81,16 +82,20 @@ const products = reactive(
       .map((fact) => ({
         id: fact.id,
         text: fact.text,
-        price: fact.amountCents == null ? '' : String(fact.amountCents / 100),
       }))
-    return existing.length ? existing : [{ id: crypto.randomUUID(), text: '', price: '' }]
+    return existing.length ? existing : [{ id: crypto.randomUUID(), text: '' }]
   })(),
 )
 const productsChecked = ref(
   data.value.brand.facts.some((fact) => fact.kind === 'product' && fact.verified),
 )
 function addProduct() {
-  if (products.length < maxProducts) products.push({ id: crypto.randomUUID(), text: '', price: '' })
+  if (products.length < maxProducts) products.push({ id: crypto.randomUUID(), text: '' })
+}
+function removeProduct(id: string) {
+  const index = products.findIndex((product) => product.id === id)
+  if (products.length <= 1 || index === -1) return
+  products.splice(index, 1)
 }
 // Photographs the business owns and may use; at least one is needed to plan.
 const ownedPhotos = computed(() =>
@@ -188,19 +193,13 @@ async function next() {
       if (
         !(await commit((d) => {
           d.brand.facts = [
-            ...listed.map((product) => {
-              const price = Number(String(product.price).replace(',', '.'))
-              const priced = String(product.price).trim() !== '' && price > 0
-              return {
-                id: product.id,
-                text: product.text.trim(),
-                source: t('brand.defaultSource'),
-                verified: true,
-                kind: 'product' as const,
-                amountCents: priced ? Math.round(price * 100) : null,
-                currency: priced ? ('EUR' as const) : null,
-              }
-            }),
+            ...listed.map((product) => ({
+              id: product.id,
+              text: product.text.trim(),
+              source: t('brand.defaultSource'),
+              verified: true,
+              kind: 'product' as const,
+            })),
             ...others,
           ]
           d.onboarding = Math.max(d.onboarding, 2)
@@ -248,7 +247,7 @@ async function finishLater() {
 }
 </script>
 <template>
-  <div class="space-y-6">
+  <div class="business-onboarding space-y-6">
     <div>
       <h1>
         {{
@@ -371,12 +370,25 @@ async function finishLater() {
         </UFormField>
       </template>
       <template v-else-if="step === 1">
-        <div
-          v-for="(product, i) in products"
-          :key="product.id"
-          class="grid gap-3 sm:grid-cols-[1fr_8rem]"
-        >
-          <UFormField :label="t('onboarding.productLabel', { index: i + 1 })" :required="i === 0">
+        <div v-for="(product, i) in products" :key="product.id">
+          <UFormField>
+            <template #label>
+              <span class="flex min-h-7 items-center justify-between gap-3 w-full">
+                <span>{{ t('onboarding.productLabel', { index: i + 1 }) }}<span v-if="i === 0" class="text-error"> *</span></span>
+                <UButton
+                  type="button"
+                  color="error"
+                  variant="ghost"
+                  size="xs"
+                  icon="i-lucide-trash-2"
+                  :class="{ invisible: products.length === 1 }"
+                  :aria-hidden="products.length === 1"
+                  :tabindex="products.length === 1 ? -1 : 0"
+                  :aria-label="`${t('common.delete')} ${t('onboarding.productLabel', { index: i + 1 })}`"
+                  @click="removeProduct(product.id)"
+                >{{ t('common.delete') }}</UButton>
+              </span>
+            </template>
             <UInput
               v-model="product.text"
               maxlength="1000"
@@ -391,9 +403,6 @@ async function finishLater() {
               :business="briefContext"
               @apply="product.text = $event"
             />
-          </UFormField>
-          <UFormField :label="t('brand.price')">
-            <UInput v-model="product.price" type="number" min="0.01" step="0.01" class="w-full" />
           </UFormField>
         </div>
         <UButton

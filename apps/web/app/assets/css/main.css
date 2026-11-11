@@ -571,6 +571,11 @@ td {
   padding: clamp(28px, 5vw, 80px) clamp(24px, 5vw, 72px);
   margin: auto;
 }
+/* Keep the onboarding heading in place as product fields are added or removed. */
+.auth-form:has(.business-onboarding) {
+  margin-block: 0;
+  overflow-anchor: none;
+}
 .auth-form h1 {
   font-size: clamp(28px, 2.1vw, 38px);
   margin-bottom: 10px;
