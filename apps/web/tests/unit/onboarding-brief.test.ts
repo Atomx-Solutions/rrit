@@ -27,7 +27,18 @@ describe('brief improvement prompt', () => {
     expect(prompt).toContain('untrusted data')
   })
 
-  it('writes in the language of the screen', () => {
+  it('lets the description and audience grow on topic without new claims', () => {
+    const description = briefImprovementInstructions('description', 'en-US')
+    expect(description).toContain('deepen it')
+    expect(description).toContain('never introduce another product or service')
+    expect(description).toContain('a price')
+    expect(briefImprovementInstructions('audience', 'en-US')).toContain('instead of rewording')
+  })
+
+  it('answers in the language of the text, and in the screen language only as a fallback', () => {
+    const prompt = briefImprovementInstructions('description', 'en-US')
+    expect(prompt).toContain('Write in the language "text" is written in')
+    expect(prompt).toContain('only when that language cannot be told, write in English')
     expect(briefImprovementInstructions('description', 'sq-XK')).toContain('Albanian')
   })
 })

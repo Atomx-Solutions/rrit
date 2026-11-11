@@ -2471,6 +2471,8 @@
   "onboarding.aiSuggestion": "Yapay zekâ önerisi",
   "onboarding.useSuggestion": "Bunu kullan",
   "onboarding.keepMine": "Benimkini koru",
+  "onboarding.improveAlreadyGood": "Metin zaten iyi. Daha güçlü hale getirmek için aşağıdaki soruları yanıtlayın.",
+  "onboarding.close": "Kapat",
   "server.BRIEF_TEXT_REQUIRED": "Yapay zekâ ile iyileştirmeden önce birkaç kelime yaz.",
   "server.BRIEF_IMPROVEMENTS_USED": "Ücretsiz iyileştirmeler bitti. Daha sonra İşletmem bölümünde yapabilirsin.",
   "brand.improveUsesCredits": "Kredi kullanır",

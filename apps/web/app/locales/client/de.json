@@ -2471,6 +2471,8 @@
   "onboarding.aiSuggestion": "KI-Vorschlag",
   "onboarding.useSuggestion": "Übernehmen",
   "onboarding.keepMine": "Meins behalten",
+  "onboarding.improveAlreadyGood": "Der Text ist bereits gut. Beantworte die Fragen unten, um ihn zu stärken.",
+  "onboarding.close": "Schließen",
   "server.BRIEF_TEXT_REQUIRED": "Schreib ein paar Worte, bevor du mit KI verbesserst.",
   "server.BRIEF_IMPROVEMENTS_USED": "Gratis-Verbesserungen aufgebraucht. Später unter Mein Unternehmen möglich.",
   "brand.improveUsesCredits": "Verbraucht Credits",

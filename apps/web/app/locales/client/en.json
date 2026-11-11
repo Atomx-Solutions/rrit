@@ -2471,6 +2471,8 @@
   "onboarding.aiSuggestion": "AI suggestion",
   "onboarding.useSuggestion": "Use this",
   "onboarding.keepMine": "Keep mine",
+  "onboarding.improveAlreadyGood": "The text already reads well. Answer the questions below to make it stronger.",
+  "onboarding.close": "Close",
   "server.BRIEF_TEXT_REQUIRED": "Write a few words before improving with AI.",
   "server.BRIEF_IMPROVEMENTS_USED": "Free improvements used. You can improve later under My business.",
   "brand.improveUsesCredits": "Uses credits",

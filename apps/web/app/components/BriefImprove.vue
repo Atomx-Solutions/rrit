@@ -20,6 +20,12 @@ const error = ref('')
 const suggestion = ref<{ text: string; questions: string[] } | null>(null)
 const tooShort = computed(() => props.text.trim().length < 3)
 const usedUp = computed(() => !props.paid && remaining.value === 0)
+// A suggestion that only repeats what is already in the field is not offered
+// as a replacement; its questions are what can still make the text stronger.
+const normalized = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+const unchanged = computed(
+  () => !!suggestion.value && normalized(suggestion.value.text) === normalized(props.text),
+)
 
 async function improve() {
   if (busy.value || tooShort.value || usedUp.value) return
@@ -98,7 +104,8 @@ function use() {
           <UIcon name="i-lucide-sparkles" class="size-3.5" />
           {{ t('onboarding.aiSuggestion') }}
         </div>
-        <p class="mt-2 whitespace-pre-line text-sm leading-6 text-highlighted">{{ suggestion.text }}</p>
+        <p v-if="unchanged" class="mt-2 text-sm leading-6 text-highlighted">{{ t('onboarding.improveAlreadyGood') }}</p>
+        <p v-else class="mt-2 whitespace-pre-line text-sm leading-6 text-highlighted">{{ suggestion.text }}</p>
         <ul v-if="suggestion.questions.length" class="mt-3 space-y-1 border-t border-primary/15 pt-2">
           <li
             v-for="question in suggestion.questions"
@@ -110,9 +117,9 @@ function use() {
           </li>
         </ul>
         <div class="mt-3 flex flex-wrap gap-2">
-          <UButton size="xs" icon="i-lucide-check" @click="use">{{ t('onboarding.useSuggestion') }}</UButton>
+          <UButton v-if="!unchanged" size="xs" icon="i-lucide-check" @click="use">{{ t('onboarding.useSuggestion') }}</UButton>
           <UButton size="xs" color="neutral" variant="ghost" @click="suggestion = null">
-            {{ t('onboarding.keepMine') }}
+            {{ unchanged ? t('onboarding.close') : t('onboarding.keepMine') }}
           </UButton>
         </div>
       </div>
