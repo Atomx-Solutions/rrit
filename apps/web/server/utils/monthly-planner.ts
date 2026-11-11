@@ -1971,7 +1971,9 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
       }
       const imagePrompt = monthlyImagePrompt({
         language: slotCommon.language,
-        brand: plan.evidence.brand,
+        // The colour the application chose for the brand, never the old
+        // hand-picked field; without one the painter takes colours from the photo.
+        brand: { ...plan.evidence.brand, color: plan.evidence.brand.palette?.primary },
         slot,
         creative: content.creative,
         logoAvailable: Boolean(brandLogo),

@@ -11,7 +11,6 @@ export function emptyWorkspace(name = '', email = ''): Workspace {
       description: '',
       voice: '',
       audience: '',
-      color: '#137d59',
       facebookUrl: '',
       instagramUrl: '',
       goals: [],

@@ -25,7 +25,6 @@ export default defineEventHandler(async (event) => {
           slug: [null, brand.slug],
           city: [null, brand.profile.city],
           industry: [null, brand.profile.industry],
-          color: [null, brand.profile.color],
         }),
       })
       return brand

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { dominantColor } from './brand-palette'
 import type { PoolClient } from 'pg'
 import { contentLocaleForPreferences, postSchema } from '../../shared/schemas/workspace'
 import { channelCanvas, channelFormat, channelUiInsets } from '../../shared/schemas/channel-format'
@@ -194,6 +195,13 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
     // Where the text sits until the director has located the subject; it is
     // set again beside the subject once the storyboard is known.
     const overlayZone = post.video.shot?.textZone === 'bottom' ? 'bottom' as const : 'top' as const
+    const source = asset.rows[0].storage_path
+      ? await downloadAsset(asset.rows[0].storage_path, 10 * 1024 * 1024)
+      : asset.rows[0].bytes!
+    // The application-chosen brand colour; without one, the photograph's own
+    // colour, so videos without a palette do not all share one fixed shade.
+    const brandPrimary = workspace.brand.palette?.primary
+    const primaryColor = brandPrimary || (await dominantColor(source).catch(() => undefined))
     const overlayInput = {
       businessName: workspace.brand.name,
       eyebrow: creative?.eyebrow,
@@ -201,8 +209,8 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
       subline: creative ? hookRemainder(post.video.hook, creative.headline) : undefined,
       cta: creative?.cta || post.video.cta,
       zone: overlayZone,
-      primaryColor: workspace.brand.palette?.primary || workspace.brand.color,
-      onPrimary: workspace.brand.palette?.onPrimary,
+      primaryColor,
+      onPrimary: brandPrimary ? workspace.brand.palette?.onPrimary : undefined,
       fontFamily: workspace.brand.typography?.family,
       weightHook: workspace.brand.typography?.weightHook,
       weightCta: workspace.brand.typography?.weightCta,
@@ -231,9 +239,7 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
       approvedCopy: approvedVideoCopy(post),
       contentVersion: post.contentVersion ?? 1,
       renderId: job.id,
-      source: asset.rows[0].storage_path
-        ? await downloadAsset(asset.rows[0].storage_path, 10 * 1024 * 1024)
-        : asset.rows[0].bytes!,
+      source,
       extraSources: await Promise.all(extraAssets.map((row) => row.storage_path
         ? downloadAsset(row.storage_path, 10 * 1024 * 1024)
         : Promise.resolve(row.bytes!))),

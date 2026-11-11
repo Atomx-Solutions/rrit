@@ -1669,7 +1669,7 @@ export function monthlyImagePrompt(input: {
       : []),
     ...(brand.color
       ? [
-          `Application brand control: the configured brand color is ${brand.color}. Keep it as the primary color anchor when color is used; compatible shades and neutral supporting colors are allowed, but do not replace it with an unrelated palette.`,
+          `Application brand control: the brand color is ${brand.color}. Keep it as the primary color anchor when color is used; compatible shades and neutral supporting colors are allowed, but do not replace it with an unrelated palette.`,
         ]
       : []),
     `Editorial topic: ${slot.topic}. Intent: ${slot.intent}. Audience hook: ${slot.hook}. Purpose: ${slot.purpose}.`,

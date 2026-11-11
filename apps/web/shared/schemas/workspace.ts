@@ -24,6 +24,11 @@ const researchSourceSchema = z
 // business that does not want its content tied to public holidays simply never
 // has them researched. Off by default, because a business that was generating
 // without events must not silently start publishing holiday posts.
+// Where an application-chosen brand colour came from, weakest first.
+export const brandPaletteSources = ['industry', 'page', 'logo'] as const
+export const brandPaletteSourceSchema = z.enum(brandPaletteSources)
+export type BrandPaletteSource = z.infer<typeof brandPaletteSourceSchema>
+
 export const eventResearchCategoriesSchema = z.object({
   // National, local, religious and cultural occasions.
   publicEvents: z.boolean().default(true),
@@ -248,11 +253,14 @@ export const workspaceSchema = z.object({
     description: z.string(),
     voice: z.string(),
     audience: z.string(),
-    color: z.string(),
+    // No longer chosen by the business: older workspaces still carry it, and
+    // nothing reads it for generation. The brand colour is `palette`.
+    color: z.string().optional(),
     // Optional typography and palette anchors for deterministic brand
-    // composition (video overlays). Everything is optional so a workspace
-    // that never configures these still renders reasonable overlays from
-    // `brand.color` + the application defaults.
+    // composition. The palette is chosen by the application, never typed by
+    // the business: from its logo, else its connected page's style, else its
+    // kind of business. Everything is optional so a workspace without one
+    // still generates, with colours taken from the photograph.
     typography: z
       .object({
         family: z.string().min(1).max(80).default('Inter'),
@@ -265,6 +273,8 @@ export const workspaceSchema = z.object({
       .object({
         primary: z.string().min(3).max(16).optional(),
         onPrimary: z.string().min(3).max(16).optional(),
+        // Where the colour came from; a better source replaces a weaker one.
+        source: brandPaletteSourceSchema.optional(),
       })
       .optional(),
     facebookUrl: z.string().default(''),

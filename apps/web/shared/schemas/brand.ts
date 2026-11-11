@@ -25,7 +25,8 @@ export const brandProfileSchema = z.object({
   audience: z.string().max(1000).default(''),
   industry: z.string().max(200).default(''),
   city: z.string().max(120).default(''),
-  color: z.string().max(30).default('#137d59'),
+  // Kept readable for older brands; the brand colour is chosen automatically.
+  color: z.string().max(30).optional(),
   facebookUrl: z.string().max(500).default(''),
   instagramUrl: z.string().max(500).default(''),
   goals: z.array(z.string().trim().min(2).max(120)).max(10).default([]),
@@ -55,7 +56,6 @@ export const brandCreateSchema = z.object({
     audience: '',
     industry: '',
     city: '',
-    color: '#137d59',
     facebookUrl: '',
     instagramUrl: '',
     goals: [],

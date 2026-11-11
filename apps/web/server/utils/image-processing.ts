@@ -769,7 +769,7 @@ export async function buildVideoOverlayLayers(input: {
   return { layers, extent: { top, bottom: top + blockHeight } }
 }
 
-function sanitizeHex(value?: string) {
+export function sanitizeHex(value?: string) {
   if (!value) return undefined
   const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(value.trim())
   if (!match) return undefined
@@ -795,7 +795,7 @@ function liftForDark(hex: string) {
   return `#${[r1, g1, b1].map((value) => Math.round((value! + m) * 255).toString(16).padStart(2, '0')).join('')}`
 }
 
-function readableOn(hex: string) {
+export function readableOn(hex: string) {
   const normalized = hex.replace('#', '')
   const r = parseInt(normalized.slice(0, 2), 16)
   const g = parseInt(normalized.slice(2, 4), 16)
