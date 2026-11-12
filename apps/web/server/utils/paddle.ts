@@ -15,6 +15,16 @@ export function paddleWebhookSecret() {
   return process.env.PADDLE_WEBHOOK_SECRET?.trim() || null
 }
 
+/**
+ * Accept the replacement webhook secret briefly during a safe destination
+ * migration. Remove PADDLE_WEBHOOK_PREVIOUS_SECRET after the old Paddle
+ * destination has been deactivated.
+ */
+export function paddleWebhookSecrets() {
+  return [paddleWebhookSecret(), process.env.PADDLE_WEBHOOK_PREVIOUS_SECRET?.trim() || null]
+    .filter((secret): secret is string => Boolean(secret))
+}
+
 export function paddleApiKey() {
   return process.env.PADDLE_API_KEY?.trim() || null
 }
