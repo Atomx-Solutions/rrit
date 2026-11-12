@@ -154,6 +154,8 @@ export default defineNuxtConfig({
       paddleClientToken: process.env.NUXT_PUBLIC_PADDLE_CLIENT_TOKEN || process.env.PADDLE_CLIENT_TOKEN || '',
       paddlePackagePriceId: process.env.NUXT_PUBLIC_PADDLE_PACKAGE_PRICE_ID || process.env.PADDLE_PACKAGE_PRICE_ID || '',
       paddleEnvironment: process.env.NUXT_PUBLIC_PADDLE_ENV || process.env.PADDLE_ENV || 'sandbox',
+      // Public site-ownership token Bing Webmaster Tools gives (msvalidate.01).
+      bingSiteVerification: process.env.NUXT_PUBLIC_BING_SITE_VERIFICATION || '',
     },
   },
   routeRules: {

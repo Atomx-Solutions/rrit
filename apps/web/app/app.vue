@@ -3,6 +3,9 @@ import { de, en, fr, it, sq, tr } from '@nuxt/ui/locale'
 const { locale: appLocale, t } = useI18n()
 // The document language follows the interface, so screen readers pronounce it right.
 useHead({ htmlAttrs: { lang: appLocale } })
+// Proves site ownership to Bing Webmaster Tools when a token is configured.
+const { bingSiteVerification } = useRuntimeConfig().public
+if (bingSiteVerification) useHead({ meta: [{ name: 'msvalidate.01', content: bingSiteVerification }] })
 const locale = computed(() => {
   const base = { 'de-CH': de, 'en-US': en, 'it-CH': it, 'fr-CH': fr, 'tr-TR': tr, 'sq-XK': sq }[appLocale.value] ?? de
   return {
