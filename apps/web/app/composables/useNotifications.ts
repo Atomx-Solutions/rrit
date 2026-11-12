@@ -14,7 +14,9 @@ export type NotificationItem = {
   read: boolean
 }
 
-type Marks = { read: Record<string, string>; removed: Record<string, string> }
+type Marks = { read: Record<string, string>; snoozedUntil: Record<string, number> }
+const REMINDER_SNOOZE_MS = 24 * 60 * 60 * 1000
+const EMPTY_MARKS: Marks = { read: {}, snoozedUntil: {} }
 
 /**
  * Everything that needs the business's attention, in one list: the bell shows
@@ -26,6 +28,8 @@ export function useNotifications() {
   const { data, base } = useWorkspace()
   const { data: usage } = useHeaderUsage()
   const { data: meta } = useFetch('/api/meta/status', { key: 'meta-status', lazy: true, server: false })
+  const { data: instagram } = useFetch('/api/instagram/status', { key: 'instagram-status', lazy: true, server: false })
+  const { data: tiktok } = useFetch('/api/tiktok/status', { key: 'tiktok-status', lazy: true, server: false })
   // Same request and key as the billing page, so paying or declining there
   // clears the offer here as well.
   const { data: billing } = useFetch('/api/billing/subscription', { lazy: true, key: 'billing-subscription-currency-v2' })
@@ -101,16 +105,25 @@ export function useNotifications() {
         to: `${base.value}/content?status=review`,
         signature: String(awaiting),
       })
-    if (meta.value && meta.value.connection?.status !== 'connected')
-      list.push({
-        key: 'connections',
-        icon: 'i-lucide-link',
-        tone: 'neutral',
-        title: t('nav.meta'),
-        description: t('nav.metaDescription'),
-        to: `${base.value}/social-posts`,
-        signature: 'not-connected',
-      })
+    // Show an independent alert for each channel that has been checked and
+    // is not connected. Unknown/loading status must not be presented as absent.
+    const socialChannels = [
+      { key: 'facebook', label: 'Facebook', status: meta.value?.connection?.status, query: 'channel=Facebook' },
+      { key: 'instagram', label: 'Instagram', status: instagram.value?.connection?.status, query: 'channel=Instagram' },
+      { key: 'tiktok', label: 'TikTok', status: tiktok.value?.connection?.status, query: 'channel=TikTok' },
+    ]
+    for (const channel of socialChannels) {
+      if (channel.status !== undefined && channel.status !== 'connected')
+        list.push({
+          key: `connection-${channel.key}`,
+          icon: 'i-lucide-link',
+          tone: 'neutral',
+          title: t('nav.channelNotConnected', { channel: channel.label }),
+          description: t('nav.channelNotConnectedDescription', { channel: channel.label }),
+          to: `${base.value}/social-posts?${channel.query}`,
+          signature: channel.status,
+        })
+    }
     return list
   })
 
@@ -121,17 +134,29 @@ export function useNotifications() {
       : `${Math.max(1, Math.floor(hours))} ${t('trial.hours')}`
   }
 
-  // Read and removed notices are remembered per business in this browser;
+  // Read and snoozed notices are remembered per business in this browser;
   // they are the viewer's own housekeeping, not shared with the team.
   const storageKey = computed(() => `rrit:notifications:${base.value}`)
-  const marks = useState<Marks>('notification-marks', () => ({ read: {}, removed: {} }))
+  const marks = useState<Marks>('notification-marks', () => ({
+    read: { ...EMPTY_MARKS.read },
+    snoozedUntil: { ...EMPTY_MARKS.snoozedUntil },
+  }))
+  const now = ref(Date.now())
+  let reminderTimer: ReturnType<typeof setTimeout> | undefined
+  let scheduledReminderAt: number | undefined
   const loaded = useState('notification-marks-loaded', () => '')
   if (import.meta.client && loaded.value !== storageKey.value) {
     try {
-      const stored = JSON.parse(localStorage.getItem(storageKey.value) || 'null') as Marks | null
-      marks.value = { read: stored?.read || {}, removed: stored?.removed || {} }
+      const stored = JSON.parse(localStorage.getItem(storageKey.value) || 'null') as Partial<Marks> | null
+      marks.value = {
+        read: stored?.read || {},
+        snoozedUntil: stored?.snoozedUntil || {},
+      }
     } catch {
-      marks.value = { read: {}, removed: {} }
+      marks.value = {
+        read: { ...EMPTY_MARKS.read },
+        snoozedUntil: { ...EMPTY_MARKS.snoozedUntil },
+      }
     }
     loaded.value = storageKey.value
   }
@@ -142,11 +167,28 @@ export function useNotifications() {
       // Without storage the marks still hold until the page reloads.
     }
   }
-  const items = computed<NotificationItem[]>(() =>
-    all.value
-      .filter((item) => marks.value.removed[item.key] !== item.signature)
-      .map((item) => ({ ...item, read: marks.value.read[item.key] === item.signature })),
-  )
+  const items = computed<NotificationItem[]>(() => {
+    const pending = Object.values(marks.value.snoozedUntil).filter((until) => until > now.value)
+    if (import.meta.client && pending.length) {
+      const nextReminder = Math.min(...pending)
+      if (scheduledReminderAt !== nextReminder) {
+        if (reminderTimer) clearTimeout(reminderTimer)
+        scheduledReminderAt = nextReminder
+        reminderTimer = setTimeout(() => {
+          now.value = Date.now()
+          reminderTimer = undefined
+          scheduledReminderAt = undefined
+        }, Math.max(0, nextReminder - now.value))
+      }
+    } else if (reminderTimer) {
+      clearTimeout(reminderTimer)
+      reminderTimer = undefined
+      scheduledReminderAt = undefined
+    }
+    return all.value
+      .filter((item) => (marks.value.snoozedUntil[item.key] || 0) <= now.value)
+      .map((item) => ({ ...item, read: marks.value.read[item.key] === item.signature }))
+  })
   const unread = computed(() => items.value.filter((item) => !item.read).length)
   function markRead(item: NotificationItem) {
     marks.value.read[item.key] = item.signature
@@ -165,12 +207,22 @@ export function useNotifications() {
     persist()
   }
   function remove(item: NotificationItem) {
-    marks.value.removed[item.key] = item.signature
+    const until = Date.now() + REMINDER_SNOOZE_MS
+    marks.value.snoozedUntil[item.key] = until
+    now.value = Date.now()
     persist()
   }
   function removeAll() {
-    for (const item of items.value) marks.value.removed[item.key] = item.signature
+    const snoozedUntil = Date.now() + REMINDER_SNOOZE_MS
+    for (const item of items.value) marks.value.snoozedUntil[item.key] = snoozedUntil
+    now.value = Date.now()
     persist()
+  }
+
+  if (import.meta.client) {
+    onScopeDispose(() => {
+      if (reminderTimer) clearTimeout(reminderTimer)
+    })
   }
 
   return { items, unread, markRead, toggleRead, markAllRead, remove, removeAll }

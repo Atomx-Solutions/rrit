@@ -72,6 +72,8 @@
   "nav.meta": "Bağlı hesaplar",
   "overview.metaCardTitle": "Facebook ve Instagram",
   "nav.metaDescription": "Sosyal kanalları bağlayın ve içe aktarılan gönderileri yönetin.",
+  "nav.channelNotConnected": "{{channel}} bağlı değil",
+  "nav.channelNotConnectedDescription": "Bu kanalda paylaşım yapmak için {{channel}} hesabınızı bağlayın.",
   "nav.viewConnections": "Bağlantıları görüntüle",
   "nav.notificationSettings": "Bildirim ayarları",
   "nav.copilotTitle": "Size nasıl yardımcı olabilirim?",
