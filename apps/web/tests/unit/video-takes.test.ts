@@ -81,6 +81,18 @@ describe('directing and shooting a video', () => {
     expect(result.result.subjectChanges).toEqual([{ shot: 2, reason: 'different wheels' }])
   })
 
+  it('shoots the first storyboard again when the director gives no calmer one', async () => {
+    const run = steps(['changed', 'changed'])
+    const first = board([4, 8])
+    run.steps.direct = vi.fn(async (previous?: { problem: string }) => ({ storyboard: previous ? null : first, costUsd: 0.002 }))
+    const result = await directedTakes(run.steps)
+    expect(result.attempts).toBe(2)
+    expect(result.storyboard).toBe(first)
+    expect(run.steps.take).toHaveBeenLastCalledWith(first, true, 'record')
+    expect(run.reserved).toEqual([12, 12])
+    expect(result.result.subjectChanges).toEqual([{ shot: 2, reason: 'different wheels' }])
+  })
+
   it('delivers the first take as the last when a second could not be paid for', async () => {
     const run = steps(['changed'], { affordable: false })
     const result = await directedTakes(run.steps)

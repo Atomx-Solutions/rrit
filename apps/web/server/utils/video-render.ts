@@ -489,9 +489,12 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
           ...snapshot.director,
           ...(previousAttempt ? { previousAttempt } : {}),
         }))
-        // Every video is directed: without a valid storyboard nothing is shot,
-        // so no motion is paid for and the held credits are released.
-        if (!direction.storyboard) {
+        // Every video is directed: without a valid first storyboard nothing is
+        // shot, so no motion is paid for and the held credits are released. A
+        // failed calmer concept falls back on the first storyboard instead.
+        if (!direction.storyboard && previousAttempt?.storyboard) {
+          console.warn('The video director gave no calmer storyboard; the first one is shot again', { postId })
+        } else if (!direction.storyboard) {
           console.warn('The video director gave no valid storyboard; the video was not made', { postId })
           throw createError({ statusCode: 502, message: 'server.VIDEO_DIRECTION_FAILED' })
         }
@@ -638,6 +641,17 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
         reservedCredits,
         usdMicroEur: usdMicroEurRate(),
         providerCostPerCreditMicroEur: (await creditPricing(client)).providerCostPerCreditMicroEur,
+      })
+      console.info('AI generation credit usage', {
+        kind: 'video',
+        businessId: business.id,
+        renderId: snapshot.renderId,
+        postId,
+        reservedCredits,
+        chargedCredits: charged,
+        releasedCredits: Math.max(0, reservedCredits - charged),
+        providerCostUsd: costUsd === null || musicCostUsd === null ? null : costUsd + reviewCostUsd + musicCostUsd,
+        durationSeconds: Math.round(motionSeconds),
       })
       await consumeReservedCredits(client, {
         organizationId: business.id,

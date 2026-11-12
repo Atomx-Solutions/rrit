@@ -28,16 +28,19 @@ export async function directedTakes<Take>(steps: {
   for (let attempt = 0; attempt < 2; attempt++) {
     const direction = await steps.direct(previousAttempt)
     directionCostUsd += direction.costUsd
-    const seconds = steps.seconds(direction.storyboard)
+    // When the director gives no calmer concept, the first storyboard is shot
+    // once more as the last take, so the paid first take is not thrown away.
+    const storyboard = direction.storyboard ?? previousAttempt?.storyboard ?? null
+    const seconds = steps.seconds(storyboard)
     await steps.reserve(seconds, attempt)
     plannedSeconds += seconds
     const last = attempt > 0 || !steps.retryAffordable(plannedSeconds, seconds)
     try {
-      const result = await steps.take(direction.storyboard, attempt > 0, last ? 'record' : 'stop')
-      return { result, storyboard: direction.storyboard, directionCostUsd, attempts: attempt + 1 }
+      const result = await steps.take(storyboard, attempt > 0, last ? 'record' : 'stop')
+      return { result, storyboard, directionCostUsd, attempts: attempt + 1 }
     } catch (error) {
       if (!(error instanceof ShotSubjectChanged)) throw error
-      previousAttempt = { storyboard: direction.storyboard, problem: `Shot ${error.shot}: ${error.reason}` }
+      previousAttempt = { storyboard, problem: `Shot ${error.shot}: ${error.reason}` }
     }
   }
   // The second take records rather than stops, so it always returns.
