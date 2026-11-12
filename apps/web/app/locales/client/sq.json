@@ -72,6 +72,8 @@
   "nav.meta": "Llogaritë e lidhura",
   "overview.metaCardTitle": "Facebook & Instagram",
   "nav.metaDescription": "Lidh kanalet sociale dhe kontrollo postimet e importuara.",
+  "nav.channelNotConnected": "{{channel}} nuk është i lidhur",
+  "nav.channelNotConnectedDescription": "Lidh llogarinë {{channel}} për të publikuar në këtë kanal.",
   "nav.viewConnections": "Shiko lidhjet",
   "nav.notificationSettings": "Cilësimet e njoftimeve",
   "nav.copilotTitle": "Si mund të të ndihmoj?",

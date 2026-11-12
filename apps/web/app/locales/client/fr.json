@@ -72,6 +72,8 @@
   "nav.meta": "Comptes connectés",
   "overview.metaCardTitle": "Facebook et Instagram",
   "nav.metaDescription": "Connectez vos réseaux sociaux et gérez les publications importées.",
+  "nav.channelNotConnected": "{{channel}} n’est pas connecté",
+  "nav.channelNotConnectedDescription": "Connectez votre compte {{channel}} pour publier sur ce canal.",
   "nav.viewConnections": "Voir les connexions",
   "nav.notificationSettings": "Paramètres des notifications",
   "nav.copilotTitle": "Comment puis-je vous aider ?",
