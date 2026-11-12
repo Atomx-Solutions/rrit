@@ -642,6 +642,17 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
         usdMicroEur: usdMicroEurRate(),
         providerCostPerCreditMicroEur: (await creditPricing(client)).providerCostPerCreditMicroEur,
       })
+      console.info('AI generation credit usage', {
+        kind: 'video',
+        businessId: business.id,
+        renderId: snapshot.renderId,
+        postId,
+        reservedCredits,
+        chargedCredits: charged,
+        releasedCredits: Math.max(0, reservedCredits - charged),
+        providerCostUsd: costUsd === null || musicCostUsd === null ? null : costUsd + reviewCostUsd + musicCostUsd,
+        durationSeconds: Math.round(motionSeconds),
+      })
       await consumeReservedCredits(client, {
         organizationId: business.id,
         credits: charged,

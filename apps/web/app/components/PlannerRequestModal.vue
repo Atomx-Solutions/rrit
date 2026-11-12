@@ -34,9 +34,9 @@ const videoChosen = (row: (typeof videoRows.value)[number]) =>
   !!row.channel && !!row.music && (row.music.source !== 'library' || !!row.music.trackId)
 const videosChosen = computed(() => videoRows.value.every(videoChosen))
 
-const step = ref<'posts' | 'videos'>('posts')
+const step = ref<'posts' | 'videos'>(props.postCount > 0 ? 'posts' : 'videos')
 const hasSteps = computed(() => props.postCount > 0 && props.videoCount > 0)
-watch(open, (value) => { if (value) step.value = props.postCount ? 'posts' : 'videos' })
+watch(open, (value) => { if (value) step.value = props.postCount ? 'posts' : 'videos' }, { immediate: true })
 
 function submit() {
   if (!postsChosen.value || !videosChosen.value) return

@@ -1047,6 +1047,18 @@ export async function monthlyProviderCall(
       if (args.tenant) await setTenantContext(connection, args.tenant)
       if (!platformCost) {
         const credits = await creditsForCost(connection, costMicroEur)
+        console.info('AI generation credit usage', {
+          kind: 'post',
+          businessId: args.businessId,
+          runId,
+          stageKey: args.stageKey,
+          usageKind,
+          reservedCredits: creditReserve,
+          calculatedCredits: credits,
+          chargedCredits: credits,
+          releasedCredits: Math.max(0, creditReserve - credits),
+          providerCostMicroEur: costMicroEur,
+        })
         await consumeReservedCredits(connection, {
           organizationId: args.businessId,
           credits,
@@ -1412,6 +1424,18 @@ export async function monthlyImageCall(
       await connection.query('BEGIN')
       if (args.tenant) await setTenantContext(connection, args.tenant)
       const credits = await creditsForCost(connection, costMicroEur)
+      console.info('AI generation credit usage', {
+        kind: 'image',
+        businessId: args.businessId,
+        runId,
+        stageKey: args.stageKey,
+        usageKind: 'generation',
+        reservedCredits: creditReserve,
+        calculatedCredits: credits,
+        chargedCredits: credits,
+        releasedCredits: Math.max(0, creditReserve - credits),
+        providerCostMicroEur: costMicroEur,
+      })
       await consumeReservedCredits(connection, {
         organizationId: args.businessId,
         credits,
