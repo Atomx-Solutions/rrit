@@ -489,9 +489,12 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
           ...snapshot.director,
           ...(previousAttempt ? { previousAttempt } : {}),
         }))
-        // Every video is directed: without a valid storyboard nothing is shot,
-        // so no motion is paid for and the held credits are released.
-        if (!direction.storyboard) {
+        // Every video is directed: without a valid first storyboard nothing is
+        // shot, so no motion is paid for and the held credits are released. A
+        // failed calmer concept falls back on the first storyboard instead.
+        if (!direction.storyboard && previousAttempt?.storyboard) {
+          console.warn('The video director gave no calmer storyboard; the first one is shot again', { postId })
+        } else if (!direction.storyboard) {
           console.warn('The video director gave no valid storyboard; the video was not made', { postId })
           throw createError({ statusCode: 502, message: 'server.VIDEO_DIRECTION_FAILED' })
         }

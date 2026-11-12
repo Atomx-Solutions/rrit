@@ -164,8 +164,9 @@ describe('the creative director', () => {
     const fetcher = vi.fn().mockResolvedValue(answer(storyboard()))
     vi.stubGlobal('fetch', fetcher)
     const previousAttempt = { storyboard: storyboard(), problem: 'Shot 1: the wheels changed design' }
-    expect(directorInstructions({ ...input, previousAttempt })).toContain('Propose a calmer version')
-    expect(directorInstructions(input)).not.toContain('Propose a calmer version')
+    expect(directorInstructions({ ...input, previousAttempt })).toContain('Propose a safer version')
+    expect(directorInstructions({ ...input, previousAttempt })).toContain('never a locked, static or tripod frame')
+    expect(directorInstructions(input)).not.toContain('Propose a safer version')
     await directVideo({ ...input, previousAttempt })
     const sent = JSON.parse(JSON.parse(fetcher.mock.calls[0]![1].body).input[0].content[0].text)
     expect(sent.previousAttempt.problem).toBe('Shot 1: the wheels changed design')

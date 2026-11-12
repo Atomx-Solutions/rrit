@@ -165,7 +165,7 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
       ? ['businessRequest is what the business itself asked for in this video. Follow it ahead of your own ideas, as far as the rules above about the subject and the photograph allow; where it would break them, keep to the rules and come as close to the request as they permit.']
       : []),
     ...(input.previousAttempt
-      ? ['previousAttempt holds your last continuous take and how the motion model changed the subject. Propose a calmer version of the same post: keep the subject still in its photographed place, reduce camera travel and rotation, and let truthful light and atmosphere carry more of the energy.']
+      ? ['previousAttempt holds your last continuous take and how the motion model changed the subject. Propose a safer version of the same post: keep the subject still in its photographed place and never let the camera reveal sides or details the photograph does not show. Only the subject is calmed, not the direction: keep one designed, expressive camera path (an arc, crane, reveal or parallax through the scene, not just a push in and out), never a locked, static or tripod frame, and never motion "subtle".']
       : []),
   ].join('\n')
 }
@@ -188,9 +188,8 @@ function payload(input: DirectorInput, corrections: string[]) {
 export type DirectorResult = { storyboard: Storyboard | null; costUsd: number }
 
 /**
- * The storyboard for one video. Without a valid one the caller falls back on
- * the strategy's own shot direction. An invalid answer is sent back once with
- * what was wrong with it.
+ * The storyboard for one video, or null when the director gave no valid one.
+ * An invalid answer is sent back once with what was wrong with it.
  */
 export async function directVideo(input: DirectorInput, attempts = 2): Promise<DirectorResult> {
   let costUsd = 0
@@ -229,6 +228,7 @@ export async function directVideo(input: DirectorInput, attempts = 2): Promise<D
         }),
       }))
       if (!response.ok) {
+        console.warn('The video director could not answer', { attempt: attempt + 1, status: response.status })
         corrections = []
         continue
       }
@@ -237,10 +237,12 @@ export async function directVideo(input: DirectorInput, attempts = 2): Promise<D
       const parsed = directorStoryboardSchema.safeParse(JSON.parse(responseText(parseMonthlyProviderResponse(raw))))
       if (!parsed.success) {
         corrections = parsed.error.issues.slice(0, 5).map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+        console.warn('The video director gave an invalid storyboard', { attempt: attempt + 1, corrections })
         continue
       }
       corrections = storyboardProblems(parsed.data, input.limits)
       if (!corrections.length) return { storyboard: parsed.data, costUsd }
+      console.warn('The video director gave an invalid storyboard', { attempt: attempt + 1, corrections })
     } catch (error) {
       console.warn('The video director could not answer', { error: error instanceof Error ? error.message : 'unknown' })
     }
