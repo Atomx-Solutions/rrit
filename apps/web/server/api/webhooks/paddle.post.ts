@@ -1,4 +1,4 @@
-import { paddleEnabled, paddleTransactionBuyer, paddleWebhookSecret, verifyPaddleSignature, type PaddleWebhookEnvelope } from '../../utils/paddle'
+import { paddleEnabled, paddleTransactionBuyer, paddleWebhookSecrets, verifyPaddleSignature, type PaddleWebhookEnvelope } from '../../utils/paddle'
 import { database } from '../../utils/database'
 
 export default defineEventHandler(async (event) => {
@@ -12,8 +12,8 @@ export default defineEventHandler(async (event) => {
       ? rawBodyValue
       : rawBodyValue.toString('utf8')
   const signature = getHeader(event, 'paddle-signature')
-  const secret = paddleWebhookSecret()
-  if (!rawBody || !signature || !secret || !verifyPaddleSignature(rawBody, signature, secret))
+  const secrets = paddleWebhookSecrets()
+  if (!rawBody || !signature || !secrets.some(secret => verifyPaddleSignature(rawBody, signature, secret)))
     throw createError({ statusCode: 401, message: 'server.UNAUTHORIZED' })
 
   let payload: PaddleWebhookEnvelope
