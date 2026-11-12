@@ -78,6 +78,35 @@ export const contentIntentSchema = z.enum([
 // Free-form art direction generated from the research and the actual source
 // photograph. It is intentionally unique to the post and business context.
 export const plannedCreativeLayoutSchema = z.string().trim().min(1).max(600)
+// A machine-checkable fingerprint of the one-off art direction. This is not a
+// template or a preset: the free-form visualLayout still directs the actual
+// design. These dimensions let the planner prove that a monthly set changes
+// its first-glance composition instead of paraphrasing the same layout.
+export const visualRouteSchema = z.object({
+  approach: z.enum(['photo_preserving', 'graphic_editorial']),
+  subjectScale: z.enum(['detail', 'close', 'contextual', 'full', 'secondary']),
+  focalAnchor: z.enum([
+    'upper_left',
+    'upper_center',
+    'upper_right',
+    'center_left',
+    'center',
+    'center_right',
+    'lower_left',
+    'lower_center',
+    'lower_right',
+    'edge',
+  ]),
+  textZone: z.enum(['top', 'bottom', 'left', 'right', 'center', 'split']),
+  depth: z.enum(['flat_graphic', 'shallow', 'layered', 'deep']),
+  energy: z.enum(['quiet', 'balanced', 'bold']),
+  typeTreatment: z.enum([
+    'restrained_editorial',
+    'integrated_display',
+    'oversized_expression',
+    'compact_information',
+  ]),
+})
 export const algorithmGoalSchema = z.enum([
   'watch_time',
   'saves',
@@ -118,6 +147,9 @@ export const slotBriefSchema = z.object({
   purpose: z.string().min(10).max(600),
   assetDirection: z.string().min(10).max(400),
   visualLayout: plannedCreativeLayoutSchema,
+  // Optional for plans persisted before structured visual diversity existed.
+  // Every newly generated plan must provide it (slotBriefGenerationSchema).
+  visualRoute: visualRouteSchema.optional(),
   algorithmGoal: algorithmGoalSchema,
   platformRationale: z.string().min(15).max(500),
   timingRationale: z.string().min(15).max(500),
@@ -172,6 +204,7 @@ export const slotBriefGenerationSchema = slotBriefSchema.extend({
   audienceId: z.uuid().nullable(),
   offerId: z.string().trim().min(1).max(100).nullable(),
   deliverable: slotDeliverableSchema,
+  visualRoute: visualRouteSchema,
   shot: shotDirectionSchema.nullable(),
   locale: researchLocaleSchema.nullable(),
   languageRationale: z.string().trim().max(500).nullable(),
@@ -335,3 +368,4 @@ export type ResearchVisitorAudience = z.infer<typeof researchVisitorAudienceSche
 export type Creative = z.infer<typeof creativeSchema>
 export type StyleProfile = z.infer<typeof styleProfileSchema>
 export type PlannedCreativeLayout = z.infer<typeof plannedCreativeLayoutSchema>
+export type VisualRoute = z.infer<typeof visualRouteSchema>

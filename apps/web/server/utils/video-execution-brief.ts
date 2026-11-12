@@ -54,6 +54,11 @@ export function buildShotExecutionBrief(input: {
       `${subjectMotion[shot.subject.motion]} ${clip(shot.subject.description)}`,
       'CAMERA',
       `${shot.shotSize ? `A ${shot.shotSize} shot. ` : ''}${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject no more than ${shot.camera.rotationDegrees} degrees.`,
+      ...(shot.camera.startPosition || shot.camera.endPosition || shot.camera.angle || shot.camera.composition
+        ? [
+            `Blocking: start ${clip(shot.camera.startPosition || 'on the supplied first-frame position')}; end ${clip(shot.camera.endPosition || 'on the directed end position')}; angle ${shot.camera.angle || 'as photographed'}; composition ${clip(shot.camera.composition || 'preserve the directed subject hierarchy and safe negative space')}.`,
+          ]
+        : []),
       'LIGHT AND ATMOSPHERE',
       clip(shot.atmosphere),
       'EFFECTS',

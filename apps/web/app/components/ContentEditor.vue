@@ -848,12 +848,6 @@ onBeforeUnmount(() => {
               /><span>{{ check.passed ? t('content.okPrefix') : check.advisory && !check.critical ? t('content.warningPrefix') : '' }}{{ validationMessage(check) }}</span>
             </li>
           </ul>
-          <UCheckbox
-            v-if="!post || ['draft', 'review', 'failed'].includes(post.status)"
-            v-model="confirmed"
-            :label="t('coverage.checkedFacts')"
-            :description="t('coverage.approvalVersion')"
-          />
           <UAlert
             v-if="publication?.status === 'uncertain'"
             variant="outline"
@@ -928,6 +922,20 @@ onBeforeUnmount(() => {
             :title="t('video.failedBlocksTitle')"
             :description="t('video.failedBlocksDescription')"
           />
+          <!-- Confirmation is the final deliberate step after the user has
+               read every validation, policy and video finding. Keep it next
+               to the approval actions on every editable post state. -->
+          <div
+            v-if="!post || ['draft', 'review', 'failed'].includes(post.status)"
+            class="rounded-lg border border-default bg-elevated/50 p-4 sm:p-5"
+          >
+            <UCheckbox
+              v-model="confirmed"
+              class="w-full"
+              :label="t('coverage.checkedFacts')"
+              :description="t('coverage.approvalVersion')"
+            />
+          </div>
           <div class="actions">
             <UButton
               v-if="!post || post.status === 'draft'"
@@ -1162,16 +1170,6 @@ onBeforeUnmount(() => {
           <UFormField :label="t('content.dateAndTime')" name="schedule" class="field" required
             ><UInput v-model="schedule" class="w-full" type="datetime-local" required
           /></UFormField>
-          <UCheckbox
-            v-model="automatic"
-            :disabled="!canPublish || scheduleBusy"
-            :label="t('content.publishAutomatically')"
-            :description="
-              canPublish
-                ? t('content.automaticEnabledDescription')
-                : t('content.automaticDisabledDescription')
-            "
-          />
           <UAlert
             color="neutral"
             variant="outline"
@@ -1181,9 +1179,25 @@ onBeforeUnmount(() => {
                 ? t('content.automaticAlertDescription')
                 : t('content.calendarOnlyAlertDescription')
             "
-          /><UButton variant="outline" type="submit" :loading="scheduleBusy"
-            >{{ t('content.confirmSchedule') }}</UButton
-          >
+          />
+          <div class="rounded-lg border border-default bg-elevated/50 p-4 sm:p-5">
+            <UCheckbox
+              v-model="automatic"
+              class="w-full"
+              :disabled="!canPublish || scheduleBusy"
+              :label="t('content.publishAutomatically')"
+              :description="
+                canPublish
+                  ? t('content.automaticEnabledDescription')
+                  : t('content.automaticDisabledDescription')
+              "
+            />
+            <div class="mt-4 flex justify-end">
+              <UButton variant="outline" type="submit" :loading="scheduleBusy">
+                {{ t('content.confirmSchedule') }}
+              </UButton>
+            </div>
+          </div>
         </UForm></template
       ></UModal
     >

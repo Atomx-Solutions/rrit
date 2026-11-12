@@ -26,13 +26,36 @@ const shotSizeSchema = z.enum(['wide', 'medium', 'close', 'detail'])
 // What each shot does in the edit, the way a short-form ad is built: the hook
 // stops the scroll, the build shows the product, the payoff lands the idea and
 // the close settles on the main photograph for the call to action.
-const shotRoleSchema = z.enum(['hook', 'build', 'payoff', 'close'])
+const shotRoleSchema = z.enum(['hook', 'build', 'payoff', 'close', 'continuous'])
 // How much the camera visibly moves. Only the close may be subtle; every other
 // shot carries a real move.
 const shotMotionSchema = z.enum(['subtle', 'medium', 'strong'])
 const subjectFrameSchema = z.object({
   top: z.number().min(0).max(1),
   bottom: z.number().min(0).max(1),
+})
+const cameraAngleSchema = z.enum([
+  'eye_level',
+  'low_angle',
+  'high_angle',
+  'ground_level',
+  'top_down',
+  'dutch',
+])
+const storyboardCameraSchema = z.object({
+  // The camera move as a cinematographer would brief it.
+  move: z.string().trim().min(5).max(300),
+  lens: z.string().trim().min(2).max(120),
+  speed: z.string().trim().min(2).max(120),
+  ease: z.string().trim().min(2).max(120),
+  // How far the camera turns around the subject over the shot.
+  rotationDegrees: z.number().min(0).max(maxStoryboardRotationDegrees),
+  // Optional only for storyboards stored before explicit camera blocking was
+  // introduced. Newly directed storyboards must provide every field below.
+  startPosition: z.string().trim().min(5).max(180).optional(),
+  endPosition: z.string().trim().min(5).max(180).optional(),
+  angle: cameraAngleSchema.optional(),
+  composition: z.string().trim().min(5).max(240).optional(),
 })
 
 export const storyboardShotSchema = z.object({
@@ -51,15 +74,7 @@ export const storyboardShotSchema = z.object({
   // so storyboards stored before them still read.
   role: shotRoleSchema.optional(),
   motion: shotMotionSchema.optional(),
-  camera: z.object({
-    // The camera move as a cinematographer would brief it.
-    move: z.string().trim().min(5).max(300),
-    lens: z.string().trim().min(2).max(120),
-    speed: z.string().trim().min(2).max(120),
-    ease: z.string().trim().min(2).max(120),
-    // How far the camera turns around the subject over the shot.
-    rotationDegrees: z.number().min(0).max(maxStoryboardRotationDegrees),
-  }),
+  camera: storyboardCameraSchema,
   // Light, weather, time of day and environment.
   atmosphere: z.string().trim().min(5).max(300),
   // Particles, dust, reflections, light play and other effects; may be "none".
@@ -101,7 +116,13 @@ export const directorStoryboardSchema = storyboardSchema.extend({
     photoIndex: z.number().int().min(0).max(maxVideoPhotos - 1),
     role: shotRoleSchema,
     motion: shotMotionSchema,
-  })).min(1).max(maxStoryboardShots),
+    camera: storyboardCameraSchema.extend({
+      startPosition: z.string().trim().min(5).max(180),
+      endPosition: z.string().trim().min(5).max(180),
+      angle: cameraAngleSchema,
+      composition: z.string().trim().min(5).max(240),
+    }),
+  })).length(1),
   subjectFrame: subjectFrameSchema,
 })
 export type StoryboardShot = z.infer<typeof storyboardShotSchema>
@@ -167,8 +188,14 @@ export function storyboardShape(limits: StoryboardLimits) {
 export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLimits) {
   const problems: string[] = []
   const total = storyboardSeconds(storyboard)
-  const shape = storyboardShape(limits)
-  if (shape) {
+  const continuous = limits.maxShots === 1
+  const shape = continuous ? null : storyboardShape(limits)
+  if (continuous) {
+    if (storyboard.shots.length !== 1)
+      problems.push(`Tell the video in one continuous shot; it has ${storyboard.shots.length}.`)
+    if (total < limits.minSeconds || total > limits.maxSeconds)
+      problems.push(`The continuous shot must last between ${limits.minSeconds} and ${limits.maxSeconds} seconds; it lasts ${total}.`)
+  } else if (shape) {
     if (storyboard.shots.length < shape.minShots || storyboard.shots.length > shape.maxShots)
       problems.push(shape.maxShots === 1
         ? `Tell the video in one continuous shot; it has ${storyboard.shots.length}.`
@@ -181,6 +208,17 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
     if (limits.durations.length && !limits.durations.includes(shot.durationSeconds))
       problems.push(`Shot ${index + 1} lasts ${shot.durationSeconds} seconds; each shot must last one of ${limits.durations.join(', ')} seconds.`)
   })
+  if (continuous && storyboard.shots[0]) {
+    const shot = storyboard.shots[0]
+    if (shot.role && shot.role !== 'continuous')
+      problems.push('The sole shot must have role continuous: it carries the hook, development, payoff and close without cuts.')
+    if (!shot.opensOnPhotograph || !shot.endsOnPhotograph)
+      problems.push('The continuous shot must start and end on the supplied real photograph.')
+    if ((shot.photoIndex ?? 0) !== 0)
+      problems.push('The continuous shot must use photograph 1; further photographs are identity reference only.')
+    if (shot.motion === 'subtle' || heldCamera.test(shot.camera.move))
+      problems.push('The continuous shot needs one visible, motivated camera path before it settles into the close.')
+  }
   // With several photographs each scene gets its own framing. From one, a
   // closer framing is a crop the model has to fill in, so it is not required.
   const photos = limits.photos || 1
@@ -216,7 +254,7 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
   // From one photograph every view the model paints beyond it is invented,
   // so the moves stay ones it can make from that view alone: no arrival, no
   // detail crop, little turn, and only the hook moves strongly.
-  if (photos === 1) storyboard.shots.forEach((shot, index) => {
+  if (photos === 1 || continuous) storyboard.shots.forEach((shot, index) => {
     if (shot.subject.motion === 'arrives')
       problems.push(`Shot ${index + 1} has the subject arrive; from one photograph it must already be in its photographed place.`)
     if (shot.shotSize === 'detail')

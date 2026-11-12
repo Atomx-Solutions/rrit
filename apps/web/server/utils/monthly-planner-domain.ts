@@ -789,6 +789,10 @@ export function validateEditorialPlan(
   const pillars = new Set<string>()
   const intents = new Map<string, number>()
   const layouts = new Map<string, number>()
+  const visualFingerprints = new Map<string, number>()
+  const visualAnchors = new Map<string, number>()
+  const visualScales = new Map<string, number>()
+  const visualTypeTreatments = new Map<string, number>()
   const algorithmGoals = new Map<string, number>()
   const requiredPostAssets = new Map<string, number>()
   const requiredVideoAssets = new Map<string, number>()
@@ -890,6 +894,36 @@ export function validateEditorialPlan(
     pillars.add(normalizedIdea(slot.pillar))
     intents.set(slot.intent, (intents.get(slot.intent) || 0) + 1)
     layouts.set(slot.visualLayout, (layouts.get(slot.visualLayout) || 0) + 1)
+    if (slot.visualRoute) {
+      const route = slot.visualRoute
+      // These are the dimensions a viewer perceives at first glance. Depth and
+      // colour alone do not make a reused composition into a different one.
+      const fingerprint = [
+        route.approach,
+        route.subjectScale,
+        route.focalAnchor,
+        route.textZone,
+        route.typeTreatment,
+      ].join(':')
+      if (visualFingerprints.has(fingerprint))
+        throw new PlannerFailure('REPETITIVE_PLAN', [
+          `Postimi ${index + 1}: visualRoute përsërit të njëjtën siluetë kompozimi; ndrysho shkallën e subjektit, ankorimin, zonën e tekstit ose trajtimin tipografik.`,
+        ])
+      visualFingerprints.set(fingerprint, 1)
+      visualAnchors.set(route.focalAnchor, (visualAnchors.get(route.focalAnchor) || 0) + 1)
+      visualScales.set(route.subjectScale, (visualScales.get(route.subjectScale) || 0) + 1)
+      visualTypeTreatments.set(route.typeTreatment, (visualTypeTreatments.get(route.typeTreatment) || 0) + 1)
+      const previous = plan.slots[index - 1]?.visualRoute
+      if (
+        previous &&
+        previous.focalAnchor === route.focalAnchor &&
+        previous.subjectScale === route.subjectScale &&
+        previous.typeTreatment === route.typeTreatment
+      )
+        throw new PlannerFailure('REPETITIVE_PLAN', [
+          `Postimi ${index + 1}: dy slot-e radhazi kanë të njëjtin ankorim, shkallë subjekti dhe trajtim tipografik.`,
+        ])
+    }
     algorithmGoals.set(slot.algorithmGoal, (algorithmGoals.get(slot.algorithmGoal) || 0) + 1)
     if (slot.requiredAssetId)
       (slot.deliverable === 'video' ? requiredVideoAssets : requiredPostAssets).set(
@@ -912,6 +946,19 @@ export function validateEditorialPlan(
     throw new PlannerFailure('REPETITIVE_PLAN', [
       `Shpërndaji ${count} postimet në të paktën ${minimumIntents} intent-e dhe ${minimumLayouts} layout-e, pa dominuar njëri ritmin mujor.`,
     ])
+  // New plans carry a structured visual route for every slot. Older persisted
+  // plans carry none and keep the legacy free-form validation above.
+  if (visualFingerprints.size === count && count >= 3) {
+    const maximumRepeatedAxis = Math.ceil(count * 0.5)
+    if (
+      Math.max(...visualAnchors.values()) > maximumRepeatedAxis ||
+      Math.max(...visualScales.values()) > maximumRepeatedAxis ||
+      Math.max(...visualTypeTreatments.values()) > maximumRepeatedAxis
+    )
+      throw new PlannerFailure('REPETITIVE_PLAN', [
+        'Ribalanco visualRoute: as ankorimi, shkalla e subjektit apo trajtimi tipografik nuk duhet të dominojë më shumë se gjysmën e setit.',
+      ])
+  }
   if (photoSelection.mode === 'selected') {
     if (
       [...postAssets].some((id) => requiredPostAssets.get(id) !== 1) ||

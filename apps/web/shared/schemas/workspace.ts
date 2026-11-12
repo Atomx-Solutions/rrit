@@ -5,6 +5,7 @@ import {
   qualitySchema,
   plannedCreativeLayoutSchema,
   storedShotDirectionSchema,
+  visualRouteSchema,
 } from './monthly-plan'
 import { brandFactSchema } from './business-brain'
 import { publishingChannels, videoFormats } from './channel-format'
@@ -69,9 +70,9 @@ export function permittedEventCategories(events: EventResearch | undefined) {
 
 // A video's canvas is its channel's canvas (see channel-format), carried in
 // the motion brief so the provider call never restates it.
-// Six seconds of generated motion: the provider is paid per second, the
-// designed overlay carries the message. The schema below still accepts the wider range a future
-// model could offer.
+// Provisional duration stored before direction. The renderer chooses the
+// natural supported duration for the idea and replaces this value with the
+// actual continuous take length when the video is ready.
 export const videoDurationSeconds = 6
 export const postSchema = z.object({
   id: z.string(),
@@ -125,6 +126,7 @@ export const postSchema = z.object({
     purpose: z.string().max(600).optional(),
     assetDirection: z.string().max(400).optional(),
     visualLayout: plannedCreativeLayoutSchema.optional(),
+    visualRoute: visualRouteSchema.optional(),
     // Strategy's structured shot direction for this video, carried from the
     // slot so the planner's VideoCreativePlan can be rebuilt deterministically
     // at render time without reading the editorial plan again.

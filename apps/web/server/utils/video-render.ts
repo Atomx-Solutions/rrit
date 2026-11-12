@@ -265,6 +265,9 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
           cta: post.video.cta,
           intent: post.video.intent,
           purpose: post.video.purpose,
+          assetDirection: post.video.assetDirection,
+          visualLayout: post.video.visualLayout,
+          visualRoute: post.video.visualRoute,
         },
         userInstruction: post.video.editInstruction,
       },
@@ -390,7 +393,12 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
         failureReason = 'credits_insufficient'
         throw createError({ statusCode: 402, message: 'server.VIDEO_CREDITS_INSUFFICIENT' })
       }
-      limits = { ...limits, maxSeconds: Math.min(limits.maxSeconds, seconds) }
+      const maxSeconds = Math.min(limits.maxSeconds, seconds)
+      limits = {
+        ...limits,
+        maxSeconds,
+        durations: limits.durations.filter((duration) => duration >= limits.minSeconds && duration <= maxSeconds),
+      }
     }
     // Holds enough for every take planned so far before the next is
     // generated; a take the business cannot pay for is never started.
@@ -427,7 +435,8 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
     const addCost = (value: number | null) => {
       generationCostUsd = generationCostUsd === null || value === null ? null : generationCostUsd + value
     }
-    // One take: the director's storyboard, shot by shot.
+    // One take: exactly one continuous generated shot. The generic shot runner
+    // remains responsible for subject verification and a calmer retry.
     const take = async (storyboard: Storyboard, onSubjectChange: 'stop' | 'record') => {
       await dressing
       const crossfade = videoCrossfadeSeconds()
@@ -660,6 +669,9 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
         if ((currentPost.contentVersion ?? 1) !== snapshot.contentVersion)
           throw createError({ statusCode: 409, message: 'server.POST_CHANGED_DURING_VALIDATION' })
         currentPost.video.status = 'ready'
+        // The brief carries only a provisional duration. The director chooses
+        // the natural supported length for this idea; persist the actual take.
+        currentPost.video.durationSeconds = Math.round(motionSeconds)
         delete currentPost.video.failure
         if (subjectWarning) currentPost.video.subjectWarning = { detail: subjectWarning, at: new Date().toISOString() }
         else delete currentPost.video.subjectWarning

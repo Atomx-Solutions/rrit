@@ -2288,6 +2288,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
                     purpose: slot.purpose.slice(0, 600),
                     assetDirection: slot.assetDirection.slice(0, 400),
                     visualLayout: slot.visualLayout.slice(0, 600),
+                    ...(slot.visualRoute ? { visualRoute: slot.visualRoute } : {}),
                     // Strategy's structured shot direction for this slot,
                     // optional on legacy editorial plans so the brief shape
                     // tolerates both. The deterministic VideoCreativePlan

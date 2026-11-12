@@ -73,6 +73,9 @@ describe('reviewVideoQuality', () => {
     const request = JSON.parse(fetcher.mock.calls[0]![1].body)
     expect(request.input[0].content.filter((part: { type: string }) => part.type === 'input_image')).toHaveLength(3)
     expect(request.input[0].content[0].text).toContain('Verified fact')
+    expect(request.instructions).toContain('one realistic continuous take')
+    expect(request.instructions).toContain('duration feels earned by the idea')
+    expect(request.instructions).toContain('For Instagram, check a refined feed-cover opening')
   })
 
   it('reviews a video against the same commitments as a still image, and reports its cost', async () => {

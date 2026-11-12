@@ -48,7 +48,8 @@ import {
   removeLogoBackground,
 } from '../../server/utils/image-processing'
 import { loadPlannerAssets } from '../../server/utils/monthly-planner'
-import { generatedPostSchema, editorialPlanSchema, slotBriefSchema } from '../../shared/schemas/monthly-plan'
+import { generatedPostSchema, editorialPlanGenerationSchema, slotBriefSchema } from '../../shared/schemas/monthly-plan'
+import type { editorialPlanSchema } from '../../shared/schemas/monthly-plan'
 import { paidAccessForPlanningMonth } from '../../server/utils/trials'
 import { aiProviderJsonSchema } from '../../server/utils/ai-provider'
 import { z } from 'zod'
@@ -602,6 +603,29 @@ describe('monthly evidence and provider boundaries', () => {
       ),
     ).toThrow('REPETITIVE_PLAN')
 
+    const repeatedFirstGlance = slots.slice(0, 3).map((slot, index) => ({
+      ...slot,
+      visualRoute: {
+        approach: 'photo_preserving' as const,
+        subjectScale: 'full' as const,
+        focalAnchor: 'center' as const,
+        textZone: 'top' as const,
+        // A depth or energy change alone must not disguise the same template.
+        depth: (index % 2 ? 'deep' : 'layered') as 'deep' | 'layered',
+        energy: (index % 2 ? 'bold' : 'quiet') as 'bold' | 'quiet',
+        typeTreatment: 'integrated_display' as const,
+      },
+    }))
+    expect(() =>
+      validateEditorialPlan(
+        { ...base, slots: repeatedFirstGlance },
+        evidence,
+        research,
+        '2026-09',
+        3,
+      ),
+    ).toThrow('REPETITIVE_PLAN')
+
     const legacySlot = { ...base.slots[0] } as Record<string, unknown>
     delete legacySlot.intent
     delete legacySlot.hook
@@ -652,7 +676,11 @@ describe('monthly evidence and provider boundaries', () => {
   })
   it('exports provider-compatible structured contracts', () => {
     expect(z.toJSONSchema(generatedPostSchema).additionalProperties).toBe(false)
-    expect(z.toJSONSchema(editorialPlanSchema).type).toBe('object')
+    const editorialSchema = z.toJSONSchema(editorialPlanGenerationSchema)
+    expect(editorialSchema.type).toBe('object')
+    const slotSchema = editorialSchema.properties?.slots?.items as { properties?: Record<string, unknown>; required?: string[] }
+    expect(slotSchema.required).toContain('visualRoute')
+    expect(slotSchema.properties).toHaveProperty('visualRoute')
     expect(JSON.stringify(aiProviderJsonSchema(z.toJSONSchema(generatedPostSchema)))).not.toContain(
       'pattern',
     )
@@ -676,6 +704,15 @@ function imagePromptInput() {
       purpose: 'Të tregojë eksperiencën',
       assetDirection: 'Ambient real në mbrëmje',
       visualLayout: 'A close detail of the plated main course, anchored low on the left.',
+      visualRoute: {
+        approach: 'photo_preserving' as const,
+        subjectScale: 'detail' as const,
+        focalAnchor: 'lower_left' as const,
+        textZone: 'right' as const,
+        depth: 'layered' as const,
+        energy: 'balanced' as const,
+        typeTreatment: 'integrated_display' as const,
+      },
       algorithmGoal: 'saves',
     },
   }
@@ -710,6 +747,7 @@ describe('AI creative generation', () => {
         purpose: 'Të tregojë eksperiencën',
         assetDirection: 'Ambient real në mbrëmje',
         visualLayout: 'Build an original warm evening composition around the real dining room.',
+        visualRoute: imagePromptInput().slot.visualRoute,
         algorithmGoal: 'saves',
       },
     })
@@ -723,6 +761,12 @@ describe('AI creative generation', () => {
     expect(monthly).toContain('clean contemporary sans-serif')
     expect(monthly).toContain('8-point spacing rhythm')
     expect(monthly).toContain('correct Albanian spelling and diacritics')
+    expect(monthly).toContain('Semantic composition fingerprint')
+    expect(monthly).toContain('"focalAnchor":"lower_left"')
+    expect(monthly).toContain('verification contract, not a preset')
+    expect(monthly).toContain('Audience-state direction')
+    expect(monthly).toContain('Execute it natively for Instagram')
+    expect(monthly).toContain('not produce a generic cross-platform design')
 
     const edited = postImageEditPrompt({
       brand: {
@@ -861,6 +905,8 @@ describe('AI creative generation', () => {
     )
     expect(monthlyInstructions.planning).toContain('a graphic composition')
     expect(monthlyInstructions.planning).toContain('symbolic roads')
+    expect(monthlyInstructions.planning).toContain('semantic fingerprint')
+    expect(monthlyInstructions.planning).toContain('audit the slots as a contact sheet')
     expect(monthlyInstructions.content).toContain('Treat creative.cta as image copy')
     expect(monthlyInstructions.content).toContain('carry the full detail in the caption instead')
     expect(monthlyInstructions.content).toContain('Never introduce a required document')
