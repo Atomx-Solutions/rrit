@@ -137,7 +137,12 @@ export default defineNuxtConfig({
           ? [{ name: 'facebook-domain-verification', content: process.env.META_DOMAIN_VERIFICATION }]
           : []),
       ],
-      link: [{ rel: 'icon', type: 'image/webp', href: '/f-logo.webp' }],
+      // Search engines show only a square icon; /favicon.ico is the fallback they also fetch.
+      link: [
+        { rel: 'icon', type: 'image/png', sizes: '128x128', href: '/f-logo.png' },
+        { rel: 'icon', type: 'image/x-icon', sizes: '16x16 32x32 48x48', href: '/favicon.ico' },
+        { rel: 'apple-touch-icon', href: '/f-logo.png' },
+      ],
     },
   },
   runtimeConfig: {
