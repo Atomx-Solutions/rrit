@@ -64,6 +64,11 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/eslint', '@vercel/speed-insights'],
   css: ['@fontsource-variable/inter', '~/assets/css/main.css'],
   devtools: { enabled: false },
+  // In dev, Nitro's error page parses the server source map for every failed
+  // request and never frees it; after about fifty errors the source-map
+  // library fails with "unreachable" on each one. Without the map the error
+  // page skips that step. Production builds are unaffected.
+  $development: { nitro: { sourceMap: false } },
   // Inline the global stylesheet into the server-rendered HTML as well as each
   // component's styles, so the first paint does not wait on a separate
   // render-blocking request for entry.css.

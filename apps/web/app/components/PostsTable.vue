@@ -2,9 +2,18 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { Post } from '~~/shared/schemas/workspace'
 import { formatDate } from '~~/shared/utils/format'
-const props = defineProps<{ posts: Post[] }>()
+import { canDeletePost } from '~~/shared/utils/post-deletion'
+// `selectable` turns on the checkboxes, as in the gallery; the page that owns
+// the selection also owns what is done with it.
+const props = defineProps<{ posts: Post[]; selectable?: boolean }>()
+const selected = defineModel<string[]>('selected', { default: () => [] })
 const { base, data } = useWorkspace()
 const { t, locale } = useI18n()
+function toggleSelected(post: Post, value: boolean | 'indeterminate') {
+  selected.value = value === true
+    ? [...new Set([...selected.value, post.id])]
+    : selected.value.filter((id) => id !== post.id)
+}
 // The preview window is shared with the planner's ready card.
 const viewerOpen = ref(false)
 const viewerIndex = ref(0)
@@ -15,6 +24,7 @@ function openViewer(post: Post) {
   viewerOpen.value = true
 }
 const columns = computed<TableColumn<Post>[]>(() => [
+  ...(props.selectable ? [{ id: 'select', header: '' }] : []),
   { accessorKey: 'title', header: t('content.post') },
   { accessorKey: 'channel', header: t('content.network') },
   { accessorKey: 'status', header: t('content.status') },
@@ -30,6 +40,14 @@ const columns = computed<TableColumn<Post>[]>(() => [
       :to="`${base}/content/${post.id}`"
       class="flex items-center gap-3 px-4 py-3 active:bg-elevated/50"
     >
+      <div v-if="selectable" class="flex shrink-0 self-stretch items-center" @click.prevent.stop>
+        <UCheckbox
+          :model-value="selected.includes(post.id)"
+          :disabled="!canDeletePost(post)"
+          :aria-label="t('content.selectPost', { title: post.title })"
+          @update:model-value="(value) => toggleSelected(post, value)"
+        />
+      </div>
       <MediaThumbnail
         :post="post"
         width="48"
@@ -75,12 +93,21 @@ const columns = computed<TableColumn<Post>[]>(() => [
       root: 'w-full',
       base: 'w-full table-fixed border-separate border-spacing-0',
       thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
-      th: 'py-3 px-4 text-xs font-medium first:w-[42%] last:w-16',
+      th: selectable
+        ? 'py-3 px-4 text-xs font-medium first:w-12 first:pe-0 [&:nth-child(2)]:w-[40%] last:w-16'
+        : 'py-3 px-4 text-xs font-medium first:w-[42%] last:w-16',
       td: 'px-4 py-4 border-b border-default',
       tbody: '[&>tr]:last:[&>td]:border-b-0',
       separator: 'h-0',
     }"
   >
+    <template #select-cell="{ row }"
+      ><UCheckbox
+        :model-value="selected.includes(row.original.id)"
+        :disabled="!canDeletePost(row.original)"
+        :aria-label="t('content.selectPost', { title: row.original.title })"
+        @update:model-value="(value) => toggleSelected(row.original, value)"
+    /></template>
     <template #title-cell="{ row }">
       <ULink
         :to="`${base}/content/${row.original.id}`"

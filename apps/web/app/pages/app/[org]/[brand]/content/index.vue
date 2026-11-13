@@ -2,7 +2,7 @@
 import { statusLabels } from '~~/shared/utils/format'
 import { postSchema } from '~~/shared/schemas/workspace'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
-const { data, base } = useWorkspace()
+const { data, base, initLive, notify } = useWorkspace()
 useFollowVideos()
 const { t } = useI18n()
 useSeoMeta({ title: () => `${t('content.yourPosts')} · Framic` })
@@ -69,9 +69,49 @@ const posts = computed(() =>
   ),
 )
 const { page, pageSize, total, paginated } = usePagination(posts)
+// Selecting and deleting work as in the gallery: tick the rows, then remove
+// them from the toolbar after one warning.
+const selected = ref<string[]>([])
 watch([search, filter, channels, formats], () => {
   page.value = 1
+  selected.value = []
 })
+const deleteOpen = ref(false)
+const removing = ref(false)
+const deleteError = ref('')
+function openDelete() {
+  deleteError.value = ''
+  deleteOpen.value = true
+}
+// One request for the whole selection; a post the server refuses (one still
+// rendering, or one already sent for publication) comes back with its reason
+// and does not keep the others from going.
+async function remove() {
+  if (removing.value || !selected.value.length) return
+  removing.value = true
+  deleteError.value = ''
+  try {
+    const result = await $fetch<{ deleted: string[]; failed: { id: string; message: string }[] }>(
+      '/api/posts/delete',
+      { method: 'POST', body: { ids: selected.value }, retry: 0 },
+    )
+    if (result.deleted.length) await initLive()
+    selected.value = result.failed.map((item) => item.id)
+    if (!result.failed.length) {
+      deleteOpen.value = false
+      notify(t('content.postsDeleted', { count: result.deleted.length }))
+      return
+    }
+    const reason = t(result.failed[0]!.message)
+    deleteError.value = result.deleted.length
+      ? t('content.postsDeletePartial', { deleted: result.deleted.length, failed: result.failed.length, reason })
+      : reason
+  } catch (problem) {
+    deleteError.value = t((problem as { data?: { message?: string } }).data?.message || 'gallery.saveError')
+  } finally {
+    removing.value = false
+  }
+}
 </script>
 <template>
   <DashboardPage
@@ -156,9 +196,15 @@ watch([search, filter, channels, formats], () => {
           </UButton
           >
         </div>
+        <div v-if="selected.length" class="flex items-center gap-2 sm:ms-auto">
+          <UButton color="neutral" variant="outline" size="sm" @click="selected = []">{{ t('gallery.clearSelection') }}</UButton>
+          <UButton color="error" variant="soft" size="sm" icon="i-lucide-trash-2" @click="openDelete"
+            >{{ t('content.deleteSelected') }} {{ selected.length }}</UButton
+          >
+        </div>
       </div>
       <template v-if="posts.length">
-        <PostsTable :posts="paginated" />
+        <PostsTable v-model:selected="selected" :posts="paginated" selectable />
         <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" />
       </template>
       <DashboardEmpty
@@ -175,5 +221,27 @@ watch([search, filter, channels, formats], () => {
       icon="i-lucide-search-x"
       :actions="[{ label: t('content.createPost'), to: `${base}/monthly-planner`, color: 'primary' }]"
     />
+    <UModal
+      v-if="deleteOpen"
+      v-model:open="deleteOpen"
+      :dismissible="!removing"
+      :close="!removing"
+      :title="t('content.deletePostsTitle')"
+      :description="t('content.deletePostsDescription')"
+      ><template #body
+        ><div class="stack">
+          <UAlert v-if="deleteError" color="error" :description="deleteError" />
+          <p>{{ t('content.postsWillBeDeleted', { count: selected.length }) }}</p>
+          <UButton
+            variant="outline"
+            color="error"
+            :loading="removing"
+            :disabled="removing || !selected.length"
+            @click="remove"
+            >{{ t('content.confirmDelete') }}</UButton
+          >
+        </div></template
+      ></UModal
+    >
   </DashboardPage>
 </template>
