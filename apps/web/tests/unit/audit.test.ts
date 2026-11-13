@@ -99,3 +99,36 @@ describe('workspace audit metadata', () => {
     })
   })
 })
+
+describe('recordAuditEvents', () => {
+  it('records every event in one query', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] })
+    const { recordAuditEvents } = await import('../../server/utils/audit')
+    await recordAuditEvents({ query } as never, [
+      { actorId: 'u', organizationId: 'o', resourceType: 'post', resourceId: 'p1', action: 'post.deleted', metadata: { status: 'draft' } },
+      { actorId: 'u', organizationId: 'o', resourceType: 'post', resourceId: 'p2', action: 'post.deleted' },
+    ])
+    expect(query).toHaveBeenCalledTimes(1)
+    const rows = JSON.parse(query.mock.calls[0]![1][0])
+    expect(rows.map((row: { resource_id: string }) => row.resource_id)).toEqual(['p1', 'p2'])
+    expect(rows[1]).toMatchObject({ result: 'succeeded', metadata: {}, revision: 0 })
+  })
+
+  it('skips the query when there is nothing to record', async () => {
+    const query = vi.fn()
+    const { recordAuditEvents } = await import('../../server/utils/audit')
+    await recordAuditEvents({ query } as never, [])
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('applies the same metadata checks as a single event', async () => {
+    const query = vi.fn()
+    const { recordAuditEvents } = await import('../../server/utils/audit')
+    await expect(
+      recordAuditEvents({ query } as never, [
+        { actorId: 'u', organizationId: 'o', resourceType: 'post', resourceId: 'p', action: 'a', metadata: { accessToken: 'x' } },
+      ]),
+    ).rejects.toThrow('server.AUDIT_SENSITIVE_DATA')
+    expect(query).not.toHaveBeenCalled()
+  })
+})

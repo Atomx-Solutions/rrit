@@ -187,3 +187,27 @@ export async function recordAuditEvent(client: PoolClient, input: AuditEventInpu
   )
   return Number(result.rows[0]!.record_audit_event)
 }
+
+// Several events in one round trip, through the same database function and the
+// same metadata checks as recordAuditEvent.
+export async function recordAuditEvents(client: PoolClient, inputs: AuditEventInput[]) {
+  if (!inputs.length) return
+  const rows = inputs.map((input) => ({
+    actor_id: input.actorId,
+    organization_id: input.organizationId,
+    resource_type: input.resourceType,
+    resource_id: input.resourceId,
+    action: input.action,
+    result: input.result || 'succeeded',
+    metadata: sanitizeAuditMetadata(input.metadata),
+    revision: input.revision || 0,
+  }))
+  await client.query(
+    `SELECT app.record_audit_event(e.actor_id,e.organization_id,e.organization_id,e.resource_type,
+              e.resource_id,e.action,e.result,e.metadata,e.revision)
+       FROM jsonb_to_recordset($1::jsonb) AS e(
+         actor_id uuid, organization_id uuid, resource_type text, resource_id text,
+         action text, result text, metadata jsonb, revision integer)`,
+    [JSON.stringify(rows)],
+  )
+}

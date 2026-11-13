@@ -95,6 +95,13 @@ export async function downloadAsset(path: string, maxBytes = MAX_ASSET_BYTES) {
 }
 
 export async function removeAsset(path: string) {
-  const { error } = await storageClient().storage.from(assetBucket()).remove([path])
+  await removeAssets([path])
+}
+
+// Many files in one storage call, so deleting several posts does not pay one
+// round trip per file.
+export async function removeAssets(paths: string[]) {
+  if (!paths.length) return
+  const { error } = await storageClient().storage.from(assetBucket()).remove(paths)
   if (error) throw new Error(`Asset cleanup failed: ${error.message}`)
 }
