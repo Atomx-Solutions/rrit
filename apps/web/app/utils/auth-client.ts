@@ -75,6 +75,33 @@ function createAuthClient(scope: AuthScope) {
         })
         return { data: result.data, ...errorResult(result.error) }
       },
+      // The admin console's only sign-in: the company Microsoft (Entra ID)
+      // account, which brings Microsoft's own second factor.
+      async microsoft(input: { callbackURL: string }) {
+        const result = await auth().signInWithOAuth({
+          provider: 'azure',
+          options: {
+            redirectTo: callbackUrl(input.callbackURL),
+            scopes: 'email',
+            queryParams: { prompt: 'select_account' },
+          },
+        })
+        return { data: result.data, ...errorResult(result.error) }
+      },
+    },
+    /**
+     * Turns the one-time code an OAuth provider returned into a session. The
+     * admin console does not read sessions from URLs on its own (see
+     * detectSessionInUrl), so its sign-in callback calls this explicitly.
+     */
+    async exchangeCallbackCode() {
+      const url = new URL(window.location.href)
+      const callbackError = url.searchParams.get('error_description') || url.searchParams.get('error')
+      if (callbackError) return { error: { message: callbackError, code: 'callback_error' } }
+      const code = url.searchParams.get('code')
+      if (!code) return { error: { message: 'missing code', code: 'callback_error' } }
+      const result = await auth().exchangeCodeForSession(code)
+      return errorResult(result.error)
     },
     async handleCallback() {
       const url = new URL(window.location.href)

@@ -1,55 +1,27 @@
 <script setup lang="ts">
-import { z } from 'zod'
-import type { FormSubmitEvent } from '@nuxt/ui'
 import { adminAuthClient } from '~/utils/auth-client'
-import { safeRedirect } from '~~/shared/utils/format'
+import { rememberAdminTarget } from '~/utils/admin-sign-in'
 
 definePageMeta({ layout: false })
 const { t } = useI18n()
 const route = useRoute()
 useSeoMeta({ title: () => `${t('admin.login.title')} · Framic`, robots: 'noindex, nofollow' })
 
-// Arriving here signed in without the superadmin role (from the page guard).
-const error = ref(route.query.denied ? t('admin.login.denied') : '')
+// Arriving here signed in without admin access (from the page guard or the
+// sign-in callback), or back from a Microsoft sign-in that did not complete.
+const error = ref(route.query.denied ? t('admin.login.denied') : route.query.failed ? t('admin.login.failed') : '')
 const loading = ref(false)
-const { onFormError, watchError } = useFormFeedback()
-watchError(error)
 
-const schema = z.object({
-  email: z.email(t('auth.validationEmail')),
-  password: z.string().min(1, t('admin.login.passwordRequired')),
-})
-type Schema = z.output<typeof schema>
-
-const fields = computed(() => [
-  { name: 'email', type: 'email' as const, label: t('admin.login.email'), placeholder: t('admin.login.emailPlaceholder'), required: true, autocomplete: 'username' },
-  { name: 'password', type: 'password' as const, label: t('admin.login.password'), required: true, autocomplete: 'current-password' },
-])
-
-async function onSubmit(event: FormSubmitEvent<Schema>) {
+// The company Microsoft account is the console's only sign-in; the server
+// refuses admin requests from any other kind of session.
+async function signIn() {
   loading.value = true
   error.value = ''
-  try {
-    const result = await adminAuthClient.signIn.email({
-      email: event.data.email.trim(),
-      password: event.data.password,
-    })
-    if (result.error) {
-      error.value = t('admin.login.failed')
-      return
-    }
-    try {
-      await $fetch('/api/admin/me', { retry: 0 })
-    } catch {
-      // A valid customer account is not a platform owner: do not keep it signed in here.
-      await adminAuthClient.signOut()
-      error.value = t('admin.login.denied')
-      return
-    }
-    clearNuxtData('admin-me')
-    const target = safeRedirect(route.query.redirect, '/admin')
-    await navigateTo(target.startsWith('/admin') ? target : '/admin', { replace: true })
-  } finally {
+  rememberAdminTarget(route.query.redirect)
+  const result = await adminAuthClient.signIn.microsoft({ callbackURL: '/admin/auth/callback' })
+  // On success the browser is already on its way to Microsoft.
+  if (result.error) {
+    error.value = t('admin.login.failed')
     loading.value = false
   }
 }
@@ -58,18 +30,22 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   <UMain class="flex min-h-dvh flex-col items-center justify-center gap-6 bg-muted px-4 py-10">
     <BrandLogo />
     <UCard class="w-full max-w-sm" :ui="{ body: 'p-6 sm:p-6' }">
-      <UAuthForm
-        :schema="schema"
-        :fields="fields"
-        :title="t('admin.login.title')"
-        :description="t('admin.login.description')"
-        icon="i-lucide-shield-check"
-        :loading="loading"
-        :submit="{ label: t('admin.login.submit'), block: true }"
-        @submit="onSubmit"
-        @error="onFormError"
-      >
-      </UAuthForm>
+      <div class="flex flex-col items-center gap-4 text-center">
+        <UIcon name="i-lucide-shield-check" class="size-8 text-primary" />
+        <div class="space-y-1">
+          <h1 class="text-xl font-semibold text-highlighted">{{ t('admin.login.title') }}</h1>
+          <p class="text-sm text-muted">{{ t('admin.login.description') }}</p>
+        </div>
+        <UAlert v-if="error" color="error" variant="subtle" :description="error" class="text-start" />
+        <UButton
+          block
+          size="lg"
+          icon="i-simple-icons-microsoft"
+          :label="t('admin.login.submit')"
+          :loading="loading"
+          @click="signIn"
+        />
+      </div>
     </UCard>
     <UButton to="/" color="neutral" variant="link" size="sm" icon="i-lucide-arrow-left" :label="t('admin.login.back')" />
   </UMain>
