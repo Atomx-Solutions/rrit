@@ -56,7 +56,9 @@ const viewerIndex = computed({
       <p v-if="!group.items.length" class="flex h-32 items-center justify-center rounded-lg border border-dashed border-primary/20 bg-default/60 text-xs text-muted">
         {{ group.empty }}
       </p>
-      <ul v-else class="flex gap-3 overflow-x-auto pb-1">
+      <!-- p-1/-m-1: the hover ring is drawn outside each thumbnail, and a
+           scroll container clips anything outside its padding box. -->
+      <ul v-else class="-m-1 flex gap-3 overflow-x-auto p-1 pb-2">
         <li v-for="(post, index) in group.items" :key="post.id" class="w-32 shrink-0">
           <UButton
             color="neutral"
