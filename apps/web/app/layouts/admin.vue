@@ -95,40 +95,105 @@ provide(adminDashboardKey, { sidebarOpen })
 
 // "/admin/" and "/admin" are the same page.
 const currentPath = computed(() => route.path.replace(/\/+$/, '') || '/')
-const menu = computed<NavigationMenuItem[]>(() =>
-  [
-    { to: '/admin', label: t('admin.nav.overview'), icon: 'i-lucide-layout-dashboard' },
-    { to: '/admin/organizations', label: t('admin.nav.organizations'), icon: 'i-lucide-building-2' },
-    { to: '/admin/invitations', label: t('admin.nav.invitations'), icon: 'i-lucide-user-plus' },
-    {
-      to: '/admin/package-requests',
-      label: t('admin.nav.packageRequests'),
-      icon: 'i-lucide-inbox',
-      badge: openPackageRequestCount.value || undefined,
-    },
-    {
-      to: '/admin/feedback',
-      label: t('admin.nav.feedback'),
-      icon: 'i-lucide-message-square-heart',
-      // Feedback is deleted once handled, so every entry still here is open,
-      // the same way the requests badge counts open requests.
-      badge: feedbackSummary.value?.feedback.length || undefined,
-    },
-    { to: '/admin/music', label: t('admin.nav.music'), icon: 'i-lucide-music' },
-    { to: '/admin/users', label: t('admin.nav.users'), icon: 'i-lucide-users' },
-    { to: '/admin/plans', label: t('admin.nav.billingSettings'), icon: 'i-lucide-receipt-text' },
-    { to: '/admin/subscriptions', label: t('admin.nav.subscriptions'), icon: 'i-lucide-repeat' },
-    { to: '/admin/billing', label: t('admin.nav.billing'), icon: 'i-lucide-receipt-text' },
-    { to: '/admin/ai', label: t('admin.nav.ai'), icon: 'i-lucide-cpu' },
-    { to: '/admin/audit', label: t('admin.nav.audit'), icon: 'i-lucide-scroll-text' },
-    { to: '/admin/administrators', label: t('admin.nav.administrators'), icon: 'i-lucide-shield-check' },
-    { to: '/admin/settings', label: t('admin.nav.settings'), icon: 'i-lucide-settings' },
-  ].map(link => ({
-    ...link,
-    tooltip: { text: link.label },
+type AdminLink = { to: string; label: string; icon: string; badge?: number }
+// Pages grouped by the job an administrator came to do, so the list reads as
+// a few short sections instead of one long column.
+const sections = computed<{ label?: string; icon?: string; open?: boolean; links: AdminLink[] }[]>(() => [
+  { links: [{ to: '/admin', label: t('admin.nav.overview'), icon: 'i-lucide-layout-dashboard' }] },
+  {
+    label: t('admin.nav.group.inbox'),
+    icon: 'i-lucide-mail',
+    open: true,
+    links: [
+      {
+        to: '/admin/package-requests',
+        label: t('admin.nav.packageRequests'),
+        icon: 'i-lucide-inbox',
+        badge: openPackageRequestCount.value || undefined,
+      },
+      {
+        to: '/admin/feedback',
+        label: t('admin.nav.feedback'),
+        icon: 'i-lucide-message-square-heart',
+        // Feedback is deleted once handled, so every entry still here is open,
+        // the same way the requests badge counts open requests.
+        badge: feedbackSummary.value?.feedback.length || undefined,
+      },
+    ],
+  },
+  {
+    label: t('admin.nav.group.customers'),
+    icon: 'i-lucide-building-2',
+    open: true,
+    links: [
+      { to: '/admin/organizations', label: t('admin.nav.organizations'), icon: 'i-lucide-building-2' },
+      { to: '/admin/users', label: t('admin.nav.users'), icon: 'i-lucide-users' },
+      { to: '/admin/invitations', label: t('admin.nav.invitations'), icon: 'i-lucide-user-plus' },
+    ],
+  },
+  {
+    label: t('admin.nav.group.billing'),
+    icon: 'i-lucide-wallet',
+    open: false,
+    links: [
+      { to: '/admin/subscriptions', label: t('admin.nav.subscriptions'), icon: 'i-lucide-repeat' },
+      { to: '/admin/billing', label: t('admin.nav.billing'), icon: 'i-lucide-receipt-text' },
+      { to: '/admin/plans', label: t('admin.nav.billingSettings'), icon: 'i-lucide-coins' },
+    ],
+  },
+  {
+    label: t('admin.nav.group.platform'),
+    icon: 'i-lucide-layers',
+    open: false,
+    links: [
+      { to: '/admin/ai', label: t('admin.nav.ai'), icon: 'i-lucide-cpu' },
+      { to: '/admin/music', label: t('admin.nav.music'), icon: 'i-lucide-music' },
+    ],
+  },
+  {
+    label: t('admin.nav.group.system'),
+    icon: 'i-lucide-shield',
+    open: false,
+    links: [
+      { to: '/admin/administrators', label: t('admin.nav.administrators'), icon: 'i-lucide-shield-check' },
+      { to: '/admin/audit', label: t('admin.nav.audit'), icon: 'i-lucide-scroll-text' },
+      { to: '/admin/settings', label: t('admin.nav.settings'), icon: 'i-lucide-settings' },
+    ],
+  },
+])
+function link(entry: AdminLink): NavigationMenuItem {
+  return {
+    ...entry,
+    tooltip: { text: entry.label },
     // Overview is active only on /admin itself, the others on their subpages too.
-    active: link.to === '/admin' ? currentPath.value === '/admin' : currentPath.value.startsWith(link.to),
-  })),
+    active: entry.to === '/admin' ? currentPath.value === '/admin' : currentPath.value.startsWith(entry.to),
+  }
+}
+// Same dropdown sections as the customer sidebar: a section opens in place,
+// or as a popover from the collapsed rail.
+const menu = computed<NavigationMenuItem[]>(() =>
+  sections.value.flatMap((section) => {
+    if (!section.label) return section.links.map(link)
+    const children = section.links.map(link)
+    // A closed section still shows how much is waiting inside it.
+    const waiting = section.links.reduce((sum, entry) => sum + (entry.badge || 0), 0)
+    return [{
+      label: section.label,
+      icon: section.icon,
+      type: 'trigger' as const,
+      value: `section-${section.links[0]!.to}`,
+      active: children.some(child => child.active),
+      defaultOpen: section.open || children.some(child => child.active),
+      popover: true,
+      badge: waiting || undefined,
+      // The count sits on the section only while it is closed; open, the
+      // page inside shows it instead.
+      ui: {
+        linkTrailingBadge: 'in-data-[state=open]:hidden',
+      },
+      children,
+    }]
+  }),
 )
 
 const signingOut = ref(false)
@@ -194,12 +259,13 @@ const profileMenu = computed(() => [
           orientation="vertical"
           :collapsed="state === 'collapsed'"
           tooltip
+          popover
           :aria-label="t('admin.nav.label')"
           :ui="{
             link: 'min-h-8 pointer-coarse:min-h-10 px-2 rounded-md text-xs after:absolute after:-start-1.5 after:inset-y-0.5 after:hidden after:w-[3px] after:rounded-full data-[active]:after:block data-[active]:after:bg-primary',
             linkLeadingIcon: 'size-3.5',
             linkLabel: state === 'collapsed' ? 'block sr-only' : undefined,
-            linkTrailing: 'inline-flex items-center justify-center size-[18px] rounded-full ring ring-default text-[10px] font-semibold leading-none text-default',
+            linkTrailingBadge: 'min-w-[18px] h-[18px] justify-center rounded-full bg-error px-1 text-[10px] font-semibold leading-none text-inverted shadow-sm ring-0',
           }"
         />
       </template>

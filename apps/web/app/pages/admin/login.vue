@@ -40,11 +40,17 @@ async function signIn() {
         <UButton
           block
           size="lg"
-          icon="i-simple-icons-microsoft"
+          color="neutral"
+          variant="outline"
           :label="t('admin.login.submit')"
           :loading="loading"
           @click="signIn"
-        />
+        >
+          <template #leading>
+            <MicrosoftLogo v-if="!loading" class="size-4" />
+            <UIcon v-else name="i-lucide-loader-circle" class="size-4 animate-spin" />
+          </template>
+        </UButton>
       </div>
     </UCard>
     <UButton to="/" color="neutral" variant="link" size="sm" icon="i-lucide-arrow-left" :label="t('admin.login.back')" />

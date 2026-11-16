@@ -1,5 +1,10 @@
 {
   "admin.nav.label": "Navigimi i administrimit",
+  "admin.nav.group.inbox": "Kutia hyrëse",
+  "admin.nav.group.customers": "Klientët",
+  "admin.nav.group.billing": "Faturimi",
+  "admin.nav.group.platform": "Platforma",
+  "admin.nav.group.system": "Sistemi",
   "admin.nav.overview": "Overview",
   "admin.nav.organizations": "Organizatat",
   "admin.nav.invitations": "Ftesat",
@@ -438,7 +443,6 @@
   "admin.administrators.microsoftLinked": "Microsoft",
   "admin.administrators.microsoftMissing": "Ende pa hyrë me Microsoft",
   "admin.administrators.remove": "Hiq administratorin",
-  "admin.administrators.removeShort": "Hiq",
   "admin.administrators.error.ADMIN_ACCOUNT_NOT_FOUND": "Llogaria për këtë email nuk u krijua. Provo përsëri.",
   "admin.administrators.removeConfirm": "{{email}} nuk do të ketë më qasje në administrim. Llogaria e tij mbetet.",
   "admin.administrators.removed": "Administratori u hoq.",

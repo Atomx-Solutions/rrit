@@ -118,53 +118,57 @@ async function confirmRemove() {
         icon="i-lucide-shield-check"
         :title="t('admin.administrators.empty')"
       />
-      <ul v-else class="divide-y divide-default">
+      <ul v-else class="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
         <li
           v-for="admin in administrators"
           :key="admin.user_id"
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4 sm:px-5"
+          class="group relative flex flex-col overflow-hidden rounded-lg border border-default bg-default transition-colors hover:border-accented"
+          :class="admin.email === me?.email ? 'ring-1 ring-primary/40' : ''"
         >
-          <UUser
-            :name="admin.name"
-            :description="admin.email"
-            :avatar="{ alt: admin.name, size: 'md' }"
-            class="min-w-0 flex-1"
-            :ui="{ wrapper: 'min-w-0', name: 'truncate', description: 'truncate' }"
-          >
-            <template #name>
-              <span class="flex flex-wrap items-center gap-1.5">
-                <span class="truncate">{{ admin.name }}</span>
+          <div class="flex items-start gap-3 p-4">
+            <UAvatar :alt="admin.name" size="lg" class="shrink-0" />
+            <div class="min-w-0 flex-1">
+              <p class="flex items-center gap-1.5">
+                <span class="truncate font-semibold text-highlighted">{{ admin.name }}</span>
                 <UBadge v-if="admin.email === me?.email" color="primary" variant="subtle" size="sm" :label="t('admin.administrators.you')" />
-                <UBadge
-                  v-if="admin.microsoft"
-                  color="neutral"
-                  variant="outline"
-                  size="sm"
-                  icon="i-simple-icons-microsoft"
-                  :label="t('admin.administrators.microsoftLinked')"
-                />
-                <UBadge v-else color="warning" variant="subtle" size="sm" icon="i-lucide-triangle-alert" :label="t('admin.administrators.microsoftMissing')" />
-              </span>
-            </template>
-          </UUser>
-          <dl class="grid shrink-0 grid-cols-2 gap-x-6 gap-y-0.5 text-xs sm:text-right">
-            <dt class="text-dimmed">{{ t('admin.administrators.grantedLabel') }}</dt>
-            <dt class="text-dimmed">{{ t('admin.administrators.lastSignInLabel') }}</dt>
-            <dd class="text-muted">{{ formatDay(admin.granted_at) }}</dd>
-            <dd class="text-muted">{{ formatDay(admin.last_sign_in_at) }}</dd>
-          </dl>
-          <div class="flex shrink-0 justify-end sm:w-24">
+              </p>
+              <p class="truncate text-sm text-muted">{{ admin.email }}</p>
+              <p
+                class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium"
+                :class="admin.microsoft ? 'text-muted' : 'text-warning'"
+              >
+                <MicrosoftLogo v-if="admin.microsoft" class="size-3.5" />
+                <UIcon v-else name="i-lucide-triangle-alert" class="size-3.5" />
+                {{ admin.microsoft ? t('admin.administrators.microsoftLinked') : t('admin.administrators.microsoftMissing') }}
+              </p>
+            </div>
             <UButton
               v-if="admin.email !== me?.email"
               icon="i-lucide-user-minus"
               color="error"
-              variant="soft"
+              variant="ghost"
               size="sm"
-              :label="t('admin.administrators.removeShort')"
+              class="shrink-0"
               :aria-label="t('admin.administrators.remove')"
               @click="removing = admin"
             />
           </div>
+          <dl class="mt-auto grid grid-cols-2 divide-x divide-default border-t border-default bg-elevated/50 text-xs">
+            <div class="flex items-center gap-2 px-4 py-2.5">
+              <UIcon name="i-lucide-calendar-plus" class="size-3.5 shrink-0 text-dimmed" />
+              <div class="min-w-0">
+                <dt class="text-dimmed">{{ t('admin.administrators.grantedLabel') }}</dt>
+                <dd class="truncate font-medium text-default">{{ formatDay(admin.granted_at) }}</dd>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 px-4 py-2.5">
+              <UIcon name="i-lucide-log-in" class="size-3.5 shrink-0 text-dimmed" />
+              <div class="min-w-0">
+                <dt class="text-dimmed">{{ t('admin.administrators.lastSignInLabel') }}</dt>
+                <dd class="truncate font-medium text-default">{{ formatDay(admin.last_sign_in_at) }}</dd>
+              </div>
+            </div>
+          </dl>
         </li>
       </ul>
     </UCard>
