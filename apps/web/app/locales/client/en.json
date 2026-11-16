@@ -168,6 +168,8 @@
   "content.reviewApproveAgain": "Review and approve again",
   "content.returnForCorrection": "Return to draft for correction",
   "content.removeFromCalendar": "Remove from calendar",
+  "content.removeFromCalendarConfirmTitle": "Remove this post from the calendar?",
+  "content.removeFromCalendarConfirmDescription": "It will not be published automatically anymore. You can schedule it again at any time.",
   "content.howItLooks": "How it will look",
   "content.confirmPublishNow": "Confirm publishing now",
   "content.confirmSchedule": "Confirm schedule",

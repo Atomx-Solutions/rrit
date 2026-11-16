@@ -168,6 +168,8 @@
   "content.reviewApproveAgain": "Gözden geçir ve yeniden onayla",
   "content.returnForCorrection": "Düzeltme için taslağa geri döndür",
   "content.removeFromCalendar": "Takvimden kaldır",
+  "content.removeFromCalendarConfirmTitle": "Bu gönderi takvimden kaldırılsın mı?",
+  "content.removeFromCalendarConfirmDescription": "Artık otomatik olarak yayınlanmayacak. İstediğiniz zaman yeniden planlayabilirsiniz.",
   "content.howItLooks": "Nasıl görünecek",
   "content.confirmPublishNow": "Şimdi yayınlamayı onayla",
   "content.confirmSchedule": "Zamanlamayı onayla",

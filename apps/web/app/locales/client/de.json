@@ -168,6 +168,8 @@
   "content.reviewApproveAgain": "Erneut prüfen und freigeben",
   "content.returnForCorrection": "Zur Korrektur in den Entwurf zurücklegen",
   "content.removeFromCalendar": "Aus dem Kalender entfernen",
+  "content.removeFromCalendarConfirmTitle": "Diesen Beitrag aus dem Kalender entfernen?",
+  "content.removeFromCalendarConfirmDescription": "Er wird nicht mehr automatisch veröffentlicht. Sie können ihn jederzeit erneut planen.",
   "content.howItLooks": "So wird es aussehen",
   "content.confirmPublishNow": "Sofortige Veröffentlichung bestätigen",
   "content.confirmSchedule": "Planung bestätigen",

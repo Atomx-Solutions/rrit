@@ -168,6 +168,8 @@
   "content.reviewApproveAgain": "Rivedi e approva di nuovo",
   "content.returnForCorrection": "Torna alla bozza per correggere",
   "content.removeFromCalendar": "Rimuovi dal calendario",
+  "content.removeFromCalendarConfirmTitle": "Rimuovere questo post dal calendario?",
+  "content.removeFromCalendarConfirmDescription": "Non verrà più pubblicato automaticamente. Puoi programmarlo di nuovo in qualsiasi momento.",
   "content.howItLooks": "Come apparirà",
   "content.confirmPublishNow": "Conferma la pubblicazione ora",
   "content.confirmSchedule": "Conferma la programmazione",
