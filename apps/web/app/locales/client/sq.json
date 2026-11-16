@@ -2465,5 +2465,20 @@
   "server.BRIEF_TEXT_REQUIRED": "Shkruaj disa fjalë para se ta përmirësosh me AI.",
   "server.BRIEF_IMPROVEMENTS_USED": "Përmirësimet falas u përdorën. Mund të përmirësosh më vonë te Biznesi im.",
   "brand.improveUsesCredits": "Përdor kredite",
-  "onboarding.improveFailedShort": "S’u përmirësua. Provo përsëri."
+  "onboarding.improveFailedShort": "S’u përmirësua. Provo përsëri.",
+  "invitationEmail.subject": "Llogaria jote në Framic për {{organization}} është gati",
+  "invitationEmail.preheader": "Prano ftesën dhe zgjidh një fjalëkalim për ta hapur llogarinë.",
+  "invitationEmail.eyebrow": "Ftesë",
+  "invitationEmail.title": "Mirë se vjen në Framic",
+  "invitationEmail.lead": "Llogaria jote për {{organization}} është gati. Prano ftesën, zgjidh një fjalëkalim dhe je brenda.",
+  "invitationEmail.accountLabel": "Ftesë për",
+  "invitationEmail.validity": "Linku vlen {{duration}} dhe përdoret vetëm një herë.",
+  "invitationEmail.stepsTitle": "Çfarë ndodh më pas",
+  "invitationEmail.step1": "Kliko «Prano ftesën».",
+  "invitationEmail.step2": "Shkruaj emrin dhe zgjidh një fjalëkalim.",
+  "invitationEmail.step3": "Je menjëherë në hapësirën tënde të punës, pa pritur email verifikimi.",
+  "invitationEmail.expiredNote": "Të ka skaduar linku? Kërko një ftesë të re nga ekipi i Framic.",
+  "invitationEmail.fallback": "Nëse butoni nuk funksionon, kopjo këtë link në browser:",
+  "invitationEmail.ignore": "Nëse nuk e prisje këtë email, mund ta injorosh.",
+  "invitationEmail.button": "Prano ftesën"
 }

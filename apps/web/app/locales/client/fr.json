@@ -2465,5 +2465,20 @@
   "server.BRIEF_TEXT_REQUIRED": "Écris quelques mots avant d'améliorer avec l'IA.",
   "server.BRIEF_IMPROVEMENTS_USED": "Améliorations gratuites utilisées. Possible plus tard dans Mon entreprise.",
   "brand.improveUsesCredits": "Utilise des crédits",
-  "onboarding.improveFailedShort": "Échec. Réessaie."
+  "onboarding.improveFailedShort": "Échec. Réessaie.",
+  "invitationEmail.subject": "Votre compte Framic pour {{organization}} est prêt",
+  "invitationEmail.preheader": "Acceptez l’invitation et définissez un mot de passe pour ouvrir votre compte.",
+  "invitationEmail.eyebrow": "Invitation",
+  "invitationEmail.title": "Bienvenue sur Framic",
+  "invitationEmail.lead": "Votre compte pour {{organization}} est prêt. Acceptez l’invitation, définissez un mot de passe et vous êtes connecté.",
+  "invitationEmail.accountLabel": "Invitation pour",
+  "invitationEmail.validity": "Le lien est valable {{duration}} et ne fonctionne qu’une seule fois.",
+  "invitationEmail.stepsTitle": "Et ensuite",
+  "invitationEmail.step1": "Cliquez sur « Accepter l’invitation ».",
+  "invitationEmail.step2": "Saisissez votre nom et définissez un mot de passe.",
+  "invitationEmail.step3": "Vous accédez immédiatement à votre espace de travail, sans attendre d’e-mail de vérification.",
+  "invitationEmail.expiredNote": "Le lien a expiré ? Demandez une nouvelle invitation à l’équipe Framic.",
+  "invitationEmail.fallback": "Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :",
+  "invitationEmail.ignore": "Si vous n’attendiez pas cet e-mail, vous pouvez l’ignorer.",
+  "invitationEmail.button": "Accepter l’invitation"
 }

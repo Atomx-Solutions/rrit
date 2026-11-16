@@ -819,5 +819,17 @@
   "admin.administrators.domainHelp": "Only company emails are allowed: {{domains}}",
   "admin.administrators.emailName": "name",
   "admin.administrators.addedOnly": "Administrator added.",
-  "admin.administrators.invite.notResent": "The invitation was not sent again."
+  "admin.administrators.invite.notResent": "The invitation was not sent again.",
+  "admin.invitations.sendEmail": "Send the invitation by email",
+  "admin.invitations.sendEmailHint": "The client gets the link by email. The link is also shown here to copy.",
+  "admin.invitations.emailLanguage": "Email language",
+  "admin.invitations.language.sq": "Albanian",
+  "admin.invitations.language.en": "English",
+  "admin.invitations.language.de": "German",
+  "admin.invitations.language.it": "Italian",
+  "admin.invitations.language.fr": "French",
+  "admin.invitations.language.tr": "Turkish",
+  "admin.invitations.delivery.sent": "The invitation was emailed to {{email}}.",
+  "admin.invitations.delivery.not_configured": "The email was not sent because Brevo is not configured on the server. Copy the link and send it to the client yourself.",
+  "admin.invitations.delivery.failed": "The email was not sent. Copy the link and send it to the client yourself, or try resending."
 }

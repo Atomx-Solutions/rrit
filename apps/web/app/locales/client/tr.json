@@ -2465,5 +2465,20 @@
   "server.BRIEF_TEXT_REQUIRED": "Yapay zekâ ile iyileştirmeden önce birkaç kelime yaz.",
   "server.BRIEF_IMPROVEMENTS_USED": "Ücretsiz iyileştirmeler bitti. Daha sonra İşletmem bölümünde yapabilirsin.",
   "brand.improveUsesCredits": "Kredi kullanır",
-  "onboarding.improveFailedShort": "İyileştirilemedi. Tekrar dene."
+  "onboarding.improveFailedShort": "İyileştirilemedi. Tekrar dene.",
+  "invitationEmail.subject": "{{organization}} için Framic hesabınız hazır",
+  "invitationEmail.preheader": "Hesabınızı açmak için daveti kabul edin ve bir şifre belirleyin.",
+  "invitationEmail.eyebrow": "Davet",
+  "invitationEmail.title": "Framic'e hoş geldiniz",
+  "invitationEmail.lead": "{{organization}} için hesabınız hazır. Daveti kabul edin, bir şifre belirleyin ve hemen giriş yapın.",
+  "invitationEmail.accountLabel": "Davet edilen",
+  "invitationEmail.validity": "Bağlantı {{duration}} geçerlidir ve yalnızca bir kez kullanılabilir.",
+  "invitationEmail.stepsTitle": "Sonraki adımlar",
+  "invitationEmail.step1": "“Daveti kabul et” düğmesine tıklayın.",
+  "invitationEmail.step2": "Adınızı girin ve bir şifre belirleyin.",
+  "invitationEmail.step3": "Doğrulama e-postası beklemeden hemen çalışma alanınıza girersiniz.",
+  "invitationEmail.expiredNote": "Bağlantının süresi mi doldu? Framic ekibinden yeni bir davet isteyin.",
+  "invitationEmail.fallback": "Düğme çalışmazsa bu bağlantıyı tarayıcınıza kopyalayın:",
+  "invitationEmail.ignore": "Bu e-postayı beklemiyorsanız yok sayabilirsiniz.",
+  "invitationEmail.button": "Daveti kabul et"
 }

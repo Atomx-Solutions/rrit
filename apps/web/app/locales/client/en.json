@@ -2465,5 +2465,20 @@
   "server.BRIEF_TEXT_REQUIRED": "Write a few words before improving with AI.",
   "server.BRIEF_IMPROVEMENTS_USED": "Free improvements used. You can improve later under My business.",
   "brand.improveUsesCredits": "Uses credits",
-  "onboarding.improveFailedShort": "Could not improve. Try again."
+  "onboarding.improveFailedShort": "Could not improve. Try again.",
+  "invitationEmail.subject": "Your Framic account for {{organization}} is ready",
+  "invitationEmail.preheader": "Accept the invitation and choose a password to open your account.",
+  "invitationEmail.eyebrow": "Invitation",
+  "invitationEmail.title": "Welcome to Framic",
+  "invitationEmail.lead": "Your account for {{organization}} is ready. Accept the invitation, choose a password and you are in.",
+  "invitationEmail.accountLabel": "Invitation for",
+  "invitationEmail.validity": "The link is valid for {{duration}} and works only once.",
+  "invitationEmail.stepsTitle": "What happens next",
+  "invitationEmail.step1": "Click “Accept invitation”.",
+  "invitationEmail.step2": "Enter your name and choose a password.",
+  "invitationEmail.step3": "You are in your workspace at once, with no verification email to wait for.",
+  "invitationEmail.expiredNote": "Has the link expired? Ask the Framic team for a new invitation.",
+  "invitationEmail.fallback": "If the button does not work, copy this link into your browser:",
+  "invitationEmail.ignore": "If you were not expecting this email, you can ignore it.",
+  "invitationEmail.button": "Accept invitation"
 }

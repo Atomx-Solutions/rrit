@@ -1,4 +1,6 @@
-export type AppLanguage = 'sq' | 'en' | 'de' | 'it' | 'fr' | 'tr'
+import type { AppLanguage } from '~~/shared/utils/app-languages'
+
+export type { AppLanguage }
 
 type Dictionary = Record<string, string>
 

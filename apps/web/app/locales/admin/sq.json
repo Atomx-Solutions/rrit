@@ -819,5 +819,17 @@
   "admin.administrators.domainHelp": "Lejohen vetëm emailet e kompanisë: {{domains}}",
   "admin.administrators.emailName": "emri",
   "admin.administrators.addedOnly": "Administratori u shtua.",
-  "admin.administrators.invite.notResent": "Ftesa nuk u ridërgua."
+  "admin.administrators.invite.notResent": "Ftesa nuk u ridërgua.",
+  "admin.invitations.sendEmail": "Dërgo ftesën me email",
+  "admin.invitations.sendEmailHint": "Klienti merr linkun me email. Linku shfaqet edhe këtu për ta kopjuar.",
+  "admin.invitations.emailLanguage": "Gjuha e emailit",
+  "admin.invitations.language.sq": "Shqip",
+  "admin.invitations.language.en": "Anglisht",
+  "admin.invitations.language.de": "Gjermanisht",
+  "admin.invitations.language.it": "Italisht",
+  "admin.invitations.language.fr": "Frëngjisht",
+  "admin.invitations.language.tr": "Turqisht",
+  "admin.invitations.delivery.sent": "Ftesa u dërgua me email te {{email}}.",
+  "admin.invitations.delivery.not_configured": "Emaili nuk u dërgua sepse Brevo nuk është konfiguruar në server. Kopjoje linkun dhe dërgoja klientit vetë.",
+  "admin.invitations.delivery.failed": "Emaili nuk u dërgua. Kopjoje linkun dhe dërgoja klientit vetë, ose provo ridërgimin."
 }
