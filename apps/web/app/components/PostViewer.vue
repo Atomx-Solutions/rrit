@@ -122,9 +122,12 @@ async function downloadViewerPost() {
     fullscreen
     :title="viewerPost?.title || t('content.postPhotoViewer')"
     :description="t('content.postPhotoViewerDescription')"
+    :ui="{ body: 'flex min-h-0 flex-1 flex-col p-3 sm:p-4' }"
   >
     <template #body>
-      <div v-if="viewerPost" class="flex h-[calc(100dvh-12rem)] min-h-[36rem] flex-col gap-5">
+      <!-- Same layout as the gallery viewer: the photo takes the height that is
+           left, the counter sits under it, the strip and actions share a row. -->
+      <div v-if="viewerPost" class="flex min-h-0 flex-1 flex-col gap-3">
         <!-- A feed post is 4:5, so a full-width stage behind it is mostly
              empty surface. The dialog's own background carries the picture and
              the controls sit beside it, rather than a dark panel being drawn
@@ -132,9 +135,8 @@ async function downloadViewerPost() {
         <div class="relative flex min-h-0 flex-1 items-center justify-center gap-3 sm:gap-5">
           <UButton
             color="neutral"
-            variant="outline"
-            size="lg"
-            class="absolute left-2 z-10 shrink-0 rounded-full bg-black/15 text-white ring-white/50 backdrop-blur-sm sm:static sm:bg-transparent sm:text-default sm:ring-default sm:backdrop-blur-none"
+            variant="ghost"
+            class="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white sm:left-5"
             icon="i-lucide-chevron-left"
             :aria-label="t('content.previousPostPhoto')"
             @click="moveViewer(-1)"
@@ -169,53 +171,51 @@ async function downloadViewerPost() {
           </div>
           <UButton
             color="neutral"
-            variant="outline"
-            size="lg"
-            class="absolute right-2 z-10 shrink-0 rounded-full bg-black/15 text-white ring-white/50 backdrop-blur-sm sm:static sm:bg-transparent sm:text-default sm:ring-default sm:backdrop-blur-none"
+            variant="ghost"
+            class="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white sm:right-5"
             icon="i-lucide-chevron-right"
             :aria-label="t('content.nextPostPhoto')"
             @click="moveViewer(1)"
           />
         </div>
-        <div class="flex items-center justify-between gap-3">
-          <p class="min-w-0 truncate text-sm text-muted">
-            {{ viewerIndex + 1 }} / {{ props.posts.length }} · {{ viewerPost.title }}
-          </p>
+        <p class="-mt-1 text-center text-sm text-muted">{{ viewerIndex + 1 }} / {{ props.posts.length }}</p>
+        <div class="flex items-center gap-4">
+          <!-- p-1/-m-1: the selected thumbnail draws its ring outside its box, and
+               a scroll container clips anything outside its padding box. The
+               padding gives the ring room, the negative margin keeps the strip
+               aligned with the rest. -->
+          <div ref="viewerStrip" class="flex min-w-0 flex-1 gap-2 overflow-x-auto p-1 -m-1">
+            <UButton
+              v-for="(post, index) in props.posts"
+              :key="post.id"
+              color="neutral"
+              variant="ghost"
+              class="size-16 shrink-0 overflow-hidden rounded-lg p-0"
+              :class="
+                index === viewerIndex
+                  ? 'ring-2 ring-primary ring-offset-2'
+                  : 'opacity-70 hover:opacity-100'
+              "
+              :aria-label="post.title"
+              @click="viewerIndex = index"
+            >
+              <MediaThumbnail
+                :post="post"
+                :alt="post.title"
+                class="size-full"
+                width="64"
+                height="64"
+              />
+            </UButton>
+          </div>
           <UButton
+            class="shrink-0"
             color="primary"
             icon="i-lucide-download"
             :loading="downloading"
             @click="downloadViewerPost"
           >
             {{ t('common.download') }}
-          </UButton>
-        </div>
-        <!-- p-1/-m-1: the selected thumbnail draws its ring outside its box, and
-             a scroll container clips anything outside its padding box. The
-             padding gives the ring room, the negative margin keeps the strip
-             aligned with the rest. -->
-        <div ref="viewerStrip" class="flex gap-2 overflow-x-auto p-1 -m-1">
-          <UButton
-            v-for="(post, index) in props.posts"
-            :key="post.id"
-            color="neutral"
-            variant="ghost"
-            class="size-16 shrink-0 overflow-hidden rounded-lg p-0"
-            :class="
-              index === viewerIndex
-                ? 'ring-2 ring-primary ring-offset-2'
-                : 'opacity-70 hover:opacity-100'
-            "
-            :aria-label="post.title"
-            @click="viewerIndex = index"
-          >
-            <MediaThumbnail
-              :post="post"
-              :alt="post.title"
-              class="size-full"
-              width="64"
-              height="64"
-            />
           </UButton>
         </div>
       </div>
