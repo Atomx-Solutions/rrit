@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   )
   const id = z.uuid().safeParse(getRouterParam(event, 'id'))
   const input = z
-    .object({ rights: z.literal(false), confirmed: z.literal(true) })
+    .object({ rights: z.boolean(), confirmed: z.literal(true) })
     .safeParse(await boundedBody(event, 1024))
   if (!id.success || !input.success)
     throw createError({ statusCode: 422, message: 'server.RIGHTS_WITHDRAWAL_UNCONFIRMED' })
@@ -28,6 +28,28 @@ export default defineEventHandler(async (event) => {
       [id.data, business.id],
     )
     if (!asset.rows[0]) throw createError({ statusCode: 404, message: 'server.PHOTO_NOT_FOUND' })
+    // Confirming again after a withdrawal makes the photo usable for new
+    // posts. Posts that were reopened by the withdrawal stay drafts: the
+    // business approves them again itself.
+    if (input.data.rights) {
+      if (!asset.rows[0].rights) {
+        await client.query('UPDATE assets SET rights=true WHERE id=$1 AND business_id=$2', [
+          id.data,
+          business.id,
+        ])
+        await client.query('UPDATE businesses SET revision=revision+1 WHERE id=$1', [business.id])
+        await recordAuditEvent(client, {
+          actorId: user.id,
+          organizationId: business.id,
+          resourceType: 'asset',
+          resourceId: id.data,
+          action: 'media.rights_confirmed',
+          metadata: transitionMetadata({ rights: [false, true] }),
+        })
+      }
+      await client.query('COMMIT')
+      return { confirmed: true }
+    }
     const image = `/api/media/${id.data}`
     const rows = await client.query(
       "SELECT id,payload FROM posts WHERE business_id=$1 AND payload->>'image'=$2 AND payload->>'status'<>'published' FOR UPDATE",

@@ -194,6 +194,10 @@ export default defineEventHandler(async (event) => {
       if (previous) {
         if (asset.url !== previous.url)
           fail('server.PHOTO_REPLACE_NOT_ALLOWED')
+        // Rights change only through /api/media/[id]/rights, which asks for
+        // the confirmation and records who gave or withdrew them.
+        if (asset.rights !== previous.rights)
+          fail('server.PHOTO_RIGHTS_CHANGE_NOT_ALLOWED')
         await client.query(
           'UPDATE assets SET name = $1, tags = $2, rights = $3, kind = $4 WHERE id = $5 AND business_id = $6',
           [asset.name, JSON.stringify(asset.tags), asset.rights, asset.kind, asset.id, id.data],
