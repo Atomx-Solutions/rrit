@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { adminOrganizationInvoice } from '../../../../../../utils/admin-invoices'
 import { invoicePdf } from '../../../../../../utils/invoice-pdf'
 import { adminServiceClient } from '../../../../../../utils/admin-supabase'
+import { loadPdfAssets } from '../../../../../../utils/pdf-assets'
 
 export default defineEventHandler(async (event) => {
   const organizationId = z.uuid().safeParse(getRouterParam(event, 'id'))
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
     console.error('Invoice payment read failed.', { code: payment.error.code, message: payment.error.message })
     throw createError({ statusCode: 502, message: 'server.INVOICE_LOAD_FAILED' })
   }
+  await loadPdfAssets()
   return invoicePdf(invoice, payment.data && {
     status: payment.data.status === 'paid' ? 'paid' : 'unpaid',
     dueAt: payment.data.due_at,

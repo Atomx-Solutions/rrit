@@ -1,6 +1,8 @@
 import { readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { PDF_ASSET_PATTERN, PDF_ASSET_STORAGE } from './shared/utils/pdf-asset-storage'
 
 // Files the server needs that are not code, so the server bundle would leave
 // them out unless told to carry them: a Vercel function has no ffmpeg and no
@@ -105,6 +107,13 @@ export default defineNuxtConfig({
       ? {}
       : { dir: process.env.NITRO_OUTPUT_DIR || '.output' },
     externals: { traceInclude: [...mediaBinaries, ...textFonts] },
+    // The PDF images ship inside the server, since a Vercel function cannot
+    // read public/ (see shared/utils/pdf-asset-storage.ts).
+    serverAssets: [{
+      baseName: PDF_ASSET_STORAGE.replace(/^assets:/, ''),
+      dir: join(dirname(fileURLToPath(import.meta.url)), 'public'),
+      pattern: PDF_ASSET_PATTERN,
+    }],
     vercel: {
       functions: { maxDuration: functionMaxDurationSeconds },
       // The planner runs from this cron on Vercel, where no process stays up
