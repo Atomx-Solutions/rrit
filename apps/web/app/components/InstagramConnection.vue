@@ -58,7 +58,9 @@ onMounted(() => {
 <template>
   <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
     <div class="flex items-center gap-3">
-      <UAvatar icon="i-lucide-instagram" :ui="{ root: 'bg-pink-500/10 text-pink-500 rounded-xl', icon: 'size-5' }" />
+      <UAvatar :ui="{ root: 'bg-transparent rounded-xl' }">
+        <template #default><InstagramLogo class="size-6" /></template>
+      </UAvatar>
       <div class="min-w-0 flex-1">
         <h3 class="font-semibold text-sm">Instagram</h3>
         <p class="text-xs text-muted mt-1 truncate">{{ summary }}</p>

@@ -25,7 +25,9 @@ const briefContext = computed(() => ({
   description: form.description,
   audience: form.audience,
 }))
-const openAccordion = ref<string | undefined>()
+// The products, offers and details are what posts are built from, so they
+// start open.
+const openAccordion = ref<string | undefined>('facts')
 // Form values live in the draft, so inactive tabs do not need mounted fields.
 // Three tabs: who the business is (with its tone and goals), what it sells,
 // and the rules and planning settings the AI follows.
@@ -220,19 +222,20 @@ function factKindOf(fact: BrandFact): FactKind {
 }
 // Which kind the list shows. Adding an entry switches to its kind so the new
 // card is always in view.
-const factFilter = ref<FactKind | 'all'>('all')
-const factFilters = computed(() => [
-  { value: 'all' as const, label: t('brand.filterAll'), count: form.facts.length },
-  ...factKinds.map((option) => ({
+// One tab per kind, each with its own list and its own add button.
+const factFilter = ref<FactKind>(factKinds[0].kind)
+const factFilters = computed(() =>
+  factKinds.map((option) => ({
     value: option.kind,
+    icon: option.icon,
     label: t(`brand.filter.${option.kind}`),
     count: form.facts.filter((fact) => factKindOf(fact) === option.kind).length,
   })),
-])
+)
 const visibleFacts = computed(() =>
   form.facts
     .map((fact, index) => ({ fact, index }))
-    .filter(({ fact }) => factFilter.value === 'all' || factKindOf(fact) === factFilter.value),
+    .filter(({ fact }) => factKindOf(fact) === factFilter.value),
 )
 // The list shows each entry as a short card; the full form opens in a modal.
 const editingFactId = ref<string | null>(null)
@@ -248,7 +251,16 @@ function removeFact(index: number) {
   form.facts.splice(index, 1)
   editingFactId.value = null
 }
+// The business confirms each detail before it is saved; saving without the
+// check marks the checkbox instead.
+const factCheckMissing = ref(false)
+watch(() => editingFact.value?.verified, () => { factCheckMissing.value = false })
+watch(editingFactId, () => { factCheckMissing.value = false })
 async function saveFact() {
+  if (!editingFact.value?.verified) {
+    factCheckMissing.value = true
+    return
+  }
   await saveAll()
   editingFactId.value = null
 }
@@ -256,7 +268,7 @@ function factPrice(fact: BrandFact) {
   return fact.amountCents == null ? '' : formatMoney(fact.amountCents / 100, fact.currency || 'EUR')
 }
 function addFact(kind: FactKind) {
-  if (factFilter.value !== 'all' && factFilter.value !== kind) factFilter.value = kind
+  factFilter.value = kind
   form.facts.push({
     id: crypto.randomUUID(),
     text: '',
@@ -267,18 +279,6 @@ function addFact(kind: FactKind) {
     validUntil: null,
   })
   editingFactId.value = form.facts.at(-1)!.id
-}
-function setFactKind(fact: BrandFact, kind: FactKind) {
-  fact.kind = kind
-  // A product is sold for as long as it is listed, so it keeps no dates, and
-  // its price is published with an offer, not with the product.
-  if (kind === 'product') {
-    fact.validFrom = null
-    fact.validUntil = null
-    fact.amountCents = null
-    fact.currency = null
-  }
-  invalidateFact(fact)
 }
 onBeforeRouteLeave(() => {
   if (!dirty.value || syncing.value) return true
@@ -488,6 +488,7 @@ v-if="activeTab === 'facts'"
                     v-for="option in factFilters"
                     :key="option.value"
                     size="sm"
+                    :icon="option.icon"
                     role="tab"
                     :aria-selected="factFilter === option.value"
                     :color="factFilter === option.value ? 'primary' : 'neutral'"
@@ -546,21 +547,6 @@ v-if="activeTab === 'facts'"
                   <template #body>
                     <div v-for="fact in editingFact ? [editingFact] : []" :key="fact.id" class="space-y-3">
                       <template v-for="i in [editingIndex]" :key="i">
-<!-- What this entry is, said in words and changeable in one tap. -->
-                  <div class="flex flex-wrap gap-2" role="radiogroup" :aria-label="t('brand.type')">
-                    <UButton
-                      v-for="option in factKinds"
-                      :key="option.kind"
-                      size="sm"
-                      :icon="option.icon"
-                      :color="factKindOf(fact) === option.kind ? 'primary' : 'neutral'"
-                      :variant="factKindOf(fact) === option.kind ? 'soft' : 'ghost'"
-                      role="radio"
-                      :aria-checked="factKindOf(fact) === option.kind"
-                      @click="setFactKind(fact, option.kind)"
-                      >{{ t(`brand.kind.${option.kind}`) }}</UButton
-                    >
-                  </div>
                   <UFormField
                     :label="t(`brand.kindText.${factKindOf(fact)}`)"
                     :description="t(`brand.kindHint.${factKindOf(fact)}`)"
@@ -632,17 +618,18 @@ v-if="activeTab === 'facts'"
                       @update:model-value="(value) => setPrice(fact, value)"
                     />
                   </UFormField>
-                  <p v-if="fact.revision" class="text-xs text-muted">
-                    {{ t('content.version', { version: fact.revision }) }} ·
-                    {{ fact.verified ? t('brand.confirmedByBusiness') : t('brand.awaitingConfirmation') }}
-                  </p>
                   <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
                     <UCheckbox
                       :id="i === 0 ? 'fact-confirmation-input' : undefined"
                       v-model="fact.verified"
+                      :color="factCheckMissing ? 'error' : 'primary'"
                       :label="`${t('brand.checkedInformation')} *`"
+                      :ui="factCheckMissing ? { base: 'ring-2 ring-error/70', label: 'text-error' } : undefined"
+                      :aria-invalid="factCheckMissing || undefined"
                       :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': i === 0 && hasAttention('fact-confirmation') }"
-                    /><UButton
+                    />
+                    </div><UButton
                       color="neutral"
                       variant="ghost"
                       icon="i-lucide-trash-2"
@@ -661,12 +648,10 @@ v-if="activeTab === 'facts'"
                 </UModal>
 <div class="flex flex-wrap justify-end gap-2">
                   <UButton
-                    v-for="option in factKinds"
-                    :key="option.kind"
                     variant="outline"
-                    :icon="option.icon"
-                    @click="addFact(option.kind)"
-                    >{{ t(`brand.add.${option.kind}`) }}</UButton
+                    :icon="factKinds.find((option) => option.kind === factFilter)!.icon"
+                    @click="addFact(factFilter)"
+                    >{{ t(`brand.add.${factFilter}`) }}</UButton
                   >
                 </div>
               </div></template
@@ -746,8 +731,7 @@ v-if="activeTab === 'facts'"
               </div>
             </template>
           </UAccordion>
-          </div>
-          <UAccordion v-if="activeTab === 'rules'" class="border-b border-default" :items="[{ label: t('brand.guardrails'), slot: 'guardrails', value: 'guardrails' }]">
+          <UAccordion class="border-b border-default" :items="[{ label: t('brand.guardrails'), slot: 'guardrails', value: 'guardrails' }]">
             <template #guardrails>
               <div class="space-y-3 pb-4">
                 <p class="text-sm text-muted">
@@ -779,6 +763,7 @@ v-if="activeTab === 'facts'"
               </div>
             </template>
           </UAccordion>
+          </div>
           <div class="-mx-5 flex items-center justify-between gap-3 border-t border-default px-5 pt-4 sm:-mx-7 sm:px-7">
             <span role="status" class="min-w-0 flex-1 truncate text-xs text-muted">{{
               dirty

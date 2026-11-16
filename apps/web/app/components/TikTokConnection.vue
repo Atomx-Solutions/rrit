@@ -24,8 +24,8 @@ async function disconnect() {
 <template>
   <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
     <div class="flex items-center gap-3">
-      <UAvatar :ui="{ root: 'bg-inverted/10 text-highlighted rounded-xl' }">
-        <template #default><TikTokMark class="size-5 text-highlighted" /></template>
+      <UAvatar :ui="{ root: 'bg-transparent text-highlighted rounded-xl' }">
+        <template #default><TikTokLogo class="size-6 text-highlighted" /></template>
       </UAvatar>
       <div class="min-w-0 flex-1">
         <h3 class="font-semibold text-sm">TikTok</h3>

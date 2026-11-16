@@ -114,10 +114,9 @@ onMounted(async () => {
         :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }"
       >
         <div class="flex items-center gap-3">
-          <UAvatar
-            :icon="channel === 'Facebook' ? 'i-lucide-facebook' : 'i-lucide-instagram'"
-            :ui="{ root: 'bg-blue-500/10 text-blue-500 rounded-xl', icon: 'size-5' }"
-          />
+          <UAvatar :ui="{ root: 'bg-transparent rounded-xl' }">
+            <template #default><FacebookLogo class="size-6" /></template>
+          </UAvatar>
           <div class="min-w-0 flex-1">
             <h3 class="font-semibold text-sm">{{ channel }}</h3>
             <p class="text-xs text-muted mt-1 truncate">
