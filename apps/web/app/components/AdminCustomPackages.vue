@@ -522,7 +522,7 @@ const listUi = {
             <UFormField
               name="credits_included"
               :label="editing ? t('billing.creditTopUpQuantity') : t('admin.packages.credits')"
-              :hint="editing ? t('billing.creditTopUpDescription') : undefined"
+              :help="editing ? t('billing.creditTopUpDescription') : undefined"
             >
               <LiveInputNumber v-model="creditsInput" :min="0" :max="1000000" :step="100" :step-snapping="false" class="w-full" />
             </UFormField>

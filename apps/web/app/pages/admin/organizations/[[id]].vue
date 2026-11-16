@@ -2,7 +2,14 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { AdminOrganizationRow as Organization } from '~/components/AdminOrganizationDetails.vue'
 
-definePageMeta({ layout: 'admin', middleware: 'superadmin' })
+definePageMeta({
+  layout: 'admin',
+  middleware: 'superadmin',
+  // The id only opens or closes the details over the list, so the page stays
+  // the same instance; keyed by the URL, a new instance would mount on close
+  // while the old one's dialog stayed open until a reload.
+  key: route => route.matched[0]?.path ?? route.path,
+})
 const { t } = useI18n()
 const { showError } = useFormFeedback()
 useSeoMeta({ title: () => `${t('admin.nav.organizations')} · Framic Admin`, robots: 'noindex, nofollow' })
@@ -157,14 +164,14 @@ const columns = computed<TableColumn<Organization>[]>(() => [
         <UForm
           :state="filters"
           role="search"
-          class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_11rem_10rem]"
+          class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]"
         >
           <UInput
             v-model="filters.search"
             icon="i-lucide-search"
             :placeholder="t('admin.organizations.search')"
             :aria-label="t('admin.organizations.search')"
-            class="w-full sm:col-span-2 lg:col-span-1"
+            class="w-full"
           />
           <USelect v-model="filters.status" :items="statusOptions" :aria-label="t('admin.organizations.status')" class="w-full" />
 
