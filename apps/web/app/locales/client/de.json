@@ -2465,5 +2465,20 @@
   "server.BRIEF_TEXT_REQUIRED": "Schreib ein paar Worte, bevor du mit KI verbesserst.",
   "server.BRIEF_IMPROVEMENTS_USED": "Gratis-Verbesserungen aufgebraucht. Später unter Mein Unternehmen möglich.",
   "brand.improveUsesCredits": "Verbraucht Credits",
-  "onboarding.improveFailedShort": "Nicht verbessert. Erneut versuchen."
+  "onboarding.improveFailedShort": "Nicht verbessert. Erneut versuchen.",
+  "invitationEmail.subject": "Dein Framic-Konto für {{organization}} ist bereit",
+  "invitationEmail.preheader": "Nimm die Einladung an und lege ein Passwort fest, um dein Konto zu eröffnen.",
+  "invitationEmail.eyebrow": "Einladung",
+  "invitationEmail.title": "Willkommen bei Framic",
+  "invitationEmail.lead": "Dein Konto für {{organization}} ist bereit. Nimm die Einladung an, lege ein Passwort fest und du bist dabei.",
+  "invitationEmail.accountLabel": "Einladung für",
+  "invitationEmail.validity": "Der Link ist {{duration}} gültig und funktioniert nur einmal.",
+  "invitationEmail.stepsTitle": "So geht es weiter",
+  "invitationEmail.step1": "Klicke auf «Einladung annehmen».",
+  "invitationEmail.step2": "Gib deinen Namen ein und lege ein Passwort fest.",
+  "invitationEmail.step3": "Du bist sofort in deinem Arbeitsbereich, ohne auf eine Bestätigungs-E-Mail zu warten.",
+  "invitationEmail.expiredNote": "Ist der Link abgelaufen? Bitte das Framic-Team um eine neue Einladung.",
+  "invitationEmail.fallback": "Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:",
+  "invitationEmail.ignore": "Falls du diese E-Mail nicht erwartet hast, kannst du sie ignorieren.",
+  "invitationEmail.button": "Einladung annehmen"
 }

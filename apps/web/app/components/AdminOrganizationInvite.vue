@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { z } from 'zod'
+import { APP_LANGUAGES, type AppLanguage } from '~~/shared/utils/app-languages'
 
 export type AdminInvitation = {
   id: string
@@ -14,11 +15,23 @@ export type AdminInvitation = {
   accepted_at: string | null
   created_at: string
 }
-type InvitationForm = { name: string; slug: string; email: string; expires_minutes: number }
+type InvitationForm = {
+  name: string
+  slug: string
+  email: string
+  expires_minutes: number
+  send_email: boolean
+  language: AppLanguage
+}
+type InvitationDelivery = 'sent' | 'not_requested' | 'not_configured' | 'failed'
 
 const emit = defineEmits<{ created: [] }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { onFormError, showError, showSuccess } = useFormFeedback()
+// The email starts in the console's own language; the superadmin picks the
+// client's language when it differs.
+const consoleLanguage = computed(() => APP_LANGUAGES.find(language => locale.value.startsWith(language)) ?? APP_LANGUAGES[0])
+const languageOptions = computed(() => APP_LANGUAGES.map(value => ({ value, label: t(`admin.invitations.language.${value}`) })))
 
 const open = ref(false)
 const deleteOpen = ref(false)
@@ -36,13 +49,22 @@ onBeforeUnmount(() => {
 // The link exists in one place only, for as long as this panel stays open.
 // Nothing can recover it afterwards, so the panel does not close by itself.
 const issuedUrl = ref('')
+const delivery = ref<InvitationDelivery>('not_requested')
+const deliveredTo = ref('')
 const resendTarget = ref<AdminInvitation | null>(null)
 const reactivatingId = ref<string | null>(null)
 watch(open, (isOpen) => {
   if (!isOpen && !saving.value) reactivatingId.value = null
 })
 
-const empty = () => ({ name: '', slug: '', email: '', expires_minutes: 5 })
+const empty = (): InvitationForm => ({
+  name: '',
+  slug: '',
+  email: '',
+  expires_minutes: 5,
+  send_email: true,
+  language: consoleLanguage.value,
+})
 const form = reactive<InvitationForm>(empty())
 const expiryHours = ref(0)
 const expiryMinutes = ref(5)
@@ -135,16 +157,19 @@ async function create() {
   if (saving.value) return
   saving.value = true
   try {
+    const delivered = { send_email: form.send_email, language: form.language }
     const result = resendTarget.value
-      ? await $fetch<{ url: string }>(`/api/admin/invitations/${resendTarget.value.id}/resend`, {
+      ? await $fetch<{ url: string; delivery: InvitationDelivery }>(`/api/admin/invitations/${resendTarget.value.id}/resend`, {
           method: 'POST',
-          body: { expires_minutes: form.expires_minutes },
+          body: { expires_minutes: form.expires_minutes, ...delivered },
         })
-      : await $fetch<{ url: string }>('/api/admin/invitations', {
+      : await $fetch<{ url: string; delivery: InvitationDelivery }>('/api/admin/invitations', {
           method: 'POST',
           body: { ...form, role: 'owner' },
         })
     issuedUrl.value = result.url
+    delivery.value = result.delivery
+    deliveredTo.value = form.email
     await refresh()
     emit('created')
   } catch (error) {
@@ -194,10 +219,10 @@ async function resend(invitation: AdminInvitation) {
   reactivatingId.value = invitation.id
   resendTarget.value = invitation
   Object.assign(form, {
+    ...empty(),
     name: invitation.organization_name,
     slug: invitation.organization_slug,
     email: invitation.email,
-    expires_minutes: 5,
   })
   expiryHours.value = 0
   expiryMinutes.value = 5
@@ -260,6 +285,13 @@ function expiry(invitation: AdminInvitation) {
     >
       <template #body>
         <div v-if="issuedUrl" class="space-y-4">
+          <UAlert
+            v-if="delivery !== 'not_requested'"
+            :color="delivery === 'sent' ? 'success' : 'warning'"
+            variant="subtle"
+            :icon="delivery === 'sent' ? 'i-lucide-mail-check' : 'i-lucide-mail-warning'"
+            :description="t(`admin.invitations.delivery.${delivery}`, { email: deliveredTo })"
+          />
           <UFormField :label="t('admin.invitations.link')">
             <UInput :model-value="issuedUrl" readonly class="w-full font-mono text-xs" />
           </UFormField>
@@ -278,6 +310,16 @@ function expiry(invitation: AdminInvitation) {
           <UFormField name="email" :label="t('admin.invitations.email')" required>
             <UInput v-model="form.email" type="email" class="w-full" maxlength="320" />
           </UFormField>
+          <div class="space-y-3 rounded-lg border border-default p-3">
+            <USwitch
+              v-model="form.send_email"
+              :label="t('admin.invitations.sendEmail')"
+              :description="t('admin.invitations.sendEmailHint')"
+            />
+            <UFormField v-if="form.send_email" name="language" :label="t('admin.invitations.emailLanguage')">
+              <USelect v-model="form.language" :items="languageOptions" icon="i-lucide-languages" class="w-full" />
+            </UFormField>
+          </div>
           <UFormField name="expires_minutes" :label="t('admin.invitations.expiresMinutes')" required>
             <UFieldGroup class="w-full">
               <UInput icon="i-lucide-calendar-clock" :model-value="`${expiryHours}h ${expiryMinutes}m`" readonly class="min-w-0 flex-1" />

@@ -1,5 +1,6 @@
 import { editorialPlanSchema, monthSchema, researchSchema } from '../../../shared/schemas/monthly-plan'
 import { monthlyReportPdf } from '../../utils/monthly-report-pdf'
+import { loadPdfAssets } from '../../utils/pdf-assets'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
@@ -7,6 +8,7 @@ export default defineEventHandler(async (event) => {
   const month = monthSchema.safeParse(typeof query.month === 'string' ? query.month : '')
   const type = query.type === 'strategy' ? 'strategy' : 'research'
   if (!month.success) throw createError({ statusCode: 422, message: 'server.MONTH_INVALID' })
+  await loadPdfAssets()
 
   const pdf = await withBusinessTransaction(user.id, async (client, business) => {
     const { workspace } = await loadWorkspace(client, business.id, user.id)

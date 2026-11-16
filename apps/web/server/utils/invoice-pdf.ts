@@ -1,6 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import type { Invoice } from './invoices'
+import { pdfAsset } from './pdf-assets'
 
 // A dependency-free single-page PDF using the standard Helvetica fonts with
 // WinAnsi encoding, which covers Albanian (ë, ç) and the euro sign.
@@ -9,14 +8,7 @@ function r(n: number) { return String(Math.round(n * 100) / 100) }
 
 // Framic F logo helpers.
 function logoPdfAsset() {
-  const candidates = [
-    resolve(process.cwd(), 'public/f-logo-pdf.jpg'),
-    resolve(process.cwd(), '.output/public/f-logo-pdf.jpg'),
-    resolve(process.cwd(), 'apps/web/public/f-logo-pdf.jpg'),
-  ]
-  const path = candidates.find(candidate => existsSync(candidate))
-  if (!path) throw new Error('Framic invoice logo asset is missing')
-  return readFileSync(path)
+  return pdfAsset('f-logo-pdf.jpg')
 }
 
 function logoImagePdfOps(pageWidth = 595, topMargin = 45, logoWidth = 110, left?: number): string {

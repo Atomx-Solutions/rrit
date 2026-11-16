@@ -1,9 +1,13 @@
 import type { H3Event } from 'h3'
 import { authConfiguration } from './auth-configuration'
 import { supabaseServer } from './supabase'
+import { accessTokenMethods } from './superadmin'
 
-export async function requireUser(event: H3Event) {
-  const { data, error } = await supabaseServer(event).auth.getUser()
+// getUser asks the Auth server to accept the session's access token, so what
+// the token and the user record say can be trusted afterwards.
+async function verifiedSession(event: H3Event) {
+  const auth = supabaseServer(event).auth
+  const { data, error } = await auth.getUser()
   if (error || !data.user || (authConfiguration().requireEmailVerification && !data.user.email_confirmed_at))
     throw createError({
       statusCode: 401,
@@ -13,12 +17,24 @@ export async function requireUser(event: H3Event) {
 
   const metadata = data.user.user_metadata || {}
   const metadataName = typeof metadata.name === 'string' ? metadata.name.trim() : ''
-  return {
+  const user = {
     id: data.user.id,
     name: metadataName || data.user.email?.split('@')[0] || data.user.id,
     email: data.user.email || '',
     emailVerified: Boolean(data.user.email_confirmed_at),
   }
+  return { auth, user, providers: (data.user.identities ?? []).map(identity => identity.provider) }
+}
+
+export async function requireUser(event: H3Event) {
+  return (await verifiedSession(event)).user
+}
+
+/** The signed-in user plus how this session was opened (see signedInWithMicrosoft). */
+export async function requireUserSignIn(event: H3Event) {
+  const { auth, user, providers } = await verifiedSession(event)
+  const { data } = await auth.getSession()
+  return { user, signIn: { providers, methods: accessTokenMethods(data.session?.access_token) } }
 }
 
 // A file upload cannot be JSON; a route that takes one accepts a multipart

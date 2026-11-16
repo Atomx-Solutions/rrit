@@ -1,5 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { pdfAsset } from './pdf-assets'
 
 // The full Framic wordmark for PDFs, drawn from the logo image itself. The
 // vector "F" it replaces showed only the first letter of the brand.
@@ -26,13 +25,7 @@ function jpegSize(bytes: Buffer) {
 
 export function pdfWordmark(): Wordmark {
   if (cached) return cached
-  const path = [
-    resolve(process.cwd(), 'public', fileName),
-    resolve(process.cwd(), '.output/public', fileName),
-    resolve(process.cwd(), 'apps/web/public', fileName),
-  ].find((candidate) => existsSync(candidate))
-  if (!path) throw new Error('Framic PDF wordmark asset is missing')
-  const bytes = readFileSync(path)
+  const bytes = pdfAsset(fileName)
   cached = { bytes, ...jpegSize(bytes) }
   return cached
 }

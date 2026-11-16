@@ -9,7 +9,10 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from '../../shared/utils/password-policy'
+import { APP_LANGUAGES, type AppLanguage } from '../../shared/utils/app-languages'
 import { adminServiceClient } from './admin-supabase'
+import { brevoConfiguration, sendBrevoEmail } from './brevo'
+import { clientInviteEmail } from './client-invite-email'
 import { setTenantContext, withUserTransaction } from './database'
 import { deviceIdentity, grantTrial } from './trials'
 
@@ -57,8 +60,16 @@ export const invitationProfileSchema = z
   })
   .strict()
 
+// How the link reaches the client: by email in the chosen language, or only
+// as a link the superadmin copies. Neither is stored with the invitation.
+const deliveryFields = {
+  send_email: z.boolean().default(false),
+  language: z.enum(APP_LANGUAGES).default(APP_LANGUAGES[0]),
+}
+
 export const invitationCreateSchema = z
   .object({
+    ...deliveryFields,
     name: organizationNameSchema,
     slug: organizationSlugSchema,
     email: z.email().max(320),
@@ -70,7 +81,7 @@ export const invitationCreateSchema = z
   .strict()
 
 export const invitationResendSchema = z
-  .object({ expires_minutes: z.number().int().min(1).max(1440).default(60) })
+  .object({ ...deliveryFields, expires_minutes: z.number().int().min(1).max(1440).default(60) })
   .strict()
 
 export const invitationTokenBodySchema = z.object({ token: tokenSchema }).strict()
@@ -145,18 +156,67 @@ async function rpc(name: string, args: Record<string, unknown>) {
   return data as Record<string, unknown>
 }
 
+/** What happened to the invitation email. */
+export type InvitationDelivery = 'sent' | 'not_requested' | 'not_configured' | 'failed'
+
+/**
+ * Emails the client the invitation link. The invitation is already saved when
+ * this runs, so a failed send is reported, never thrown: the link is still on
+ * screen to copy, and a resend issues a new one.
+ */
+export async function emailInvitation(input: {
+  send: boolean
+  language: AppLanguage
+  email: string
+  organizationName: string
+  url: string
+  expiresAt: string
+}): Promise<InvitationDelivery> {
+  if (!input.send) return 'not_requested'
+  if (!brevoConfiguration()) return 'not_configured'
+  try {
+    const appOrigin = new URL(input.url).origin
+    const message = clientInviteEmail({
+      language: input.language,
+      appOrigin,
+      organizationName: input.organizationName,
+      inviteeEmail: input.email,
+      url: input.url,
+      validMinutes: (Date.parse(input.expiresAt) - Date.now()) / 60_000,
+    })
+    await sendBrevoEmail({ to: input.email, subject: message.subject, html: message.html, text: message.text })
+    return 'sent'
+  } catch (error) {
+    console.error('Client invitation email failed.', { reason: error instanceof Error ? error.message : 'unknown' })
+    return 'failed'
+  }
+}
+
+type InvitationRow = { email: string; expires_at: string; organization_id: string }
+
 export async function createOrganizationInvitation(
   actor: { id: string; email: string },
   values: z.infer<typeof invitationCreateSchema>,
 ) {
+  const { send_email, language, ...invitation } = values
   const token = createInvitationToken()
   const result = await rpc('admin_create_organization_invitation', {
     p_actor_id: actor.id,
     p_actor_email: actor.email,
-    p_invitation: { ...values, token_hash: invitationTokenHash(token) },
+    p_invitation: { ...invitation, token_hash: invitationTokenHash(token) },
   })
   // The one moment the token exists outside the link the superadmin sends.
-  return { ...result, url: invitationUrl(token) }
+  const url = invitationUrl(token)
+  const saved = result.invitation as InvitationRow
+  const delivery = await emailInvitation({
+    send: send_email,
+    language,
+    email: saved.email,
+    organizationName: (result.organization as { name: string }).name,
+    url,
+    expiresAt: saved.expires_at,
+  })
+  return { ...result, url, delivery }
 }
 
 export function listOrganizationInvitations(organizationId?: string) {
@@ -195,7 +255,22 @@ export async function resendOrganizationInvitation(
     p_token_hash: invitationTokenHash(token),
     p_expires_minutes: values.expires_minutes,
   })
-  return { ...result, url: invitationUrl(token) }
+  const url = invitationUrl(token)
+  const saved = result as unknown as InvitationRow
+  // The resent row carries no organization name; the admin listing has it.
+  const organizationName = values.send_email
+    ? ((await listOrganizationInvitations(saved.organization_id)) as unknown as { id: string; organization_name: string }[])
+        .find(entry => entry.id === invitationId)?.organization_name ?? ''
+    : ''
+  const delivery = await emailInvitation({
+    send: values.send_email,
+    language: values.language,
+    email: saved.email,
+    organizationName,
+    url,
+    expiresAt: saved.expires_at,
+  })
+  return { ...result, url, delivery }
 }
 
 export type InvitationPreview =

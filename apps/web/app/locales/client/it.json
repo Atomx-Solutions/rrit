@@ -2465,5 +2465,20 @@
   "server.BRIEF_TEXT_REQUIRED": "Scrivi qualche parola prima di migliorare con l'IA.",
   "server.BRIEF_IMPROVEMENTS_USED": "Miglioramenti gratuiti esauriti. Puoi farlo più tardi in La mia attività.",
   "brand.improveUsesCredits": "Usa crediti",
-  "onboarding.improveFailedShort": "Non riuscito. Riprova."
+  "onboarding.improveFailedShort": "Non riuscito. Riprova.",
+  "invitationEmail.subject": "Il tuo account Framic per {{organization}} è pronto",
+  "invitationEmail.preheader": "Accetta l’invito e imposta una password per aprire il tuo account.",
+  "invitationEmail.eyebrow": "Invito",
+  "invitationEmail.title": "Benvenuto su Framic",
+  "invitationEmail.lead": "Il tuo account per {{organization}} è pronto. Accetta l’invito, imposta una password ed entri subito.",
+  "invitationEmail.accountLabel": "Invito per",
+  "invitationEmail.validity": "Il link è valido per {{duration}} e funziona una sola volta.",
+  "invitationEmail.stepsTitle": "Cosa succede ora",
+  "invitationEmail.step1": "Fai clic su «Accetta l’invito».",
+  "invitationEmail.step2": "Inserisci il tuo nome e imposta una password.",
+  "invitationEmail.step3": "Entri subito nel tuo spazio di lavoro, senza attendere alcuna e-mail di verifica.",
+  "invitationEmail.expiredNote": "Il link è scaduto? Chiedi un nuovo invito al team di Framic.",
+  "invitationEmail.fallback": "Se il pulsante non funziona, copia questo link nel browser:",
+  "invitationEmail.ignore": "Se non ti aspettavi questa e-mail, puoi ignorarla.",
+  "invitationEmail.button": "Accetta l’invito"
 }
