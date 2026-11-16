@@ -90,7 +90,11 @@ async function checkPublishedPosts() {
     const result = await $fetch('/api/posts/publication-check', { method: 'POST', body: {}, retry: 0 })
     if (result.removed.length) {
       await reload()
-      toast.add({ title: t('content.removedFromNetworkCount', { count: result.removed.length }), color: 'warning' })
+      const count = result.removed.length
+      toast.add({
+        title: t(count === 1 ? 'content.removedFromNetworkOne' : 'content.removedFromNetworkCount', { count }),
+        color: 'warning',
+      })
     }
   } catch {
     /* Posts stay as they are when the networks cannot be asked. */
