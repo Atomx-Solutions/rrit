@@ -168,6 +168,8 @@
   "content.reviewApproveAgain": "Kontrollo dhe mirato sërish",
   "content.returnForCorrection": "Kthe në draft për korrigjim",
   "content.removeFromCalendar": "Hiq nga kalendari",
+  "content.removeFromCalendarConfirmTitle": "Ta heqësh këtë postim nga kalendari?",
+  "content.removeFromCalendarConfirmDescription": "Nuk do të publikohet më automatikisht. Mund ta planifikosh përsëri kur të duash.",
   "content.howItLooks": "Si do të duket",
   "content.confirmPublishNow": "Konfirmoj publikimin tani",
   "content.confirmSchedule": "Konfirmo orarin",

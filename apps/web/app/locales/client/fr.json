@@ -168,6 +168,8 @@
   "content.reviewApproveAgain": "Relire et valider à nouveau",
   "content.returnForCorrection": "Repasser en brouillon pour corriger",
   "content.removeFromCalendar": "Retirer du calendrier",
+  "content.removeFromCalendarConfirmTitle": "Retirer cette publication du calendrier ?",
+  "content.removeFromCalendarConfirmDescription": "Elle ne sera plus publiée automatiquement. Vous pouvez la planifier à nouveau à tout moment.",
   "content.howItLooks": "Aperçu du rendu",
   "content.confirmPublishNow": "Confirmer la publication maintenant",
   "content.confirmSchedule": "Confirmer la planification",
