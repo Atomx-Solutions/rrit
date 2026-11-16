@@ -32,18 +32,35 @@ const resetOpen = ref(false)
 // first batch's allow-list, otherwise a customer cannot use newer or simply
 // different owned photographs for the next post.
 const configuringMore = ref(false)
-const photoMode = ref<'auto' | 'selected'>(planner.value?.photoPreference?.mode || 'auto')
 const originalPhotos = computed(() =>
   workspace.value.assets
     .filter((asset) => asset.kind === 'photo' && asset.rights && !asset.generated)
 )
-const {
-  page: photoPage,
-  pageSize: photoPageSize,
-  total: photoTotal,
-  paginated: paginatedOriginalPhotos,
-} = usePagination(originalPhotos, 16)
-const photoPageCount = computed(() => Math.max(1, Math.ceil(photoTotal.value / photoPageSize.value)))
+// What a tap on a photograph assigns it to. Only asked when the request has
+// videos; otherwise every photograph chosen is for a post.
+const pickFor = ref<'post' | 'video'>('post')
+// A chosen photograph opened large, from the video header.
+// The open video's photographs are browsed together, so the arrows step
+// through them in the order the video uses them.
+const preview = ref<{ ids: string[]; index: number } | null>(null)
+const previewPhoto = computed(() => {
+  const id = preview.value?.ids[preview.value.index]
+  const asset = id ? photoById(id) : undefined
+  return asset ? { url: asset.url, name: asset.name } : null
+})
+function movePreview(step: number) {
+  if (!preview.value) return
+  const count = preview.value.ids.length
+  preview.value = { ...preview.value, index: (preview.value.index + step + count) % count }
+}
+// Photographs no video has taken yet. When the open video has none and this is
+// empty, every photograph is already in another video and the form says how
+// to get out of it instead of leaving the button pointing at nothing.
+const freeVideoPhotos = computed(() =>
+  originalPhotos.value.filter((asset) => !videoGroups.value.some((group) => group.includes(asset.id))))
+function photoById(id: string) {
+  return originalPhotos.value.find((asset) => asset.id === id)
+}
 const selectedPhotoIds = ref<string[]>([
   ...(planner.value?.photoPreference?.selectedAssetIds || []),
 ].filter((id) => originalPhotos.value.some((asset) => asset.id === id)))
@@ -58,6 +75,10 @@ const videoGroups = ref<string[][]>(
   ]),
 )
 const activeVideo = ref(0)
+// Choosing nothing leaves the photographs to the AI; choosing any means the
+// business picks them, so there is no separate question to answer first.
+const photoMode = computed<'auto' | 'selected'>(() =>
+  selectedPhotoIds.value.length || videoGroups.value.some((group) => group.length) ? 'selected' : 'auto')
 // The plan loads after the first paint; take its saved photo choices once it
 // arrives, unless the customer already started choosing.
 let photoPreferenceApplied = false
@@ -67,7 +88,6 @@ watch(
     if (!preference || photoPreferenceApplied) return
     photoPreferenceApplied = true
     if (selectedPhotoIds.value.length || videoGroups.value.length) return
-    photoMode.value = preference.mode || 'auto'
     const allowed = new Set(originalPhotos.value.map((asset) => asset.id))
     selectedPhotoIds.value = (preference.selectedAssetIds || []).filter((id) => allowed.has(id))
     videoGroups.value = (preference.selectedVideoAssetIds || [])
@@ -92,9 +112,6 @@ watch(
 function videoCardOf(id: string) {
   return videoGroups.value.findIndex((group) => group.includes(id))
 }
-function photoChosen(id: string, kind: 'post' | 'video') {
-  return kind === 'video' ? videoCardOf(id) >= 0 : selectedPhotoIds.value.includes(id)
-}
 function photoRoleFull(kind: 'post' | 'video') {
   return kind === 'video'
     ? activeVideo.value >= selectedVideoQuantity.value
@@ -103,29 +120,41 @@ function photoRoleFull(kind: 'post' | 'video') {
 }
 function configureMore() {
   configuringMore.value = true
-  photoMode.value = 'selected'
   selectedPhotoIds.value = []
   videoGroups.value = []
   activeVideo.value = 0
-}
-// The photograph moves to the front of its card and becomes the main one.
-function makeMainVideoPhoto(card: number, id: string) {
-  videoGroups.value = videoGroups.value.map((group, index) =>
-    index === card ? [id, ...group.filter((item) => item !== id)] : group)
-}
-function removeVideoCard(card: number) {
-  videoGroups.value = videoGroups.value.filter((_, index) => index !== card)
-  selectedVideoQuantity.value = Math.max(0, selectedVideoQuantity.value - 1)
-  activeVideo.value = Math.max(0, Math.min(activeVideo.value > card ? activeVideo.value - 1 : activeVideo.value, selectedVideoQuantity.value - 1))
 }
 // The two choices are independent, so each has its own control on the tile. A
 // photograph carrying both produces a feed post and a TikTok video from the
 // same source. Choosing more than the month will produce is a selection the
 // planner has to reject later, so a full role refuses the click while the
 // person can still act on it.
+// How a photograph looks in the strip for the tab in use. On the video tab it
+// belongs to the video being filled, to another video (locked, marked with
+// that video), or to none. Its badge is the order within the video, the first
+// being the main one.
+function tileChosen(id: string) {
+  return pickFor.value === 'video'
+    ? videoCardOf(id) === activeVideo.value
+    : selectedPhotoIds.value.includes(id)
+}
+function tileLocked(id: string) {
+  if (tileChosen(id)) return false
+  if (pickFor.value === 'video' && videoCardOf(id) >= 0) return true
+  return photoRoleFull(pickFor.value)
+}
+function tileBadge(id: string) {
+  if (pickFor.value === 'post') return selectedPhotoIds.value.includes(id) ? '✓' : ''
+  const card = videoCardOf(id)
+  if (card < 0) return ''
+  return card === activeVideo.value
+    ? String((videoGroups.value[card]?.indexOf(id) ?? 0) + 1)
+    : `V${card + 1}`
+}
 function togglePhoto(id: string, kind: 'post' | 'video') {
   if (kind === 'video') {
     const card = videoCardOf(id)
+    if (card >= 0 && card !== activeVideo.value) return
     if (card >= 0) {
       videoGroups.value = videoGroups.value.map((group, index) => index === card ? group.filter((item) => item !== id) : group)
       return
@@ -133,6 +162,8 @@ function togglePhoto(id: string, kind: 'post' | 'video') {
     if (photoRoleFull('video')) return
     const groups = [...videoGroups.value]
     while (groups.length <= activeVideo.value) groups.push([])
+    // The video stays open after a tap, so it can take more than one
+    // photograph; the main button and the arrow move on to the next video.
     groups[activeVideo.value] = [...groups[activeVideo.value]!, id]
     videoGroups.value = groups
     return
@@ -243,13 +274,25 @@ const maxVideosThisBatch = computed(() => remainingVideos.value)
 watch(maxVideosThisBatch, (max) => {
   if (selectedVideoQuantity.value > max) selectedVideoQuantity.value = max
 })
+// A first visit starts at one post, so the form never opens on an empty 0
+// with nothing to press; the package may still allow more.
+let quantityDefaulted = false
 watch(remainingPosts, (remaining) => {
+  if (!quantityDefaulted && remaining > 0 && selectedQuantity.value === 0 && selectedVideoQuantity.value === 0) {
+    quantityDefaulted = true
+    selectedQuantity.value = 1
+  }
   // Zero images is a valid request when at least one video is also asked for,
   // so the clamp floors at 0 and ceilings at whatever the package still has.
   selectedQuantity.value = Math.max(0, Math.min(selectedQuantity.value, remaining))
 }, { immediate: true })
 // Lowering a count leaves photos chosen that no longer have a deliverable to go
 // with, so the extras are released rather than left to fail at submission.
+// The tab follows the kinds the request still makes.
+watch([selectedQuantity, selectedVideoQuantity], ([posts, videos]) => {
+  if (!videos) pickFor.value = 'post'
+  else if (!posts) pickFor.value = 'video'
+}, { immediate: true })
 watch(selectedVideoQuantity, (quantity) => {
   if (videoGroups.value.length > quantity) videoGroups.value = videoGroups.value.slice(0, quantity)
   if (activeVideo.value >= quantity) activeVideo.value = Math.max(0, quantity - 1)
@@ -282,10 +325,75 @@ const extendable = computed(
 const generateMoreLabel = computed(() => {
   const posts = selectedQuantity.value
   const videos = selectedVideoQuantity.value
+  const postText = t(posts === 1 ? 'monthly.countPostsOne' : 'monthly.countPosts', { count: posts })
+  const videoText = t(videos === 1 ? 'monthly.countVideosOne' : 'monthly.countVideos', { count: videos })
   if (posts > 0 && videos > 0)
-    return t('monthly.generateMoreMixed', { posts, videos })
-  if (videos > 0 && posts === 0) return t('monthly.generateMoreVideos', { count: videos })
-  return t('monthly.generateMore', { count: posts })
+    return t('monthly.createItems', { items: t('monthly.itemsAnd', { first: postText, second: videoText }) })
+  if (videos > 0 && posts === 0) return t('monthly.createItems', { items: videoText })
+  return t('monthly.createItems', { items: postText })
+})
+// The one thing still missing, in the order a person fills the form: a count,
+// then the post photographs, then each video's photograph. The main button
+// names it and takes the person there, so the form never asks them to work
+// out the next step.
+const nextStep = computed<
+  | { kind: 'count' }
+  | { kind: 'post'; missing: number }
+  | { kind: 'video'; index: number }
+  | { kind: 'upload' }
+  | { kind: 'ready' }
+>(() => {
+  if (selectedQuantity.value + selectedVideoQuantity.value < 1) return { kind: 'count' }
+  if (postPhotosMissing.value > 0) return { kind: 'post', missing: postPhotosMissing.value }
+  if (videoPhotosMissing.value > 0) {
+    const index = Array.from({ length: selectedVideoQuantity.value }, (_, item) => item)
+      .find((item) => !videoGroups.value[item]?.length) ?? 0
+    // Every photograph is already in another video: the way on is more photos.
+    if (!freeVideoPhotos.value.length) return { kind: 'upload' }
+    return { kind: 'video', index }
+  }
+  return { kind: 'ready' }
+})
+const nextStepLabel = computed(() => {
+  const step = nextStep.value
+  if (step.kind === 'count') return t('monthly.nextChooseCount')
+  if (step.kind === 'post')
+    return t(step.missing === 1 ? 'monthly.nextPostPhotoOne' : 'monthly.nextPostPhotos', { count: step.missing })
+  if (step.kind === 'video') return t('monthly.nextVideoPhoto', { number: step.index + 1 })
+  if (step.kind === 'upload') return t('monthly.addPhotos')
+  return generateMoreLabel.value
+})
+const photoTile = ref<HTMLElement | null>(null)
+function runNextStep() {
+  const step = nextStep.value
+  if (step.kind === 'ready') {
+    openRequest(configuringMore.value ? 'generate' : 'prepare')
+    return
+  }
+  if (step.kind === 'upload') {
+    void navigateTo(`${base.value}/gallery?upload=1`)
+    return
+  }
+  if (step.kind === 'count') {
+    document.querySelector<HTMLInputElement>('#planner-post-count input')?.focus()
+    return
+  }
+  if (step.kind === 'post') pickFor.value = 'post'
+  else {
+    pickFor.value = 'video'
+    activeVideo.value = step.index
+  }
+  photoTile.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+// Finishing the post photographs opens the video tab by itself, on the first
+// video that still has none.
+watch(() => selectedPhotoIds.value.length, (count, previous) => {
+  if (count > previous && count >= selectedQuantity.value && selectedVideoQuantity.value > 0) {
+    pickFor.value = 'video'
+    const empty = Array.from({ length: selectedVideoQuantity.value }, (_, item) => item)
+      .find((item) => !videoGroups.value[item]?.length)
+    if (empty !== undefined) activeVideo.value = empty
+  }
 })
 // Progress is measured against what the customer asked for, not against the
 // month's whole quota: asking for one post and being shown "0 / 11" reports a
@@ -482,7 +590,6 @@ async function act(action: 'prepare' | 'generate' | 'restart' | 'reset' | 'pause
     if (action === 'generate') configuringMore.value = false
     if (action === 'reset') {
       resetOpen.value = false
-      photoMode.value = 'auto'
       selectedPhotoIds.value = []
       videoGroups.value = []
       activeVideo.value = 0
@@ -1036,16 +1143,11 @@ v-model="selectedVideoQuantity"
       </div>
     </div>
 
-    <div v-else class="border-t border-default p-4">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 class="text-sm font-semibold text-highlighted">
-            {{ extendable ? t('monthly.generateMoreTitle') : t('monthly.readyToPrepare') }}
-          </h3>
-          <p class="mt-1 max-w-xl text-sm leading-6 text-muted">
-            {{ t('legacy.monthlyProcess') }}
-          </p>
-        </div>
+    <div v-else class="space-y-4 border-t border-default p-4">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-semibold text-highlighted">
+          {{ extendable ? t('monthly.generateMoreTitle') : t('monthly.readyToPrepare') }}
+        </h3>
         <UButton
           v-if="configuringMore"
           type="button"
@@ -1053,309 +1155,239 @@ v-model="selectedVideoQuantity"
           color="neutral"
           variant="ghost"
           icon="i-lucide-x"
+          :aria-label="t('common.cancel')"
           @click="configuringMore = false"
-        >
-          {{ t('common.cancel') }}
-        </UButton>
+        />
       </div>
-      <div class="mt-3 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-        <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <UIcon name="i-lucide-sparkles" class="size-4" />
-          </div>
-          <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('monthly.quantityLabel') }}</p>
-          <LiveInputNumber v-model="selectedQuantity" size="lg" :min="0" :max="remainingPosts" class="w-24 shrink-0" />
+      <!-- Two equal tiles: what each one counts sits right above its stepper,
+           so the pair reads the same on a phone and on a wide screen. -->
+      <div class="grid grid-cols-2 gap-2 sm:gap-3">
+        <div class="rounded-xl border border-default bg-elevated/40 p-3">
+          <p class="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted">
+            <UIcon name="i-lucide-image" class="size-3.5 text-primary" />{{ t('monthly.quantityLabel') }}
+          </p>
+          <LiveInputNumber id="planner-post-count" v-model="selectedQuantity" :min="0" :max="remainingPosts" class="w-full" />
         </div>
-        <div class="flex min-w-0 items-center gap-2 rounded-xl border border-default bg-default px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <UIcon name="i-lucide-clapperboard" class="size-4" />
-          </div>
-          <p class="min-w-0 flex-1 text-sm leading-tight font-medium text-highlighted">{{ t('video.include') }}</p>
+        <div class="rounded-xl border border-default bg-elevated/40 p-3">
+          <p class="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted">
+            <UIcon name="i-lucide-clapperboard" class="size-3.5 text-primary" />{{ t('video.include') }}
+          </p>
           <LiveInputNumber
-v-model="selectedVideoQuantity"
-            size="lg"
+            v-model="selectedVideoQuantity"
             :min="0"
             :max="maxVideosThisBatch"
-            class="w-24 shrink-0"
+            class="w-full"
             :aria-label="t('video.quantity')"
           />
         </div>
       </div>
-      <div class="mt-4 border-t border-default pt-4">
-        <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t('monthly.monthPhotos') }}</p>
-        <h3 class="mt-1 text-base font-semibold text-highlighted">{{ t('legacy.choosePhotoQuestion') }}</h3>
-        <div class="mt-3 grid grid-cols-2 gap-2">
+      <div
+        v-if="originalPhotos.length && (selectedQuantity || selectedVideoQuantity)"
+        ref="photoTile"
+        class="scroll-mt-24 rounded-xl border border-default bg-elevated/40 p-3"
+      >
+        <!-- One tab per kind the request makes, each saying what its photos
+             become and how many are chosen. A kind with none asked is hidden. -->
+        <div class="grid gap-1 rounded-md bg-elevated p-1" :class="selectedQuantity && selectedVideoQuantity ? 'grid-cols-2' : 'grid-cols-1'" role="tablist">
           <UButton
-            v-for="option in [
-              { value: 'auto' as const, icon: 'i-lucide-sparkles', label: t('legacy.letAiChoose') },
-              { value: 'selected' as const, icon: 'i-lucide-image', label: t('legacy.choosePhotos') },
-            ]"
-            :key="option.value"
+            v-for="tab in ([
+              { kind: 'post' as const, show: selectedQuantity > 0, icon: 'i-lucide-image', label: t('monthly.photosForPostsTab'), short: t('monthly.photosForPostsShort'), count: selectedPhotoIds.length, of: selectedQuantity },
+              { kind: 'video' as const, show: selectedVideoQuantity > 0, icon: 'i-lucide-clapperboard', label: t('monthly.photosForVideosTab'), short: t('monthly.photosForVideosShort'), count: selectedVideoPhotoIds.length, of: selectedVideoQuantity },
+            ]).filter((item) => item.show)"
+            :key="tab.kind"
             block
-            :icon="option.icon"
-            :color="photoMode === option.value ? 'primary' : 'neutral'"
-            :variant="photoMode === option.value ? 'soft' : 'outline'"
-            :aria-pressed="photoMode === option.value"
-            class="justify-center py-2.5 text-sm"
-            @click="photoMode = option.value"
-          >{{ option.label }}</UButton>
+            size="sm"
+            role="tab"
+            :aria-selected="pickFor === tab.kind"
+            :icon="tab.icon"
+            :color="pickFor === tab.kind ? 'primary' : 'neutral'"
+            :variant="pickFor === tab.kind ? 'solid' : 'ghost'"
+            class="min-w-0 justify-center"
+            @click="pickFor = tab.kind"
+          >
+            <span class="truncate sm:hidden">{{ tab.short }}</span>
+            <span class="hidden truncate sm:inline">{{ tab.label }}</span>
+            <span class="shrink-0 tabular-nums opacity-80">{{ tab.count }}/{{ tab.of }}</span>
+          </UButton>
         </div>
-        <div class="mt-4">
-          <div
-            v-if="photoMode === 'auto'"
-            class="rounded-xl border border-primary/20 bg-primary/5 p-3.5"
-          >
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="flex min-w-0 items-start gap-2.5">
-                <UIcon name="i-lucide-eye" class="mt-0.5 size-4 shrink-0 text-primary" />
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-highlighted">
-                    {{ t('monthly.aiGalleryPreviewTitle') }}
-                  </p>
-                  <p class="mt-1 text-xs leading-5 text-muted">
-                    {{ t('monthly.aiGalleryPreviewDescription') }}
-                  </p>
-                </div>
-              </div>
-              <UBadge color="primary" variant="subtle" class="shrink-0">
-                {{ t('monthly.previewOnly') }}
-              </UBadge>
+        <p v-if="photoMode === 'auto' && pickFor === 'post'" class="mt-2 text-xs text-muted">{{ t('monthly.aiPicksIfEmpty') }}</p>
+        <!-- With videos, one video is filled at a time and this panel says
+             which: its number and photographs, with arrows and dots to move
+             between the videos. It takes the place of the posts tab's note,
+             above the photographs. -->
+        <div
+          v-if="selectedVideoQuantity && pickFor === 'video'"
+          class="mt-2 rounded-md border border-default bg-default p-2.5"
+        >
+          <div class="flex items-center gap-1">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              icon="i-lucide-chevron-left"
+              :aria-label="t('common.previous')"
+              :disabled="activeVideo === 0"
+              @click="activeVideo--"
+            />
+            <div class="min-w-0 flex-1">
+              <p class="flex items-center gap-1.5 text-sm font-semibold text-highlighted">
+                <UIcon name="i-lucide-clapperboard" class="size-4 shrink-0 text-primary" />
+                {{ t('monthly.videoCardTitle', { number: activeVideo + 1 }) }}
+                <span class="font-normal text-muted">/ {{ selectedVideoQuantity }}</span>
+              </p>
+              <p class="truncate text-xs" :class="videoGroups[activeVideo]?.length ? 'text-primary' : 'text-muted'">
+                {{ videoGroups[activeVideo]?.length
+                  ? t('monthly.videoPhotoCount', { count: videoGroups[activeVideo]!.length, max: maxVideoPhotos })
+                  : t('monthly.videoSlotHint') }}
+              </p>
             </div>
-            <div
-              v-if="originalPhotos.length"
-              class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
-            >
-              <div
-                v-for="asset in paginatedOriginalPhotos"
-                :key="asset.id"
-                class="relative min-w-0 overflow-hidden rounded-xl border border-default bg-elevated text-left"
-                aria-disabled="true"
+            <div v-if="selectedVideoQuantity > 1" class="hidden items-center gap-1 px-1 sm:flex">
+              <UButton
+                v-for="card in selectedVideoQuantity"
+                :key="card"
+                color="neutral"
+                variant="link"
+                size="xs"
+                class="p-0.5"
+                :aria-label="t('monthly.videoCardTitle', { number: card })"
+                :aria-current="activeVideo === card - 1 ? 'step' : undefined"
+                @click="activeVideo = card - 1"
               >
-                <MediaImage
-                  :src="asset.url"
-                  :alt="asset.name"
-                  fit="cover"
-                  class="aspect-square w-full bg-elevated"
-                />
-                <span class="block truncate px-2 py-1.5 text-[11px] font-medium">{{ asset.name }}</span>
                 <span
-                  class="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-default/90 text-muted shadow"
-                  :title="t('monthly.aiPhotoPreviewOnly')"
-                >
-                  <UIcon name="i-lucide-lock-keyhole" class="size-3.5" />
-                </span>
-              </div>
-            </div>
-            <div
-              v-if="photoTotal > photoPageSize"
-              class="mt-3 flex items-center justify-end gap-2"
-            >
-              <UButton color="neutral" variant="outline" icon="i-lucide-chevron-left" :aria-label="t('common.previous')" :disabled="photoPage === 1" @click="photoPage--" />
-              <div class="flex flex-wrap items-center justify-center gap-1" :aria-label="t('monthly.photoPage')" role="navigation">
-                <UButton
-                  v-for="page in photoPageCount"
-                  :key="page"
-                  size="xs"
-                  :color="photoPage === page ? 'primary' : 'neutral'"
-                  :variant="photoPage === page ? 'solid' : 'outline'"
-                  :aria-current="photoPage === page ? 'page' : undefined"
-                  :aria-label="`${t('monthly.photoPage')} ${page}`"
-                  @click="photoPage = page"
-                >
-                  {{ page }}
-                </UButton>
-              </div>
-              <UButton color="neutral" variant="outline" icon="i-lucide-chevron-right" :aria-label="t('common.next')" :disabled="photoPage === photoPageCount" @click="photoPage++" />
-            </div>
-          </div>
-
-          <div v-else class="rounded-xl border border-default bg-elevated/30 p-3">
-            <p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-              <UIcon name="i-lucide-image" class="size-4 shrink-0 text-primary" />
-              {{ t('monthly.chooseGalleryPhotosTitle') }}
-            </p>
-            <!--
-              The two choices sit under the photograph rather than on top of it:
-              a phone tile is small enough that overlaid controls cover the very
-              thing being chosen. Two columns on a phone keep each tile and each
-              tap target comfortable; the denser grids return with the width.
-            -->
-            <!--
-              One card per video. The photographs chosen with the video button
-              join the active card; the first in a card is the main one.
-            -->
-            <div v-if="originalPhotos.length && selectedVideoQuantity > 0" class="mt-3">
-              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                <div
-                  v-for="card in selectedVideoQuantity"
-                  :key="card"
-                  role="button"
-                  tabindex="0"
-                  class="flex cursor-pointer items-center gap-2 rounded-xl border border-default p-2 text-left transition hover:bg-elevated/80"
-                  :class="activeVideo === card - 1 ? 'ring-2 ring-primary' : ''"
-                  :aria-pressed="activeVideo === card - 1"
-                  @click="activeVideo = card - 1"
-                  @keydown.enter="activeVideo = card - 1"
-                  @keydown.space.prevent="activeVideo = card - 1"
-                >
-                  <span class="flex shrink-0 items-center gap-1 text-xs font-semibold">
-                    <UIcon name="i-lucide-clapperboard" class="size-3.5 text-primary" />
-                    {{ t('monthly.videoCardTitle', { number: card }) }}
-                  </span>
-                  <span class="flex min-w-0 gap-1.5">
-                    <span
-                      v-for="(id, index) in videoGroups[card - 1] || []"
-                      :key="id"
-                      class="relative size-10 shrink-0 overflow-hidden rounded-lg border border-default"
-                    >
-                      <MediaImage
-                        :src="originalPhotos.find((asset) => asset.id === id)?.url || ''"
-                        :alt="originalPhotos.find((asset) => asset.id === id)?.name || ''"
-                        fit="cover"
-                        class="size-full"
-                      />
-                      <span
-                        role="button"
-                        tabindex="0"
-                        class="absolute right-0.5 top-0.5 rounded-full bg-black/60 px-1 text-[10px] leading-4"
-                        :class="index === 0 ? 'text-yellow-300' : 'text-white/70'"
-                        :title="index === 0 ? t('monthly.videoMainPhoto') : t('monthly.videoMakeMain')"
-                        :aria-label="index === 0 ? t('monthly.videoMainPhoto') : t('monthly.videoMakeMain')"
-                        @click.stop="makeMainVideoPhoto(card - 1, id)"
-                        @keydown.enter.stop="makeMainVideoPhoto(card - 1, id)"
-                      >&#9733;</span>
-                    </span>
-                    <span
-                      v-if="(videoGroups[card - 1]?.length || 0) < maxVideoPhotos"
-                      class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-default text-muted"
-                    >+</span>
-                  </span>
-                  <UButton
-                    type="button"
-                    color="neutral"
-                    variant="ghost"
-                    size="xs"
-                    icon="i-lucide-x"
-                    class="ml-auto shrink-0"
-                    :aria-label="t('monthly.removeVideoCard', { number: card })"
-                    :title="t('monthly.removeVideoCard', { number: card })"
-                    @click.stop="removeVideoCard(card - 1)"
-                  />
-                </div>
-              </div>
-            </div>
-            <div
-              v-if="originalPhotos.length"
-              class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
-            >
-              <div
-                v-for="asset in paginatedOriginalPhotos"
-                :key="asset.id"
-                class="group flex w-full min-w-0 flex-col overflow-hidden rounded-xl border bg-elevated text-left transition"
-                :class="
-                  photoChosen(asset.id, 'post') || photoChosen(asset.id, 'video')
-                    ? 'border-primary ring-2 ring-primary/20'
-                    : 'border-default hover:border-primary/40 hover:shadow-sm'
-                "
-              >
-                <MediaImage
-                  :src="asset.url"
-                  :alt="asset.name"
-                  fit="cover"
-                  class="aspect-square w-full bg-elevated"
+                  class="block h-1.5 rounded-full transition-all"
+                  :class="[
+                    activeVideo === card - 1 ? 'w-4' : 'w-1.5',
+                    videoGroups[card - 1]?.length ? 'bg-primary' : 'bg-accented',
+                  ]"
                 />
-                <div class="grid grid-cols-2 gap-1 p-1">
-                  <UButton
-                    v-for="kind in (['post', 'video'] as const)"
-                    :key="kind"
-                    type="button"
-                    block
-                    size="xs"
-                    class="min-w-0 justify-center gap-0.5 px-0.5 py-1.5 text-[11px] sm:gap-1 sm:px-1.5 sm:text-xs"
-                    :ui="{ leadingIcon: 'size-3.5 sm:size-4' }"
-                    :color="photoChosen(asset.id, kind) ? 'primary' : 'neutral'"
-                    :variant="photoChosen(asset.id, kind) ? 'solid' : 'soft'"
-                    :icon="kind === 'video' ? 'i-lucide-clapperboard' : 'i-lucide-image'"
-                    :label="kind === 'video' && photoChosen(asset.id, 'video') ? `V${videoCardOf(asset.id) + 1}` : undefined"
-                    :aria-pressed="photoChosen(asset.id, kind)"
-                    :title="kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')"
-                    :aria-label="`${asset.name} — ${kind === 'video' ? t('monthly.photoForVideo') : t('monthly.photoForPost')}`"
-                    :disabled="!photoChosen(asset.id, kind) && photoRoleFull(kind)"
-                    @click="togglePhoto(asset.id, kind)"
-                  />
-                </div>
-              </div>
+              </UButton>
             </div>
-            <div
-              v-if="photoTotal > photoPageSize"
-              class="mt-3 flex items-center justify-end gap-2"
-            >
-              <UButton color="neutral" variant="outline" icon="i-lucide-chevron-left" :aria-label="t('common.previous')" :disabled="photoPage === 1" @click="photoPage--" />
-              <div class="flex flex-wrap items-center justify-center gap-1" :aria-label="t('monthly.photoPage')" role="navigation">
-                <UButton
-                  v-for="page in photoPageCount"
-                  :key="page"
-                  size="xs"
-                  :color="photoPage === page ? 'primary' : 'neutral'"
-                  :variant="photoPage === page ? 'solid' : 'outline'"
-                  :aria-current="photoPage === page ? 'page' : undefined"
-                  :aria-label="`${t('monthly.photoPage')} ${page}`"
-                  @click="photoPage = page"
-                >
-                  {{ page }}
-                </UButton>
-              </div>
-              <UButton color="neutral" variant="outline" icon="i-lucide-chevron-right" :aria-label="t('common.next')" :disabled="photoPage === photoPageCount" @click="photoPage++" />
+            <UButton
+              color="neutral"
+              :variant="videoGroups[activeVideo]?.length && activeVideo < selectedVideoQuantity - 1 ? 'soft' : 'ghost'"
+              size="sm"
+              icon="i-lucide-chevron-right"
+              :aria-label="t('common.next')"
+              :disabled="activeVideo >= selectedVideoQuantity - 1"
+              @click="activeVideo++"
+            />
+          </div>
+          <div
+            v-if="!videoGroups[activeVideo]?.length && !freeVideoPhotos.length"
+            class="mt-2.5 rounded-md bg-warning/10 px-2.5 py-2 text-xs text-warning"
+          >
+            {{ t('monthly.noFreeVideoPhotos') }}
+          </div>
+          <!-- The photographs of this video, in order: tap to see one large,
+               × to take it out. -->
+          <div v-if="videoGroups[activeVideo]?.length" class="mt-2.5 flex flex-wrap gap-2.5 pl-1 pt-1">
+            <div v-for="(id, index) in videoGroups[activeVideo]" :key="id" class="relative">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                class="relative size-14 overflow-hidden rounded-md p-0"
+                :aria-label="t('monthly.previewPhoto', { name: photoById(id)?.name || '' })"
+                @click="preview = { ids: [...videoGroups[activeVideo]!], index }"
+              >
+                <MediaImage :src="photoById(id)?.url || ''" alt="" fit="cover" width="56" height="56" class="size-full" />
+                <span class="absolute bottom-1 left-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-inverted">{{ index + 1 }}</span>
+              </UButton>
+              <UButton
+                color="neutral"
+                variant="outline"
+                size="xs"
+                icon="i-lucide-x"
+                class="absolute -right-1.5 -top-1.5 size-5 justify-center rounded-full bg-default p-0 shadow-sm"
+                :ui="{ leadingIcon: 'size-3' }"
+                :aria-label="t('monthly.removePhoto', { name: photoById(id)?.name || '' })"
+                @click="togglePhoto(id, 'video')"
+              />
             </div>
           </div>
-
-          <UAlert
-            v-if="!originalPhotos.length"
-            class="mt-3"
-            color="warning"
-            variant="subtle"
-            :title="t('monthly.noOriginalPhotosTitle')"
-            :description="t('monthly.noOriginalPhotosDescription')"
-          />
-          <p
-            v-if="photoMode === 'selected' && (selectedPhotoIds.length || selectedVideoPhotoIds.length)"
-            class="mt-2 text-xs text-muted"
+        </div>
+        <!-- One video at a time takes photographs; the first one is its main. -->
+        <!-- p-1/-m-1: the ring of a chosen photograph is drawn outside it, and a
+             scroll container clips anything outside its padding box. -->
+        <div class="-m-1 mt-2 flex gap-2 overflow-x-auto p-1 pb-2">
+          <UButton
+            v-for="asset in originalPhotos"
+            :key="asset.id"
+            type="button"
+            color="neutral"
+            variant="ghost"
+            class="relative size-16 shrink-0 overflow-hidden rounded-md p-0 transition sm:size-20"
+            :class="[
+              tileChosen(asset.id) ? 'ring-2 ring-primary ring-offset-2 ring-offset-default' : '',
+              tileLocked(asset.id) ? 'opacity-40' : '',
+            ]"
+            :aria-pressed="tileChosen(asset.id)"
+            :aria-label="asset.name"
+            :disabled="tileLocked(asset.id)"
+            @click="togglePhoto(asset.id, pickFor)"
           >
-            {{ t('monthly.photosIncluded', { count: selectedPhotoIds.length }) }}
-            <template v-if="selectedVideoPhotoIds.length">
-              · {{ t('monthly.photosForVideo', { count: selectedVideoPhotoIds.length }) }}
-            </template>
-            <template v-if="selectedPhotoIds.length >= selectedQuantity">
-              · {{ t('monthly.photoLimitReached', { count: selectedQuantity }) }}
-            </template>
-          </p>
-          <p v-if="photoMode === 'selected' && selectedVideoQuantity" class="mt-1 text-xs text-muted">
-            {{ t('monthly.photoRoleHint') }}
-          </p>
+            <MediaImage :src="asset.url" :alt="asset.name" fit="cover" width="80" height="80" class="size-full" />
+            <span
+              v-if="tileBadge(asset.id)"
+              class="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold shadow"
+              :class="tileChosen(asset.id) ? 'bg-primary text-inverted' : 'bg-black/60 text-white'"
+            >{{ tileBadge(asset.id) }}</span>
+          </UButton>
         </div>
       </div>
-      <div class="mt-4 border-t border-default pt-4">
+      <!-- On a phone the button stays in reach at the bottom of the screen. -->
+      <div class="sticky bottom-0 z-10 -mx-4 -mb-4 border-t border-default bg-default/95 px-4 py-3 backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <UButton
           block
           size="lg"
           :loading="busy"
-          :disabled="selectedQuantity + selectedVideoQuantity < 1 || postPhotosMissing > 0 || videoPhotosMissing > 0"
-          icon="i-lucide-calendar-plus"
-          class="justify-center rounded-xl"
-          @click="openRequest(configuringMore ? 'generate' : 'prepare')"
+          :icon="nextStep.kind === 'ready' ? 'i-lucide-sparkles' : nextStep.kind === 'upload' ? 'i-lucide-upload' : 'i-lucide-arrow-right'"
+          :color="nextStep.kind === 'ready' ? 'primary' : 'neutral'"
+          :variant="nextStep.kind === 'ready' ? 'solid' : 'outline'"
+          class="justify-center sm:ml-auto sm:flex sm:w-auto sm:px-8"
+          @click="runNextStep"
         >
-          {{ extendable ? generateMoreLabel : t('legacy.prepareMonth') }}
+          {{ nextStepLabel }}
         </UButton>
-        <p v-if="postPhotosMissing || videoPhotosMissing" class="mt-2 flex items-start gap-1.5 text-xs text-error">
-          <UIcon name="i-lucide-circle-alert" class="mt-px size-3.5 shrink-0" />
-          <span>
-            <template v-if="postPhotosMissing">{{ t('monthly.postPhotosMissing', { count: postPhotosMissing }) }}</template>
-            <template v-if="postPhotosMissing && videoPhotosMissing"> · </template>
-            <template v-if="videoPhotosMissing">{{ t('monthly.videoPhotosMissing', { count: videoPhotosMissing }) }}</template>
-          </span>
-        </p>
       </div>
     </div>
+
+    <UModal
+      v-if="preview && previewPhoto"
+      :open="!!preview"
+      :title="previewPhoto.name"
+      :description="preview.ids.length > 1 ? `${preview.index + 1} / ${preview.ids.length}` : undefined"
+      :ui="{ content: 'sm:max-w-3xl' }"
+      @update:open="(open: boolean) => { if (!open) preview = null }"
+    >
+      <template #body>
+        <div
+          class="relative flex h-[70vh] items-center justify-center"
+          tabindex="-1"
+          @keydown.left="movePreview(-1)"
+          @keydown.right="movePreview(1)"
+        >
+          <MediaImage :src="previewPhoto.url" :alt="previewPhoto.name" fit="natural" :surface="false" class="size-full [&>img]:rounded-xl" />
+          <template v-if="preview.ids.length > 1">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-chevron-left"
+              class="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white"
+              :aria-label="t('common.previous')"
+              @click="movePreview(-1)"
+            />
+            <UButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-chevron-right"
+              class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white"
+              :aria-label="t('common.next')"
+              @click="movePreview(1)"
+            />
+          </template>
+        </div>
+      </template>
+    </UModal>
 
     <LazyPlannerRequestModal
       v-if="requestOpen"

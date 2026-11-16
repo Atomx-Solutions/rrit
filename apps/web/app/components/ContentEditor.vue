@@ -538,6 +538,13 @@ async function setStatus(next: Post['status']) {
     statusChanging.value = null
   }
 }
+// Taking a post off the calendar cancels its automatic publication, and the
+// button appears where Schedule was pressed a moment earlier, so it asks first.
+const unscheduleOpen = ref(false)
+async function confirmUnschedule() {
+  await setStatus('approved')
+  unscheduleOpen.value = false
+}
 async function schedulePost() {
   if (scheduleBusy.value) return
   scheduleError.value = ''
@@ -981,7 +988,7 @@ onBeforeUnmount(() => {
               variant="outline"
               :disabled="syncing || !!statusChanging"
               :loading="statusChanging === 'approved'"
-              @click="setStatus('approved')"
+              @click="unscheduleOpen = true"
                 >{{ t('content.removeFromCalendar') }}</UButton
             >
           </div>
@@ -1072,6 +1079,24 @@ onBeforeUnmount(() => {
           >
         </div></template
       >
+    </UModal>
+    <UModal
+      v-model:open="unscheduleOpen"
+      :title="t('content.removeFromCalendarConfirmTitle')"
+      :description="t('content.removeFromCalendarConfirmDescription')"
+      :ui="{ content: 'sm:max-w-md' }"
+    >
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="outline" @click="unscheduleOpen = false">{{ t('common.cancel') }}</UButton>
+          <UButton
+            color="error"
+            :loading="statusChanging === 'approved'"
+            :disabled="!!statusChanging"
+            @click="confirmUnschedule"
+          >{{ t('content.removeFromCalendar') }}</UButton>
+        </div>
+      </template>
     </UModal>
     <UModal
       v-model:open="imagePreviewOpen"

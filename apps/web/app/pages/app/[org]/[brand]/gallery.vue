@@ -222,13 +222,39 @@ async function withdrawRights() {
     rightsOpen.value = false
     detail.value = null
     notify(
-      result.inFlight
+      'inFlight' in result && result.inFlight
         ? t('gallery.rightsWithdrawnInFlight')
         : t('gallery.rightsWithdrawn'),
     )
   } catch (problem) {
     rightsError.value = t(
       (problem as { data?: { message?: string } }).data?.message || 'gallery.withdrawRightsError')
+  } finally {
+    rightsBusy.value = false
+  }
+}
+// A withdrawn photo can be confirmed again with the same statement the
+// upload asks for.
+const confirmRightsOpen = ref(false)
+const confirmRightsChecked = ref(false)
+watch(confirmRightsOpen, (open) => { if (open) confirmRightsChecked.value = false })
+async function confirmRights() {
+  if (!detail.value || rightsBusy.value || !confirmRightsChecked.value) return
+  rightsBusy.value = true
+  rightsError.value = ''
+  try {
+    await $fetch(`/api/media/${detail.value.id}/rights`, {
+      method: 'POST',
+      body: { rights: true, confirmed: true },
+      retry: 0,
+    })
+    await initLive()
+    detail.value.rights = true
+    confirmRightsOpen.value = false
+    notify(t('gallery.rightsConfirmedAgain'))
+  } catch (problem) {
+    rightsError.value = t(
+      (problem as { data?: { message?: string } }).data?.message || 'gallery.confirmRightsError')
   } finally {
     rightsBusy.value = false
   }
@@ -498,10 +524,13 @@ async function saveMetadata() {
       fullscreen
       :title="viewerAsset?.name || t('gallery.photoViewer')"
       :description="t('gallery.photoViewerDescription')"
+      :ui="{ body: 'flex min-h-0 flex-1 flex-col p-3 sm:p-4' }"
     >
       <template #body>
-        <div v-if="viewerAsset" class="flex h-[calc(100dvh-12rem)] min-h-[36rem] flex-col gap-5">
-          <div class="relative flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-[#101613] p-4 sm:p-8">
+        <!-- The photo takes every pixel the screen has left; the strip and the
+             actions share one row underneath. -->
+        <div v-if="viewerAsset" class="flex min-h-0 flex-1 flex-col gap-3">
+          <div class="relative flex min-h-0 flex-1 items-center justify-center">
             <video
               v-if="viewerVideoUrl"
               :key="viewerVideoUrl"
@@ -516,7 +545,8 @@ async function saveMetadata() {
               :src="viewerAsset.url"
               :alt="viewerAsset.name"
               fit="natural"
-              class="size-full rounded-xl"
+              :surface="false"
+              class="size-full [&>img]:rounded-xl"
             />
             <UIcon v-if="viewerVideoPost && resolvingVideo && !viewerVideoUrl" name="i-lucide-loader-circle" class="absolute size-8 animate-spin text-white" />
             <UButton
@@ -536,10 +566,27 @@ async function saveMetadata() {
               @click="moveViewer(1)"
             />
           </div>
-          <div class="flex items-center justify-between gap-3">
-            <p class="min-w-0 truncate text-sm text-muted">
-              {{ viewerIndex + 1 }} / {{ viewerAssets.length }} · {{ viewerAsset.name }}
-            </p>
+          <p class="-mt-1 text-center text-sm text-muted">{{ viewerIndex + 1 }} / {{ viewerAssets.length }}</p>
+          <div class="flex items-center gap-4">
+            <!-- p-1/-m-1: the selected thumbnail draws its ring outside its box, and
+                 a scroll container clips anything outside its padding box. The
+                 padding gives the ring room, the negative margin keeps the strip
+                 aligned with the rest. -->
+            <div ref="viewerStrip" class="flex min-w-0 flex-1 gap-2 overflow-x-auto p-1 -m-1">
+              <UButton
+                v-for="(asset, index) in viewerAssets"
+                :key="asset.id"
+                color="neutral"
+                variant="ghost"
+                class="size-16 shrink-0 overflow-hidden rounded-lg p-0"
+                :class="index === viewerIndex ? 'ring-2 ring-primary ring-offset-2' : 'opacity-70 hover:opacity-100'"
+                :aria-label="asset.name"
+                @click="selectViewerAsset(index)"
+              >
+                <MediaThumbnail v-if="videoPostFor(asset)" :post="videoPostFor(asset)!" :alt="asset.name" class="size-full" width="64" height="64" />
+                <MediaImage v-else :src="asset.url" :alt="asset.name" class="size-full object-cover" width="64" height="64" />
+              </UButton>
+            </div>
             <div class="flex shrink-0 gap-2">
               <UButton
                 color="primary"
@@ -558,25 +605,6 @@ async function saveMetadata() {
                 {{ t('gallery.details') }}
               </UButton>
             </div>
-          </div>
-          <!-- p-1/-m-1: the selected thumbnail draws its ring outside its box, and
-               a scroll container clips anything outside its padding box. The
-               padding gives the ring room, the negative margin keeps the strip
-               aligned with the rest. -->
-          <div ref="viewerStrip" class="flex gap-2 overflow-x-auto p-1 -m-1">
-            <UButton
-              v-for="(asset, index) in viewerAssets"
-              :key="asset.id"
-              color="neutral"
-              variant="ghost"
-              class="size-16 shrink-0 overflow-hidden rounded-lg p-0"
-              :class="index === viewerIndex ? 'ring-2 ring-primary ring-offset-2' : 'opacity-70 hover:opacity-100'"
-              :aria-label="asset.name"
-              @click="selectViewerAsset(index)"
-            >
-              <MediaThumbnail v-if="videoPostFor(asset)" :post="videoPostFor(asset)!" :alt="asset.name" class="size-full" width="64" height="64" />
-              <MediaImage v-else :src="asset.url" :alt="asset.name" class="size-full object-cover" width="64" height="64" />
-            </UButton>
           </div>
         </div>
       </template>
@@ -741,11 +769,37 @@ async function saveMetadata() {
               variant="outline"
               @click="rightsOpen = true"
               >{{ t('gallery.withdrawRights') }}</UButton
+            ><UButton
+              v-else
+              color="primary"
+              variant="outline"
+              icon="i-lucide-shield-check"
+              @click="confirmRightsOpen = true"
+              >{{ t('gallery.confirmRights') }}</UButton
             >
           </div>
         </div></template
       ></USlideover
     >
+    <UModal
+      v-if="confirmRightsOpen"
+      v-model:open="confirmRightsOpen"
+      :title="t('gallery.confirmRights')"
+    >
+      <template #body>
+        <div class="stack">
+          <UCheckbox v-model="confirmRightsChecked" :label="t('photo.rightsLabel')" />
+          <UButton
+            color="primary"
+            icon="i-lucide-shield-check"
+            :loading="rightsBusy"
+            :disabled="!confirmRightsChecked"
+            @click="confirmRights"
+            >{{ t('gallery.confirmRights') }}</UButton
+          >
+        </div>
+      </template>
+    </UModal>
     <UModal
       v-if="rightsOpen"
       v-model:open="rightsOpen"

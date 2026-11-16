@@ -8,7 +8,11 @@ const page = ref(1)
 const pageSize = ref(10)
 const requestedChannel = route.query.channel
 // Networks are toggles: none chosen shows every network.
-const channels = ref<string[]>(requestedChannel === 'TikTok' ? ['TikTok'] : [])
+const channels = ref<string[]>(
+  typeof requestedChannel === 'string' && ['TikTok', 'Facebook', 'Instagram'].includes(requestedChannel)
+    ? [requestedChannel]
+    : [],
+)
 const formats = ref<string[]>([])
 const toggled = <T,>(list: T[], value: T) =>
   list.includes(value) ? list.filter((item) => item !== value) : [...list, value]

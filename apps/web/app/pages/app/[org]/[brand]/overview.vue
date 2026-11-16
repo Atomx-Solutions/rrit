@@ -15,6 +15,14 @@ const { data: meta, status: metaStatus } = useFetch('/api/meta/status', {
 })
 const connectionView = computed(() => metaConnectionView(metaStatus.value, meta.value?.connection))
 const { data: tiktok } = await useFetch('/api/tiktok/status', { lazy: true, key: 'tiktok-status' })
+const { data: instagram } = useFetch('/api/instagram/status', { lazy: true, key: 'instagram-status' })
+// Instagram publishes through its own login or through the Facebook page it
+// belongs to, so either one counts as connected.
+const instagramAccount = computed(() => {
+  if (instagram.value?.connection?.status === 'connected')
+    return instagram.value.connection.username || instagram.value.connection.instagramId
+  return meta.value?.connection?.status === 'connected' ? meta.value.connection.instagramUsername || null : null
+})
 // A connection made in another tab shows here as soon as this tab is back in
 // view, instead of waiting for a reload.
 function refreshConnectionsWhenVisible() {
@@ -340,9 +348,9 @@ const summaries = computed(() => [
         </p>
       </div>
     </UCard>
-    <UPageGrid class="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
-      <UCard :ui="{ body: 'p-4 sm:p-6' }">
-        <div class="flex justify-between items-center gap-3 mb-3 sm:mb-5">
+    <UPageGrid class="grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
+      <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-6 flex h-full flex-col gap-3 sm:gap-4' }">
+        <div class="flex justify-between items-center gap-3">
           <h2 class="text-sm font-semibold">{{ t('overview.nextCalendarPost') }}</h2>
           <UIcon name="i-lucide-calendar-days" class="size-4 text-muted" />
         </div>
@@ -372,26 +380,25 @@ const summaries = computed(() => [
         <p v-else class="text-sm text-muted">{{ t('overview.noUpcomingPost') }}</p>
         <UButton
           :to="`${base}/calendar`"
-          variant="link"
+          variant="outline"
           color="neutral"
           size="sm"
-          class="mt-2 min-h-11 px-0 sm:mt-4 sm:min-h-0"
+          class="mt-auto self-start"
           trailing-icon="i-lucide-arrow-right"
           >{{ t('nav.calendar') }}</UButton
         >
       </UCard>
-      <UCard :ui="{ body: 'p-4 sm:p-6' }">
-        <div class="flex justify-between items-center gap-3 mb-2 sm:mb-4">
-          <div class="flex items-center gap-2"><TikTokMark class="size-5" /><h2 class="text-sm font-semibold">TikTok</h2></div>
+      <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-6 flex h-full flex-col gap-3 sm:gap-4' }">
+        <div class="flex justify-between items-center gap-3">
+          <div class="flex items-center gap-2"><TikTokLogo class="size-5 text-highlighted" /><h2 class="text-sm font-semibold">TikTok</h2></div>
           <UBadge :color="tiktok?.connection?.status === 'connected' ? 'success' : 'neutral'" variant="outline" size="sm">{{ tiktok?.connection?.status === 'connected' ? t('tiktok.connected') : t('tiktok.notConnected') }}</UBadge>
         </div>
         <p class="text-sm text-muted leading-relaxed max-w-lg">{{ tiktok?.connection?.status === 'connected' ? t('overview.tiktokConnected') : t('overview.tiktokDescription') }}</p>
-        <UButton :to="`${base}/social-posts?channel=TikTok`" variant="outline" color="neutral" size="sm" class="mt-3 sm:mt-5" trailing-icon="i-lucide-arrow-right">{{ tiktok?.connection?.status === 'connected' ? t('nav.viewPosts') : t('overview.connectAction') }}</UButton>
+        <UButton :to="`${base}/social-posts?channel=TikTok`" variant="outline" color="neutral" size="sm" class="mt-auto self-start" trailing-icon="i-lucide-arrow-right">{{ tiktok?.connection?.status === 'connected' ? t('nav.viewPosts') : t('overview.connectAction') }}</UButton>
       </UCard>
-      <!-- Two columns on a tablet leave the third card alone, so it takes both. -->
-      <UCard :ui="{ body: 'p-4 sm:p-6' }" class="md:col-span-2 xl:col-span-1">
-        <div class="flex justify-between items-center gap-3 mb-2 sm:mb-4">
-          <h2 class="text-sm font-semibold">{{ t('overview.metaCardTitle') }}</h2>
+      <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-6 flex h-full flex-col gap-3 sm:gap-4' }">
+        <div class="flex justify-between items-center gap-3">
+          <div class="flex items-center gap-2"><FacebookLogo class="size-5" /><h2 class="text-sm font-semibold">Facebook</h2></div>
           <UBadge :color="connectionView === 'connected' ? 'success' : 'neutral'" variant="outline" size="sm">{{
             connectionView === 'loading'
               ? t('common.loading')
@@ -414,13 +421,31 @@ const summaries = computed(() => [
           }}
         </p>
         <UButton
-          :to="`${base}/social-posts`"
+          :to="`${base}/social-posts?channel=Facebook`"
           variant="outline"
           color="neutral"
           size="sm"
-          class="mt-3 sm:mt-5"
+          class="mt-auto self-start"
           trailing-icon="i-lucide-arrow-right"
           >{{ connectionView === 'connected' ? t('nav.viewPosts') : t('overview.connectAction') }}</UButton
+        >
+      </UCard>
+      <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-6 flex h-full flex-col gap-3 sm:gap-4' }">
+        <div class="flex justify-between items-center gap-3">
+          <div class="flex items-center gap-2"><InstagramLogo class="size-5" /><h2 class="text-sm font-semibold">Instagram</h2></div>
+          <UBadge :color="instagramAccount ? 'success' : 'neutral'" variant="outline" size="sm">{{ instagramAccount ? t('overview.connected') : t('tiktok.notConnected') }}</UBadge>
+        </div>
+        <p class="text-sm text-muted leading-relaxed max-w-lg">
+          {{ instagramAccount ? `@${instagramAccount}` : t('overview.instagramDescription') }}
+        </p>
+        <UButton
+          :to="`${base}/social-posts?channel=Instagram`"
+          variant="outline"
+          color="neutral"
+          size="sm"
+          class="mt-auto self-start"
+          trailing-icon="i-lucide-arrow-right"
+          >{{ instagramAccount ? t('nav.viewPosts') : t('overview.connectAction') }}</UButton
         >
       </UCard>
     </UPageGrid>
