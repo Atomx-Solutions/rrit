@@ -12,6 +12,14 @@ useSeoMeta({ title: () => `${t('admin.login.title')} · Framic`, robots: 'noinde
 const error = ref(route.query.denied ? t('admin.login.denied') : route.query.failed ? t('admin.login.failed') : '')
 const loading = ref(false)
 
+// The invitation email lands here carrying an email session in the address
+// fragment. The console never uses it (only Microsoft opens it), so it is
+// dropped from the address bar and the history.
+onMounted(() => {
+  if (window.location.hash.includes('access_token') || window.location.hash.includes('error'))
+    history.replaceState(history.state, '', window.location.pathname + window.location.search)
+})
+
 // The company Microsoft account is the console's only sign-in; the server
 // refuses admin requests from any other kind of session.
 async function signIn() {

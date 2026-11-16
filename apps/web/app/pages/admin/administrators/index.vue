@@ -16,7 +16,7 @@ type Administrator = {
   microsoft: boolean
 }
 
-const { data, status, error, refresh } = await useFetch<{ administrators: Administrator[] }>(
+const { data, status, error, refresh } = await useFetch<{ administrators: Administrator[]; domains: string[] }>(
   '/api/admin/administrators',
   { lazy: true },
 )
@@ -26,6 +26,13 @@ watch(error, (value) => {
 // Same key as the admin layout, so this costs no extra request.
 const { data: me } = await useFetch('/api/admin/me', { key: 'admin-me', lazy: true })
 const administrators = computed(() => data.value?.administrators ?? [])
+// The company domains the server accepts for an administrator's address.
+const domains = computed(() => data.value?.domains ?? [])
+const domainList = computed(() => domains.value.map(domain => `@${domain}`).join(', '))
+function companyEmail(email: string) {
+  const domain = email.slice(email.lastIndexOf('@') + 1).trim().toLowerCase()
+  return !domains.value.length || domains.value.includes(domain)
+}
 
 function formatDay(value: string | null) {
   return value ? new Date(value).toLocaleDateString(locale.value, { dateStyle: 'medium' }) : '—'
@@ -35,19 +42,44 @@ function formatDay(value: string | null) {
 const knownFailures = [
   'ADMIN_ACCOUNT_NOT_FOUND',
   'ADMIN_ALREADY_EXISTS',
+  'ADMIN_EMAIL_DOMAIN_NOT_ALLOWED',
   'ADMIN_CANNOT_REMOVE_SELF',
   'ADMIN_LAST_REMAINING',
   'ADMIN_NOT_FOUND',
 ] as const
 function failureText(problem: unknown, fallback: string) {
-  const code = (problem as { data?: { data?: { code?: string } } }).data?.data?.code
+  const details = (problem as { data?: { data?: { code?: string; domains?: string[] } } }).data?.data
+  const code = details?.code
+  const refused = details?.domains?.map(domain => `@${domain}`).join(', ') || domainList.value
   return code && (knownFailures as readonly string[]).includes(code)
-    ? t(`admin.administrators.error.${code}`)
+    ? t(`admin.administrators.error.${code}`, { domains: refused })
     : fallback
 }
 
-const schema = z.object({ email: z.email(t('auth.validationEmail')).max(320) })
+// The invitation email speaks the console's language; Albanian unless the
+// console is in English, the only two the console has.
+const inviteLocale = computed(() => (locale.value.startsWith('en') ? 'en' : 'sq'))
+type InviteDelivery = 'sent' | 'existing_account' | 'failed'
+const toast = useToast()
+function reportInvite(delivery: InviteDelivery, sentText: string, doneText: string) {
+  if (delivery === 'sent') return showSuccess(sentText)
+  // The step itself worked; only the email did not go out, which is said as such.
+  toast.add({
+    title: doneText,
+    description: t(`admin.administrators.invite.${delivery}`),
+    color: 'warning',
+    icon: 'i-lucide-mail-warning',
+    duration: 9000,
+  })
+}
+
+const schema = computed(() => z.object({
+  email: z.email(t('auth.validationEmail')).max(320)
+    .refine(companyEmail, t('admin.administrators.error.ADMIN_EMAIL_DOMAIN_NOT_ALLOWED', { domains: domainList.value })),
+}))
 const form = reactive({ email: '' })
+// Adding stays off until the address is a complete company email.
+const canAdd = computed(() => schema.value.safeParse({ email: form.email.trim() }).success)
 const addOpen = ref(false)
 const adding = ref(false)
 function openAdd() {
@@ -57,8 +89,11 @@ function openAdd() {
 async function add() {
   adding.value = true
   try {
-    await $fetch('/api/admin/administrators', { method: 'POST', body: { email: form.email.trim() } })
-    showSuccess(t('admin.administrators.added'))
+    const result = await $fetch<{ invite: InviteDelivery }>('/api/admin/administrators', {
+      method: 'POST',
+      body: { email: form.email.trim(), locale: inviteLocale.value },
+    })
+    reportInvite(result.invite, t('admin.administrators.added'), t('admin.administrators.addedOnly'))
     addOpen.value = false
     form.email = ''
     await refresh()
@@ -66,6 +101,23 @@ async function add() {
     showError(failureText(problem, t('admin.administrators.addError')))
   } finally {
     adding.value = false
+  }
+}
+
+const inviting = ref<string | null>(null)
+async function resendInvite(admin: Administrator) {
+  if (inviting.value) return
+  inviting.value = admin.user_id
+  try {
+    const result = await $fetch<{ invite: InviteDelivery }>(`/api/admin/administrators/${admin.user_id}/invite`, {
+      method: 'POST',
+      body: { locale: inviteLocale.value },
+    })
+    reportInvite(result.invite, t('admin.administrators.invite.resent', { email: admin.email }), t('admin.administrators.invite.notResent'))
+  } catch (problem) {
+    showError(failureText(problem, t('admin.administrators.invite.failed')))
+  } finally {
+    inviting.value = null
   }
 }
 
@@ -133,14 +185,28 @@ async function confirmRemove() {
                 <UBadge v-if="admin.email === me?.email" color="primary" variant="subtle" size="sm" :label="t('admin.administrators.you')" />
               </p>
               <p class="truncate text-sm text-muted">{{ admin.email }}</p>
-              <p
-                class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium"
-                :class="admin.microsoft ? 'text-muted' : 'text-warning'"
-              >
-                <MicrosoftLogo v-if="admin.microsoft" class="size-3.5" />
-                <UIcon v-else name="i-lucide-triangle-alert" class="size-3.5" />
-                {{ admin.microsoft ? t('admin.administrators.microsoftLinked') : t('admin.administrators.microsoftMissing') }}
-              </p>
+              <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p
+                  class="inline-flex items-center gap-1.5 text-xs font-medium"
+                  :class="admin.microsoft ? 'text-muted' : 'text-warning'"
+                >
+                  <MicrosoftLogo v-if="admin.microsoft" class="size-3.5" />
+                  <UIcon v-else name="i-lucide-triangle-alert" class="size-3.5" />
+                  {{ admin.microsoft ? t('admin.administrators.microsoftLinked') : t('admin.administrators.microsoftMissing') }}
+                </p>
+                <UButton
+                  v-if="!admin.microsoft && companyEmail(admin.email)"
+                  icon="i-lucide-mail"
+                  color="neutral"
+                  variant="link"
+                  size="xs"
+                  class="p-0"
+                  :loading="inviting === admin.user_id"
+                  :disabled="!!inviting && inviting !== admin.user_id"
+                  :label="t('admin.administrators.invite.resend')"
+                  @click="resendInvite(admin)"
+                />
+              </div>
             </div>
             <UButton
               v-if="admin.email !== me?.email"
@@ -181,14 +247,18 @@ async function confirmRemove() {
     >
       <template #body>
         <UForm id="add-administrator" :schema="schema" :state="form" @submit="add" @error="onFormError">
-          <UFormField name="email" :label="t('admin.administrators.email')">
+          <UFormField
+            name="email"
+            :label="t('admin.administrators.email')"
+            :help="domainList ? t('admin.administrators.domainHelp', { domains: domainList }) : undefined"
+          >
             <UInput
               v-model="form.email"
               type="email"
               icon="i-lucide-mail"
               autocomplete="off"
               autofocus
-              :placeholder="t('admin.administrators.emailPlaceholder')"
+              :placeholder="domains[0] ? `${t('admin.administrators.emailName')}@${domains[0]}` : t('admin.administrators.emailPlaceholder')"
               class="w-full"
             />
           </UFormField>
@@ -199,7 +269,7 @@ async function confirmRemove() {
           <UButton color="neutral" variant="ghost" :disabled="adding" @click="addOpen = false">
             {{ t('admin.requests.cancel') }}
           </UButton>
-          <UButton type="submit" form="add-administrator" icon="i-lucide-user-plus" :loading="adding">
+          <UButton type="submit" form="add-administrator" icon="i-lucide-user-plus" :loading="adding" :disabled="!canAdd">
             {{ t('admin.administrators.add') }}
           </UButton>
         </div>
