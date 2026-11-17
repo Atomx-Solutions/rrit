@@ -17,6 +17,11 @@ const publicLanguages = [
   { value: 'tr-TR', code: 'TR', key: 'public.turkish', flag: 'i-flag-tr-4x3' },
   { value: 'sq-XK', code: 'SQ', key: 'public.albanian', flag: 'i-flag-al-4x3' },
 ] as const
+const colorMode = useColorMode()
+const appearanceModes = [
+  { value: 'light', key: 'public.lightMode', icon: 'i-lucide-sun' },
+  { value: 'dark', key: 'public.darkMode', icon: 'i-lucide-moon' },
+] as const
 const languageOptions = computed(() =>
   publicLanguages.map(item => ({ label: `${item.code} ${t(item.key)}`, value: item.value, icon: item.flag })))
 const activeLanguage = computed(() =>
@@ -27,23 +32,89 @@ const language = computed({
   get: () => locale.value,
   set: (value: string) => setLocale(value),
 })
-const links = computed(() => [
-  {
-    label: t('public.whyFramic'),
-    to: '/#why-framic',
-    active: route.path === '/' && route.hash === '#why-framic',
-  },
-  {
-    label: t('landing.requestOffer'),
-    to: '/#pricing',
-    active: route.path === '/pricing' || (route.path === '/' && route.hash === '#pricing'),
-  },
-  {
-    label: t('public.faq'),
-    to: '/#faq',
-    active: route.path === '/' && route.hash === '#faq',
-  },
-])
+const sections = [
+  { id: 'why-framic', key: 'public.whyFramic' },
+  { id: 'pricing', key: 'landing.requestOffer' },
+  { id: 'faq', key: 'public.faq' },
+] as const
+const menuOpen = ref(false)
+// The burger only animates once the menu has been used, not on first paint.
+const menuUsed = ref(false)
+watch(menuOpen, () => (menuUsed.value = true))
+// The section currently under the sticky header, tracked while the visitor scrolls the landing page.
+const activeSection = ref<string | null>(null)
+const headerOffset = () => document.querySelector<HTMLElement>('.marketing-header')?.offsetHeight ?? 0
+function updateActiveSection() {
+  if (route.path !== '/') return (activeSection.value = null)
+  const line = headerOffset() + window.innerHeight / 3
+  let current: string | null = null
+  for (const { id } of sections) {
+    const el = document.getElementById(id)
+    if (el && el.getBoundingClientRect().top <= line) current = id
+  }
+  activeSection.value = current
+}
+const scrollBehavior = (): ScrollBehavior =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+// The menu locks body scroll while open; close it and wait until the lock is released.
+async function closeMenuAndUnlockScroll() {
+  menuOpen.value = false
+  await nextTick()
+  const deadline = performance.now() + 1000
+  while (getComputedStyle(document.body).overflow === 'hidden' && performance.now() < deadline)
+    await new Promise(resolve => requestAnimationFrame(resolve))
+  await new Promise(resolve => requestAnimationFrame(resolve))
+}
+// On the landing page the logo link points at the current route, so the router
+// would not move; scroll back to the top instead.
+async function goToTop(event: Event) {
+  if (route.path !== '/') return
+  event.preventDefault()
+  await closeMenuAndUnlockScroll()
+  window.scrollTo({ top: 0, behavior: scrollBehavior() })
+  history.replaceState(history.state, '', route.path)
+  activeSection.value = null
+}
+async function goToSection(id: string, event?: Event) {
+  if (route.path !== '/') return
+  const el = document.getElementById(id)
+  if (!el) return
+  event?.preventDefault()
+  await closeMenuAndUnlockScroll()
+  const behavior = scrollBehavior()
+  // Lazy media above the section can grow while scrolling, so re-aim until it lands.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const offset = el.getBoundingClientRect().top - headerOffset()
+    if (Math.abs(offset) < 2) break
+    window.scrollTo({ top: window.scrollY + offset, behavior })
+    if (behavior === 'auto') continue
+    await new Promise(resolve => {
+      const done = () => setTimeout(resolve, 50)
+      window.addEventListener('scrollend', done, { once: true })
+      setTimeout(done, 1200)
+    })
+  }
+  history.replaceState(history.state, '', `#${id}`)
+  activeSection.value = id
+}
+onMounted(() => {
+  updateActiveSection()
+  window.addEventListener('scroll', updateActiveSection, { passive: true })
+  window.addEventListener('resize', updateActiveSection, { passive: true })
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', updateActiveSection)
+  window.removeEventListener('resize', updateActiveSection)
+})
+watch(() => route.fullPath, () => nextTick(updateActiveSection))
+const links = computed(() =>
+  sections.map(({ id, key }) => ({
+    id,
+    label: t(key),
+    to: `/#${id}`,
+    active: (id === 'pricing' && route.path === '/pricing') || activeSection.value === id,
+    onSelect: (event: Event) => goToSection(id, event),
+  })))
 const legal = computed(() => [
   { label: t('public.privacy'), to: '/privacy' },
   { label: t('public.terms'), to: '/terms' },
@@ -57,14 +128,29 @@ const year = new Date().getFullYear()
   <div class="marketing">
     <ULink to="#main" class="skip-link">{{ t('public.skipToContent') }}</ULink
     ><UHeader
+      v-model:open="menuOpen"
       class="marketing-header"
       title="Framic"
-      :menu="{ fullscreen: false }"
+      :menu="{ fullscreen: route.path === '/', transition: true }"
       :ui="{
         root: 'bg-default/95 backdrop-blur border-default',
         container: 'max-w-[1220px] h-20 px-6 sm:px-10',
+        content: 'marketing-menu',
+        body: 'flex flex-1 flex-col',
       }"
-      ><template #left><BrandLogo /></template><UNavigationMenu :items="links" /><template #right
+      ><template #toggle="{ open, toggle }"
+        ><UButton
+          color="neutral"
+          variant="ghost"
+          class="marketing-burger -me-1.5 size-10 justify-center lg:hidden"
+          :data-open="open"
+          :data-animate="menuUsed"
+          :aria-label="t(open ? 'public.closeMenu' : 'public.openMenu')"
+          :aria-expanded="open"
+          @click="toggle"
+          ><span class="marketing-burger-box" aria-hidden="true"><span /><span /><span /></span></UButton
+        ></template
+      ><template #left><BrandLogo @click="goToTop" /></template><UNavigationMenu :items="links" /><template #right
         ><div class="hidden items-center gap-2 sm:flex">
           <UColorModeButton
             :aria-label="t('public.changeAppearance')"
@@ -96,42 +182,97 @@ const year = new Date().getFullYear()
           >
         </div></template
       ><template #body
-        ><div class="flex flex-col gap-6 sm:hidden">
-          <nav class="flex flex-col divide-y divide-default">
+        ><div class="flex flex-1 flex-col gap-8 lg:hidden">
+          <nav class="flex flex-col gap-1.5">
             <ULink
-              v-for="link in links"
+              v-for="(link, index) in links"
               :key="link.to"
               :to="link.to"
-              class="flex items-center justify-between py-3.5 text-base font-medium text-highlighted"
+              :aria-current="link.active ? 'location' : undefined"
+              :style="{ '--stagger': index }"
+              class="marketing-menu-item group relative flex items-center gap-4 rounded-xl border px-4 py-4 transition-all duration-200"
+              :class="link.active
+                ? 'border-primary/30 bg-primary/10 text-primary'
+                : 'border-transparent text-highlighted hover:border-default hover:bg-elevated/60'"
+              @click="link.onSelect($event)"
             >
-              {{ link.label }}
-              <UIcon name="i-lucide-chevron-right" class="size-4 text-muted" />
+              <span
+                class="text-xs font-semibold tabular-nums transition-colors"
+                :class="link.active ? 'text-primary' : 'text-dimmed'"
+                aria-hidden="true"
+              >{{ String(index + 1).padStart(2, '0') }}</span>
+              <span class="flex-1 text-xl font-semibold tracking-tight">{{ link.label }}</span>
+              <span
+                class="size-2 rounded-full bg-primary transition-all duration-200"
+                :class="link.active ? 'scale-100 opacity-100' : 'scale-0 opacity-0'"
+                aria-hidden="true"
+              />
             </ULink>
           </nav>
-          <div class="flex items-center gap-2 rounded-lg bg-elevated p-1.5">
-            <USelect
-              v-model="language"
-              :items="languageOptions"
-              variant="ghost"
-              color="neutral"
-              size="lg"
-              :aria-label="t('public.language')"
-              class="flex-1"
-            >
-              <template #leading><UIcon :name="languageFlag" class="size-5" /></template>
-              <template #default>{{ languageLabel }}</template>
-            </USelect><UColorModeButton
-              :aria-label="t('public.changeAppearance')"
-              color="neutral"
-              variant="ghost"
-              size="lg"
-            />
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <UButton to="/login" variant="outline" color="neutral" size="lg" block>{{
-              t('public.login')
-            }}</UButton
-            ><UButton :to="offerCtaPath" size="lg" block>{{ t(offerCtaLabelKey) }}</UButton>
+          <div
+            class="marketing-menu-item mt-auto flex flex-col gap-6 border-t border-default pt-6"
+            :style="{ '--stagger': links.length }"
+          >
+            <section class="flex flex-col gap-2.5" :aria-label="t('public.language')">
+              <p class="text-xs font-semibold tracking-wider text-muted uppercase">{{ t('public.language') }}</p>
+              <div class="grid grid-cols-3 gap-2">
+                <UButton
+                  v-for="item in publicLanguages"
+                  :key="item.value"
+                  :aria-pressed="language === item.value"
+                  :aria-label="t(item.key)"
+                  :color="language === item.value ? 'primary' : 'neutral'"
+                  :variant="language === item.value ? 'soft' : 'outline'"
+                  :icon="item.flag"
+                  :label="item.code"
+                  size="lg"
+                  block
+                  :class="language === item.value && 'ring ring-primary'"
+                  @click="language = item.value"
+                />
+              </div>
+            </section>
+            <section class="flex flex-col gap-2.5" :aria-label="t('public.appearance')">
+              <p class="text-xs font-semibold tracking-wider text-muted uppercase">{{ t('public.appearance') }}</p>
+              <ClientOnly>
+                <div class="grid grid-cols-2 gap-1 rounded-lg bg-elevated p-1">
+                  <UButton
+                    v-for="mode in appearanceModes"
+                    :key="mode.value"
+                    :aria-pressed="colorMode.value === mode.value"
+                    :icon="mode.icon"
+                    :label="t(mode.key)"
+                    color="neutral"
+                    variant="ghost"
+                    block
+                    class="transition-all"
+                    :class="colorMode.value === mode.value
+                      ? 'bg-default text-highlighted shadow-sm hover:bg-default'
+                      : 'text-muted'"
+                    @click="colorMode.preference = mode.value"
+                  />
+                </div>
+                <template #fallback><div class="h-11 rounded-lg bg-elevated" /></template>
+              </ClientOnly>
+            </section>
+            <div class="flex flex-col gap-2.5">
+              <UButton
+                :to="offerCtaPath"
+                size="xl"
+                trailing-icon="i-lucide-arrow-up-right"
+                block
+                class="rounded-xl"
+              >{{ t(offerCtaLabelKey) }}</UButton>
+              <UButton
+                to="/login"
+                variant="outline"
+                color="neutral"
+                size="xl"
+                leading-icon="i-lucide-log-in"
+                block
+                class="rounded-xl"
+              >{{ t('public.login') }}</UButton>
+            </div>
           </div>
         </div></template></UHeader
     ><UMain id="main"><slot /></UMain
@@ -162,7 +303,7 @@ const year = new Date().getFullYear()
             </nav>
           </div>
           <div class="flex items-center justify-between gap-[35px] py-10 pb-4 max-sm:gap-5 max-sm:py-8 max-sm:pb-3">
-            <BrandLogo class="w-[102px] max-sm:w-[84px]" />
+            <BrandLogo class="w-[102px] max-sm:w-[84px]" @click="goToTop" />
             <p class="text-xs leading-[1.7] text-muted max-sm:text-[11px] max-sm:text-right">
               {{ t('public.fromIdea') }}<br />{{ t('public.nextPost') }}<UIcon
                 name="i-lucide-arrow-up-right"
