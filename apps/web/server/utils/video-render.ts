@@ -306,6 +306,9 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
   let failureReason = 'render_failed'
   // How long each step took, logged once the render ends, to trace slow renders.
   const timings: { step: string; ms: number }[] = []
+  // Every storyboard the director wrote, a calmer second one included, kept
+  // with the timings so the camera plan behind a render can be read back.
+  const storyboards: Storyboard[] = []
   const renderStarted = Date.now()
   const timed = async <T>(step: string, run: () => Promise<T>) => {
     const started = Date.now()
@@ -315,12 +318,16 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
       timings.push({ step, ms: Date.now() - started })
     }
   }
-  const logTimings = (outcome: string) => console.info('Video render timings', {
-    postId,
-    outcome,
-    totalMs: Date.now() - renderStarted,
-    steps: timings,
-  })
+  // Logged and kept with the render, so a slow render can be read from the
+  // database. Keeping them is best effort: a render is never failed over it.
+  const logTimings = async (outcome: string) => {
+    const record = { outcome, totalMs: Date.now() - renderStarted, steps: timings, storyboards }
+    console.info('Video render timings', { postId, outcome, totalMs: record.totalMs, steps: timings })
+    await withBusinessTransaction(userId, (client, business) =>
+      client.query('UPDATE video_renders SET timings=$1 WHERE id=$2 AND business_id=$3', [JSON.stringify(record), snapshot.renderId, business.id]),
+    ).catch((error: unknown) =>
+      console.warn('The video render timings could not be kept', { postId, error: error instanceof Error ? error.message : 'unknown' }))
+  }
   try {
     // Both ends of the motion are cut from one photograph, so the subject
     // stays the subject that was photographed.
@@ -510,6 +517,7 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
           console.warn('The video director gave no valid storyboard; the video was not made', { postId })
           throw createError({ statusCode: 502, message: 'server.VIDEO_DIRECTION_FAILED' })
         }
+        if (direction.storyboard) storyboards.push(direction.storyboard)
         failureReason = 'render_failed'
         return direction
       },
@@ -725,10 +733,10 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
     if (replacedAiMusicPath)
       await removeAsset(replacedAiMusicPath).catch((error) =>
         console.error('Failed to remove the AI music of a replaced video', { storagePath: replacedAiMusicPath, error }))
-    logTimings('ready')
+    await logTimings('ready')
     return { renderId: snapshot.renderId, status: 'ready' }
   } catch (error) {
-    logTimings(failureReason)
+    await logTimings(failureReason)
     for (const uploadedPath of uploadedPaths) {
       try {
         await removeAsset(uploadedPath)
