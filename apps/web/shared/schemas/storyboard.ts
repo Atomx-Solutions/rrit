@@ -7,6 +7,10 @@ export const ctaMaxLength = 32
 // How far the camera may travel around the subject: a full orbit. The motion
 // model paints any side the photograph does not show, and the subject check
 // still rejects a take that changes the subject itself.
+// The opening shot stops the scroll: it turns at least this far around the
+// subject unless it is a soaring or snapping move that needs no turn.
+export const minOpeningTurnDegrees = 30
+const soaringMove = /\b(drone|crane|fly[- ]?(over|through)|aerial|dolly[- ]zoom|vertigo|whip[- ]?pan)\b/i
 export const maxStoryboardRotationDegrees = 360
 export const maxStoryboardShots = 3
 // A video takes at most one photograph of its subject per shot.
@@ -86,9 +90,6 @@ export const storyboardShotSchema = z.object({
   // Whether the shot opens and closes on the real photograph's own view.
   opensOnPhotograph: z.boolean(),
   endsOnPhotograph: z.boolean(),
-  // The director's own confirmation that the shot shows only sides of the
-  // subject the photograph shows. False is rejected as a problem below.
-  showsOnlyPhotographedSides: z.boolean(),
 })
 
 export const storyboardSchema = z.object({
@@ -246,6 +247,8 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
       problems.push(`Shot ${index + 1} holds the camera nearly still; give it a real, visible camera move (a dolly, slide, rise, push-through or parallax), so it reads as video rather than a photograph.`)
     if (index === 0 && storyboard.shots.length > 1 && shot.motion && shot.motion !== 'strong')
       problems.push('The hook must move strongly: its camera move is the most energetic of the video.')
+    if (index === 0 && shot.camera.rotationDegrees < minOpeningTurnDegrees && !soaringMove.test(shot.camera.move))
+      problems.push(`The opening move is too gentle: turn the camera at least ${minOpeningTurnDegrees} degrees around the subject (an orbit or arc), or make it a drone, crane, fly-over, dolly zoom or whip pan.`)
   })
   return problems
 }

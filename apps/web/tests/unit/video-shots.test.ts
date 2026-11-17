@@ -36,7 +36,6 @@ function shot(durationSeconds: number, extra: Partial<Storyboard['shots'][number
     subject: { motion: 'still', description: 'The car holds still.' },
     opensOnPhotograph: true,
     endsOnPhotograph: false,
-    showsOnlyPhotographedSides: true,
     ...extra,
   }
 }

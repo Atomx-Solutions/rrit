@@ -124,7 +124,7 @@ export async function joinClips(clips: Buffer[], size: { width: number; height: 
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
       ...paths.flatMap((path) => ['-i', path]),
       '-filter_complex', `${normalized}${joins}[${previous}]null[out]`,
-      '-map', '[out]', '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '16',
+      '-map', '[out]', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '16',
       '-pix_fmt', 'yuv420p', outputPath,
     ], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 })
     return await readFile(outputPath)

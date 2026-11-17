@@ -38,7 +38,7 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
           lens: '35mm natural perspective',
           speed: 'measured with a clear opening impulse',
           ease: 'ease-out, steady middle, gentle ease-in close',
-          rotationDegrees: 8,
+          rotationDegrees: 40,
           startPosition: 'Low and left of the photographed front corner.',
           endPosition: 'At natural eye level on the same photographed side.',
           angle: 'low_angle',
@@ -49,7 +49,6 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
         subject: { motion: 'still', description: 'The car stands exactly where it is in the photograph.' },
         opensOnPhotograph: true,
         endsOnPhotograph: false,
-        showsOnlyPhotographedSides: true,
       },
     ],
     ...overrides,
@@ -89,6 +88,15 @@ describe('storyboard rules', () => {
     expect(storyboardSchema.safeParse(turned).success).toBe(true)
     turned.shots[0]!.camera.rotationDegrees = 361
     expect(storyboardSchema.safeParse(turned).success).toBe(false)
+  })
+
+  it('rejects a gentle opening move unless it soars', () => {
+    const gentle = storyboard()
+    gentle.shots[0]!.camera.rotationDegrees = 8
+    gentle.shots[0]!.camera.move = 'A slow tracking slide along the table.'
+    expect(storyboardProblems(gentle, limits).join(' ')).toContain('too gentle')
+    gentle.shots[0]!.camera.move = 'A drone rise over the terrace.'
+    expect(storyboardProblems(gentle, limits).join(' ')).not.toContain('too gentle')
   })
 
   it('allows orbits, reveals, arrivals and detail shots, and rejects a take not opened on the photograph', () => {
@@ -245,7 +253,7 @@ describe('the cinematic shot prompt', () => {
     expect(brief).toContain('ends exactly on the supplied last frame, the real photograph')
     expect(brief).toContain('Lens: 35mm natural perspective')
     expect(brief).toContain('gentle ease-in close')
-    expect(brief).toContain('Turn around the subject 8 degrees')
+    expect(brief).toContain('Turn around the subject 40 degrees')
     expect(brief).toContain('start Low and left of the photographed front corner')
     expect(brief).toContain('angle low_angle')
     expect(brief).toContain('calm negative space above it')

@@ -20,7 +20,6 @@ function board(seconds: number[]): Storyboard {
       subject: { motion: 'still' as const, description: 'The car holds still.' },
       opensOnPhotograph: true,
       endsOnPhotograph: true,
-      showsOnlyPhotographedSides: true,
     })),
   }
 }
