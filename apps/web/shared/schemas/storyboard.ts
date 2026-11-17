@@ -4,12 +4,14 @@ import { z } from 'zod'
 // state this limit so the model writes a complete one instead of being cut off.
 export const ctaMaxLength = 32
 
-// The most a camera may turn around the subject. A single photograph shows one
-// side of it; turning further would make the motion model invent the rest.
-export const maxStoryboardRotationDegrees = 45
-// With only one photograph the model has nothing but that view to go on, so
-// the camera barely turns.
-export const maxSinglePhotoRotationDegrees = 15
+// How far the camera may travel around the subject: a full orbit. The motion
+// model paints any side the photograph does not show, and the subject check
+// still rejects a take that changes the subject itself.
+// The opening shot stops the scroll: it turns at least this far around the
+// subject unless it is a soaring or snapping move that needs no turn.
+export const minOpeningTurnDegrees = 30
+const soaringMove = /\b(drone|crane|fly[- ]?(over|through)|aerial|dolly[- ]zoom|vertigo|whip[- ]?pan)\b/i
+export const maxStoryboardRotationDegrees = 360
 export const maxStoryboardShots = 3
 // A video takes at most one photograph of its subject per shot.
 export const maxVideoPhotos = maxStoryboardShots
@@ -88,9 +90,6 @@ export const storyboardShotSchema = z.object({
   // Whether the shot opens and closes on the real photograph's own view.
   opensOnPhotograph: z.boolean(),
   endsOnPhotograph: z.boolean(),
-  // The director's own confirmation that the shot shows only sides of the
-  // subject the photograph shows. False is rejected as a problem below.
-  showsOnlyPhotographedSides: z.boolean(),
 })
 
 export const storyboardSchema = z.object({
@@ -122,14 +121,10 @@ export const directorStoryboardSchema = storyboardSchema.extend({
       angle: cameraAngleSchema,
       composition: z.string().trim().min(5).max(240),
     }),
-  })).length(1),
+  })).min(1).max(maxStoryboardShots),
   subjectFrame: subjectFrameSchema,
 })
 export type StoryboardShot = z.infer<typeof storyboardShotSchema>
-
-// Words that describe showing a side of the subject the photograph does not
-// show. A concept that needs them cannot be made from one photograph.
-const unseenSides = /\b360\b|full (?:orbit|circle|turn|rotation|spin)|orbit(?:s|ing)? (?:around|the)|circl(?:e|es|ing) (?:around|the)|spin(?:s|ning)? around|(?:rear|back|underside|interior|inside) (?:view|side|of the)|behind the (?:car|vehicle|subject|product)/i
 
 // A camera that does not move. In a short-form edit only the close may hold
 // still; everywhere else it reads as a photograph, not a video.
@@ -212,8 +207,10 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
     const shot = storyboard.shots[0]
     if (shot.role && shot.role !== 'continuous')
       problems.push('The sole shot must have role continuous: it carries the hook, development, payoff and close without cuts.')
-    if (!shot.opensOnPhotograph || !shot.endsOnPhotograph)
-      problems.push('The continuous shot must start and end on the supplied real photograph.')
+    if (!shot.opensOnPhotograph)
+      problems.push('The continuous shot must start on the supplied real photograph.')
+    if (shot.endsOnPhotograph)
+      problems.push('The continuous shot must not end on the photograph it opened on; let the camera travel to its own closing view.')
     if ((shot.photoIndex ?? 0) !== 0)
       problems.push('The continuous shot must use photograph 1; further photographs are identity reference only.')
     if (shot.motion === 'subtle' || heldCamera.test(shot.camera.move))
@@ -250,27 +247,8 @@ export function storyboardProblems(storyboard: Storyboard, limits: StoryboardLim
       problems.push(`Shot ${index + 1} holds the camera nearly still; give it a real, visible camera move (a dolly, slide, rise, push-through or parallax), so it reads as video rather than a photograph.`)
     if (index === 0 && storyboard.shots.length > 1 && shot.motion && shot.motion !== 'strong')
       problems.push('The hook must move strongly: its camera move is the most energetic of the video.')
-  })
-  // From one photograph every view the model paints beyond it is invented,
-  // so the moves stay ones it can make from that view alone: no arrival, no
-  // detail crop, little turn, and only the hook moves strongly.
-  if (photos === 1 || continuous) storyboard.shots.forEach((shot, index) => {
-    if (shot.subject.motion === 'arrives')
-      problems.push(`Shot ${index + 1} has the subject arrive; from one photograph it must already be in its photographed place.`)
-    if (shot.shotSize === 'detail')
-      problems.push(`Shot ${index + 1} is a detail shot; from one photograph keep to wide, medium or close framing.`)
-    if (shot.camera.rotationDegrees > maxSinglePhotoRotationDegrees)
-      problems.push(`Shot ${index + 1} turns ${shot.camera.rotationDegrees} degrees; from one photograph turn at most ${maxSinglePhotoRotationDegrees}.`)
-    if (index > 0 && shot.motion === 'strong')
-      problems.push(`Shot ${index + 1} moves strongly; from one photograph only the hook does, the other shots move at medium or subtle strength.`)
-  })
-  const last = storyboard.shots.at(-1)
-  if (last && !last.endsOnPhotograph)
-    problems.push('The final shot must end on the real photograph, so the video closes on the true subject.')
-  storyboard.shots.forEach((shot, index) => {
-    const text = [shot.purpose, shot.camera.move, shot.subject.description, shot.atmosphere, shot.effects].join(' ')
-    if (!shot.showsOnlyPhotographedSides || unseenSides.test(text))
-      problems.push(`Shot ${index + 1} turns around or shows a side of the subject the photograph does not show; keep the turn within ${maxStoryboardRotationDegrees} degrees and on the photographed side.`)
+    if (index === 0 && shot.camera.rotationDegrees < minOpeningTurnDegrees && !soaringMove.test(shot.camera.move))
+      problems.push(`The opening move is too gentle: turn the camera at least ${minOpeningTurnDegrees} degrees around the subject (an orbit or arc), or make it a drone, crane, fly-over, dolly zoom or whip pan.`)
   })
   return problems
 }

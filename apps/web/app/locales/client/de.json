@@ -2365,6 +2365,8 @@
   "status.videoFailed": "Video fehlgeschlagen",
   "video.failedBlocksTitle": "Das Video hat diesmal nicht geklappt",
   "video.failedBlocksDescription": "Keine Sorge, es wurden keine Credits verbraucht. Klicke auf „Erneut versuchen“, um es noch einmal zu erstellen, oder auf „Video mit KI bearbeiten“, um ihm eine neue Richtung zu geben. Dann ist der Beitrag bereit zur Veröffentlichung.",
+  "video.failure.credits_insufficient": "Das Video wurde nicht erstellt, weil die Credits nicht ausreichen, um es vollständig zu generieren. Es wurde nichts berechnet. Lade Credits auf und klicke auf „Erneut versuchen“.",
+  "video.failure.quota_exceeded": "Das Video wurde nicht erstellt, weil das Video-Kontingent deines Pakets für diesen Monat aufgebraucht ist. Es wurde nichts berechnet. Wechsle dein Paket oder versuche es nächsten Monat erneut.",
   "calendar.pickDate": "Datum wählen",
   "brand.tabProfile": "Profil",
   "brand.tabFacts": "Produkte, Dienstleistungen & Angebote",

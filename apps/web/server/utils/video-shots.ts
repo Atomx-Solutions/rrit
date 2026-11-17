@@ -44,7 +44,7 @@ const defaults: ShotDependencies = {
  * waits for another. The first shot may open away from its photograph when
  * the director wrote an arrival and the model can still be pinned to it at
  * the end. A shot that ends on its photograph is pinned to it as its last
- * frame; the final shot always is. Every shot is held against its own
+ * frame. Every shot is held against its own
  * photograph.
  */
 export async function generateStoryboardShots(input: {
@@ -70,9 +70,11 @@ export async function generateStoryboardShots(input: {
   )
   const shots = input.storyboard.shots
   const shoot = async (shot: Storyboard['shots'][number], index: number) => {
-    const final = index === shots.length - 1
     const photograph = photographs[shot.photoIndex ?? 0] || photographs[0]!
-    const endsOnPhotograph = (shot.endsOnPhotograph || final) && input.lastFrameSupported
+    // Pinning a shot that opens on the photograph to the same photograph at its
+    // end leaves the camera nowhere to go, so only a shot the director wrote to
+    // end there (an arrival) is pinned; every other shot travels freely.
+    const endsOnPhotograph = shot.endsOnPhotograph && input.lastFrameSupported
     // An arrival may open away from the photograph only when the model can
     // still be pinned to it at the end; every other shot opens on it.
     const start: 'photograph' | 'free' =

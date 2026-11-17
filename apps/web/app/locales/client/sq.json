@@ -2365,6 +2365,8 @@
   "status.videoFailed": "Video dështoi",
   "video.failedBlocksTitle": "Videoja nuk doli këtë herë",
   "video.failedBlocksDescription": "Mos u shqetëso, nuk u përdor asnjë kredit. Kliko \"Provo sërish\" për ta krijuar përsëri, ose \"Edito videon me AI\" për t'i dhënë drejtim të ri. Pastaj postimi do të jetë gati për publikim.",
+  "video.failure.credits_insufficient": "Videoja nuk u krijua sepse kreditet nuk mjaftojnë për ta gjeneruar të plotë. Nuk u faturua asgjë. Mbush kreditet dhe kliko \"Provo sërish\".",
+  "video.failure.quota_exceeded": "Videoja nuk u krijua sepse kufiri i videove i paketës për këtë muaj është arritur. Nuk u faturua asgjë. Përmirëso paketën ose provo muajin tjetër.",
   "calendar.pickDate": "Zgjidh një datë",
   "brand.tabProfile": "Profili",
   "brand.tabFacts": "Produktet, shërbimet & ofertat",

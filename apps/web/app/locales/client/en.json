@@ -2365,6 +2365,8 @@
   "status.videoFailed": "Video failed",
   "video.failedBlocksTitle": "The video didn’t work out this time",
   "video.failedBlocksDescription": "No worries, no credits were used. Click Try again to make it once more, or Edit video with AI to give it a new direction. Then the post will be ready to publish.",
+  "video.failure.credits_insufficient": "The video was not made because there are not enough credits to generate it in full. Nothing was charged. Top up your credits and click Try again.",
+  "video.failure.quota_exceeded": "The video was not made because your package's video allowance for this month is used up. Nothing was charged. Upgrade your package or try again next month.",
   "calendar.pickDate": "Choose a date",
   "brand.tabProfile": "Profile",
   "brand.tabFacts": "Products, services & offers",

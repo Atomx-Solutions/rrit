@@ -36,7 +36,6 @@ function shot(durationSeconds: number, extra: Partial<Storyboard['shots'][number
     subject: { motion: 'still', description: 'The car holds still.' },
     opensOnPhotograph: true,
     endsOnPhotograph: false,
-    showsOnlyPhotographedSides: true,
     ...extra,
   }
 }
@@ -82,8 +81,8 @@ describe('generating a storyboard shot by shot', () => {
     expect(second!.durationSeconds).toBe(8)
     // The second scene opens on the photograph, not on where the first ended.
     expect(second!.image).toEqual(first!.image)
-    // The final shot is pinned to the photograph at its end.
-    expect(second!.lastFrame).toBeInstanceOf(Buffer)
+    // The final shot travels freely instead of returning to the photograph.
+    expect(second!.lastFrame).toBeUndefined()
     expect(deps.verify).toHaveBeenCalledTimes(2)
   })
 
@@ -116,7 +115,7 @@ describe('generating a storyboard shot by shot', () => {
     const [first, second] = deps.generate.mock.calls.map((call) => (call as unknown as [Record<string, Buffer>])[0])
     // A new scene opens on its own photograph, not on the last frame before it.
     expect(second!.image).not.toEqual(Buffer.from('previous-last-frame'))
-    expect(second!.image).toEqual(second!.lastFrame)
+    expect(second!.lastFrame).toBeUndefined()
     expect(first!.image).not.toEqual(second!.image)
     const checked = deps.verify.mock.calls.map((call) => (call as unknown as [{ photograph: Buffer }])[0].photograph)
     expect(checked[0]).toEqual(first!.image)
