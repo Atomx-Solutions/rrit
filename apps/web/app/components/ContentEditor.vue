@@ -33,6 +33,13 @@ const existing = computed(() => data.value.posts.find((p) => p.id === props.id))
 // has nothing that may be published: it cannot go for approval, be approved,
 // scheduled or published until it is fixed.
 const videoFailed = computed(() => existing.value?.video?.status === 'failed')
+// The recorded reason when it is one the business can act on (no credits, the
+// package's video allowance used up); otherwise the general explanation.
+const videoFailureDescription = computed(() => {
+  const key = `video.failure.${existing.value?.video?.failure?.code}`
+  const known = t(key)
+  return known !== key ? known : t('video.failedBlocksDescription')
+})
 const publishBlocked = computed(() => videoFailed.value || existing.value?.policy === 'block')
 if (props.id && !existing.value)
   throw createError({ statusCode: 404, statusMessage: t('content.postNotFound') })
@@ -927,7 +934,7 @@ onBeforeUnmount(() => {
             variant="subtle"
             icon="i-lucide-video-off"
             :title="t('video.failedBlocksTitle')"
-            :description="t('video.failedBlocksDescription')"
+            :description="videoFailureDescription"
           />
           <!-- Confirmation is the final deliberate step after the user has
                read every validation, policy and video finding. Keep it next

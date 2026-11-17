@@ -51,9 +51,21 @@ export async function queueVideoRender(userId: string, postId: string) {
       && error.message === 'server.VIDEO_RENDER_IN_PROGRESS'
     if (!inProgress)
       await withBusinessTransaction(userId, (client, business) =>
-        markPostVideoFailed(client, business.id, postId, { code: 'queue_refused' }))
+        markPostVideoFailed(client, business.id, postId, { code: queueRefusalCode(error) }))
     throw error
   })
+}
+
+/**
+ * Why a render could not be queued, in the same words the render itself uses,
+ * so the editor tells the business the actual reason (no credits left, the
+ * package's video allowance used up) instead of a generic failure.
+ */
+export function queueRefusalCode(error: unknown) {
+  const data = typeof error === 'object' && error && 'data' in error ? (error as { data?: { code?: unknown } }).data : undefined
+  if (data?.code === 'CREDITS_EXHAUSTED') return 'credits_insufficient'
+  if (data?.code === 'QUOTA_EXCEEDED') return 'quota_exceeded'
+  return 'queue_refused'
 }
 
 function queueRender(userId: string, postId: string) {

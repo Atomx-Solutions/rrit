@@ -2365,6 +2365,8 @@
   "status.videoFailed": "Vidéo échouée",
   "video.failedBlocksTitle": "La vidéo n’a pas fonctionné cette fois",
   "video.failedBlocksDescription": "Pas d’inquiétude, aucun crédit n’a été utilisé. Cliquez sur « Réessayer » pour la recréer, ou sur « Modifier la vidéo avec l’IA » pour lui donner une nouvelle direction. La publication sera ensuite prête.",
+  "video.failure.credits_insufficient": "La vidéo n’a pas été créée car les crédits ne suffisent pas pour la générer entièrement. Rien n’a été facturé. Rechargez vos crédits puis cliquez sur « Réessayer ».",
+  "video.failure.quota_exceeded": "La vidéo n’a pas été créée car le quota de vidéos de votre forfait pour ce mois est atteint. Rien n’a été facturé. Passez à un forfait supérieur ou réessayez le mois prochain.",
   "calendar.pickDate": "Choisir une date",
   "brand.tabProfile": "Profil",
   "brand.tabFacts": "Produits, services & offres",

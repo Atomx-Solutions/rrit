@@ -2365,6 +2365,8 @@
   "status.videoFailed": "Video non riuscito",
   "video.failedBlocksTitle": "Il video non è riuscito questa volta",
   "video.failedBlocksDescription": "Nessun problema, non è stato usato alcun credito. Clicca «Riprova» per crearlo di nuovo, oppure «Modifica il video con l’IA» per dargli una nuova direzione. Poi il post sarà pronto da pubblicare.",
+  "video.failure.credits_insufficient": "Il video non è stato creato perché i crediti non bastano per generarlo per intero. Non è stato addebitato nulla. Ricarica i crediti e clicca «Riprova».",
+  "video.failure.quota_exceeded": "Il video non è stato creato perché il limite di video del tuo pacchetto per questo mese è stato raggiunto. Non è stato addebitato nulla. Passa a un pacchetto superiore o riprova il mese prossimo.",
   "calendar.pickDate": "Scegli una data",
   "brand.tabProfile": "Profilo",
   "brand.tabFacts": "Prodotti, servizi & offerte",
