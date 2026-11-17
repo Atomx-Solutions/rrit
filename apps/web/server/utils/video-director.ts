@@ -4,7 +4,10 @@ import { contentLanguageForLocale, videoDurationSeconds, type AppLocaleValue } f
 import type { VisualRoute } from '../../shared/schemas/monthly-plan'
 import {
   maxSinglePhotoRotationDegrees,
+  maxStoryboardRotationDegrees,
+  maxStoryboardShots,
   storyboardProblems,
+  storyboardShape,
   ctaMaxLength,
   directorStoryboardSchema,
   type Storyboard,
@@ -30,9 +33,19 @@ function configuredSeconds(variable: string, env: Record<string, string | undefi
   return Number.isFinite(value) && value > 0 ? value : undefined
 }
 
-// A delivered video is one continuous generated take. Its duration is chosen
-// for the idea from every length the configured model actually supports; the
-// optional environment settings are safety caps, not a universal target.
+// How many scenes a video is told in (VIDEO_MAX_SHOTS, at most
+// maxStoryboardShots). One makes it a single continuous take; more tells it in
+// separate scenes, each generated on its own from its own photograph and
+// joined with a crossfade.
+export function videoMaxShots(env: Record<string, string | undefined> = process.env) {
+  const configured = configuredSeconds('VIDEO_MAX_SHOTS', env)
+  return Math.min(maxStoryboardShots, Math.max(1, Math.floor(configured ?? maxStoryboardShots)))
+}
+
+// A video's duration is chosen for the idea from every length the configured
+// model actually supports; the optional environment settings are safety caps,
+// not a universal target. Told in scenes, the caps bound the whole video and
+// each scene lasts one supported length.
 export function videoLengthLimits(durations: number[], env: Record<string, string | undefined> = process.env): StoryboardLimits {
   // When the provider catalogue is temporarily unavailable, retain the proven
   // legacy length rather than asking the provider for an invented duration.
@@ -43,12 +56,15 @@ export function videoLengthLimits(durations: number[], env: Record<string, strin
   const configuredMax = configuredSeconds('VIDEO_MAX_SECONDS', env)
   const minSeconds = configuredMin ?? supported[0] ?? 1
   const maxSeconds = configuredMax ?? supported.at(-1) ?? 30
-  const allowed = supported.filter((value) => value >= minSeconds && value <= maxSeconds)
+  const maxShots = videoMaxShots(env)
+  // The minimum bounds the whole video; a scene of a longer video may be
+  // shorter than it.
+  const allowed = supported.filter((value) => (maxShots > 1 || value >= minSeconds) && value <= maxSeconds)
   return {
     durations: supported.length && !allowed.length ? supported : allowed,
     minSeconds: supported.length && !allowed.length ? supported[0]! : Math.min(minSeconds, maxSeconds),
     maxSeconds: supported.length && !allowed.length ? supported.at(-1)! : Math.max(minSeconds, maxSeconds),
-    maxShots: 1,
+    maxShots,
   }
 }
 
@@ -144,6 +160,9 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
   const coveredSides = (['top', 'right', 'bottom', 'left'] as const)
     .filter((side) => covered[side] > 0)
     .map((side) => `the ${side} ${Math.round(covered[side] * 100)}%`)
+  const coveredRule = coveredSides.length ? ` ${input.channel} covers ${coveredSides.join(', ')} of the frame with its interface, so nothing important happens there.` : ''
+  const shape = limits.maxShots === 1 ? null : storyboardShape(limits)
+  if (shape && shape.maxShots > 1) return scenesInstructions(input, shape, coveredRule)
   return [
     'Act as a senior creative director and cinematographer for realistic short commercial social video. Invent one original concept for this exact business, audience, post and photograph.',
     `The deliverable is one continuous generated take for ${input.channel}, on a ${ratioLabel(canvas)} canvas: exactly one shot, no cuts, no stitched scenes, no montage, no end card and no transition to another location. One coherent camera path carries the hook, development, payoff and close inside the same real moment. ${durationRule}${coveredSides.length ? ` ${input.channel} covers ${coveredSides.join(', ')} of the frame with its interface, so nothing important happens there.` : ''}`,
@@ -168,6 +187,63 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
       : []),
     ...(input.previousAttempt
       ? ['previousAttempt holds your last continuous take and how the motion model changed the subject. Propose a safer version of the same post: keep the subject still in its photographed place and never let the camera reveal sides or details the photograph does not show. Only the subject is calmed, not the direction: keep one designed, expressive camera path (an arc, crane, reveal or parallax through the scene, not just a push in and out), never a locked, static or tripod frame, and never motion "subtle".']
+      : []),
+  ].join('\n')
+}
+
+/**
+ * The director's brief for a video told in separate scenes. The audience,
+ * platform, variety and subject rules are the continuous take's; only the
+ * shape differs: each scene is generated on its own from its own photograph,
+ * so several photographs give the video several real views, joined into one
+ * cinematic edit with a crossfade.
+ */
+function scenesInstructions(
+  input: Pick<DirectorInput, 'channel' | 'limits' | 'locale' | 'brand' | 'post' | 'previousAttempt' | 'userInstruction' | 'products'>,
+  shape: NonNullable<ReturnType<typeof storyboardShape>>,
+  coveredRule: string,
+) {
+  const { limits } = input
+  const canvas = channelCanvas(input.channel)
+  const count = shape.minShots === shape.maxShots ? `${shape.minShots}` : `${shape.minShots} to ${shape.maxShots}`
+  const lengths = limits.durations.length
+    ? `Each scene lasts exactly one of ${limits.durations.join(', ')} seconds, the lengths the motion model renders.`
+    : 'Give each scene a whole number of seconds.'
+  const photos = limits.photos || 1
+  // One photograph is the only view the motion model has of the subject, so
+  // big moves away from it make the model invent the subject and change it.
+  const singlePhoto = photos === 1
+  const maxRotation = singlePhoto ? maxSinglePhotoRotationDegrees : maxStoryboardRotationDegrees
+  return [
+    'Act as a senior creative director and cinematographer for cinematic short commercial social video. Invent one original concept for this exact business, audience, post and photographs, told as a storyboard of separate scenes the motion model will shoot.',
+    `The video is for ${input.channel}, on a ${ratioLabel(canvas)} canvas. Its scenes last ${shape.totalSeconds} seconds together, the full length of the video, told in ${count} separate scenes joined by short crossfades. ${lengths}${coveredRule}`,
+    platformVideoDirection(input.channel),
+    `Audience direction: the declared audience is ${input.brand.audience}. Use the post intent (${input.post.intent || 'the supplied intent'}), purpose and hook to judge whether this audience is discovering, considering or ready to act. Adapt the pace, visual energy, clarity and call-to-action timing to that state without inferring sensitive personal traits.`,
+    'Each scene is generated separately: it opens on its own photograph as a scene of its own and never continues the frame another scene ended on. Give every scene its own camera idea, framing, light or moment, so the video moves through the concept like a cut commercial instead of holding one move.',
+    singlePhoto
+      ? 'Everything is made from one supplied photograph, the only truthful view of the subject. You may animate plausible light, atmosphere, reflections and natural environmental motion, and move the camera only within what that view supports: a push or pull, lateral slide, parallax, gentle rise or drop, or a very small turn. The subject is already in its photographed place; it never arrives, lands, drives in or transforms. No drone flight, fly-over, impossible reveal or invented reverse angle. Set photoIndex to 0 in every scene.'
+      : `You are given ${photos} real photographs of this business, in order; photograph 1 is the main one. They may show the same subject from other angles or other parts of the business (a dish, the room, the product, the place). Give every scene a photoIndex (0 for photograph 1, and so on): the scene starts on that photograph and shows only what that photograph shows. Use every photograph in its own scene, order the scenes so they build one story, and make the final scene from photograph 1 so the video closes on the main one. Within each scene you may move boldly through what its photograph shows: a dolly, crane rise, push through foreground, lateral tracking or parallax reveal.`,
+    `Each scene's subject must stay exactly as its own photograph shows it: the same model, colour, shape, logo and details. Show only the photographed side. The camera may turn around it by at most ${maxRotation} degrees in a scene, never orbit, never 360 degrees, and never reveal its back, underside or interior. Set rotationDegrees honestly and showsOnlyPhotographedSides=true only when this holds.`,
+    'The final scene must end on the real photograph (endsOnPhotograph=true), so the video closes on the true subject. Mark each scene that opens on its photograph\'s own view with opensOnPhotograph=true.',
+    'Edit it like a senior short-form commercial editor. Give every scene a role: scene 1 is the hook (role=hook), the most arresting moment, with a strong camera move that stops the scroll inside its first second; then build scenes (role=build) and a payoff (role=payoff) that reveal the business; the final scene is the close (role=close), settling on the main photograph so the call to action can land. Energy rises towards the payoff and settles in the close.',
+    `Every scene except the close moves the camera visibly and with intent. A locked, tripod, static or fixed camera is not a move. ${singlePhoto ? 'Set motion to strong for the hook only, medium for build and payoff, and subtle for the close.' : 'Set motion to strong for the hook, medium or strong for build and payoff, and subtle only for the close.'} Vary the kind of move from scene to scene, and let each move carry into the next the way a motivated cut would.`,
+    singlePhoto
+      ? 'Give every scene a shotSize of wide, medium or close, never detail: a closer framing than the photograph is a crop the model has to fill with invented detail.'
+      : 'Give every scene a shotSize (wide, medium, close or detail) and never give two consecutive scenes the same one, so each scene has its own framing.',
+    'Write every scene as a precise cinematographer brief: camera move, lens, startPosition, endPosition, angle, composition, speed and ease; the light and atmosphere; the effects; and what the subject does. No text, letters, logos or captions appear in the generated motion; the application places approved copy afterward.',
+    'Set subjectFrame to where the subject spans vertically in photograph 1, as shares of its height from the top (0 is the top edge, 1 the bottom). The application places its headline and call to action in the free space above or below that band, so judge it honestly from the photograph.',
+    `Write cta (a short call to action, at most ${ctaMaxLength} characters) and caption in ${contentLanguageForLocale(input.locale)}, in the brand voice, from the supplied post. Do not invent prices, offers, facts or claims.`,
+    sceneDressingRule(input.products || []),
+    ...(input.post.visualLayout
+      ? [`The strategy chose this photograph-specific visual direction for the post: ${input.post.visualLayout}${input.post.visualRoute ? ` Its semantic visual fingerprint is ${JSON.stringify(input.post.visualRoute)}.` : ''} Translate its focal hierarchy, depth, energy and negative-space logic into the scenes, but invent the camera blocking yourself.`]
+      : []),
+    'Make this concept your own for this post: do not fall back on a generic slow push-in, a generic product orbit or a generic particle-and-glow treatment unless the actual photographs, audience and platform earn it.',
+    `Creative-variety challenge for this specific post: ${videoVarietyDirection(input)} Treat it as a compositional challenge, never as permission to break subject fidelity or show an unseen side.`,
+    ...(input.userInstruction
+      ? ['businessRequest is what the business itself asked for in this video. Follow it ahead of your own ideas, as far as the rules above about the subject and the photographs allow; where it would break them, keep to the rules and come as close to the request as they permit.']
+      : []),
+    ...(input.previousAttempt
+      ? ['previousAttempt holds your last storyboard and how the motion model changed the subject in one of its scenes. Keep the concept and every other scene; make only the scene named in the problem calmer: keep its subject still in its photographed place, turn the camera little or not at all, and keep a visible but gentler camera move.']
       : []),
   ].join('\n')
 }

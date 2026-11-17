@@ -19,7 +19,7 @@ import { approvedVideoCopy, videoPostEvidence } from './video-quality'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
 import { dressVideoScene } from './video-scene'
 import { businessProductsFromFacts } from './scene-dressing'
-import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
+import { directVideo, videoCrossfadeSeconds, videoLengthLimits, videoMaxShots } from './video-director'
 import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
 import { directedTakes, videoChargeCredits } from './video-takes'
 import { maxVideoPhotos, storyboardSeconds, type Storyboard } from '../../shared/schemas/storyboard'
@@ -338,12 +338,20 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
     const extraFitted: Buffer[] = []
     if (snapshot.extraSources.length) {
       failureReason = 'photo_fit_failed'
+      // Told in scenes, each photograph is a scene of its own, held against
+      // its own photograph when shot, so another part of the business (a dish,
+      // the room) is as welcome as another angle. Only a single take, which
+      // uses the others as identity evidence for one subject, needs them to
+      // show the same subject.
+      const scenes = videoMaxShots() > 1
       const extras = await timed('extra_photos_fit', () => Promise.all(snapshot.extraSources.map(async (source) => {
         const fit = await fitPhotoToChannel(source, snapshot.channel, {
           outpaint: (guide, prompt) => requestOutpaint(guide, prompt, snapshot.channel),
           review: reviewExtension,
         })
-        const check = await verifySamePhotographedSubject({ main: snapshot.fitted!, other: fit.bytes })
+        const check = scenes
+          ? { sameSubject: true, reason: 'scene of its own', costUsd: 0 }
+          : await verifySamePhotographedSubject({ main: snapshot.fitted!, other: fit.bytes })
         return { fit, check }
       })))
       failureReason = 'render_failed'

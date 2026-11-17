@@ -122,7 +122,7 @@ export const directorStoryboardSchema = storyboardSchema.extend({
       angle: cameraAngleSchema,
       composition: z.string().trim().min(5).max(240),
     }),
-  })).length(1),
+  })).min(1).max(maxStoryboardShots),
   subjectFrame: subjectFrameSchema,
 })
 export type StoryboardShot = z.infer<typeof storyboardShotSchema>

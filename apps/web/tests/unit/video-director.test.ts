@@ -132,9 +132,56 @@ describe('storyboard rules', () => {
   })
 
   it('derives the available range from the provider instead of an application default', () => {
-    expect(videoLengthLimits([4, 6, 8], {})).toEqual({ durations: [4, 6, 8], minSeconds: 4, maxSeconds: 8, maxShots: 1 })
-    expect(videoLengthLimits([], {})).toEqual({ durations: [6], minSeconds: 6, maxSeconds: 6, maxShots: 1 })
+    const single = { VIDEO_MAX_SHOTS: '1' }
+    expect(videoLengthLimits([4, 6, 8], single)).toEqual({ durations: [4, 6, 8], minSeconds: 4, maxSeconds: 8, maxShots: 1 })
+    expect(videoLengthLimits([], single)).toEqual({ durations: [6], minSeconds: 6, maxSeconds: 6, maxShots: 1 })
     expect(storyboardShape(limits)).toEqual({ minShots: 1, maxShots: 1, totalSeconds: 8 })
+  })
+
+  it('tells a video in scenes unless one continuous take is configured', () => {
+    expect(videoLengthLimits([4, 6, 8], {}).maxShots).toBe(3)
+    expect(videoLengthLimits([4, 6, 8], { VIDEO_MAX_SHOTS: '2' }).maxShots).toBe(2)
+    expect(videoLengthLimits([4, 6, 8], { VIDEO_MAX_SHOTS: '9' }).maxShots).toBe(3)
+    // The minimum bounds the whole video, so a scene may be shorter than it.
+    expect(videoLengthLimits([4, 6, 8], { VIDEO_MIN_SECONDS: '8', VIDEO_MAX_SECONDS: '12' }).durations).toEqual([4, 6, 8])
+    expect(storyboardShape(videoLengthLimits([4, 6, 8], { VIDEO_MAX_SECONDS: '12' })))
+      .toEqual({ minShots: 2, maxShots: 3, totalSeconds: 12 })
+  })
+})
+
+describe('the creative director in scenes', () => {
+  const scenes = { durations: [4, 6, 8], minSeconds: 4, maxSeconds: 12, maxShots: 3 }
+  const scene = (role: 'hook' | 'build' | 'close', motion: 'strong' | 'medium' | 'subtle', endsOnPhotograph: boolean, photoIndex = 0) => ({
+    ...storyboard().shots[0]!,
+    durationSeconds: 4,
+    role,
+    motion,
+    endsOnPhotograph,
+    photoIndex,
+  })
+
+  it('asks for a cinematic edit of separate scenes, keeping the subject rules', () => {
+    const brief = directorInstructions({ ...input, limits: scenes })
+    expect(brief).toContain('told in 2 to 3 separate scenes')
+    expect(brief).toContain('role=hook')
+    expect(brief).toContain('at most 15 degrees')
+    expect(brief).not.toContain('no cuts, no stitched scenes')
+  })
+
+  it('gives every photograph of the business its own scene', () => {
+    const brief = directorInstructions({ ...input, limits: { ...scenes, photos: 3 } })
+    expect(brief).toContain('Use every photograph in its own scene')
+    expect(brief).toContain('other parts of the business')
+    expect(brief).toContain('at most 45 degrees')
+    expect(brief).not.toContain('identity only')
+    const told = storyboard({ shots: [scene('hook', 'strong', false, 1), { ...scene('build', 'medium', false, 2), shotSize: 'close' }, scene('close', 'subtle', true, 0)] })
+    expect(storyboardProblems(told, { ...scenes, photos: 3 })).toEqual([])
+  })
+
+  it('accepts a storyboard of scenes and rejects a single take', () => {
+    const told = storyboard({ shots: [scene('hook', 'strong', false), scene('build', 'medium', false), scene('close', 'subtle', true)] })
+    expect(storyboardProblems(told, scenes)).toEqual([])
+    expect(storyboardProblems(storyboard(), scenes).join(' ')).toContain('2 to 3 separate shots')
   })
 })
 
