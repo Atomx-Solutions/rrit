@@ -283,6 +283,14 @@ const columns = computed<TableColumn<Organization>[]>(() => [
           </template>
           <template #status-cell="{ row }">
             <UBadge
+              v-if="row.original.status === 'archived'"
+              color="warning"
+              variant="subtle"
+              icon="i-lucide-lock"
+              :label="t('admin.closure.badge')"
+            />
+            <UBadge
+              v-else
               :color="organizationStateColors[stateOf(row.original)]"
               :variant="stateOf(row.original) === 'none' ? 'outline' : 'subtle'"
               :label="t(`admin.organizations.state.${stateOf(row.original)}`)"

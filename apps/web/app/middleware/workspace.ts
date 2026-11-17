@@ -70,6 +70,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode
     if (status === 401) return navigateTo({ path: '/login', query: { redirect: to.fullPath } })
+    // A closed organization goes back to the login form, which signs the
+    // account out and says why.
+    const body = (error as { data?: { message?: string; data?: { code?: string } } }).data
+    if (body?.data?.code === 'ORGANIZATION_CLOSED' || body?.message === 'server.ORGANIZATION_CLOSED')
+      return navigateTo({ path: '/login', query: { closed: '1' } }, { replace: true })
     return abortNavigation(
       createError({
         statusCode: status || 503,

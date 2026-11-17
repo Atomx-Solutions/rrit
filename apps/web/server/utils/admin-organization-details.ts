@@ -14,5 +14,16 @@ export async function adminOrganizationDetails(organizationId: string) {
     console.error('Admin organization details query failed.', { code: error.code, message: error.message })
     throw createError({ statusCode: 502, message: 'server.ORGANIZATION_DETAILS_LOAD_FAILED' })
   }
-  return data
+  if (!data) return data
+  // When and why the organization was closed, and until when it can reopen.
+  const closure = await adminServiceClient()
+    .from('organizations')
+    .select('closed_at, close_reason, purge_after')
+    .eq('id', organizationId)
+    .maybeSingle()
+  if (closure.error) {
+    console.error('Admin organization closure query failed.', { code: closure.error.code, message: closure.error.message })
+    throw createError({ statusCode: 502, message: 'server.ORGANIZATION_DETAILS_LOAD_FAILED' })
+  }
+  return { ...(data as Record<string, unknown>), closure: closure.data?.closed_at ? closure.data : null }
 }

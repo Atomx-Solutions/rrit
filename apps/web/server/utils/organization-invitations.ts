@@ -11,6 +11,7 @@ import {
 } from '../../shared/utils/password-policy'
 import { APP_LANGUAGES, type AppLanguage } from '../../shared/utils/app-languages'
 import { adminServiceClient } from './admin-supabase'
+import { customPackageCreateSchema } from './admin-custom-packages'
 import { brevoConfiguration, sendBrevoEmail } from './brevo'
 import { clientInviteEmail } from './client-invite-email'
 import { setTenantContext, withUserTransaction } from './database'
@@ -77,6 +78,11 @@ export const invitationCreateSchema = z
     package_request_id: z.uuid().optional(),
     expires_minutes: z.number().int().min(1).max(1440).default(60),
     profile: invitationProfileSchema.default({}),
+    // The package proposed to the client. It is kept with the invitation and
+    // created, as a draft for the client to accept, once the client signs up.
+    package: customPackageCreateSchema
+      .refine(value => value.status === 'draft', { message: 'server.PACKAGE_VALUES_INVALID' })
+      .optional(),
   })
   .strict()
 

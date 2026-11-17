@@ -23,10 +23,9 @@ const currency = computed(() => currencySettings.value?.package_currency || 'CHF
 
 type OrganizationRow = { id: string; name: string }
 const search = ref('')
-const newOrganizationName = ref('')
-const creatingOrganization = ref(false)
-// A landing lead has no account yet, so the picker is only loaded when the
-// request did not arrive from inside the app.
+// Videos are sold on top of a package, so the request always belongs to an
+// organization that already exists; one that came from the landing page is
+// matched to it here, and no organization is ever created from this form.
 const { data: organizations, refresh: refreshOrganizations } = await useFetch<{
   items: OrganizationRow[]
 }>('/api/admin/organizations', {
@@ -37,33 +36,6 @@ const { data: organizations, refresh: refreshOrganizations } = await useFetch<{
 const organizationOptions = computed(() =>
   (organizations.value?.items || []).map(row => ({ label: row.name, value: row.id })),
 )
-function slugFor(value: string) {
-  return value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70)
-}
-async function createOrganization() {
-  const name = newOrganizationName.value.trim()
-  const slug = slugFor(name)
-  if (name.length < 2 || slug.length < 2) {
-    error.value = t('admin.requests.organizationInvalid')
-    return
-  }
-  creatingOrganization.value = true
-  error.value = ''
-  try {
-    const organization = await $fetch<OrganizationRow>('/api/v1/organizations', {
-      method: 'POST', body: { name, slug },
-    })
-    form.organizationId = organization.id
-    newOrganizationName.value = ''
-    await refreshOrganizations()
-  } catch (problem) {
-    error.value = t((problem as { data?: { message?: string } }).data?.message || 'admin.requests.organizationCreateFailed')
-  } finally {
-    creatingOrganization.value = false
-  }
-}
-
 const form = reactive({
   organizationId: '',
   name: '',
@@ -222,10 +194,6 @@ async function submit() {
             searchable
             class="w-full"
           />
-          <div class="mt-2 flex gap-2">
-            <UInput v-model="newOrganizationName" :placeholder="t('admin.requests.newOrganizationPlaceholder')" class="flex-1" />
-            <UButton color="neutral" variant="outline" :loading="creatingOrganization" :label="t('admin.requests.createOrganization')" @click="createOrganization" />
-          </div>
         </UFormField>
         <UFormField name="name" :label="t('admin.packages.name')" required>
           <UInput v-model="form.name" :maxlength="120" class="w-full" />

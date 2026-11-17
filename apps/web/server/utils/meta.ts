@@ -297,12 +297,19 @@ export async function exchangeMetaCode(code: string) {
   }
 }
 export async function businessForUser(userId: string, db: Pool | PoolClient = database()) {
-  const result = await db.query('SELECT id, slug FROM businesses WHERE owner_id = $1', [
-    userId,
-  ])
+  const result = await db.query(
+    `SELECT business.id, business.slug, organization.status AS organization_status
+       FROM businesses AS business
+       LEFT JOIN organizations AS organization ON organization.id = business.id
+      WHERE business.owner_id = $1`,
+    [userId],
+  )
   if (!result.rows[0])
     throw createError({ statusCode: 404, message: 'server.BUSINESS_PROFILE_REQUIRED' })
-  return result.rows[0] as { id: string; slug: string }
+  // A closed organization keeps its data for a while but gives no access.
+  if (result.rows[0].organization_status === 'archived')
+    throw createError({ statusCode: 403, message: 'server.ORGANIZATION_CLOSED', data: { code: 'ORGANIZATION_CLOSED' } })
+  return { id: result.rows[0].id, slug: result.rows[0].slug } as { id: string; slug: string }
 }
 export async function connectedMeta(businessId: string, db: Pool | PoolClient = database()) {
   const result = await db.query(

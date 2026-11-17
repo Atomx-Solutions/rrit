@@ -40,6 +40,7 @@ type Details = {
   members: Member[]
   brands: Brand[]
   subscription: { current_period_start: string; current_period_end: string } | null
+  closure: { closed_at: string; close_reason: string | null; purge_after: string | null } | null
 }
 // Members, brands and the period start come from the details endpoint,
 // loaded when an organization is opened and again after an action.
@@ -238,6 +239,14 @@ async function copyId() {
           }"
         />
       </UCard>
+      <AdminOrganizationClosure
+        v-if="organization && currentStep === 'overview'"
+        :organization-id="organization.id"
+        :organization-name="organization.name"
+        :status="organization.status"
+        :closure="details?.closure ?? null"
+        @changed="onSubscriptionChanged"
+      />
       <UCard v-if="currentStep === 'members'" variant="outline" :ui="{ header: 'px-4 py-2.5 sm:px-4', body: 'p-0 sm:p-0' }">
         <template #header>
           <UButton

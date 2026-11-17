@@ -109,10 +109,15 @@ async function connectRuntimeDatabase() {
 }
 
 export async function setTenantContext(client: PoolClient, context: TenantContext) {
-  await client.query(
-    "SELECT set_config('app.user_id',$1,true), set_config('app.organization_id',$2,true)",
+  // Every tenant request passes here, so a closed organization is refused in
+  // one place, read in the same round trip as the context itself.
+  const result = await client.query<{ organization_status: string | null }>(
+    `SELECT set_config('app.user_id',$1,true), set_config('app.organization_id',$2,true),
+            (SELECT status FROM organizations WHERE id::text=$2) AS organization_status`,
     [context.userId, context.organizationId],
   )
+  if (result.rows[0]?.organization_status === 'archived')
+    throw createError({ statusCode: 403, message: 'server.ORGANIZATION_CLOSED', data: { code: 'ORGANIZATION_CLOSED' } })
 }
 
 export async function setUserContext(client: PoolClient, userId: string) {

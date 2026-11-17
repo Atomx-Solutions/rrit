@@ -2482,5 +2482,14 @@
   "invitationEmail.expiredNote": "Le lien a expiré ? Demandez une nouvelle invitation à l’équipe Framic.",
   "invitationEmail.fallback": "Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :",
   "invitationEmail.ignore": "Si vous n’attendiez pas cet e-mail, vous pouvez l’ignorer.",
-  "invitationEmail.button": "Accepter l’invitation"
+  "invitationEmail.button": "Accepter l’invitation",
+  "server.ORGANIZATION_CLOSED": "Cette organisation a été fermée. Contactez le support si vous pensez qu’il s’agit d’une erreur.",
+  "server.ORGANIZATION_ALREADY_CLOSED": "L’organisation est déjà fermée.",
+  "server.ORGANIZATION_NOT_CLOSED": "L’organisation n’est pas fermée.",
+  "server.ORGANIZATION_REOPEN_EXPIRED": "Le délai pour rouvrir cette organisation est dépassé.",
+  "server.ORGANIZATION_WORK_IN_FLIGHT": "Une vidéo, une retouche d’image ou une publication est encore en cours. Réessayez une fois terminée.",
+  "server.CLOSE_REASON_REQUIRED": "Indiquez pourquoi l’organisation est fermée.",
+  "server.ORGANIZATION_NOT_CHANGED": "L’organisation n’a pas été modifiée.",
+  "auth.organizationClosedTitle": "Organisation fermée",
+  "server.PACKAGE_ENDED_BY_CLOSURE": "Ce forfait a pris fin à la fermeture de l’organisation et ne peut plus être activé. Créez plutôt un nouveau forfait."
 }

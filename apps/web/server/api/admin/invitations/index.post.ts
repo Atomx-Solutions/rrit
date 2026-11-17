@@ -3,13 +3,14 @@ import {
   invitationCreateSchema,
 } from '../../../utils/organization-invitations'
 import { adminServiceClient } from '../../../utils/admin-supabase'
+import { updatePackageRequest } from '../../../utils/admin-package-requests'
 
-// Opens an organization for a client who has no account yet. The superadmin can
-// attach the agreed package to it before the invitation is ever accepted.
+// Invites a client who has no account yet. The organization, and any package
+// proposed with the invitation, open only when the client signs up.
 export default defineEventHandler(async (event) => {
   requireSameOrigin(event)
   const actor = await requireUser(event)
-  const values = invitationCreateSchema.safeParse(await boundedBody(event, 4096))
+  const values = invitationCreateSchema.safeParse(await boundedBody(event, 8192))
   if (!values.success)
     throw createError({
       statusCode: 400,
@@ -31,5 +32,10 @@ export default defineEventHandler(async (event) => {
   }
   setHeader(event, 'Cache-Control', 'private, no-store')
   setResponseStatus(event, 201)
-  return createOrganizationInvitation({ id: actor.id, email: actor.email }, values.data)
+  const created = await createOrganizationInvitation({ id: actor.id, email: actor.email }, values.data)
+  // A lead answered with a proposal moves on, as it does when the package is
+  // attached to an existing organization.
+  if (values.data.package && values.data.package_request_id)
+    await updatePackageRequest(values.data.package_request_id, { id: actor.id, email: actor.email }, { status: 'proposal_sent' })
+  return created
 })
