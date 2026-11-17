@@ -3,12 +3,12 @@ import { sceneDressingRule } from './scene-dressing'
 
 // What every motion prompt says about the photographed subject, whoever
 // directed the video.
-const subjectRules = [
+const subjectRules = (products: string[]) => [
   'Preserve the exact primary subject, people, products, existing signage and environment visible in the frames. The photograph is the visual truth.',
   'Keep the subject identical in every frame: the same make, model, generation, body shape, colour, wheels, lights, badges, proportions and details. Never morph, replace, restyle or swap it for a similar subject.',
   'Show only what the photograph shows. Never reveal or invent a side, angle, interior or part of the subject that is not visible in the frames.',
   'Never draw, write or animate any letters, words, numbers, captions or titles anywhere in the video; the application sets all text afterwards.',
-  sceneDressingRule,
+  sceneDressingRule(products),
 ]
 
 const subjectMotion: Record<Storyboard['shots'][number]['subject']['motion'], string> = {
@@ -31,6 +31,8 @@ export function buildShotExecutionBrief(input: {
   endsOnPhotograph: boolean
   guardrails?: string[]
   maxLength?: number
+  // The verified products the business lists in My business.
+  products?: string[]
 }) {
   const { storyboard, index } = input
   const shot = storyboard.shots[index]!
@@ -50,7 +52,7 @@ export function buildShotExecutionBrief(input: {
       'THIS SHOT',
       clip(shot.purpose),
       'SUBJECT',
-      ...subjectRules,
+      ...subjectRules(input.products || []),
       `${subjectMotion[shot.subject.motion]} ${clip(shot.subject.description)}`,
       'CAMERA',
       `${shot.shotSize ? `A ${shot.shotSize} shot. ` : ''}${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject no more than ${shot.camera.rotationDegrees} degrees.`,

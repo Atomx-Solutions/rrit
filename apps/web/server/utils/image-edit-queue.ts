@@ -1,3 +1,4 @@
+import { businessProductsFromFacts } from './scene-dressing'
 import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
 import { z } from 'zod'
@@ -237,6 +238,7 @@ async function editImage(job: ClaimedImageEdit) {
     language: snapshot.language,
     logoAvailable: Boolean(snapshot.brandLogo),
     video: false,
+    products: businessProductsFromFacts(snapshot.workspace.brand.facts),
   })
   const { generated, bytes } = await (async () => {
     try {

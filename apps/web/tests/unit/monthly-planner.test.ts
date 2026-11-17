@@ -790,7 +790,7 @@ describe('AI creative generation', () => {
     expect(edited).toContain('Shto dritë të ngrohtë')
     expect(edited).toContain('center-cropped to the final 1080x1350')
     expect(edited).toContain('Never duplicate, fuse, warp or replace photographed material objects')
-    expect(edited).toContain(sceneDressingRule)
+    expect(edited).toContain(sceneDressingRule([]))
     expect(edited).toContain('typographic designer')
     expect(edited).toContain('no more than two weights')
     // The instruction is a direction: new copy replaces the old, the

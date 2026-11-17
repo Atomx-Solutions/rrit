@@ -63,6 +63,8 @@ export async function generateStoryboardShots(input: {
   // can be tried; 'record' keeps every shot and reports it, so the last take
   // is always delivered for the business to judge and edit.
   onSubjectChange?: 'stop' | 'record'
+  // The verified products the business lists in My business.
+  products?: string[]
 }, dependencies: Partial<ShotDependencies> = {}) {
   const deps = { ...defaults, ...dependencies }
   const photographs = await Promise.all(
@@ -87,6 +89,7 @@ export async function generateStoryboardShots(input: {
         endsOnPhotograph,
         guardrails: input.guardrails,
         maxLength: input.maxLength,
+        products: input.products,
       }),
       durationSeconds: shot.durationSeconds,
       canvas: input.provider.canvas,

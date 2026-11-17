@@ -19,10 +19,19 @@ describe('dressVideoScene', () => {
     const paint = vi.fn(async () => ({ bytes: await photo(1024, 1536, '#aa7744'), costUsd: 0.04 }))
     const result = await dressVideoScene(await input(), { paint })
     const prompt = (paint.mock.calls[0] as unknown as [Buffer, string])[1]
-    expect(prompt).toContain(sceneDressingRule)
+    expect(prompt).toContain(sceneDressingRule([]))
+    expect(prompt).toContain('Add no props')
     expect(prompt).toContain('Add no letters')
     expect(result).toMatchObject({ dressed: true, costUsd: 0.04 })
     expect(await sharp(result.bytes).metadata()).toMatchObject({ width: 720, height: 1280 })
+  })
+
+  it('dresses the scene with the listed products of the business only', async () => {
+    const paint = vi.fn(async () => ({ bytes: await photo(1024, 1536, '#aa7744'), costUsd: 0.04 }))
+    await dressVideoScene({ ...(await input()), products: ['Makiato'] }, { paint })
+    const prompt = (paint.mock.calls[0] as unknown as [Buffer, string])[1]
+    expect(prompt).toContain('["Makiato"]')
+    expect(prompt).toContain('Never add a product, food, drink or item that is not on this list')
   })
 
   it('shoots the photograph as it is when the scene cannot be dressed', async () => {

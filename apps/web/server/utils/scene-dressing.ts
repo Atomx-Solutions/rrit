@@ -1,15 +1,33 @@
-// What any image or video may add to a photographed scene, for every business
-// alike. Which props belong is judged from the business and the post, never
-// listed here, so a café gets coffee on its tables and a florist flowers.
+// What any image or video may add to a photographed scene. What is added comes
+// only from the products the business itself lists in My business, never from
+// the model's idea of the kind of business, so nothing appears that the
+// business does not sell.
+
+import type { BrandFact } from '../../shared/schemas/business-brain'
+
+/** The business's own verified products, as it wrote them in My business. */
+export function businessProductsFromFacts(facts: Pick<BrandFact, 'kind' | 'verified' | 'text'>[]) {
+  return [...new Set(facts
+    .filter((fact) => fact.kind === 'product' && fact.verified)
+    .map((fact) => fact.text.trim())
+    .filter(Boolean))]
+}
+
+// What stays true of every dressed scene, whatever is added.
+const untouched = 'Everything photographed stays exactly as it is: no existing product, person, furniture, architecture, sign or logo is moved, covered, replaced or deformed. Added items never carry text, logos, brand marks, prices or offers, and are never people.'
 
 /** Told to every model that paints or animates a photograph. */
-export const sceneDressingRule = 'Dress the scene so it looks alive and in use: when the photograph shows empty surfaces (tables, counters, shelves, chairs) or free space, add ordinary, unbranded everyday props that naturally belong to this kind of business and to this post, judged from the business and the post (what a customer would expect to see in use there, for example what is served or used on that surface). A usable surface is never negative space to keep empty, even when it is large or in the foreground; only the zone where the type sits stays clear. Leave a surface bare only when the visual direction explicitly asks for an empty surface. This is part of the factual truth of the photograph, not a departure from it, and these props are never unrelated stock props. Everything photographed stays exactly as it is: no existing product, person, furniture, architecture, sign or logo is moved, covered, replaced or deformed. Added props never carry text, logos, brand marks, prices or offers, never suggest a product or service the business does not offer, and are never people.'
+export function sceneDressingRule(products: string[]) {
+  if (!products.length)
+    return `Add no props, products, food or drinks to the scene: the business has listed none of its own products in My business, so the scene stays as photographed. ${untouched}`
+  return `Dress the scene so it looks alive and in use, only with the business's own products as it lists them in My business: ${JSON.stringify(products)}. When the photograph shows empty surfaces (tables, counters, shelves, chairs) or free space, place on them those of these products that fit this post and naturally belong on that surface, as ordinary unbranded items true to their description, with only the plain, unbranded serving ware needed to present them (such as a cup, glass, plate or napkin). Never add a product, food, drink or item that is not on this list, not even a typical one for this kind of business. A usable surface is never negative space to keep empty when a listed product belongs there; only the zone where the type sits stays clear. Leave a surface bare when no listed product belongs there, or when the visual direction explicitly asks for an empty surface. This is part of the factual truth of the photograph, not a departure from it. ${untouched}`
+}
 
 /**
  * Told to the stages that write a slot's art direction, so they never forbid
  * what the painter is told to add and instead say what belongs there.
  */
-export const sceneDressingDirection = 'The image stage dresses the scene: on empty surfaces it adds ordinary, unbranded props that belong to this business and this post. That is allowed and is not invention. So never write an assetDirection or visualLayout that forbids drinks, food or other everyday props, or that asks to keep a table, counter or shelf empty; instead say what belongs on those surfaces, preferring the products this slot cites (for example the drink or dish it is about), so the picture shows what the post says. Only people, text, logos, prices and changes to what was photographed stay forbidden.'
+export const sceneDressingDirection = 'The image stage dresses the scene: on empty surfaces it adds the business\'s own verified products (facts of kind product), as ordinary unbranded items, and nothing else. That is allowed and is not invention. So never write an assetDirection or visualLayout that forbids those products or asks to keep a table, counter or shelf empty; instead say which of them belong on those surfaces, preferring the products this slot cites, so the picture shows what the post says. Never direct the image to show a product, food or drink the business has not listed. People, text, logos, prices and changes to what was photographed stay forbidden.'
 
 /** Told to every reviewer that compares a result with its photograph. */
-export const sceneDressingReview = 'Ordinary unbranded props that naturally belong to this kind of business, added on empty surfaces or in free space without changing anything photographed, are allowed scene dressing, not invention: never fail factuality, source fidelity or sameness for them. Added people, text, logos, prices, offers, or any change to what was photographed still count.'
+export const sceneDressingReview = 'The business\'s own products as it lists them (verified facts of kind product), added as ordinary unbranded items on empty surfaces or in free space with plain serving ware and without changing anything photographed, are allowed scene dressing, not invention: never fail factuality, source fidelity or sameness for them. Any other added product, food or drink, and added people, text, logos, prices, offers, or any change to what was photographed still count.'

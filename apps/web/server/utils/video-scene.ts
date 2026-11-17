@@ -15,13 +15,15 @@ export async function dressVideoScene(input: {
   channel: PublishingChannel
   brand: { name: string; industry?: string; audience?: string }
   post: { title?: string; caption?: string }
+  // The verified products the business lists in My business.
+  products?: string[]
 }, dependencies: { paint?: typeof requestOutpaint } = {}) {
   const paint = dependencies.paint || requestOutpaint
   const prompt = [
     'Edit this real photograph of a business into the same photograph, ready to be the opening frame of its short video.',
     `Business: ${input.brand.name}.${input.brand.industry ? ` Industry: ${input.brand.industry}.` : ''}${input.brand.audience ? ` Audience: ${input.brand.audience}.` : ''}`,
     `Post: ${[input.post.title, input.post.caption].filter(Boolean).join(' — ').slice(0, 600)}`,
-    sceneDressingRule,
+    sceneDressingRule(input.products || []),
     'Keep the exact framing, camera position, perspective, light and colour of the photograph. Add no letters, words, numbers, logos, graphics, frames or watermarks anywhere.',
   ].join('\n')
   const { width, height } = await sharp(input.photograph).metadata()

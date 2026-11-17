@@ -88,6 +88,8 @@ export type DirectorInput = {
   previousAttempt?: { storyboard: Storyboard | null; problem: string }
   // What the business asked for in Edit video with AI, in its own words.
   userInstruction?: string
+  // The verified products the business lists in My business.
+  products?: string[]
 }
 
 const videoVarietyChallenges = [
@@ -132,7 +134,7 @@ function platformVideoDirection(channel: PublishingChannel) {
  * the concept, continuous take and every camera choice are the model's to invent for
  * this post.
  */
-export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'limits' | 'locale' | 'brand' | 'post' | 'previousAttempt' | 'userInstruction'>) {
+export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'limits' | 'locale' | 'brand' | 'post' | 'previousAttempt' | 'userInstruction' | 'products'>) {
   const { limits } = input
   const durationRule = limits.durations.length
     ? `Choose exactly one duration from ${limits.durations.join(', ')} seconds. These are technical lengths the motion model supports, not creative targets. Choose the shortest duration that lets this exact idea breathe and complete its hook, development, payoff and close without rushing or padding it.`
@@ -153,7 +155,7 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
     'Return exactly one shot with role=continuous. Write it as a precise cinematographer brief: one motivated camera path, lens, startPosition, endPosition, angle, composition, speed and ease; the evolving light and atmosphere; and physically plausible subject motion. Use a wide, medium or close shotSize, never a synthetic macro detail. No text, letters, logos or captions appear in the generated motion; the application places approved copy afterward.',
     'Set subjectFrame to where the subject spans vertically in the supplied photograph, as shares of its height from the top (0 is the top edge, 1 the bottom). The application places its headline and call to action in the free space above or below that band, so judge it honestly from the photograph.',
     `Write cta (a short call to action, at most ${ctaMaxLength} characters) and caption in ${contentLanguageForLocale(input.locale)}, in the brand voice, from the supplied post. Do not invent prices, offers, facts or claims.`,
-    `${sceneDressingRule} Plan such props where they make the scene feel alive and in use.`,
+    sceneDressingRule(input.products || []),
     ...(input.post.visualLayout
       ? [`The strategy chose this photograph-specific visual direction for the post: ${input.post.visualLayout}${input.post.visualRoute ? ` Its semantic visual fingerprint is ${JSON.stringify(input.post.visualRoute)}.` : ''} Translate its focal hierarchy, depth, energy and negative-space logic into a natural continuous take, but invent the camera blocking yourself and never turn the video into an animated static template.`]
       : []),

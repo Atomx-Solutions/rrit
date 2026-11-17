@@ -515,7 +515,15 @@ describe('image prompt', () => {
     const prompt = monthlyImagePrompt({ brand, creative, slot, guardrails: [] })
     expect(prompt).not.toContain('2.5')
     expect(prompt).toContain('never invent a branded product, person, venue feature, sign, offer')
-    expect(prompt).toContain(sceneDressingRule)
+    expect(prompt).toContain(sceneDressingRule([]))
+  })
+
+  it('dresses the scene only with the products the business lists in My business', () => {
+    const prompt = monthlyImagePrompt({ brand, creative, slot, guardrails: [], products: ['Espresso', 'Kroasan me çokollatë'] })
+    expect(prompt).toContain(sceneDressingRule(['Espresso', 'Kroasan me çokollatë']))
+    expect(prompt).toContain('Never add a product, food, drink or item that is not on this list')
+    // The older rule against any added product no longer contradicts it.
+    expect(prompt).not.toContain('menu items, people, testimonials, architecture or product details')
   })
 
   it('shows the products and offer the post is about, never their price', () => {

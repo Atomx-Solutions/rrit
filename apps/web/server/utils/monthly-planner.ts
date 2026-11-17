@@ -1,3 +1,4 @@
+import { businessProductsFromFacts } from './scene-dressing'
 import { randomUUID } from 'node:crypto'
 import pg, { type Pool, type PoolClient } from 'pg'
 import {
@@ -1994,6 +1995,7 @@ async function advanceMonthlyPlan(db: Pool, plan: PlanRow, timed: PlannerTimed) 
         revisionFeedback,
         guardrails: slotBrain.guardrails.map((guardrail) => guardrail.text),
         featured: slotFeatured(plan.evidence.brand.facts, slot.factIds, slotBrain.offer),
+        products: businessProductsFromFacts(plan.evidence.brand.facts),
       })
       imageGeneration = await timed('content.image', monthlyImageCall(db, {
         ...slotCommon,

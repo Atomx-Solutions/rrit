@@ -18,6 +18,7 @@ import { buildVideoOverlayLayers } from './image-processing'
 import { approvedVideoCopy, videoPostEvidence } from './video-quality'
 import { fitPhotoToChannel, requestOutpaint, reviewExtension } from './photo-fit'
 import { dressVideoScene } from './video-scene'
+import { businessProductsFromFacts } from './scene-dressing'
 import { directVideo, videoCrossfadeSeconds, videoLengthLimits } from './video-director'
 import { affordableVideoSeconds, estimatedVideoCredits, usdMicroEurRate } from './video-budget'
 import { directedTakes, videoChargeCredits } from './video-takes'
@@ -258,6 +259,8 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
           voice: workspace.brand.voice,
         },
         guardrails: workspace.brand.guardrails || [],
+        // The only items a scene may be dressed with.
+        products: businessProductsFromFacts(workspace.brand.facts),
         post: {
           title: post.title,
           caption: post.caption,
@@ -364,6 +367,7 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
       channel: snapshot.channel,
       brand: snapshot.director.brand,
       post: snapshot.director.post,
+      products: snapshot.director.products,
     })).then((dressed) => {
       fitCostUsd += dressed.costUsd
       snapshot.fitted = dressed.bytes
@@ -449,6 +453,7 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
         guardrails: snapshot.director.guardrails,
         maxLength: aiVideoPromptLimit(),
         onSubjectChange,
+        products: snapshot.director.products,
       }, {
         onCost: addCost,
         onTiming: (step, ms) => timings.push({ step, ms }),
