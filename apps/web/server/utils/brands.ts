@@ -50,11 +50,17 @@ export async function requireOrganizationMember(
   organizationId: string,
 ) {
   const result = await client.query(
-    "SELECT role, brand_scope FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active'",
+    `SELECT membership.role, membership.brand_scope, organization.status AS organization_status
+       FROM organization_memberships AS membership
+       LEFT JOIN organizations AS organization ON organization.id = membership.organization_id
+      WHERE membership.organization_id=$1 AND membership.user_id=$2 AND membership.status='active'`,
     [organizationId, userId],
   )
   if (!result.rows[0]) throw createError({ statusCode: 404, message: 'server.ORGANIZATION_NOT_FOUND' })
-  return result.rows[0] as { role: string; brand_scope: string }
+  // A closed organization keeps its data for a while but gives no access.
+  if (result.rows[0].organization_status === 'archived')
+    throw createError({ statusCode: 403, message: 'server.ORGANIZATION_CLOSED', data: { code: 'ORGANIZATION_CLOSED' } })
+  return { role: result.rows[0].role, brand_scope: result.rows[0].brand_scope } as { role: string; brand_scope: string }
 }
 
 export async function requireOrganizationManager(

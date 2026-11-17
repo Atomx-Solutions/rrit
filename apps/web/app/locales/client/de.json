@@ -2482,5 +2482,14 @@
   "invitationEmail.expiredNote": "Ist der Link abgelaufen? Bitte das Framic-Team um eine neue Einladung.",
   "invitationEmail.fallback": "Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:",
   "invitationEmail.ignore": "Falls du diese E-Mail nicht erwartet hast, kannst du sie ignorieren.",
-  "invitationEmail.button": "Einladung annehmen"
+  "invitationEmail.button": "Einladung annehmen",
+  "server.ORGANIZATION_CLOSED": "Diese Organisation wurde geschlossen. Wenden Sie sich an den Support, falls Sie das für einen Fehler halten.",
+  "server.ORGANIZATION_ALREADY_CLOSED": "Die Organisation ist bereits geschlossen.",
+  "server.ORGANIZATION_NOT_CLOSED": "Die Organisation ist nicht geschlossen.",
+  "server.ORGANIZATION_REOPEN_EXPIRED": "Die Frist zum Wiedereröffnen dieser Organisation ist abgelaufen.",
+  "server.ORGANIZATION_WORK_IN_FLIGHT": "Ein Video, eine Bildbearbeitung oder eine Veröffentlichung läuft noch. Versuchen Sie es erneut, sobald sie abgeschlossen ist.",
+  "server.CLOSE_REASON_REQUIRED": "Geben Sie an, warum die Organisation geschlossen wird.",
+  "server.ORGANIZATION_NOT_CHANGED": "Die Organisation wurde nicht geändert.",
+  "auth.organizationClosedTitle": "Organisation geschlossen",
+  "server.PACKAGE_ENDED_BY_CLOSURE": "Dieses Paket endete mit der Schließung der Organisation und kann nicht wieder aktiviert werden. Erstellen Sie stattdessen ein neues Paket."
 }

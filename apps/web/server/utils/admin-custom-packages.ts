@@ -75,6 +75,8 @@ const failures: Record<string, { statusCode: number; message: string }> = {
     statusCode: 409,
     message: 'server.ORGANIZATION_HAS_ACTIVE_PACKAGE',
   },
+  // Closing the organization ended this package; reopening it never restores it.
+  PACKAGE_ENDED_BY_CLOSURE: { statusCode: 409, message: 'server.PACKAGE_ENDED_BY_CLOSURE' },
 }
 
 export function customPackageFailure(message: string | undefined) {

@@ -2482,5 +2482,14 @@
   "invitationEmail.expiredNote": "Bağlantının süresi mi doldu? Framic ekibinden yeni bir davet isteyin.",
   "invitationEmail.fallback": "Düğme çalışmazsa bu bağlantıyı tarayıcınıza kopyalayın:",
   "invitationEmail.ignore": "Bu e-postayı beklemiyorsanız yok sayabilirsiniz.",
-  "invitationEmail.button": "Daveti kabul et"
+  "invitationEmail.button": "Daveti kabul et",
+  "server.ORGANIZATION_CLOSED": "Bu kuruluş kapatıldı. Bunun bir hata olduğunu düşünüyorsanız destek ile iletişime geçin.",
+  "server.ORGANIZATION_ALREADY_CLOSED": "Kuruluş zaten kapalı.",
+  "server.ORGANIZATION_NOT_CLOSED": "Kuruluş kapalı değil.",
+  "server.ORGANIZATION_REOPEN_EXPIRED": "Bu kuruluşu yeniden açma süresi doldu.",
+  "server.ORGANIZATION_WORK_IN_FLIGHT": "Bir video, görsel düzenleme veya yayın hâlâ sürüyor. Bittiğinde tekrar deneyin.",
+  "server.CLOSE_REASON_REQUIRED": "Kuruluşun neden kapatıldığını yazın.",
+  "server.ORGANIZATION_NOT_CHANGED": "Kuruluş değiştirilmedi.",
+  "auth.organizationClosedTitle": "Kuruluş kapatıldı",
+  "server.PACKAGE_ENDED_BY_CLOSURE": "Bu paket kuruluş kapatıldığında sona erdi ve yeniden etkinleştirilemez. Bunun yerine yeni bir paket oluşturun."
 }

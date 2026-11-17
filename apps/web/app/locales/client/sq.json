@@ -2482,5 +2482,14 @@
   "invitationEmail.expiredNote": "Të ka skaduar linku? Kërko një ftesë të re nga ekipi i Framic.",
   "invitationEmail.fallback": "Nëse butoni nuk funksionon, kopjo këtë link në browser:",
   "invitationEmail.ignore": "Nëse nuk e prisje këtë email, mund ta injorosh.",
-  "invitationEmail.button": "Prano ftesën"
+  "invitationEmail.button": "Prano ftesën",
+  "server.ORGANIZATION_CLOSED": "Kjo organizatë është mbyllur. Kontaktoni suportin nëse mendoni se është gabim.",
+  "server.ORGANIZATION_ALREADY_CLOSED": "Organizata është tashmë e mbyllur.",
+  "server.ORGANIZATION_NOT_CLOSED": "Organizata nuk është e mbyllur.",
+  "server.ORGANIZATION_REOPEN_EXPIRED": "Afati për ta rihapur këtë organizatë ka kaluar.",
+  "server.ORGANIZATION_WORK_IN_FLIGHT": "Një video, ndryshim fotoje ose publikim është ende në proces. Provoni sërish kur të përfundojë.",
+  "server.CLOSE_REASON_REQUIRED": "Shkruani pse po mbyllet organizata.",
+  "server.ORGANIZATION_NOT_CHANGED": "Organizata nuk u ndryshua.",
+  "auth.organizationClosedTitle": "Organizata është mbyllur",
+  "server.PACKAGE_ENDED_BY_CLOSURE": "Kjo paketë përfundoi kur u mbyll organizata dhe nuk mund të aktivizohet më. Krijo një paketë të re."
 }

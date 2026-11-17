@@ -57,6 +57,14 @@ const showPassword = ref(false)
 const hydrated = ref(false)
 const { onFormError, showError, showSuccess, watchError } = useFormFeedback()
 watchError(error)
+// Sent here because the organization was closed while signed in: end the
+// session and say why.
+if (import.meta.client && props.mode === 'login' && useRoute().query.closed === '1') {
+  onMounted(() => {
+    void authClient.signOut().catch(() => {})
+    showError(t('server.ORGANIZATION_CLOSED'), 'warning', t('auth.organizationClosedTitle'))
+  })
+}
 watch(
   () => route.query.error,
   (value) => {
@@ -302,7 +310,13 @@ async function submit() {
       }
     }
   } catch (caught) {
-    error.value = errorText({ message: caught instanceof Error ? caught.message : '' })
+    // The password was right but the organization was closed: say that, and
+    // leave no half-open session behind.
+    const body = (caught as { data?: { message?: string; data?: { code?: string } } }).data
+    if (body?.data?.code === 'ORGANIZATION_CLOSED' || body?.message === 'server.ORGANIZATION_CLOSED') {
+      await authClient.signOut().catch(() => {})
+      showError(t('server.ORGANIZATION_CLOSED'), 'warning', t('auth.organizationClosedTitle'))
+    } else error.value = errorText({ message: caught instanceof Error ? caught.message : '' })
   } finally {
     busy.value = false
   }

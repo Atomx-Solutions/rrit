@@ -18,7 +18,7 @@ export function useFormFeedback() {
   const { t } = useI18n()
   const toast = useToast()
 
-  function showError(message: string, color: FeedbackColor = 'error') {
+  function showError(message: string, color: FeedbackColor = 'error', title?: string) {
     if (!message) return
     const key = `${color}:${message}`
     const now = Date.now()
@@ -26,7 +26,7 @@ export function useFormFeedback() {
     lastToastKey = key
     lastToastAt = now
     toast.add({
-      title: t('common.formError'),
+      title: title || t('common.formError'),
       description: message,
       color,
       icon: 'i-lucide-circle-alert',

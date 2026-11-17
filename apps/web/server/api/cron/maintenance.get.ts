@@ -1,6 +1,7 @@
 import { requireCronSecret } from '../../utils/cron-auth'
 import { acquireOperationsWorkerDatabase } from '../../utils/database'
 import { runRetentionBatch } from '../../utils/retention'
+import { runOrganizationPurgeBatch } from '../../utils/organization-purge'
 
 // Vercel Cron calls this once a day: the retention clean-up a long-running
 // host runs from its maintenance timer.
@@ -9,7 +10,10 @@ export default defineEventHandler(async (event) => {
   if (process.env.MAINTENANCE_ENABLED === 'false') return { ok: true, skipped: true }
   const worker = acquireOperationsWorkerDatabase()
   try {
-    return { ok: true, result: await runRetentionBatch(worker.db) }
+    const result = await runRetentionBatch(worker.db)
+    // Closed organizations whose reopening window has ended lose their content.
+    const organizations = await runOrganizationPurgeBatch(worker.db)
+    return { ok: true, result, organizations }
   } finally {
     await worker.release()
   }

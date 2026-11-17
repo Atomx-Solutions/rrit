@@ -2482,5 +2482,14 @@
   "invitationEmail.expiredNote": "Has the link expired? Ask the Framic team for a new invitation.",
   "invitationEmail.fallback": "If the button does not work, copy this link into your browser:",
   "invitationEmail.ignore": "If you were not expecting this email, you can ignore it.",
-  "invitationEmail.button": "Accept invitation"
+  "invitationEmail.button": "Accept invitation",
+  "server.ORGANIZATION_CLOSED": "This organization has been closed. Contact support if you think this is a mistake.",
+  "server.ORGANIZATION_ALREADY_CLOSED": "The organization is already closed.",
+  "server.ORGANIZATION_NOT_CLOSED": "The organization is not closed.",
+  "server.ORGANIZATION_REOPEN_EXPIRED": "The time to reopen this organization has passed.",
+  "server.ORGANIZATION_WORK_IN_FLIGHT": "A video, image edit or publication is still running. Try again once it has finished.",
+  "server.CLOSE_REASON_REQUIRED": "Enter why the organization is being closed.",
+  "server.ORGANIZATION_NOT_CHANGED": "The organization was not changed.",
+  "auth.organizationClosedTitle": "Organization closed",
+  "server.PACKAGE_ENDED_BY_CLOSURE": "This package ended when the organization was closed and cannot be activated again. Create a new package instead."
 }
