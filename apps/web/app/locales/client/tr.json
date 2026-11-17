@@ -1901,6 +1901,8 @@
   "public.appearance": "Görünüm",
   "public.lightMode": "Açık",
   "public.darkMode": "Koyu",
+  "public.openMenu": "Menüyü aç",
+  "public.closeMenu": "Menüyü kapat",
   "public.albanian": "Arnavutça",
   "public.turkish": "Türkçe",
   "public.french": "Fransızca",

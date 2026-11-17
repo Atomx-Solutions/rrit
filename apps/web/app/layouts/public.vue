@@ -38,6 +38,9 @@ const sections = [
   { id: 'faq', key: 'public.faq' },
 ] as const
 const menuOpen = ref(false)
+// The burger only animates once the menu has been used, not on first paint.
+const menuUsed = ref(false)
+watch(menuOpen, () => (menuUsed.value = true))
 // The section currently under the sticky header, tracked while the visitor scrolls the landing page.
 const activeSection = ref<string | null>(null)
 const headerOffset = () => document.querySelector<HTMLElement>('.marketing-header')?.offsetHeight ?? 0
@@ -51,19 +54,34 @@ function updateActiveSection() {
   }
   activeSection.value = current
 }
-async function goToSection(id: string, event?: Event) {
-  if (route.path !== '/') return
-  const el = document.getElementById(id)
-  if (!el) return
-  event?.preventDefault()
+const scrollBehavior = (): ScrollBehavior =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+// The menu locks body scroll while open; close it and wait until the lock is released.
+async function closeMenuAndUnlockScroll() {
   menuOpen.value = false
-  // The menu locks body scroll while open; wait until its close releases the lock.
   await nextTick()
   const deadline = performance.now() + 1000
   while (getComputedStyle(document.body).overflow === 'hidden' && performance.now() < deadline)
     await new Promise(resolve => requestAnimationFrame(resolve))
   await new Promise(resolve => requestAnimationFrame(resolve))
-  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+}
+// On the landing page the logo link points at the current route, so the router
+// would not move; scroll back to the top instead.
+async function goToTop(event: Event) {
+  if (route.path !== '/') return
+  event.preventDefault()
+  await closeMenuAndUnlockScroll()
+  window.scrollTo({ top: 0, behavior: scrollBehavior() })
+  history.replaceState(history.state, '', route.path)
+  activeSection.value = null
+}
+async function goToSection(id: string, event?: Event) {
+  if (route.path !== '/') return
+  const el = document.getElementById(id)
+  if (!el) return
+  event?.preventDefault()
+  await closeMenuAndUnlockScroll()
+  const behavior = scrollBehavior()
   // Lazy media above the section can grow while scrolling, so re-aim until it lands.
   for (let attempt = 0; attempt < 3; attempt++) {
     const offset = el.getBoundingClientRect().top - headerOffset()
@@ -113,13 +131,26 @@ const year = new Date().getFullYear()
       v-model:open="menuOpen"
       class="marketing-header"
       title="Framic"
-      :menu="{ fullscreen: route.path === '/' }"
+      :menu="{ fullscreen: route.path === '/', transition: true }"
       :ui="{
         root: 'bg-default/95 backdrop-blur border-default',
         container: 'max-w-[1220px] h-20 px-6 sm:px-10',
+        content: 'marketing-menu',
         body: 'flex flex-1 flex-col',
       }"
-      ><template #left><BrandLogo /></template><UNavigationMenu :items="links" /><template #right
+      ><template #toggle="{ open, toggle }"
+        ><UButton
+          color="neutral"
+          variant="ghost"
+          class="marketing-burger -me-1.5 size-10 justify-center lg:hidden"
+          :data-open="open"
+          :data-animate="menuUsed"
+          :aria-label="t(open ? 'public.closeMenu' : 'public.openMenu')"
+          :aria-expanded="open"
+          @click="toggle"
+          ><span class="marketing-burger-box" aria-hidden="true"><span /><span /><span /></span></UButton
+        ></template
+      ><template #left><BrandLogo @click="goToTop" /></template><UNavigationMenu :items="links" /><template #right
         ><div class="hidden items-center gap-2 sm:flex">
           <UColorModeButton
             :aria-label="t('public.changeAppearance')"
@@ -158,7 +189,8 @@ const year = new Date().getFullYear()
               :key="link.to"
               :to="link.to"
               :aria-current="link.active ? 'location' : undefined"
-              class="group relative flex items-center gap-4 rounded-xl border px-4 py-4 transition-all duration-200"
+              :style="{ '--stagger': index }"
+              class="marketing-menu-item group relative flex items-center gap-4 rounded-xl border px-4 py-4 transition-all duration-200"
               :class="link.active
                 ? 'border-primary/30 bg-primary/10 text-primary'
                 : 'border-transparent text-highlighted hover:border-default hover:bg-elevated/60'"
@@ -177,7 +209,10 @@ const year = new Date().getFullYear()
               />
             </ULink>
           </nav>
-          <div class="mt-auto flex flex-col gap-6 border-t border-default pt-6">
+          <div
+            class="marketing-menu-item mt-auto flex flex-col gap-6 border-t border-default pt-6"
+            :style="{ '--stagger': links.length }"
+          >
             <section class="flex flex-col gap-2.5" :aria-label="t('public.language')">
               <p class="text-xs font-semibold tracking-wider text-muted uppercase">{{ t('public.language') }}</p>
               <div class="grid grid-cols-3 gap-2">
@@ -268,7 +303,7 @@ const year = new Date().getFullYear()
             </nav>
           </div>
           <div class="flex items-center justify-between gap-[35px] py-10 pb-4 max-sm:gap-5 max-sm:py-8 max-sm:pb-3">
-            <BrandLogo class="w-[102px] max-sm:w-[84px]" />
+            <BrandLogo class="w-[102px] max-sm:w-[84px]" @click="goToTop" />
             <p class="text-xs leading-[1.7] text-muted max-sm:text-[11px] max-sm:text-right">
               {{ t('public.fromIdea') }}<br />{{ t('public.nextPost') }}<UIcon
                 name="i-lucide-arrow-up-right"

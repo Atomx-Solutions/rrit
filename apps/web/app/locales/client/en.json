@@ -1901,6 +1901,8 @@
   "public.appearance": "Appearance",
   "public.lightMode": "Light",
   "public.darkMode": "Dark",
+  "public.openMenu": "Open menu",
+  "public.closeMenu": "Close menu",
   "public.albanian": "Albanian",
   "public.turkish": "Turkish",
   "public.french": "French",
