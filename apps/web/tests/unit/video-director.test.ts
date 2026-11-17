@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { directorInstructions, directVideo, videoLengthLimits } from '../../server/utils/video-director'
 import { buildShotExecutionBrief } from '../../server/utils/video-execution-brief'
-import { storyboardProblems, storyboardSchema, storyboardShape, type Storyboard } from '../../shared/schemas/storyboard'
+import { directorStoryboardSchema, storyboardProblems, storyboardSchema, storyboardShape, type Storyboard } from '../../shared/schemas/storyboard'
 
 // The configured model publishes these lengths; the director chooses the one
 // the idea needs instead of filling a fixed target.
@@ -48,7 +48,7 @@ function storyboard(overrides: Partial<Storyboard> = {}): Storyboard {
         effects: 'Natural reflections travel gently along the existing paint.',
         subject: { motion: 'still', description: 'The car stands exactly where it is in the photograph.' },
         opensOnPhotograph: true,
-        endsOnPhotograph: true,
+        endsOnPhotograph: false,
         showsOnlyPhotographedSides: true,
       },
     ],
@@ -83,26 +83,28 @@ describe('storyboard rules', () => {
     expect(storyboardProblems(storyboard(), limits)).toEqual([])
   })
 
-  it('rejects a turn of more than 45 degrees in the schema', () => {
+  it('allows a full orbit but no more in the schema', () => {
     const turned = storyboard()
-    turned.shots[0]!.camera.rotationDegrees = 90
+    turned.shots[0]!.camera.rotationDegrees = 360
+    expect(storyboardSchema.safeParse(turned).success).toBe(true)
+    turned.shots[0]!.camera.rotationDegrees = 361
     expect(storyboardSchema.safeParse(turned).success).toBe(false)
   })
 
-  it('rejects an orbit, a hidden side and a take not pinned to the photograph', () => {
+  it('allows orbits, reveals, arrivals and detail shots, and rejects a take not opened on the photograph', () => {
     const orbit = storyboard()
-    orbit.shots[0]!.camera.move = 'A full 360 orbit around the car.'
-    expect(storyboardProblems(orbit, limits).join(' ')).toContain('Shot 1')
-    const back = storyboard()
-    back.shots[0]!.purpose = 'Show the rear view of the car.'
-    expect(storyboardProblems(back, limits).join(' ')).toContain('Shot 1')
-    const unconfirmed = storyboard()
-    unconfirmed.shots[0]!.showsOnlyPhotographedSides = false
-    expect(storyboardProblems(unconfirmed, limits)).toHaveLength(1)
+    orbit.shots[0]!.camera.move = 'A full 360 orbit around the car, then a drone rise.'
+    orbit.shots[0]!.camera.rotationDegrees = 360
+    orbit.shots[0]!.purpose = 'Reveal the rear view of the car.'
+    orbit.shots[0]!.shotSize = 'detail'
+    orbit.shots[0]!.subject.motion = 'arrives'
+    expect(storyboardProblems(orbit, limits)).toEqual([])
     const open = storyboard()
     open.shots[0]!.opensOnPhotograph = false
-    open.shots[0]!.endsOnPhotograph = false
-    expect(storyboardProblems(open, limits).join(' ')).toContain('start and end')
+    expect(storyboardProblems(open, limits).join(' ')).toContain('must start on')
+    const pinned = storyboard()
+    pinned.shots[0]!.endsOnPhotograph = true
+    expect(storyboardProblems(pinned, limits).join(' ')).toContain('must not end on')
   })
 
   it('chooses an earned supported duration rather than filling a fixed maximum', () => {
@@ -134,6 +136,8 @@ describe('storyboard rules', () => {
   it('derives the available range from the provider instead of an application default', () => {
     expect(videoLengthLimits([4, 6, 8], {})).toEqual({ durations: [4, 6, 8], minSeconds: 4, maxSeconds: 8, maxShots: 1 })
     expect(videoLengthLimits([], {})).toEqual({ durations: [6], minSeconds: 6, maxSeconds: 6, maxShots: 1 })
+    expect(videoLengthLimits([4, 6, 8], {}, 3)).toEqual({ durations: [4, 6, 8], minSeconds: 4, maxSeconds: 24, maxShots: 3, photos: 3 })
+    expect(videoLengthLimits([4, 6, 8], { VIDEO_MAX_SECONDS: '12' }, 2)).toMatchObject({ maxSeconds: 12, maxShots: 2, photos: 2 })
     expect(storyboardShape(limits)).toEqual({ minShots: 1, maxShots: 1, totalSeconds: 8 })
   })
 })
@@ -145,13 +149,12 @@ describe('the creative director', () => {
     expect(brief).toContain('Choose exactly one duration from 4, 6, 8 seconds')
     expect(brief).toContain('shortest duration that lets this exact idea breathe')
     expect(brief).toContain('no cuts, no stitched scenes, no montage')
-    expect(brief).toContain('at most 15 degrees')
-    expect(brief).toContain('it never arrives')
+    expect(brief).toContain('orbit or arc around the subject (up to a full 360)')
+    expect(brief).toContain('drone rise')
     expect(brief).not.toContain('descending from the sky')
     const several = directorInstructions({ ...input, limits: { ...limits, photos: 2 } })
     expect(several).toContain('reference evidence for identity only')
-    expect(several).toContain('at most 15 degrees')
-    expect(brief).toContain('never 360 degrees')
+    expect(brief).toContain('never default to a plain zoom in or out')
     expect(brief).toContain('Albanian')
     expect(brief).toContain('the bottom 25%')
     expect(brief).toContain('Audience direction: the declared audience is Travellers')
@@ -213,16 +216,16 @@ describe('the creative director', () => {
   })
 
   it('sends a storyboard that breaks the rules back once, with what was wrong', async () => {
-    const orbit = storyboard()
-    orbit.shots[0]!.camera.move = 'A full 360 orbit around the car.'
+    const pinned = storyboard()
+    pinned.shots[0]!.endsOnPhotograph = true
     const fetcher = vi.fn()
-      .mockResolvedValueOnce(answer(orbit))
+      .mockResolvedValueOnce(answer(pinned))
       .mockResolvedValueOnce(answer(storyboard()))
     vi.stubGlobal('fetch', fetcher)
     const result = await directVideo(input)
-    expect(result.storyboard?.shots[0]!.camera.move).not.toContain('360')
+    expect(result.storyboard?.shots[0]!.endsOnPhotograph).toBe(false)
     const retry = JSON.parse(fetcher.mock.calls[1]![1].body)
-    expect(JSON.parse(retry.input[0].content[0].text).correctionsFromYourLastStoryboard[0]).toContain('Shot 1')
+    expect(JSON.parse(retry.input[0].content[0].text).correctionsFromYourLastStoryboard[0]).toContain('must not end on')
     expect(result.costUsd).toBeCloseTo(0.004)
   })
 
@@ -242,7 +245,7 @@ describe('the cinematic shot prompt', () => {
     expect(brief).toContain('ends exactly on the supplied last frame, the real photograph')
     expect(brief).toContain('Lens: 35mm natural perspective')
     expect(brief).toContain('gentle ease-in close')
-    expect(brief).toContain('no more than 8 degrees')
+    expect(brief).toContain('Turn around the subject 8 degrees')
     expect(brief).toContain('start Low and left of the photographed front corner')
     expect(brief).toContain('angle low_angle')
     expect(brief).toContain('calm negative space above it')
@@ -260,6 +263,38 @@ describe('the cinematic shot prompt', () => {
     const full = buildShotExecutionBrief({ storyboard: storyboard(), index: 0, start: 'photograph', endsOnPhotograph: false })
     const short = buildShotExecutionBrief({ storyboard: storyboard(), index: 0, start: 'photograph', endsOnPhotograph: false, maxLength: full.length - 40 })
     expect(short.length).toBeLessThanOrEqual(full.length - 40)
-    expect(short).toContain('Show only what the photograph shows.')
+    expect(short).toContain('Never morph, replace, restyle or swap it')
+  })
+})
+
+describe('a video from several photographs', () => {
+  const several = { durations: [4, 6, 8], minSeconds: 4, maxSeconds: 16, maxShots: 2, photos: 2 }
+  const scenes = () => {
+    const board = storyboard()
+    const hook = { ...board.shots[0]!, role: 'hook' as const, motion: 'strong' as const, photoIndex: 1, shotSize: 'close' as const }
+    const close = { ...board.shots[0]!, role: 'close' as const, motion: 'medium' as const, photoIndex: 0, shotSize: 'wide' as const }
+    return { ...board, shots: [hook, close] }
+  }
+
+  it('accepts one scene per photograph, closing on the main one', () => {
+    expect(storyboardProblems(scenes(), several)).toEqual([])
+    expect(directorStoryboardSchema.safeParse(scenes()).success).toBe(true)
+  })
+
+  it('rejects a cut that skips a photograph or closes on another', () => {
+    const skipped = scenes()
+    skipped.shots[0]!.photoIndex = 0
+    expect(storyboardProblems(skipped, several).join(' ')).toContain('different photographs')
+    const swapped = scenes()
+    swapped.shots[0]!.photoIndex = 0
+    swapped.shots[1]!.photoIndex = 1
+    expect(storyboardProblems(swapped, several).join(' ')).toContain('photograph 1')
+  })
+
+  it('briefs the director for a cut with one scene per photograph', () => {
+    const brief = directorInstructions({ ...input, limits: several })
+    expect(brief).toContain('told in exactly 2 shots, one scene per supplied photograph')
+    expect(brief).toContain('Return exactly 2 shots')
+    expect(brief).not.toContain('reference evidence for identity only')
   })
 })

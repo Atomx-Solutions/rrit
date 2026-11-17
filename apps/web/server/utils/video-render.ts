@@ -371,7 +371,7 @@ export async function renderQueuedVideo(job: ClaimedVideoRender) {
     // A render that stops before its first shot still settles the dressing.
     dressing.catch(() => undefined)
     const capabilities = await aiVideoCapabilities(snapshot.canvas)
-    let limits = { ...videoLengthLimits(capabilities.durations), photos: 1 + extraFitted.length }
+    let limits = videoLengthLimits(capabilities.durations, process.env, 1 + extraFitted.length)
     // The video is planned within what the business can pay for: the model's
     // published price per second against the credits held for this render and
     // still free. Without a published price the configured reservation stands.

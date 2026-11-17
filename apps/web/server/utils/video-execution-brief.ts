@@ -6,7 +6,7 @@ import { sceneDressingRule } from './scene-dressing'
 const subjectRules = [
   'Preserve the exact primary subject, people, products, existing signage and environment visible in the frames. The photograph is the visual truth.',
   'Keep the subject identical in every frame: the same make, model, generation, body shape, colour, wheels, lights, badges, proportions and details. Never morph, replace, restyle or swap it for a similar subject.',
-  'Show only what the photograph shows. Never reveal or invent a side, angle, interior or part of the subject that is not visible in the frames.',
+  'Where the camera reveals a side or angle the frames do not show, paint it consistent with the photographed subject.',
   'Never draw, write or animate any letters, words, numbers, captions or titles anywhere in the video; the application sets all text afterwards.',
   sceneDressingRule,
 ]
@@ -53,7 +53,7 @@ export function buildShotExecutionBrief(input: {
       ...subjectRules,
       `${subjectMotion[shot.subject.motion]} ${clip(shot.subject.description)}`,
       'CAMERA',
-      `${shot.shotSize ? `A ${shot.shotSize} shot. ` : ''}${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject no more than ${shot.camera.rotationDegrees} degrees.`,
+      `${shot.shotSize ? `A ${shot.shotSize} shot. ` : ''}${clip(shot.camera.move)} Lens: ${clip(shot.camera.lens)}. Speed: ${clip(shot.camera.speed)}. Ease: ${clip(shot.camera.ease)}. Turn around the subject ${shot.camera.rotationDegrees} degrees.`,
       ...(shot.camera.startPosition || shot.camera.endPosition || shot.camera.angle || shot.camera.composition
         ? [
             `Blocking: start ${clip(shot.camera.startPosition || 'on the supplied first-frame position')}; end ${clip(shot.camera.endPosition || 'on the directed end position')}; angle ${shot.camera.angle || 'as photographed'}; composition ${clip(shot.camera.composition || 'preserve the directed subject hierarchy and safe negative space')}.`,

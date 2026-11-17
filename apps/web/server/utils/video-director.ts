@@ -3,8 +3,8 @@ import { channelCanvas, channelUiInsets, ratioLabel, type PublishingChannel } fr
 import { contentLanguageForLocale, videoDurationSeconds, type AppLocaleValue } from '../../shared/schemas/workspace'
 import type { VisualRoute } from '../../shared/schemas/monthly-plan'
 import {
-  maxSinglePhotoRotationDegrees,
   storyboardProblems,
+  maxStoryboardShots,
   ctaMaxLength,
   directorStoryboardSchema,
   type Storyboard,
@@ -30,10 +30,27 @@ function configuredSeconds(variable: string, env: Record<string, string | undefi
   return Number.isFinite(value) && value > 0 ? value : undefined
 }
 
-// A delivered video is one continuous generated take. Its duration is chosen
-// for the idea from every length the configured model actually supports; the
-// optional environment settings are safety caps, not a universal target.
-export function videoLengthLimits(durations: number[], env: Record<string, string | undefined> = process.env): StoryboardLimits {
+// A video from one photograph is one continuous generated take; from several,
+// each photograph becomes a scene of its own, so the video has one shot per
+// photograph and may last up to that many of the model's longest shots.
+// VIDEO_MAX_SECONDS, when set, caps the whole video either way.
+export function videoLengthLimits(
+  durations: number[],
+  env: Record<string, string | undefined> = process.env,
+  photos = 1,
+): StoryboardLimits {
+  const single = singleTakeLimits(durations, env)
+  const shots = Math.min(maxStoryboardShots, Math.max(1, Math.floor(photos)))
+  if (shots === 1) return single
+  return {
+    ...single,
+    maxSeconds: configuredSeconds('VIDEO_MAX_SECONDS', env) ?? single.maxSeconds * shots,
+    maxShots: shots,
+    photos: shots,
+  }
+}
+
+function singleTakeLimits(durations: number[], env: Record<string, string | undefined>): StoryboardLimits {
   // When the provider catalogue is temporarily unavailable, retain the proven
   // legacy length rather than asking the provider for an invented duration.
   const supported = [...new Set(durations.length ? durations : [videoDurationSeconds])]
@@ -134,7 +151,11 @@ function platformVideoDirection(channel: PublishingChannel) {
  */
 export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'limits' | 'locale' | 'brand' | 'post' | 'previousAttempt' | 'userInstruction'>) {
   const { limits } = input
-  const durationRule = limits.durations.length
+  const shots = limits.maxShots ?? 1
+  const multi = shots > 1
+  const durationRule = multi
+    ? `Each shot lasts one of ${limits.durations.join(', ')} seconds; together the shots fill the video's full length, at most ${limits.maxSeconds} seconds.`
+    : limits.durations.length
     ? `Choose exactly one duration from ${limits.durations.join(', ')} seconds. These are technical lengths the motion model supports, not creative targets. Choose the shortest duration that lets this exact idea breathe and complete its hook, development, payoff and close without rushing or padding it.`
     : `Choose a whole-number duration between ${limits.minSeconds} and ${limits.maxSeconds} seconds. Choose the shortest duration that completes this exact idea naturally without rushing or padding it.`
   const canvas = channelCanvas(input.channel)
@@ -144,13 +165,17 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
     .map((side) => `the ${side} ${Math.round(covered[side] * 100)}%`)
   return [
     'Act as a senior creative director and cinematographer for realistic short commercial social video. Invent one original concept for this exact business, audience, post and photograph.',
-    `The deliverable is one continuous generated take for ${input.channel}, on a ${ratioLabel(canvas)} canvas: exactly one shot, no cuts, no stitched scenes, no montage, no end card and no transition to another location. One coherent camera path carries the hook, development, payoff and close inside the same real moment. ${durationRule}${coveredSides.length ? ` ${input.channel} covers ${coveredSides.join(', ')} of the frame with its interface, so nothing important happens there.` : ''}`,
+    `${multi
+      ? `The deliverable is a cut short-form commercial for ${input.channel}, on a ${ratioLabel(canvas)} canvas, told in exactly ${shots} shots, one scene per supplied photograph, joined by short crossfades. Each shot is its own scene with its own camera move and framing, and together they build one idea: a hook, a build and a payoff.`
+      : `The deliverable is one continuous generated take for ${input.channel}, on a ${ratioLabel(canvas)} canvas: exactly one shot, no cuts, no stitched scenes, no montage, no end card and no transition to another location. One coherent camera path carries the hook, development, payoff and close inside the same real moment.`} ${durationRule}${coveredSides.length ? ` ${input.channel} covers ${coveredSides.join(', ')} of the frame with its interface, so nothing important happens there.` : ''}`,
     platformVideoDirection(input.channel),
     `Audience direction: the declared audience is ${input.brand.audience}. Use the post intent (${input.post.intent || 'the supplied intent'}), purpose and hook to judge whether this audience is discovering, considering or ready to act. Adapt the pace, duration, visual energy, clarity and call-to-action timing to that state without inferring sensitive personal traits. A discovery idea earns a faster visual hook; a consideration or trust idea earns more observation and context; an action idea earns a concise path to the close.`,
-    'Use photograph 1 as the sole motion source and set photoIndex=0. Any further supplied photographs are reference evidence for identity only; do not cut to them or turn them into separate scenes. The continuous shot starts on the supplied real photograph (opensOnPhotograph=true) and ends on that same real photograph (endsOnPhotograph=true).',
-    'The photograph is the only truthful view of the subject. You may animate plausible light, atmosphere, reflections and natural environmental motion, and move the camera only within what that view supports: a restrained push or pull, lateral slide, parallax, gentle rise or drop, or a very small turn. The subject is already in its photographed place; it never arrives, lands, drives in or transforms. No drone flight, fly-over, impossible reveal or invented reverse angle.',
-    `The subject must stay exactly the photographed subject: the same model, colour, shape, logo, wheels and details. Show only the photographed side. The camera may turn around it by at most ${maxSinglePhotoRotationDegrees} degrees, never orbit, never 360 degrees, and never reveal its back, underside or interior. Set rotationDegrees honestly and showsOnlyPhotographedSides=true only when this holds.`,
-    'Return exactly one shot with role=continuous. Write it as a precise cinematographer brief: one motivated camera path, lens, startPosition, endPosition, angle, composition, speed and ease; the evolving light and atmosphere; and physically plausible subject motion. Use a wide, medium or close shotSize, never a synthetic macro detail. No text, letters, logos or captions appear in the generated motion; the application places approved copy afterward.',
+    multi
+      ? `Use every supplied photograph exactly once: each shot sets photoIndex to its photograph (0 is photograph 1, the main one) and starts on it (opensOnPhotograph=true), then travels away to its own view (endsOnPhotograph=false). Order the scenes for the strongest edit, but the final shot uses photograph 1 (photoIndex=0) so the video closes on the main subject. Shot 1 has role=hook and motion=strong; the middle shots role=build or payoff; the last role=close. Give consecutive shots different shotSize and different kinds of camera move, so every cut feels like a new angle.`
+      : 'Use photograph 1 as the sole motion source and set photoIndex=0. Any further supplied photographs are reference evidence for identity only; do not cut to them or turn them into separate scenes. The continuous shot starts on the supplied real photograph (opensOnPhotograph=true) and travels away from it to its own closing view of the same subject (endsOnPhotograph=false), so the camera move is visible from start to finish.',
+    'Direct it like a high-end commercial cinematographer with the full cinematic vocabulary: orbit or arc around the subject (up to a full 360), drone rise, fly-over or fly-through, crane up or down, foreground reveal, pull-back reveal, push-through, dolly zoom, tracking or follow shot, low-angle hero move, top-down descent, rack focus, parallax through depth layers, whip pan or speed ramp when the energy earns it, and the subject arriving, driving or moving in. Choose the move this post earns; never default to a plain zoom in or out. Animate light, atmosphere, reflections, weather and the living environment alongside the camera.',
+    'The subject must stay exactly the photographed subject: the same model, colour, shape, logo, wheels and details. Where the camera reveals a side the photograph does not show, paint it consistent with the photographed subject. Set rotationDegrees to how far the camera actually turns around it.',
+    `${multi ? `Return exactly ${shots} shots. Write each` : 'Return exactly one shot with role=continuous. Write it'} as a precise cinematographer brief: one motivated camera path, lens, startPosition, endPosition, angle, composition, speed and ease; the evolving light and atmosphere; and physically plausible subject motion. Any shotSize from wide to detail is allowed. No text, letters, logos or captions appear in the generated motion; the application places approved copy afterward.`,
     'Set subjectFrame to where the subject spans vertically in the supplied photograph, as shares of its height from the top (0 is the top edge, 1 the bottom). The application places its headline and call to action in the free space above or below that band, so judge it honestly from the photograph.',
     `Write cta (a short call to action, at most ${ctaMaxLength} characters) and caption in ${contentLanguageForLocale(input.locale)}, in the brand voice, from the supplied post. Do not invent prices, offers, facts or claims.`,
     `${sceneDressingRule} Plan such props where they make the scene feel alive and in use.`,
@@ -159,13 +184,15 @@ export function directorInstructions(input: Pick<DirectorInput, 'channel' | 'lim
       : []),
     'Make this concept your own for this post: do not fall back on a generic slow push-in, a generic product orbit or a generic particle-and-glow treatment unless the actual photograph, audience and platform earn it.',
     `Creative-variety challenge for this specific post: ${videoVarietyDirection(input)} Treat it as a compositional challenge, never as permission to break subject fidelity or show an unseen side.`,
-    'Shape the single take like a senior short-form editor without cuts: an arresting but credible first movement, a readable middle that reveals useful context, a payoff, then a gentle settle back onto the truthful frame for the call to action. Motion strength may evolve inside the shot; avoid arbitrary whip pans, crash zooms, speed ramps, glitches, fake handheld shake and effect-heavy spectacle.',
+    multi
+      ? 'Cut it like a senior short-form editor: the hook stops the scroll in its first second, each following shot reveals something new from its own angle, and the close lands a confident final framing that leaves room for the call to action. Every effect must be motivated by the idea, never a random glitch or fake shake.'
+      : 'Shape the single take like a senior short-form editor without cuts: an arresting but credible first movement, a readable middle that reveals useful context, a payoff, then a confident final framing that leaves room for the call to action. Motion strength may evolve inside the shot; every effect must be motivated by the idea, never a random glitch or fake shake.',
     'Block the camera precisely. startPosition and endPosition are concrete places relative to the photographed subject and depth planes; angle and composition are honest. Use foreground, midground and background only when they exist or can be extended without inventing facts. Keep the subject away from interface-covered edges and preserve deliberate negative space for overlays.',
     ...(input.userInstruction
       ? ['businessRequest is what the business itself asked for in this video. Follow it ahead of your own ideas, as far as the rules above about the subject and the photograph allow; where it would break them, keep to the rules and come as close to the request as they permit.']
       : []),
     ...(input.previousAttempt
-      ? ['previousAttempt holds your last continuous take and how the motion model changed the subject. Propose a safer version of the same post: keep the subject still in its photographed place and never let the camera reveal sides or details the photograph does not show. Only the subject is calmed, not the direction: keep one designed, expressive camera path (an arc, crane, reveal or parallax through the scene, not just a push in and out), never a locked, static or tripod frame, and never motion "subtle".']
+      ? ['previousAttempt holds your last take and how the motion model changed the subject. Propose a safer version of the same post: keep the subject’s shape, colour and details exactly as photographed. Only the subject is calmed, not the direction: keep one designed, expressive camera path (an arc, crane, reveal or parallax through the scene, not just a push in and out), never a locked, static or tripod frame, and never motion "subtle".']
       : []),
   ].join('\n')
 }
