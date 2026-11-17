@@ -57,6 +57,9 @@ async function submit() {
       showError(signedIn.error.message || t('join.passwordFailed'))
       return
     }
+    // The account exists and is signed in: the dialog closes before the client
+    // moves on, so it never stays over the next step.
+    open.value = false
     emit('created')
   } catch (error) {
     const problem = error as { data?: { message?: string }; message?: string }

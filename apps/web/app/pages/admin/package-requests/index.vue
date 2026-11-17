@@ -512,6 +512,7 @@ const columns = computed<TableColumn<PackageRequest>[]>(() => [
       :request="convertingPackage"
       @close="converting = null"
       @done="onConverted"
+      @refresh="refresh"
     />
     <AdminVideoRequestConvert
       :request="convertingVideos"
