@@ -341,6 +341,7 @@ function setPrice(fact: BrandFact, value: string | number) {
       </div>
       <UCard :ui="{ body: 'p-5 sm:p-7' }"
         ><UForm
+          id="brand-form"
           :schema="schema"
           :state="form"
           class="space-y-6"
@@ -393,7 +394,7 @@ function setPrice(fact: BrandFact, value: string | number) {
               v-model="form.audience"
               :rows="2"
               maxlength="1000"
-              class="w-full"
+              class="w-full max-sm:[&_textarea]:min-h-24"
               :class="{ 'rounded-lg ring-2 ring-success ring-offset-2 animate-pulse': hasAttention('audience') }"
               :placeholder="t('brand.audiencePlaceholder')"
           /><BriefImprove
@@ -779,6 +780,18 @@ v-if="activeTab === 'facts'"
         ></UCard
       >
             </div>
+    </div>
+    <!-- On a phone or tablet the save row sits a long scroll below the fields,
+         so while there are unsaved changes this bar keeps saving in reach. It
+         submits the same form, so validation and saving stay in one place. -->
+    <div
+      v-if="dirty"
+      class="sticky bottom-2 z-10 mt-4 flex items-center gap-3 rounded-lg border border-default bg-default/95 py-2 ps-3 pe-2 shadow-sm backdrop-blur lg:hidden"
+    >
+      <span class="min-w-0 flex-1 truncate text-xs text-muted">{{ t('brand.unsaved') }}</span>
+      <UButton form="brand-form" type="submit" :loading="syncing" icon="i-lucide-check" class="shrink-0">{{
+        t('brand.saveIdentity')
+      }}</UButton>
     </div>
     <UnsavedChangesModal
       v-if="pendingTab"

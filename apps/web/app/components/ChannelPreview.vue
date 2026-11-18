@@ -20,8 +20,9 @@ const frame = computed(() => {
   return { aspectRatio: `${width} / ${height}` }
 })
 // The Facebook reactions can be tried in the preview the way they work on
-// Facebook: hovering Like opens the reaction bar, a click likes or unlikes.
-// The choice is local to the preview and never saved.
+// Facebook: with a mouse, hovering Like opens the reaction bar; on a touch
+// screen, pressing and holding Like opens it, as in the Facebook app. A plain
+// click or tap likes or unlikes. The choice is local and never saved.
 const reactions = [
   { key: 'like', emoji: '👍' },
   { key: 'love', emoji: '❤️' },
@@ -43,7 +44,56 @@ function react(key: Reaction | null) {
   reactionsOpen.value = false
   reaction.value = key
 }
-onBeforeUnmount(() => clearTimeout(reactionsTimer))
+// Touch has no hover, and a tap fires emulated mouse events before its click,
+// so hover only counts for a real mouse and touch uses a long press instead.
+const longPressMs = 450
+let pressTimer: ReturnType<typeof setTimeout> | undefined
+let heldOpen = false
+function hover(event: PointerEvent, open: boolean) {
+  if (event.pointerType === 'mouse') showReactions(open)
+}
+function pressStart(event: PointerEvent) {
+  if (event.pointerType === 'mouse') return
+  heldOpen = false
+  clearTimeout(pressTimer)
+  pressTimer = setTimeout(() => {
+    heldOpen = true
+    clearTimeout(reactionsTimer)
+    reactionsOpen.value = true
+  }, longPressMs)
+}
+// Keyboard focus opens the bar; focus that a tap or click brings must not,
+// or every tap would open it.
+let pointerFocus = false
+function markPointerFocus() {
+  pointerFocus = true
+}
+function focusOpen() {
+  if (!pointerFocus) showReactions(true)
+  pointerFocus = false
+}
+function pressEnd() {
+  clearTimeout(pressTimer)
+}
+function tapLike() {
+  // The click that ends a long press only opened the bar; it must not like.
+  if (heldOpen) {
+    heldOpen = false
+    return
+  }
+  react(chosen.value ? null : 'like')
+}
+// A tap anywhere else closes a bar opened by a long press.
+const reactionArea = ref<HTMLElement | null>(null)
+function closeOnOutside(event: PointerEvent) {
+  if (reactionsOpen.value && !reactionArea.value?.contains(event.target as Node)) reactionsOpen.value = false
+}
+onMounted(() => document.addEventListener('pointerdown', closeOnOutside))
+onBeforeUnmount(() => {
+  clearTimeout(reactionsTimer)
+  clearTimeout(pressTimer)
+  document.removeEventListener('pointerdown', closeOnOutside)
+})
 // The Instagram like works the same way: the heart fills red and pops, and a
 // double tap on the photo likes it with a heart over the photo.
 const instagramLiked = ref(false)
@@ -276,10 +326,12 @@ const heartPath = 'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 
         class="flex justify-around gap-2 p-3 border-t border-default text-xs text-muted"
       >
         <div
+          ref="reactionArea"
           class="relative"
-          @mouseenter="showReactions(true)"
-          @mouseleave="showReactions(false)"
-          @focusin="showReactions(true)"
+          @pointerenter="hover($event, true)"
+          @pointerleave="hover($event, false)"
+          @pointerdown="markPointerFocus"
+          @focusin="focusOpen"
           @focusout="showReactions(false)"
         >
           <Transition name="facebook-reactions">
@@ -311,10 +363,14 @@ const heartPath = 'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 
             variant="link"
             color="neutral"
             size="xs"
-            class="facebook-like gap-1.5 p-0 text-xs"
+            class="facebook-like touch-manipulation select-none gap-1.5 p-0 text-xs [-webkit-touch-callout:none]"
             :class="chosen ? `is-reacted font-semibold facebook-like-${chosen.key}` : 'text-muted'"
             :aria-pressed="!!chosen"
-            @click="react(chosen ? null : 'like')"
+            @pointerdown="pressStart"
+            @pointerup="pressEnd"
+            @pointercancel="pressEnd"
+            @contextmenu.prevent
+            @click="tapLike"
           >
             <span v-if="chosen && chosen.key !== 'like'" :key="chosen.key" class="facebook-like-icon text-base leading-none">{{ chosen.emoji }}</span>
             <UIcon v-else :key="String(!!chosen)" name="i-lucide-thumbs-up" class="facebook-like-icon size-4" />{{ t(`preview.${chosen?.key || 'like'}`) }}

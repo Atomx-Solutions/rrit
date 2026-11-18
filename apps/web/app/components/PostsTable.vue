@@ -3,6 +3,8 @@ import type { TableColumn } from '@nuxt/ui'
 import type { Post } from '~~/shared/schemas/workspace'
 import { formatDate } from '~~/shared/utils/format'
 import { canDeletePost } from '~~/shared/utils/post-deletion'
+// A small checkbox with a finger-sized (about 40px) tap area around it.
+const checkboxHitArea = { base: "relative overflow-visible before:absolute before:-inset-3 before:content-['']" }
 // `selectable` turns on the checkboxes, as in the gallery; the page that owns
 // the selection also owns what is done with it.
 const props = defineProps<{ posts: Post[]; selectable?: boolean }>()
@@ -42,8 +44,11 @@ const columns = computed<TableColumn<Post>[]>(() => [
       :to="`${base}/content/${post.id}`"
       class="flex items-center gap-3 px-4 py-3 active:bg-elevated/50"
     >
+      <!-- The box is drawn small but its tap area reaches about 40px, the size
+           a finger needs; the extra area is part of the checkbox itself. -->
       <div v-if="selectable" class="flex shrink-0 self-stretch items-center" @click.prevent.stop>
         <UCheckbox
+          :ui="checkboxHitArea"
           :model-value="selected.includes(post.id)"
           :disabled="!canDeletePost(post)"
           :aria-label="t('content.selectPost', { title: post.title })"
