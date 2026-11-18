@@ -22,10 +22,6 @@ test('fact edits require confirmation and offer fields remain usable on mobile',
         secondsRemaining: 3600,
         limits: { posts_per_month: 30 },
       }
-    else if (path === '/api/business/brain-history')
-      json = {
-        versions: [{ version: 2, createdAt: new Date().toISOString(), brand: workspace.brand }],
-      }
     else if (path === `/api/workspaces/${id}`) {
       const input = route.request().postDataJSON()
       workspace.brand = input.brand

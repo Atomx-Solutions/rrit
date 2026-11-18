@@ -328,7 +328,6 @@ function setPrice(fact: BrandFact, value: string | number) {
   >
     <div class="max-w-5xl">
       <div class="min-w-0 space-y-4">
-      <!-- The tabs and the profile's history share one row and one line. -->
       <div class="flex items-center gap-2 border-b border-default">
         <UTabs
           v-model="tab"
@@ -337,9 +336,8 @@ function setPrice(fact: BrandFact, value: string | number) {
           variant="link"
           class="min-w-0 flex-1"
           :aria-label="t('brand.sections')"
-          :ui="{ list: 'border-0 flex-nowrap', trigger: 'min-w-0 flex-1 justify-center sm:flex-none', label: 'hidden sm:inline' }"
+          :ui="{ list: 'border-0 flex-nowrap', trigger: 'min-w-0 flex-1 justify-center', label: 'hidden sm:inline' }"
         />
-        <BusinessBrainHistory class="shrink-0" />
       </div>
       <UCard :ui="{ body: 'p-5 sm:p-7' }"
         ><UForm
