@@ -124,7 +124,6 @@ const networkFilters = computed(() => [
 <template>
   <DashboardPage
     :title="t('nav.socialPosts')"
-    :mobile-title="t('nav.posts')"
     :description="t('legacy.socialPostsDescription')"
     :toolbar-border="false"
   >

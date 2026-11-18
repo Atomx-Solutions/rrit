@@ -284,6 +284,12 @@ function formatPeriodDate(value: string) {
 function usageValue(key: string, value: number) {
   if (key === 'media_storage_bytes') {
     const megabytes = value / 1024 / 1024
+    // A limit like 5120 MB reads as 5 GB, short enough to stay on one line
+    // beside the amount used on a phone.
+    if (megabytes >= 1024) {
+      const gigabytes = megabytes / 1024
+      return `${Number.isInteger(gigabytes) ? gigabytes : gigabytes.toFixed(1)} GB`
+    }
     return `${megabytes >= 100 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`
   }
   return new Intl.NumberFormat('sq-AL').format(value)
