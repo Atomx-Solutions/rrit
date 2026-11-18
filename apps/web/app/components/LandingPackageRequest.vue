@@ -28,20 +28,21 @@ const money = (value: number) => new Intl.NumberFormat(locale.value, {
   <div class="landing-request">
     <div v-if="props.showSummary && options" class="landing-package-summary">
       <div class="landing-package-summary-top">
-        <strong>{{ t('landing.packageSummaryTitle') }}</strong>
-        <strong>{{ t('landing.packagePerMonth', { price: money(packageTotal) }) }}</strong>
+        <div class="landing-package-summary-name">
+          <span class="landing-package-eyebrow">{{ t('landing.packageSummaryTitle') }}</span>
+          <span class="landing-package-period">{{ t('landing.packagePerMonth', { price: money(packageTotal) }) }}</span>
+        </div>
+        <span class="landing-package-mark" aria-hidden="true"><UIcon name="i-lucide-panels-top-left" class="size-5" /></span>
       </div>
-      <div class="landing-package-summary-line">
-        <span>{{ t('landing.packagePosts', { count: postsRequested }) }}</span>
-        <span>{{ t('landing.packagePerPost', { price: money(packagePostPrice) }) }}</span>
-      </div>
-      <div class="landing-package-summary-line">
-        <span>{{ t('landing.packageVideos', { count: videosRequested }) }}</span>
-        <span>{{ t('landing.packagePerVideo', { price: money(packageVideoPrice) }) }}</span>
-      </div>
-      <div class="landing-package-summary-total">
-        <span>{{ t('landing.packageTotal') }}</span>
-        <strong>{{ money(packageTotal) }}</strong>
+      <div class="landing-package-breakdown">
+        <div class="landing-package-summary-line">
+          <span class="landing-package-item"><UIcon name="i-lucide-image" />{{ t('landing.packagePosts', { count: postsRequested }) }}</span>
+          <span>{{ t('landing.packagePerPost', { price: money(packagePostPrice) }) }}</span>
+        </div>
+        <div class="landing-package-summary-line">
+          <span class="landing-package-item"><UIcon name="i-lucide-clapperboard" />{{ t('landing.packageVideos', { count: videosRequested }) }}</span>
+          <span>{{ t('landing.packagePerVideo', { price: money(packageVideoPrice) }) }}</span>
+        </div>
       </div>
     </div>
     <div class="landing-request-form">

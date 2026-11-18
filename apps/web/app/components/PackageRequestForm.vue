@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { DEFAULT_PACKAGE_REQUEST } from '~~/shared/utils/package-defaults'
 import { isPersonName, keepPersonNameCharacters } from '~~/shared/schemas/person-name'
+import IntlTelInput from '@intl-tel-input/vue'
+import { de, en, fr, it, sq, tr } from 'intl-tel-input/locale'
+import 'intl-tel-input/styles'
 import { z } from 'zod'
 
 /**
@@ -45,6 +48,10 @@ const postsModel = defineModel<number>('posts', { default: 0 })
 const videosModel = defineModel<number>('videos', { default: 0 })
 const { t, locale } = useI18n()
 const { onFormError, watchError, showSuccess } = useFormFeedback()
+const phoneTranslations = computed(() => {
+  const language = locale.value.split('-')[0]
+  return ({ de, en, fr, it, sq, tr })[language as 'de' | 'en' | 'fr' | 'it' | 'sq' | 'tr'] || en
+})
 
 const form = reactive({
   contactName: '',
@@ -127,7 +134,7 @@ const schema = computed(() => {
     .string()
     .trim()
     .max(24)
-    .refine(value => value.replace(/\D/g, '').length >= 6, t('request.phoneRequired'))
+    .refine(() => phoneValid.value, t('request.phoneRequired'))
   return props.contactKnown
     ? z.object({
         postsRequested: z.number().int().min(0).max(1000),
@@ -151,15 +158,41 @@ const schema = computed(() => {
       }).refine(asksForSomething, postsOrVideos)
 })
 
-// The plus belongs to the field rather than to what is typed, so the country
-// code cannot be deleted by accident and no letter ever reaches the value.
-watch(
-  () => form.phone,
-  (value) => {
-    const digits = value.replace(/[^\d ]/g, '')
-    if (digits !== value) form.phone = digits
-  },
-)
+const phoneValid = ref(false)
+const phoneE164 = ref('')
+let pageScrollStyles: {
+  htmlOverflow: string
+  htmlOverscrollBehavior: string
+  bodyOverflow: string
+  bodyOverscrollBehavior: string
+} | null = null
+function lockPageScroll() {
+  if (!import.meta.client || pageScrollStyles) return
+  pageScrollStyles = {
+    htmlOverflow: document.documentElement.style.overflow,
+    htmlOverscrollBehavior: document.documentElement.style.overscrollBehavior,
+    bodyOverflow: document.body.style.overflow,
+    bodyOverscrollBehavior: document.body.style.overscrollBehavior,
+  }
+  document.documentElement.style.overflow = 'hidden'
+  document.documentElement.style.overscrollBehavior = 'none'
+  document.body.style.overflow = 'hidden'
+  document.body.style.overscrollBehavior = 'none'
+}
+function unlockPageScroll() {
+  if (!import.meta.client || !pageScrollStyles) return
+  document.documentElement.style.overflow = pageScrollStyles.htmlOverflow
+  document.documentElement.style.overscrollBehavior = pageScrollStyles.htmlOverscrollBehavior
+  document.body.style.overflow = pageScrollStyles.bodyOverflow
+  document.body.style.overscrollBehavior = pageScrollStyles.bodyOverscrollBehavior
+  pageScrollStyles = null
+}
+function updatePhoneNumber(value: string) {
+  phoneE164.value = value
+}
+function updatePhoneValidity(value: boolean) {
+  phoneValid.value = value
+}
 // A digit or symbol is taken out of the field itself, not only the value:
 // rewriting the value alone leaves it unchanged for Vue, so the box would keep
 // showing the digits. The field then says why the character did not appear.
@@ -172,11 +205,6 @@ function keepNameLetters(event: Event) {
   input.value = letters
   form.contactName = letters
 }
-const phoneNumber = computed(() => {
-  const digits = form.phone.replace(/\s+/g, ' ').trim()
-  return digits ? `+${digits}` : ''
-})
-
 const sending = ref(false)
 const sent = ref(false)
 const error = ref('')
@@ -189,6 +217,8 @@ function resetAfterSuccess() {
   form.contactName = ''
   form.contactEmail = ''
   form.phone = ''
+  phoneE164.value = ''
+  phoneValid.value = false
   form.businessName = ''
   form.industry = ''
   form.platform = 'both'
@@ -197,6 +227,7 @@ function resetAfterSuccess() {
 
 onBeforeUnmount(() => {
   if (resetTimer) clearTimeout(resetTimer)
+  unlockPageScroll()
 })
 
 async function submit() {
@@ -218,7 +249,7 @@ async function submit() {
               // A lean form never asked for these, and an empty string is not
               // the same as an absent field: the schema would reject it.
               ...(props.lean ? {} : { industry: form.industry.trim(), platform: form.platform }),
-              phone: phoneNumber.value,
+              phone: phoneE164.value,
               ...(message ? { message } : {}),
             }),
       },
@@ -256,15 +287,15 @@ async function submit() {
       @submit="submit"
       @error="onFormError"
     >
-    <div class="divide-y divide-default rounded-lg border border-default">
+    <div class="landing-request-volumes divide-y divide-default rounded-lg border border-default">
       <UFormField
         v-for="item in volumeItems"
         :key="item.name"
         :name="item.name"
-        class="p-3.5"
+        class="landing-request-volume p-3.5"
       >
-        <div class="flex items-center gap-3">
-          <span class="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+        <div class="landing-request-volume-row flex items-center gap-3">
+          <span class="landing-request-volume-icon grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <UIcon :name="item.icon" class="size-5" />
           </span>
           <div class="min-w-0 flex-1">
@@ -308,7 +339,7 @@ async function submit() {
         class="w-full"
       />
     </UFormField>
-    <div v-else :class="compact ? 'space-y-4' : 'grid gap-4 sm:grid-cols-2'">
+    <div v-else :class="[lean ? 'landing-request-contact' : '', compact ? 'space-y-4' : 'grid gap-4 sm:grid-cols-2']">
       <UFormField
         name="contactName"
         :label="t('request.name')"
@@ -333,19 +364,23 @@ async function submit() {
         />
       </UFormField>
       <UFormField name="phone" :label="t('request.phone')" required>
-        <UInput
+        <IntlTelInput
           v-model="form.phone"
-          type="tel"
-          inputmode="numeric"
-          autocomplete="tel"
-          :placeholder="t('request.phonePlaceholder')"
-          :maxlength="24"
-          class="w-full"
-        >
-          <template #leading>
-            <span class="text-sm text-muted">+</span>
-          </template>
-        </UInput>
+          initial-country="ch"
+          :country-order="['ch', 'xk', 'al', 'de', 'fr', 'it', 'gb', 'us']"
+          country-selector-mode="AUTO"
+          country-search
+          separate-dial-code
+          :country-name-locale="locale"
+          :ui-translations="phoneTranslations"
+          :load-utils="() => import('intl-tel-input/utils')"
+          :class-names="{ container: 'landing-phone-control', input: 'landing-phone-input', countrySelector: 'landing-phone-country-popup', countrySelectorContainer: 'landing-phone-country-popup-host' }"
+          :input-props="{ id: 'package-request-phone', autocomplete: 'tel', required: true }"
+          @change-number="updatePhoneNumber"
+          @change-validity="updatePhoneValidity"
+          @open-country-selector="lockPageScroll"
+          @close-country-selector="unlockPageScroll"
+        />
       </UFormField>
       <UFormField name="businessName" :label="t('request.businessName')" required>
         <UInput
@@ -396,6 +431,7 @@ async function submit() {
       trailing-icon="i-lucide-send"
       size="lg"
       block
+      class="landing-request-submit"
     />
     </UForm>
   </Transition>
