@@ -8,9 +8,6 @@ const busy = ref(false)
 const error = ref('')
 const disconnecting = ref(false)
 const taken = ref<{ owner: string | null } | null>(null)
-function clearTaken() {
-  taken.value = null
-}
 const connected = computed(() => status.value?.connection?.status === 'connected')
 const pageUsername = computed(() =>
   meta.value?.connection?.status === 'connected' ? meta.value.connection.instagramUsername : null,
@@ -76,7 +73,7 @@ onMounted(() => {
       }}</UBadge>
     </div>
     <p v-if="!status?.configured" class="text-sm text-muted">{{ t('instagram.notConfigured') }}</p>
-    <SocialAccountTakenAlert v-if="taken" network="Instagram" :owner="taken.owner" @close="clearTaken" />
+    <SocialAccountTakenAlert v-if="taken" />
     <p v-if="error" class="text-sm text-error">{{ error }}</p>
     <div class="mt-auto flex gap-2">
       <UButton

@@ -9,6 +9,8 @@ const {
   refresh,
 } = await useFetch('/api/meta/status', { key: 'meta-status' })
 const busy = ref(false)
+// Which card button started the work, so only that one shows a spinner.
+const action = ref<'connect' | 'pages' | null>(null)
 const error = ref('')
 const { showError, watchError } = useFormFeedback()
 watchError(error)
@@ -30,8 +32,12 @@ const cursor = ref<string | null>(null)
 const cursorHistory = ref<(string | undefined)[]>([undefined])
 const cursorIndex = ref(0)
 const connected = computed(() => status.value?.connection?.status === 'connected')
+// Meta authorized the account but no page has been chosen yet.
+const pending = computed(() => status.value?.connection?.status === 'pending')
+const authorized = computed(() => connected.value || pending.value)
 async function loadPages(after?: string) {
   busy.value = true
+  action.value = 'pages'
   error.value = ''
   try {
     const result = await $fetch('/api/meta/pages', { query: after ? { after } : {} })
@@ -42,6 +48,7 @@ async function loadPages(after?: string) {
     error.value = t('social.pagesLoadError')
   } finally {
     busy.value = false
+    action.value = null
   }
 }
 async function changePage(direction: number) {
@@ -51,6 +58,7 @@ async function changePage(direction: number) {
 }
 async function connect() {
   busy.value = true
+  action.value = 'connect'
   error.value = ''
   try {
     const result = await $fetch('/api/meta/start', {
@@ -63,6 +71,7 @@ async function connect() {
     error.value = t('social.connectError')
   } finally {
     busy.value = false
+    action.value = null
   }
 }
 async function select(pageId: string) {
@@ -132,7 +141,9 @@ onMounted(async () => {
                     ? status?.connection?.pageName
                     : status?.connection?.instagramUsername ||
                       t('social.noProfessionalProfile')
-                  : status?.connection?.status === 'expired'
+                  : pending
+                    ? t('social.pagePending')
+                    : status?.connection?.status === 'expired'
                     ? t('social.connectionExpired')
                     : t('social.notConnected')
               }}
@@ -145,34 +156,30 @@ onMounted(async () => {
             >{{ t('social.connected') }}</UBadge
           >
         </div>
-        <SocialAccountTakenAlert
-          v-if="taken"
-          network="Facebook"
-          :owner="taken.owner"
-          @close="taken = null"
-        />
+        <SocialAccountTakenAlert v-if="taken" />
         <p v-if="!status?.configured && !statusError" class="text-sm text-muted">
           {{ t('social.preparing') }}
         </p>
         <div class="mt-auto flex flex-wrap gap-2">
           <UButton
             type="button"
-            :loading="busy"
-            :disabled="!status?.configured"
-            :color="connected ? 'neutral' : 'primary'"
-            :variant="connected ? 'soft' : 'solid'"
-            :icon="connected ? 'i-lucide-refresh-cw' : 'i-lucide-plug-zap'"
+            :loading="busy && action === 'connect'"
+            :disabled="!status?.configured || (busy && action !== 'connect')"
+            :color="authorized ? 'neutral' : 'primary'"
+            :variant="authorized ? 'soft' : 'solid'"
+            :icon="authorized ? 'i-lucide-refresh-cw' : 'i-lucide-plug-zap'"
             size="sm"
             class="flex-1 justify-center"
             @click="connect"
-            >{{ connected ? t('social.changeConnection') : t('social.connectMeta') }}</UButton
+            >{{ authorized ? t('social.changeConnection') : t('social.connectMeta') }}</UButton
           >
           <UButton
             v-if="status?.connection?.status === 'pending'"
             type="button"
-            :loading="busy"
-            variant="soft"
-            color="neutral"
+            :loading="busy && action === 'pages'"
+            :disabled="busy && action !== 'pages'"
+            variant="solid"
+            color="primary"
             icon="i-lucide-list-checks"
             size="sm"
             class="flex-1 justify-center"

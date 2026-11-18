@@ -6,9 +6,6 @@ const busy = ref(false)
 const error = ref('')
 const disconnecting = ref(false)
 const taken = ref<{ owner: string | null } | null>(null)
-function clearTaken() {
-  taken.value = null
-}
 onMounted(() => {
   if (route.query.tiktok === 'taken')
     taken.value = { owner: typeof route.query.owner === 'string' ? route.query.owner : null }
@@ -52,7 +49,7 @@ async function disconnect() {
         color="success"
       >{{ t('tiktok.connected') }}</UBadge>
     </div>
-    <SocialAccountTakenAlert v-if="taken" network="TikTok" :owner="taken.owner" @close="clearTaken" />
+    <SocialAccountTakenAlert v-if="taken" />
     <p v-if="error" class="text-sm text-error">{{ error }}</p>
     <div class="mt-auto flex gap-2">
       <UButton
