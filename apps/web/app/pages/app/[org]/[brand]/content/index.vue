@@ -155,7 +155,7 @@ async function remove() {
           :aria-label="t('content.searchPosts')"
           class="min-w-0 basis-full sm:flex-1 sm:basis-auto"
         />
-        <div class="flex max-w-full shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" :aria-label="t('content.filters')">
+        <div class="flex max-w-full shrink-0 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" :aria-label="t('content.filters')">
           <UButton
             v-for="item in formatItems"
             :key="item.value"

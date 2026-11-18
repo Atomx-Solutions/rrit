@@ -16,7 +16,9 @@ const label = computed(() => t(reposted.value ? 'content.repostedBadge' : 'conte
       :icon="reposted ? 'i-lucide-repeat' : 'i-lucide-trash-2'"
       :aria-label="label"
       variant="subtle"
-      size="xs"
+      size="sm"
+      :ui="{ base: 'box-border h-5 min-h-5 max-h-5 w-6 min-w-6 max-w-6 p-0 pointer-coarse:min-h-5 pointer-coarse:min-w-6', leadingIcon: 'size-3 shrink-0' }"
+      class="inline-flex shrink-0 items-center justify-center align-middle"
       @click.stop
     />
     <template #content>

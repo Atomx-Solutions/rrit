@@ -84,7 +84,7 @@ const profileDirty = computed(() => JSON.stringify(form) !== baseline.value)
 const dirty = computed(() => profileDirty.value)
 // The one save button stores the whole profile, rules included.
 async function saveAll() {
-  if (profileDirty.value) await save()
+  return profileDirty.value ? await save() : true
 }
 const focusTarget = computed(() => {
   if (route.query.attention !== 'planner') return ''
@@ -171,7 +171,7 @@ function validResearchSource(value: string) {
     return false
   }
 }
-async function save() {
+async function save(): Promise<boolean> {
   formError.value = ''
   const snapshot = structuredClone(toRaw(form))
   snapshot.guardrails = (snapshot.guardrails || []).map((rule) => rule.trim()).filter(Boolean)
@@ -180,12 +180,12 @@ async function save() {
   ].filter(Boolean)
   if (snapshot.researchSources.some((url) => !validResearchSource(url))) {
     notify(t('brand.researchSourceInvalid'))
-    return
+    return false
   }
   const problem = snapshot.facts.map(factInputProblem).find(Boolean)
   if (problem) {
     notify(t(problem))
-    return
+    return false
   }
   if (
     await commit((d) => {
@@ -198,8 +198,10 @@ async function save() {
     saved.value = true
     notify(t('brand.identitySaved'))
     await refreshNuxtData('monthly-planner')
+    return true
   } else {
     formError.value = t('brand.saveError')
+    return false
   }
 }
 function addGoal() {
@@ -261,7 +263,7 @@ async function saveFact() {
     factCheckMissing.value = true
     return
   }
-  await saveAll()
+  if (!(await saveAll())) return
   editingFactId.value = null
 }
 function factPrice(fact: BrandFact) {
