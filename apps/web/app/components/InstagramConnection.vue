@@ -7,6 +7,10 @@ const { data: meta } = await useFetch('/api/meta/status', { key: 'meta-status' }
 const busy = ref(false)
 const error = ref('')
 const disconnecting = ref(false)
+const taken = ref<{ owner: string | null } | null>(null)
+function clearTaken() {
+  taken.value = null
+}
 const connected = computed(() => status.value?.connection?.status === 'connected')
 const pageUsername = computed(() =>
   meta.value?.connection?.status === 'connected' ? meta.value.connection.instagramUsername : null,
@@ -20,6 +24,7 @@ const summary = computed(() => {
 async function connect() {
   busy.value = true
   error.value = ''
+  taken.value = null
   try {
     const result = await $fetch('/api/instagram/start', {
       method: 'POST',
@@ -52,7 +57,8 @@ onMounted(() => {
   if (outcome === 'failed') error.value = t('instagram.authorizationFailed')
   if (outcome === 'cancelled') error.value = t('social.connectionCancelled')
   if (outcome === 'permissions') error.value = t('instagram.permissionsMissing')
-  if (outcome === 'taken') error.value = t('instagram.alreadyConnected')
+  if (outcome === 'taken')
+    taken.value = { owner: typeof route.query.owner === 'string' ? route.query.owner : null }
 })
 </script>
 <template>
@@ -70,6 +76,7 @@ onMounted(() => {
       }}</UBadge>
     </div>
     <p v-if="!status?.configured" class="text-sm text-muted">{{ t('instagram.notConfigured') }}</p>
+    <SocialAccountTakenAlert v-if="taken" network="Instagram" :owner="taken.owner" @close="clearTaken" />
     <p v-if="error" class="text-sm text-error">{{ error }}</p>
     <div class="mt-auto flex gap-2">
       <UButton

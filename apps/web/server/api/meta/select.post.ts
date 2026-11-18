@@ -118,11 +118,14 @@ export default defineEventHandler(async (event) => {
     return { connected: true }
   } catch (error) {
     await client.query('ROLLBACK')
-    if ((error as { code?: string }).code === '23505')
+    if (isUniqueViolation(error))
       throw createError({
         statusCode: 409,
         message: 'server.PAGE_LINKED_TO_OTHER_BUSINESS',
-        data: { code: 'PAGE_LINKED_TO_OTHER_BUSINESS' },
+        data: {
+          code: 'PAGE_LINKED_TO_OTHER_BUSINESS',
+          owner: await socialAccountOwnerName(user.id, 'facebook', input.data.pageId),
+        },
       })
     throw error
   } finally {

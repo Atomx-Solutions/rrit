@@ -17,6 +17,7 @@ watch(statusError, (value) => {
 }, { immediate: true })
 const selecting = ref(false)
 const disconnecting = ref(false)
+const taken = ref<{ owner: string | null } | null>(null)
 const pages = ref<
   {
     id: string
@@ -67,17 +68,22 @@ async function connect() {
 async function select(pageId: string) {
   busy.value = true
   error.value = ''
+  taken.value = null
   try {
     await $fetch('/api/meta/select', { method: 'POST', body: { pageId }, retry: 0 })
     selecting.value = false
     await refresh()
     await refreshNuxtData('trial')
   } catch (problem) {
-    const details = problem as { data?: { code?: string; message?: string; data?: { code?: string } } }
+    const details = problem as {
+      data?: { code?: string; message?: string; data?: { code?: string; owner?: string | null } }
+    }
     const code = details.data?.code || details.data?.data?.code
-    error.value = code === 'PAGE_ALREADY_CONNECTED' || code === 'PAGE_LINKED_TO_OTHER_BUSINESS'
-      ? t('social.pageAlreadyConnected')
-      : t('social.pageSelectError')
+    if (code === 'PAGE_LINKED_TO_OTHER_BUSINESS') {
+      selecting.value = false
+      taken.value = { owner: details.data?.data?.owner || null }
+    } else
+      error.value = code === 'PAGE_ALREADY_CONNECTED' ? t('social.pageAlreadyConnected') : t('social.pageSelectError')
   } finally {
     busy.value = false
   }
@@ -139,6 +145,12 @@ onMounted(async () => {
             >{{ t('social.connected') }}</UBadge
           >
         </div>
+        <SocialAccountTakenAlert
+          v-if="taken"
+          network="Facebook"
+          :owner="taken.owner"
+          @close="taken = null"
+        />
         <p v-if="!status?.configured && !statusError" class="text-sm text-muted">
           {{ t('social.preparing') }}
         </p>

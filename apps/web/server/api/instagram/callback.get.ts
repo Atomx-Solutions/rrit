@@ -55,6 +55,7 @@ export default defineEventHandler(async (event) => {
     await recordAuthorizationResult('cancelled', 'provider_cancelled')
     return sendRedirect(event, `${returnPath}?instagram=cancelled`)
   }
+  let accountId = ''
   try {
     // Instagram appends #_ to the code it returns in the redirect.
     const token = await exchangeInstagramCode(query.code.replace(/#_$/, ''))
@@ -62,6 +63,7 @@ export default defineEventHandler(async (event) => {
       await recordAuthorizationResult('denied', 'required_scopes_missing')
       return sendRedirect(event, `${returnPath}?instagram=permissions`)
     }
+    accountId = token.userId
     await withUserTransaction(user.id, async (client) => {
       await setTenantContext(client, { userId: user.id, organizationId: businessId })
       await client.query('SELECT id FROM businesses WHERE id=$1 FOR UPDATE', [businessId])
@@ -105,10 +107,15 @@ export default defineEventHandler(async (event) => {
     })
     return sendRedirect(event, `${returnPath}?instagram=connected`)
   } catch (error) {
+    // Tenant RLS hides the business holding the account, so the pre-check above
+    // can miss it; the unique index is the authoritative signal.
     const taken =
-      typeof error === 'object' && error && 'message' in error &&
-      error.message === 'server.INSTAGRAM_ALREADY_CONNECTED'
+      isUniqueViolation(error) ||
+      (typeof error === 'object' && error !== null && 'message' in error &&
+        error.message === 'server.INSTAGRAM_ALREADY_CONNECTED')
     await recordAuthorizationResult('failed', taken ? 'account_already_connected' : 'exchange_or_connection_failed')
-    return sendRedirect(event, `${returnPath}?instagram=${taken ? 'taken' : 'failed'}`)
+    if (!taken) return sendRedirect(event, `${returnPath}?instagram=failed`)
+    const owner = accountId ? await socialAccountOwnerName(user.id, 'instagram', accountId) : null
+    return sendRedirect(event, `${returnPath}?${takenQuery('instagram', owner)}`)
   }
 })
