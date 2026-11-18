@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
+import countryData from 'intl-tel-input/data'
+import 'intl-tel-input/styles'
 
 export type AdminPackageRequest = {
   id: string
@@ -61,21 +63,40 @@ function formatDateTime(value: string) {
   }).format(new Date(value))
 }
 
-type Detail = { label: string; value: string }
+type Detail = { label: string; value: string; flagCountry?: string }
+function countryForPhone(phone: string | null) {
+  if (!phone?.startsWith('+')) return undefined
+  const digits = phone.replace(/\D/g, '')
+  const matching = countryData
+    .filter(country => digits.startsWith(country.dialCode))
+    .sort((a, b) => b.dialCode.length - a.dialCode.length || a.priority - b.priority)
+  // Shared calling codes such as +1 have regional area-code mappings. Prefer
+  // an exact mapped region where possible, then use the library's primary one.
+  for (const country of matching) {
+    if (country.areaCodes?.some(areaCode => digits.slice(country.dialCode.length).startsWith(areaCode)))
+      return country.iso2
+  }
+  return matching[0]?.iso2
+}
 // A lead is read before it is answered, so the panel shows the request in full
 // rather than the summary the list has room for.
-const sections = computed(() => {
+const sections = computed<{ title: string; icon: string; rows: Detail[] }[]>(() => {
   const request = props.request
   if (!request) return []
+  const contactRows: Detail[] = [
+    { label: t('admin.requests.name'), value: request.contact_name },
+    { label: t('admin.requests.email'), value: request.contact_email },
+    {
+      label: t('admin.requests.phone'),
+      value: request.phone || '',
+      flagCountry: countryForPhone(request.phone),
+    },
+  ]
   return [
     {
       title: t('admin.requests.contact'),
       icon: 'i-lucide-user',
-      rows: [
-        { label: t('admin.requests.name'), value: request.contact_name },
-        { label: t('admin.requests.email'), value: request.contact_email },
-        { label: t('admin.requests.phone'), value: request.phone || '' },
-      ].filter(row => row.value),
+      rows: contactRows.filter(row => row.value),
     },
     {
       title: t('admin.requests.business'),
@@ -201,7 +222,15 @@ function confirmRemoveRequest() {
               <UIcon :name="section.icon" class="size-4 text-muted" />{{ section.title }}
             </div>
           </template>
-          <UTable :data="section.rows" :columns="columns" :ui="listUi" />
+          <UTable :data="section.rows" :columns="columns" :ui="listUi">
+            <template #value-cell="{ row }">
+              <span v-if="!row.original.flagCountry">{{ row.original.value }}</span>
+              <span v-else class="inline-flex items-center gap-2">
+                <span class="iti__flag" :class="`iti__${row.original.flagCountry}`" aria-hidden="true" />
+                <span>{{ row.original.value }}</span>
+              </span>
+            </template>
+          </UTable>
         </UCard>
       </div>
       <UCard
