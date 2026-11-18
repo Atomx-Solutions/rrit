@@ -598,6 +598,7 @@ async function declineProposal() {
       v-model:amount="creditsRequested"
       v-model:message="creditMessage"
       :title="t('billing.buyCreditsTitle')"
+      one-off
       :description="t('billing.buyCreditsDescription')"
       icon="i-lucide-coins"
       :label="t('billing.buyCreditsAmount')"

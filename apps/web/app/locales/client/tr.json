@@ -1804,6 +1804,7 @@
   "landing.leadDescription": "Bilgilerinizi bırakın, size {{count}} gönderilik bir teklifle dönelim.",
   "landing.leadSubmit": "Talebi gönder",
   "request.estimateLabel": "Yaklaşık aylık değer",
+  "request.estimateOneOffLabel": "Yaklaşık değer",
   "landing.tryThreePostsFree": "3 gönderiyi ücretsiz deneyin",
   "landing.tryPostsFree": "{{count}} gönderiyi ücretsiz deneyin",
   "landing.tryFreeTrial": "Ücretsiz deneyin",

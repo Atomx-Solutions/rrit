@@ -1804,6 +1804,7 @@
   "landing.leadDescription": "Lascia i tuoi dati e ti risponderemo con un’offerta per {{count}} post.",
   "landing.leadSubmit": "Invia la richiesta",
   "request.estimateLabel": "Valore mensile indicativo",
+  "request.estimateOneOffLabel": "Valore indicativo",
   "landing.tryThreePostsFree": "Prova 3 post gratis",
   "landing.tryPostsFree": "Prova {{count}} post gratis",
   "landing.tryFreeTrial": "Prova gratis",

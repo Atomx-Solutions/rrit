@@ -1804,6 +1804,7 @@
   "landing.leadDescription": "Laissez vos coordonnées et nous reviendrons vers vous avec une offre pour {{count}} publications.",
   "landing.leadSubmit": "Envoyer la demande",
   "request.estimateLabel": "Valeur mensuelle approximative",
+  "request.estimateOneOffLabel": "Valeur approximative",
   "landing.tryThreePostsFree": "Essayez 3 publications gratuitement",
   "landing.tryPostsFree": "Essayez {{count}} publications gratuitement",
   "landing.tryFreeTrial": "Essai gratuit",

@@ -1804,6 +1804,7 @@
   "landing.leadDescription": "Hinterlasse deine Kontaktdaten, und wir melden uns mit einem Angebot für {{count}} Beiträge.",
   "landing.leadSubmit": "Anfrage senden",
   "request.estimateLabel": "Ungefährer Monatswert",
+  "request.estimateOneOffLabel": "Ungefährer Wert",
   "landing.tryThreePostsFree": "3 Beiträge kostenlos testen",
   "landing.tryPostsFree": "{{count}} Beiträge kostenlos testen",
   "landing.tryFreeTrial": "Kostenlos testen",

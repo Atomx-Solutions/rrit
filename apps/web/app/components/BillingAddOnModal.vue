@@ -17,7 +17,9 @@ const props = withDefaults(defineProps<{
   max?: number
   withMessage?: boolean
   note?: string
-}>(), { loading: false, min: 1, max: 1000, withMessage: false, note: '' })
+  // Credits are bought once, so their estimate must not read as a monthly fee.
+  oneOff?: boolean
+}>(), { loading: false, min: 1, max: 1000, withMessage: false, note: '', oneOff: false })
 const open = defineModel<boolean>('open', { default: false })
 const amount = defineModel<number>('amount', { required: true })
 const message = defineModel<string>('message', { default: '' })
@@ -73,7 +75,7 @@ const valid = computed(() => amount.value >= Math.max(props.min, 1))
             v-if="unitPrice > 0"
             class="flex items-center justify-between gap-3 rounded-lg bg-primary/10 px-4 py-3 ring-1 ring-primary/20 ring-inset"
           >
-            <span class="text-sm text-toned">{{ t('request.estimateLabel') }}</span>
+            <span class="text-sm text-toned">{{ t(oneOff ? 'request.estimateOneOffLabel' : 'request.estimateLabel') }}</span>
             <span class="text-xl font-semibold tabular-nums text-highlighted">{{ formatMoney(total) }}</span>
           </div>
 

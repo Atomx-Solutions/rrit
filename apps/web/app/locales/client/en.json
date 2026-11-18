@@ -1804,6 +1804,7 @@
   "landing.leadDescription": "Leave your details and we will come back with an offer for {{count}} posts.",
   "landing.leadSubmit": "Send request",
   "request.estimateLabel": "Approximate monthly value",
+  "request.estimateOneOffLabel": "Approximate value",
   "landing.tryThreePostsFree": "Try 3 posts free",
   "landing.tryPostsFree": "Try {{count}} posts free",
   "landing.tryFreeTrial": "Try free",
