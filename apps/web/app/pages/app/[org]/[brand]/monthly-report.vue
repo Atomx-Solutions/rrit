@@ -82,7 +82,7 @@ function downloadPdf() {
           <div
             class="rounded-full border border-[#cfe2d5] bg-[#f2f8f3] px-3 py-1.5 text-[11px] font-semibold text-[#17694d]"
           >
-            {{ workspace.brand.name }} · {{ month }}
+            {{ month ? `${workspace.brand.name} · ${month}` : workspace.brand.name }}
           </div>
           <UButton
             class="report-actions shadow-sm print:hidden"

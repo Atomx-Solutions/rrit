@@ -11,6 +11,7 @@ definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 useFollowVideos()
 const { t } = useI18n()
+const counted = (key: string, count: number) => t(`${key}${count === 1 ? 'One' : 'Many'}`, { count })
 // The server renders the phone calendar. Desktop switches to its larger grid
 // after hydration, without constructing both grids on every phone visit.
 const desktopQuery = import.meta.client ? window.matchMedia('(min-width: 768px)') : undefined
@@ -195,7 +196,7 @@ function move(direction: number) {
       <div
         class="flex flex-wrap justify-between gap-2 px-3 py-2 border-b border-default text-[11px] text-muted"
       >
-        <span>{{ visible.length }} {{ t('calendar.postsIn') }} {{ view === 'week' ? t('calendar.weekLower') : t('calendar.monthLower') }}</span
+        <span>{{ counted(view === 'week' ? 'calendar.weekPosts' : 'calendar.monthPosts', visible.length) }}</span
         ><span class="hidden sm:inline">{{ t('calendar.localTime') }} · {{ data.preferences.timezone }}</span>
       </div>
       <div v-if="view !== 'list' && desktopGrid">
@@ -278,7 +279,7 @@ function move(direction: number) {
               day.key === activeDay ? 'bg-elevated' : '',
             ]"
             :aria-pressed="day.key === activeDay"
-            :aria-label="`${day.day}: ${dayPosts(day.key).length} ${t('calendar.postsIn')}`"
+            :aria-label="`${day.day}: ${counted('calendar.dayPosts', dayPosts(day.key).length)}`"
             :aria-current="day.key === today ? 'date' : undefined"
             @click="pickedDay = day.key"
           >

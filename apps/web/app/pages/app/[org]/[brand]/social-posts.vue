@@ -51,7 +51,12 @@ const connectedChannels = computed(() => {
   const metaConnected = connection.value?.connection?.status === 'connected'
   return [
     ...(metaConnected ? ['Facebook' as const] : []),
-    ...(metaConnected || instagramStatus.value?.connection?.status === 'connected' ? ['Instagram' as const] : []),
+    // Instagram is refreshable only when the page has a linked Instagram
+    // account or Instagram was connected directly; a page alone is not enough.
+    ...((metaConnected && connection.value?.connection?.instagramId) ||
+    instagramStatus.value?.connection?.status === 'connected'
+      ? ['Instagram' as const]
+      : []),
     ...(tiktokStatus.value?.connection?.status === 'connected' ? ['TikTok' as const] : []),
   ]
 })
