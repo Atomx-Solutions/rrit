@@ -19,8 +19,10 @@ export default defineEventHandler(async (event) => {
   })
   if (!stored) throw createError({ statusCode: 400, message: 'server.AUTHORIZATION_USED' })
   if (query.error || typeof query.code !== 'string') return sendRedirect(event, `${stored.return_path}?tiktok=cancelled`)
+  let accountId = ''
   try {
     const token = await exchangeTikTokCode(query.code)
+    accountId = token.openId
     if (!token.scopes.includes('video.upload')) return sendRedirect(event, `${stored.return_path}?tiktok=permissions`)
     let displayName: string | null = null
     try {
@@ -37,7 +39,8 @@ export default defineEventHandler(async (event) => {
     })
     return sendRedirect(event, `${stored.return_path}?tiktok=connected`)
   } catch (error) {
-    const alreadyConnected = typeof error === 'object' && error !== null && 'code' in error && error.code === '23505'
-    return sendRedirect(event, `${stored.return_path}?tiktok=${alreadyConnected ? 'taken' : 'failed'}`)
+    if (!isUniqueViolation(error)) return sendRedirect(event, `${stored.return_path}?tiktok=failed`)
+    const owner = accountId ? await socialAccountOwnerName(user.id, 'tiktok', accountId) : null
+    return sendRedirect(event, `${stored.return_path}?${takenQuery('tiktok', owner)}`)
   }
 })

@@ -10,9 +10,8 @@ export const evaluationDimensions = [
   'cost',
   'latency',
 ] as const
-const ratingsSchema = z.object(
-  Object.fromEntries(evaluationDimensions.map((dimension) => [dimension, z.number().int().min(0).max(2)])),
-) as z.ZodType<Record<(typeof evaluationDimensions)[number], number>>
+// An enum-keyed record requires every dimension, so no cast is needed.
+const ratingsSchema = z.record(z.enum(evaluationDimensions), z.number().int().min(0).max(2))
 export const evaluationCaseSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]{3,80}$/),
   title: z.string().min(3).max(200),

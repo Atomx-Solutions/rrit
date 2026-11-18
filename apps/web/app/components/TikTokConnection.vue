@@ -5,12 +5,17 @@ const { data: status, refresh } = await useFetch('/api/tiktok/status', { key: 't
 const busy = ref(false)
 const error = ref('')
 const disconnecting = ref(false)
+const taken = ref<{ owner: string | null } | null>(null)
+function clearTaken() {
+  taken.value = null
+}
 onMounted(() => {
-  if (route.query.tiktok === 'taken') error.value = t('tiktok.alreadyConnected')
+  if (route.query.tiktok === 'taken')
+    taken.value = { owner: typeof route.query.owner === 'string' ? route.query.owner : null }
   else if (route.query.tiktok === 'failed') error.value = t('tiktok.authorizationFailed')
 })
 async function connect() {
-  busy.value = true; error.value = ''
+  busy.value = true; error.value = ''; taken.value = null
   try {
     const result = await $fetch('/api/tiktok/start', { method: 'POST', body: { onboarding: route.path === '/onboarding' }, retry: 0 })
     await navigateTo(result.url, { external: true })
@@ -47,6 +52,7 @@ async function disconnect() {
         color="success"
       >{{ t('tiktok.connected') }}</UBadge>
     </div>
+    <SocialAccountTakenAlert v-if="taken" network="TikTok" :owner="taken.owner" @close="clearTaken" />
     <p v-if="error" class="text-sm text-error">{{ error }}</p>
     <div class="mt-auto flex gap-2">
       <UButton
