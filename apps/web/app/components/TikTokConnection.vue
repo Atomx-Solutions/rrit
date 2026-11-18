@@ -28,8 +28,8 @@ async function disconnect() {
 }
 </script>
 <template>
-  <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
-    <div class="flex items-center gap-3">
+  <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4 sm:max-lg:flex-row sm:max-lg:flex-wrap sm:max-lg:items-center' }">
+    <div class="flex items-center gap-3 sm:max-lg:min-w-0 sm:max-lg:flex-1">
       <UAvatar :ui="{ root: 'bg-transparent text-highlighted rounded-xl' }">
         <template #default><TikTokLogo class="size-6 text-highlighted" /></template>
       </UAvatar>
@@ -49,9 +49,9 @@ async function disconnect() {
         color="success"
       >{{ t('tiktok.connected') }}</UBadge>
     </div>
-    <SocialAccountTakenAlert v-if="taken" />
-    <p v-if="error" class="text-sm text-error">{{ error }}</p>
-    <div class="mt-auto flex gap-2">
+    <SocialAccountTakenAlert v-if="taken" class="sm:max-lg:order-last sm:max-lg:basis-full" />
+    <p v-if="error" class="text-sm text-error sm:max-lg:order-last sm:max-lg:basis-full">{{ error }}</p>
+    <div class="mt-auto flex gap-2 sm:max-lg:mt-0 sm:max-lg:shrink-0">
       <UButton
         type="button"
         :loading="busy"

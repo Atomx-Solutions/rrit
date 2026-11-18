@@ -1339,7 +1339,7 @@
   "social.connectError": "Impossible de lancer l’autorisation. Réessayez.",
   "social.pageSelectError": "Impossible de connecter la page.",
   "social.pageAlreadyConnected": "Cette page est déjà connectée à une autre entreprise dans Framic.",
-  "social.takenUseAnother": "Ce compte est déjà utilisé par une autre entreprise. Connectez un autre compte.",
+  "social.takenUseAnother": "Déjà utilisé par une autre entreprise. Connectez un autre compte.",
   "social.disconnectError": "Impossible de supprimer la connexion.",
   "social.authorizationFailed": "L’autorisation n’a pas été confirmée. Réessayez et autorisez l’accès à la page de l’entreprise.",
   "social.connectionCancelled": "La connexion a été annulée. Vous pourrez réessayer quand vous serez prêt.",

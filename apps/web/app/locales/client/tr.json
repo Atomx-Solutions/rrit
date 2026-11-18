@@ -1339,7 +1339,7 @@
   "social.connectError": "Yetkilendirme başlatılamadı. Tekrar deneyin.",
   "social.pageSelectError": "Sayfa bağlanamadı.",
   "social.pageAlreadyConnected": "Bu sayfa Framic’te zaten başka bir işletmeye bağlı.",
-  "social.takenUseAnother": "Bu hesap zaten başka bir işletme tarafından kullanılıyor. Farklı bir hesap bağla.",
+  "social.takenUseAnother": "Başka bir işletme tarafından kullanılıyor. Farklı bir hesap bağla.",
   "social.disconnectError": "Bağlantı kaldırılamadı.",
   "social.authorizationFailed": "Yetkilendirme onaylanmadı. Tekrar deneyin ve işletme sayfasına erişime izin verin.",
   "social.connectionCancelled": "Bağlantı iptal edildi. Hazır olduğunuzda tekrar deneyebilirsiniz.",

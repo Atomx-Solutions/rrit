@@ -1339,7 +1339,7 @@
   "social.connectError": "Die Autorisierung konnte nicht gestartet werden. Versuche es erneut.",
   "social.pageSelectError": "Die Seite konnte nicht verbunden werden.",
   "social.pageAlreadyConnected": "Diese Seite ist bereits mit einem anderen Unternehmen in Framic verbunden.",
-  "social.takenUseAnother": "Dieses Konto wird bereits von einem anderen Unternehmen verwendet. Verbinde ein anderes Konto.",
+  "social.takenUseAnother": "Bereits von einem anderen Unternehmen verwendet. Verbinde ein anderes Konto.",
   "social.disconnectError": "Die Verbindung konnte nicht entfernt werden.",
   "social.authorizationFailed": "Die Autorisierung wurde nicht bestätigt. Versuche es erneut und erlaube den Zugriff auf die Unternehmensseite.",
   "social.connectionCancelled": "Die Verbindung wurde abgebrochen. Du kannst es erneut versuchen, wenn du so weit bist.",

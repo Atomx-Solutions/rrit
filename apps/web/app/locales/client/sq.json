@@ -1339,7 +1339,7 @@
   "social.connectError": "Autorizimi nuk filloi. Provo sërish.",
   "social.pageSelectError": "Faqja nuk u lidh.",
   "social.pageAlreadyConnected": "Kjo faqe është tashmë e lidhur me një biznes tjetër në Framic.",
-  "social.takenUseAnother": "Kjo llogari përdoret tashmë nga një biznes tjetër. Lidh një llogari tjetër.",
+  "social.takenUseAnother": "Përdoret nga një biznes tjetër. Lidh një llogari tjetër.",
   "social.disconnectError": "Lidhja nuk u hoq.",
   "social.authorizationFailed": "Autorizimi nuk u konfirmua. Provo sërish dhe lejo qasjen te faqja e biznesit.",
   "social.connectionCancelled": "Lidhja u anulua. Mund ta provosh përsëri kur të jesh gati.",

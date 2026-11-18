@@ -129,7 +129,9 @@ const networkFilters = computed(() => [
     :toolbar-border="false"
   >
     <!-- One card per network: side by side where there is room, stacked on a phone. -->
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <!-- Three cards side by side need desktop width; on a tablet each is a
+         compact row, with its actions on the right. -->
+    <div class="grid gap-4 lg:grid-cols-3">
       <SocialConnections />
       <InstagramConnection />
       <TikTokConnection />

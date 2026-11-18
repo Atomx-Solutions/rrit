@@ -59,8 +59,8 @@ onMounted(() => {
 })
 </script>
 <template>
-  <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }">
-    <div class="flex items-center gap-3">
+  <UCard :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4 sm:max-lg:flex-row sm:max-lg:flex-wrap sm:max-lg:items-center' }">
+    <div class="flex items-center gap-3 sm:max-lg:min-w-0 sm:max-lg:flex-1">
       <UAvatar :ui="{ root: 'bg-transparent rounded-xl' }">
         <template #default><InstagramLogo class="size-6" /></template>
       </UAvatar>
@@ -72,10 +72,10 @@ onMounted(() => {
         t('social.connected')
       }}</UBadge>
     </div>
-    <p v-if="!status?.configured" class="text-sm text-muted">{{ t('instagram.notConfigured') }}</p>
-    <SocialAccountTakenAlert v-if="taken" />
-    <p v-if="error" class="text-sm text-error">{{ error }}</p>
-    <div class="mt-auto flex gap-2">
+    <p v-if="!status?.configured" class="text-sm text-muted sm:max-lg:order-last sm:max-lg:basis-full">{{ t('instagram.notConfigured') }}</p>
+    <SocialAccountTakenAlert v-if="taken" class="sm:max-lg:order-last sm:max-lg:basis-full" />
+    <p v-if="error" class="text-sm text-error sm:max-lg:order-last sm:max-lg:basis-full">{{ error }}</p>
+    <div class="mt-auto flex gap-2 sm:max-lg:mt-0 sm:max-lg:shrink-0">
       <UButton
         type="button"
         :loading="busy"
