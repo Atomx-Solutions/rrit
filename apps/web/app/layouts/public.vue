@@ -131,11 +131,12 @@ const year = new Date().getFullYear()
       v-model:open="menuOpen"
       class="marketing-header"
       title="Framic"
-      :menu="{ fullscreen: route.path === '/', transition: true }"
+      :menu="{ fullscreen: true, transition: true }"
       :ui="{
         root: 'bg-default/95 backdrop-blur border-default',
-        container: 'max-w-[1220px] h-20 px-6 sm:px-10',
+        container: 'max-w-[1220px] h-full px-6 sm:px-10',
         content: 'marketing-menu',
+        header: 'mx-auto w-full max-w-[1220px] h-(--ui-header-height) px-6 sm:px-10 shrink-0 flex items-center justify-between gap-3',
         body: 'flex flex-1 flex-col',
       }"
       ><template #toggle="{ open, toggle }"
@@ -182,36 +183,39 @@ const year = new Date().getFullYear()
           >
         </div></template
       ><template #body
-        ><div class="flex flex-1 flex-col gap-8 lg:hidden">
-          <nav class="flex flex-col gap-1.5">
+        ><div class="marketing-menu-body flex flex-1 flex-col gap-5 lg:hidden">
+          <div class="marketing-menu-intro marketing-menu-item" :style="{ '--stagger': 0 }">
+            <span class="marketing-menu-eyebrow">{{ t('public.exploreFramic') }}</span>
+            <p>{{ t('public.moreTime') }} <span>{{ t('public.forYourBusiness') }}</span></p>
+          </div>
+          <nav class="marketing-menu-nav flex flex-col" :aria-label="t('public.exploreFramic')">
             <ULink
               v-for="(link, index) in links"
               :key="link.to"
               :to="link.to"
               :aria-current="link.active ? 'location' : undefined"
-              :style="{ '--stagger': index }"
-              class="marketing-menu-item group relative flex items-center gap-4 rounded-xl border px-4 py-4 transition-all duration-200"
+              :style="{ '--stagger': index + 1 }"
+              class="marketing-menu-item group relative flex min-h-[68px] items-center gap-3 border-b px-1 py-3 transition-all duration-200 first:border-t"
               :class="link.active
-                ? 'border-primary/30 bg-primary/10 text-primary'
-                : 'border-transparent text-highlighted hover:border-default hover:bg-elevated/60'"
+                ? 'border-primary/30 text-primary'
+                : 'border-default text-highlighted hover:text-primary'"
               @click="link.onSelect($event)"
             >
               <span
-                class="text-xs font-semibold tabular-nums transition-colors"
-                :class="link.active ? 'text-primary' : 'text-dimmed'"
+                class="grid size-9 shrink-0 place-items-center rounded-full bg-elevated text-[11px] font-semibold tabular-nums transition-colors group-hover:bg-primary/10 group-hover:text-primary"
+                :class="link.active ? 'bg-primary/10 text-primary' : 'text-dimmed'"
                 aria-hidden="true"
               >{{ String(index + 1).padStart(2, '0') }}</span>
-              <span class="flex-1 text-xl font-semibold tracking-tight">{{ link.label }}</span>
+              <span class="flex-1 text-[21px] font-semibold tracking-tight">{{ link.label }}</span>
               <span
-                class="size-2 rounded-full bg-primary transition-all duration-200"
-                :class="link.active ? 'scale-100 opacity-100' : 'scale-0 opacity-0'"
-                aria-hidden="true"
-              />
+                class="grid size-10 shrink-0 place-items-center rounded-full transition-colors"
+                :class="link.active ? 'bg-primary text-white' : 'text-muted group-hover:bg-elevated group-hover:text-primary'"
+                aria-hidden="true"><UIcon name="i-lucide-arrow-up-right" class="size-4" /></span>
             </ULink>
           </nav>
           <div
-            class="marketing-menu-item mt-auto flex flex-col gap-6 border-t border-default pt-6"
-            :style="{ '--stagger': links.length }"
+            class="marketing-menu-item mt-auto flex flex-col gap-5 border-t border-default pt-5"
+            :style="{ '--stagger': links.length + 1 }"
           >
             <section class="flex flex-col gap-2.5" :aria-label="t('public.language')">
               <p class="text-xs font-semibold tracking-wider text-muted uppercase">{{ t('public.language') }}</p>

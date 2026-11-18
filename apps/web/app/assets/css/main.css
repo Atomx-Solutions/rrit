@@ -558,8 +558,49 @@ td {
 
 .marketing-menu.marketing-menu {
   background:
-    radial-gradient(120% 60% at 100% 0%, color-mix(in oklab, var(--ui-primary) 10%, transparent), transparent 60%),
+    radial-gradient(95% 42% at 100% 0%, color-mix(in oklab, var(--ui-primary) 13%, transparent), transparent 72%),
+    radial-gradient(75% 35% at 0% 100%, color-mix(in oklab, var(--ui-primary) 7%, transparent), transparent 78%),
     var(--ui-bg);
+}
+.marketing-menu-body {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+.marketing-menu-intro {
+  padding: 0.75rem 0 1.25rem;
+}
+.marketing-menu-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--rrit-color-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.marketing-menu-eyebrow::before {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--rrit-color-primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rrit-color-primary) 12%, transparent);
+  content: '';
+}
+.marketing-menu-intro > p {
+  max-width: 18ch;
+  margin: 0.7rem 0 0;
+  color: var(--rrit-color-text);
+  font-size: clamp(2rem, 8vw, 2.65rem);
+  font-weight: 650;
+  letter-spacing: -0.065em;
+  line-height: 0.98;
+}
+.marketing-menu-intro > p > span {
+  color: var(--rrit-color-primary);
+}
+.marketing-menu-nav > a {
+  text-decoration: none;
 }
 .marketing-menu.marketing-menu[data-state='open'] {
   animation: marketing-menu-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
