@@ -33,7 +33,9 @@ const columns = computed<TableColumn<Post>[]>(() => [
 ])
 </script>
 <template>
-  <div class="md:hidden divide-y divide-default">
+  <!-- The table needs desktop width: on a tablet its status and network
+       columns were squeezed, so below lg the posts show as this list. -->
+  <div class="lg:hidden divide-y divide-default">
     <ULink
       v-for="post in posts"
       :key="post.id"
@@ -85,7 +87,7 @@ const columns = computed<TableColumn<Post>[]>(() => [
     </ULink>
   </div>
   <UTable
-    class="hidden md:block"
+    class="hidden lg:block"
     :data="posts"
     :columns="columns"
     :empty="t('content.noPostsSelection')"

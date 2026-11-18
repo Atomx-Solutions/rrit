@@ -118,34 +118,41 @@ async function remove() {
     :title="t('content.yourPosts')"
     :toolbar-border="false"
   >
-    <!-- Seven statuses wrap onto a second row on a phone and eat the space the
-         post list needs, so there they stay on one row and scroll sideways; the
-         next tab stays half visible to show there is more. -->
-    <div class="flex min-w-0 items-end gap-3 border-b border-default">
+    <!-- Seven statuses do not fit one row below desktop width: as tabs they
+         were cut off on a phone and wrapped onto a second row on a tablet, so
+         there they are one dropdown instead. -->
+    <div class="flex min-w-0 items-end gap-3 border-default max-lg:items-center lg:border-b">
       <UTabs
         v-model="filter"
         :items="tabs"
         value-key="value"
         :content="false"
         variant="link"
-        class="min-w-0 flex-1"
-        :ui="{
-          list: 'gap-1 flex-nowrap overflow-x-auto overflow-y-hidden sm:flex-wrap sm:overflow-x-visible',
-          trigger: 'grow-0 shrink-0 px-3 min-h-10',
-        }"
+        class="min-w-0 flex-1 max-lg:hidden"
+        :ui="{ list: 'gap-1 flex-nowrap', trigger: 'grow-0 shrink-0 px-3 min-h-10' }"
+      />
+      <USelect
+        v-model="filter"
+        :items="tabs"
+        value-key="value"
+        icon="i-lucide-list-filter"
+        :aria-label="t('content.status')"
+        class="min-w-0 flex-1 sm:max-w-64 lg:hidden"
       />
       <UButton
         :to="`${base}/monthly-planner`"
         variant="outline"
         icon="i-lucide-plus"
         :aria-label="t('content.createPost')"
-        class="mb-1 shrink-0"
+        class="ms-auto shrink-0 lg:mb-1"
       >
         <span class="hidden sm:inline">{{ t('content.createPost') }}</span>
       </UButton>
     </div>
     <!-- Search and filters sit on the table they narrow, instead of a panel of
-         their own; the count of posts shown is in the pagination below. -->
+         their own; the count of posts shown is in the pagination below. On a
+         phone the filter row scrolls sideways and its right edge fades, so the
+         filters past the edge read as reachable rather than cut off. -->
     <UCard v-if="data.posts.length" as="div" :ui="{ body: 'p-0 sm:p-0' }" class="table-wrap">
       <div class="flex flex-wrap items-center gap-2 border-b border-default p-3">
         <UInput
@@ -155,7 +162,7 @@ async function remove() {
           :aria-label="t('content.searchPosts')"
           class="min-w-0 basis-full sm:flex-1 sm:basis-auto"
         />
-        <div class="flex max-w-full shrink-0 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" :aria-label="t('content.filters')">
+        <div class="flex max-w-full shrink-0 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden pe-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] sm:pe-0" role="group" :aria-label="t('content.filters')">
           <UButton
             v-for="item in formatItems"
             :key="item.value"
