@@ -1348,6 +1348,8 @@
   "tiktok.disconnectDescription": "Framic e heq këtë lidhje dhe postimet e importuara. Publikimi automatik ndalet; kalendari mbetet.",
   "tiktok.disconnectConfirm": "Shkëput",
   "tiktok.connectFailed": "Lidhja me TikTok nuk filloi. Provo përsëri.",
+  "tiktok.alreadyConnected": "Kjo llogari TikTok është lidhur tashmë me një biznes tjetër në Framic.",
+  "tiktok.authorizationFailed": "Autorizimi për TikTok dështoi. Provo përsëri dhe lejo qasjen e kërkuar.",
   "tiktok.uploadSucceeded": "U dërgua në TikTok. Hap aplikacionin TikTok për ta përfunduar dhe publikuar.",
   "tiktok.photoSent": "U dërgua në TikTok. Hap aplikacionin TikTok për ta përfunduar dhe publikuar.",
   "tiktok.photoManual": "TikTok ende nuk pranon foto nga Framic. Shkarkoje dhe postoje vetë në TikTok.",

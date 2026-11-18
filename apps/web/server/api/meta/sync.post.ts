@@ -110,7 +110,7 @@ export default defineEventHandler(async (event) => {
         }
       }
       await client.query(
-        'INSERT INTO social_posts (business_id,brand_id,channel,source_account_id,provider_id,caption,media_url,permalink,published_at,media_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (business_id,channel,source_account_id,provider_id) DO UPDATE SET brand_id=EXCLUDED.brand_id,caption=EXCLUDED.caption,media_url=EXCLUDED.media_url,permalink=EXCLUDED.permalink,published_at=EXCLUDED.published_at,media_type=EXCLUDED.media_type,imported_at=now()',
+        'INSERT INTO social_posts (business_id,brand_id,channel,source_account_id,provider_id,caption,media_url,permalink,published_at,media_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (business_id,channel,source_account_id,provider_id) DO UPDATE SET brand_id=EXCLUDED.brand_id,caption=EXCLUDED.caption,media_url=EXCLUDED.media_url,permalink=EXCLUDED.permalink,published_at=EXCLUDED.published_at,media_type=EXCLUDED.media_type,imported_at=now(),network_removed_at=NULL',
         [
           business.id,
           brandId,
@@ -137,9 +137,20 @@ export default defineEventHandler(async (event) => {
         ],
       )
     }
-    // A refresh is additive/upsert-only. Meta may omit older, visitor-created,
-    // permission-limited or expired media from a later response, so a missing
-    // provider id must never erase the local style history.
+    // Only a response with no next page is a complete snapshot. Hide omitted
+    // imports from the connected-account feed, but retain their rows for the
+    // historical context used by AI features. Partial pages are never used to
+    // infer that older posts were removed.
+    if (!input.data.after && !response.paging?.next) {
+      await client.query(
+        `UPDATE social_posts
+            SET network_removed_at=now()
+          WHERE business_id=$1 AND channel=$2 AND source_account_id=$3
+            AND network_removed_at IS NULL
+            AND NOT (provider_id=ANY($4::text[]))`,
+        [business.id, input.data.channel, sourceAccountId, response.data.map(post => post.id).filter(Boolean)],
+      )
+    }
     if (source.target) await markInstagramTargetSynced(source.target, client)
     else
       await client.query(

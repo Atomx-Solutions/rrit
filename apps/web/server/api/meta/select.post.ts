@@ -122,6 +122,7 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 409,
         message: 'server.PAGE_LINKED_TO_OTHER_BUSINESS',
+        data: { code: 'PAGE_LINKED_TO_OTHER_BUSINESS' },
       })
     throw error
   } finally {

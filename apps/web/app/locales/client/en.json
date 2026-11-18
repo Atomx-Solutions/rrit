@@ -1348,6 +1348,8 @@
   "tiktok.disconnectDescription": "Framic removes this connection and its imported posts. Automatic publishing stops; your calendar stays.",
   "tiktok.disconnectConfirm": "Disconnect",
   "tiktok.connectFailed": "TikTok connection could not be started. Please try again.",
+  "tiktok.alreadyConnected": "This TikTok account is already connected to another business in Framic.",
+  "tiktok.authorizationFailed": "TikTok authorization failed. Try again and allow the requested access.",
   "tiktok.uploadSucceeded": "Sent to TikTok. Open the TikTok app to finish and publish it.",
   "tiktok.photoSent": "Sent to TikTok. Open the TikTok app to finish and publish it.",
   "tiktok.photoManual": "TikTok does not accept photos from Framic yet. Download it and post it on TikTok yourself.",
