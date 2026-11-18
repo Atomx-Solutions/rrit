@@ -166,7 +166,15 @@ function createAuthClient(scope: AuthScope) {
       const session: Session | null = result.data.session
       return {
         data: session
-          ? [{ id: 'current', userAgent: '', createdAt: session.user.created_at }]
+          ? [
+              {
+                id: 'current',
+                userAgent: '',
+                // When this sign-in happened; the account's creation date is only
+                // a fallback for a user Supabase has no sign-in time for.
+                createdAt: session.user.last_sign_in_at || session.user.created_at,
+              },
+            ]
           : [],
         ...errorResult(result.error),
       }

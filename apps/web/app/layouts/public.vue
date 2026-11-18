@@ -1,5 +1,17 @@
 <script setup lang="ts">
+import { authClient } from '~/utils/auth-client'
 const route = useRoute()
+// A signed-in visitor is sent back to their workspace instead of to the login
+// page. Read in the browser only, so the server render stays the same for all.
+const signedIn = ref(false)
+onMounted(async () => {
+  signedIn.value = await authClient.hasSession()
+})
+const accountLink = computed(() =>
+  signedIn.value
+    ? { to: '/app', label: t('public.openWorkspace'), short: t('public.myWorkspace'), icon: 'i-lucide-layout-dashboard' }
+    : { to: '/login', label: t('public.login'), short: t('public.login'), icon: 'i-lucide-log-in' },
+)
 const { t, locale, setLocale } = useI18n()
 // The public landing experience is Swiss German by default for this market;
 // a visitor who picked another language keeps it while browsing.
@@ -152,18 +164,20 @@ const year = new Date().getFullYear()
           ><span class="marketing-burger-box" aria-hidden="true"><span /><span /><span /></span></UButton
         ></template
       ><template #left><BrandLogo @click="goToTop" /></template><UNavigationMenu :items="links" /><template #right
-        ><div class="hidden items-center gap-2 sm:flex">
+        ><!-- Below lg the menu carries theme and language, so the bar keeps only
+        the account link and the offer. -->
+        <div class="hidden items-center gap-2 sm:flex">
           <UColorModeButton
             :aria-label="t('public.changeAppearance')"
             color="neutral"
             variant="ghost"
-            class="min-h-9 min-w-9"
+            class="min-h-9 min-w-9 max-lg:hidden"
           /><USelect
             v-model="language"
             :items="languageOptions"
             variant="ghost"
             :aria-label="t('public.language')"
-            class="w-40 sm:w-32"
+            class="w-40 sm:w-32 max-lg:hidden"
             :ui="{ base: 'ps-2.5 sm:ps-9' }"
           >
             <template #leading><UIcon name="i-lucide-languages" class="size-5 hidden sm:block" /></template>
@@ -173,7 +187,7 @@ const year = new Date().getFullYear()
                 {{ languageLabel }}
               </span>
             </template>
-          </USelect><UButton to="/login" variant="ghost" color="neutral" class="whitespace-nowrap">{{ t('public.login') }}</UButton
+          </USelect><UButton :to="accountLink.to" variant="ghost" color="neutral" class="whitespace-nowrap">{{ accountLink.short }}</UButton
           ><UButton
             :to="offerCtaPath"
             trailing-icon="i-lucide-arrow-up-right"
@@ -268,14 +282,14 @@ const year = new Date().getFullYear()
                 class="rounded-xl"
               >{{ t(offerCtaLabelKey) }}</UButton>
               <UButton
-                to="/login"
+                :to="accountLink.to"
                 variant="outline"
                 color="neutral"
                 size="xl"
-                leading-icon="i-lucide-log-in"
+                :leading-icon="accountLink.icon"
                 block
                 class="rounded-xl"
-              >{{ t('public.login') }}</UButton>
+              >{{ accountLink.label }}</UButton>
             </div>
           </div>
         </div></template></UHeader
@@ -303,7 +317,7 @@ const year = new Date().getFullYear()
             <nav class="flex flex-col items-start gap-[14px] text-[13px] max-sm:gap-3 max-sm:text-xs" :aria-label="t('public.accountAndHelp')">
               <p class="mb-2 text-[9px] tracking-[1.1px] text-muted">{{ t('public.getStarted') }}</p>
               <ULink v-if="canRegister" class="py-0.5 hover:text-primary" to="/signup">{{ t('public.createAccount') }}</ULink
-              ><ULink class="py-0.5 hover:text-primary" to="/login">{{ t('public.loginAccount') }}</ULink><ULink class="py-0.5 hover:text-primary" to="/help">{{ t('public.helpCenter') }}</ULink>
+              ><ULink class="py-0.5 hover:text-primary" :to="accountLink.to">{{ signedIn ? accountLink.label : t('public.loginAccount') }}</ULink><ULink class="py-0.5 hover:text-primary" to="/help">{{ t('public.helpCenter') }}</ULink>
             </nav>
           </div>
           <div class="flex items-center justify-between gap-[35px] py-10 pb-4 max-sm:gap-5 max-sm:py-8 max-sm:pb-3">

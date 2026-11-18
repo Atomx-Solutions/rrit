@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { Asset, Post } from '~~/shared/schemas/workspace'
 import { galleryAssets } from '~/utils/gallery-assets'
+// A small checkbox with a finger-sized (about 40px) tap area around it.
+const checkboxHitArea = { base: "relative overflow-visible before:absolute before:-inset-3 before:content-['']" }
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, commit, notify, initLive } = useWorkspace()
 const { t } = useI18n()
@@ -434,7 +436,9 @@ async function saveMetadata() {
           :key="asset.id"
           class="flex items-center gap-3 sm:gap-4 p-4 sm:p-5"
         >
+          <!-- Small box, finger-sized tap area (about 40px). -->
           <UCheckbox
+            :ui="checkboxHitArea"
             :model-value="selected.includes(asset.id)"
       :aria-label="t('gallery.selectPhoto', { name: asset.name })"
             @update:model-value="toggle(asset.id)"

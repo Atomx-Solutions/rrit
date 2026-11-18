@@ -108,16 +108,22 @@ async function saveAndLeave() {
       <UTabs
         v-model="tab"
         :items="[
-          { id: 'profile', label: t('settings.profile') },
-          { id: 'preferences', label: t('settings.preferences') },
-          { id: 'security', label: t('settings.security') },
-          { id: 'organization', label: t('settings.organization') },
+          { id: 'profile', label: t('settings.profile'), icon: 'i-lucide-user-round' },
+          { id: 'preferences', label: t('settings.preferences'), icon: 'i-lucide-sliders-horizontal' },
+          { id: 'security', label: t('settings.security'), icon: 'i-lucide-lock' },
+          { id: 'organization', label: t('settings.organization'), icon: 'i-lucide-building-2' },
         ]"
         value-key="id"
         :content="false"
         variant="link"
         class="w-full"
-        :ui="{ list: 'flex-wrap gap-1 border-b-0', trigger: 'grow-0 px-3 min-h-10' }"
+        :ui="{
+          // On a phone the four tabs show as icons, as on the business page,
+          // so none is cut off or pushed onto a second row.
+          list: 'flex-nowrap gap-0 border-b-0 sm:gap-1',
+          trigger: 'min-w-0 flex-1 justify-center min-h-10 sm:flex-none sm:grow-0 sm:px-3',
+          label: 'hidden sm:inline',
+        }"
       />
     </template>
     <UAlert

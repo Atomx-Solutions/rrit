@@ -48,6 +48,6 @@ watch(search, () => {
       v-model:page="page"
       v-model:page-size="pageSize"
       :total="total"
-    /><UButton to="/app" variant="outline" class="mt-6">{{ t('help.openWorkspace') }}</UButton>
+    />
   </section>
 </template>

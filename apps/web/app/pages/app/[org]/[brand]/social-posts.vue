@@ -51,10 +51,33 @@ const connectedChannels = computed(() => {
   const metaConnected = connection.value?.connection?.status === 'connected'
   return [
     ...(metaConnected ? ['Facebook' as const] : []),
-    ...(metaConnected || instagramStatus.value?.connection?.status === 'connected' ? ['Instagram' as const] : []),
+    // Instagram is refreshable only when the page has a linked Instagram
+    // account or Instagram was connected directly; a page alone is not enough.
+    ...((metaConnected && connection.value?.connection?.instagramId) ||
+    instagramStatus.value?.connection?.status === 'connected'
+      ? ['Instagram' as const]
+      : []),
     ...(tiktokStatus.value?.connection?.status === 'connected' ? ['TikTok' as const] : []),
   ]
 })
+// The empty list explains itself from what is actually true: filters hide
+// posts, accounts are linked but returned nothing, or nothing is linked yet.
+const emptyDescription = computed(() => {
+  if (channels.value.length || formats.value.length || search.value) return t('social.emptyFiltered')
+  if (connectedChannels.value.length) return t('social.emptyConnected')
+  return t('social.emptyDescription')
+})
+// Imported posts carry the account they came from, not the business name.
+function accountName(channel: string) {
+  if (channel === 'Facebook') return connection.value?.connection?.pageName || data.value.brand.name
+  if (channel === 'Instagram')
+    return (
+      instagramStatus.value?.connection?.username ||
+      connection.value?.connection?.instagramUsername ||
+      data.value.brand.name
+    )
+  return tiktokStatus.value?.connection?.displayName || data.value.brand.name
+}
 async function refreshAll() {
   importing.value = true
   error.value = ''
@@ -75,7 +98,10 @@ async function refreshAll() {
     }
   }
   if (done.length) {
-    message.value = t('social.importedMessage', { count: imported, channel: done.join(', ') })
+    message.value = t(imported === 1 ? 'social.importedMessageOne' : 'social.importedMessage', {
+      count: imported,
+      channel: done.join(', '),
+    })
     showSuccess(message.value)
   } else error.value = t('social.importError')
   page.value = 1
@@ -98,12 +124,13 @@ const networkFilters = computed(() => [
 <template>
   <DashboardPage
     :title="t('nav.socialPosts')"
-    :mobile-title="t('nav.posts')"
     :description="t('legacy.socialPostsDescription')"
     :toolbar-border="false"
   >
     <!-- One card per network: side by side where there is room, stacked on a phone. -->
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <!-- Three cards side by side need desktop width; on a tablet each is a
+         compact row, with its actions on the right. -->
+    <div class="grid gap-4 lg:grid-cols-3">
       <SocialConnections />
       <InstagramConnection />
       <TikTokConnection />
@@ -245,7 +272,7 @@ const networkFilters = computed(() => [
       v-else-if="status !== 'pending'"
       icon="i-lucide-images"
       :title="t('social.emptyTitle')"
-      :description="t('social.emptyDescription')"
+      :description="emptyDescription"
       :actions="[{ label: t('content.createPost'), to: base + '/monthly-planner', color: 'primary', icon: 'i-lucide-plus' }]"
     />
     <USlideover
@@ -270,7 +297,8 @@ const networkFilters = computed(() => [
           <LazyChannelPreview
             v-if="!(selected.channel === 'TikTok' && selected.permalink)"
             :channel="selected.channel"
-            :name="data.brand.name"
+            :name="accountName(selected.channel)"
+            published
             :image="selected.image || ''"
             :caption="selected.caption"
             :video-url="selected.image && /\.(mp4|mov)(\?|$)/i.test(selected.image) ? selected.image : null"

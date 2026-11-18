@@ -6,6 +6,9 @@ import { metaConnectionView } from '~/utils/meta-connection-view'
 definePageMeta({ layout: 'dashboard', middleware: 'workspace' })
 const { data, base } = useWorkspace()
 const { t, locale } = useI18n()
+// Picks the singular or plural copy, so a single post never reads as "1 posts".
+const counted = (key: string, count: number, params: Record<string, string | number>) =>
+  t(`${key}${count === 1 ? 'One' : 'Many'}`, { ...params, count })
 useSeoMeta({ title: () => `${t('overview.title')} · Framic` })
 // The Meta card is below the main overview; do not block navigation for it.
 const { data: meta, status: metaStatus } = useFetch('/api/meta/status', {
@@ -238,7 +241,7 @@ const summaries = computed(() => [
         <UBadge
           color="primary"
           variant="subtle"
-          :label="t('overview.activityPosts', { count: activityTotal })"
+          :label="counted('overview.activityPosts', activityTotal, {})"
         />
       </div>
 
@@ -309,7 +312,7 @@ const summaries = computed(() => [
               color="neutral"
               variant="link"
               class="h-full min-w-0 flex-1 rounded-none p-0 pointer-coarse:min-w-0 focus-visible:ring-2 focus-visible:ring-primary/40"
-              :aria-label="t('overview.activityDay', { date: day.label, count: day.value })"
+              :aria-label="counted('overview.activityDay', day.value, { date: day.label })"
               @mouseenter="hoveredKey = day.key"
               @focus="hoveredKey = day.key"
               @click="hoveredKey = day.key"
@@ -320,7 +323,7 @@ const summaries = computed(() => [
             variant="solid"
             class="pointer-events-none absolute whitespace-nowrap shadow transition-[left,top,transform] duration-200 ease-out"
             :style="readoutStyle"
-            :label="t('overview.activityDay', { date: hoveredDay.label, count: hoveredDay.value })"
+            :label="counted('overview.activityDay', hoveredDay.value, { date: hoveredDay.label })"
           />
         </div>
         <div class="mt-2 flex justify-between px-1 text-[11px] text-muted">
@@ -333,7 +336,7 @@ const summaries = computed(() => [
           class="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted"
         >
           <span>{{
-            t('overview.activityPeak', { date: activityPeak.label, count: activityPeak.value })
+            counted('overview.activityPeak', activityPeak.value, { date: activityPeak.label })
           }}</span>
           <ULink
             :to="`${base}/content`"

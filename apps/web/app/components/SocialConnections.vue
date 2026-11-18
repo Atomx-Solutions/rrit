@@ -126,9 +126,9 @@ onMounted(async () => {
       <UCard
         v-for="channel in ['Facebook']"
         :key="channel"
-        :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4' }"
+        :ui="{ root: 'h-full', body: 'p-4 sm:p-5 flex h-full flex-col gap-4 sm:max-lg:flex-row sm:max-lg:flex-wrap sm:max-lg:items-center' }"
       >
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 sm:max-lg:min-w-0 sm:max-lg:flex-1">
           <UAvatar :ui="{ root: 'bg-transparent rounded-xl' }">
             <template #default><FacebookLogo class="size-6" /></template>
           </UAvatar>
@@ -156,11 +156,11 @@ onMounted(async () => {
             >{{ t('social.connected') }}</UBadge
           >
         </div>
-        <SocialAccountTakenAlert v-if="taken" />
-        <p v-if="!status?.configured && !statusError" class="text-sm text-muted">
+        <SocialAccountTakenAlert v-if="taken" class="sm:max-lg:order-last sm:max-lg:basis-full" />
+        <p v-if="!status?.configured && !statusError" class="text-sm text-muted sm:max-lg:order-last sm:max-lg:basis-full">
           {{ t('social.preparing') }}
         </p>
-        <div class="mt-auto flex flex-wrap gap-2">
+        <div class="mt-auto flex flex-wrap gap-2 sm:max-lg:mt-0 sm:max-lg:shrink-0">
           <UButton
             type="button"
             :loading="busy && action === 'connect'"

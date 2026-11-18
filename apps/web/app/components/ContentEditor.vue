@@ -445,7 +445,6 @@ watch(scheduleOpen, (open) => {
     schedule.value = proposedAtToLocalInput(post.value?.proposedAt)
   }
 })
-const versionOpen = ref(false)
 const leaving = ref(false)
 let resolveLeave: ((allow: boolean) => void) | undefined
 const editable = computed(() => !post.value || ['draft', 'review'].includes(post.value.status))
@@ -707,14 +706,7 @@ onBeforeUnmount(() => {
               :channel="form.channel"
               :disabled="!editable"
               @apply="form.caption = $event"
-            /><UButton
-              v-if="post"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-history"
-              @click="versionOpen = true"
-              >{{ t('content.versionHistory', { version: post.version }) }}</UButton
-            >
+            />
           </div>
           <USeparator class="divider" style="margin: 0" />
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1232,27 +1224,6 @@ onBeforeUnmount(() => {
           </div>
         </UForm></template
       ></UModal
-    >
-    <USlideover
-      v-model:open="versionOpen"
-      :title="t('content.versionHistoryTitle')"
-      :description="t('content.versionHistoryDescription')"
-      ><template #body
-        ><div class="stack">
-          <UCard
-            v-for="version in post?.history.slice().reverse()"
-            :key="version.version"
-            as="div"
-            :ui="{ body: 'p-5 sm:p-6' }"
-            class=""
-          >
-            <h3>{{ t('content.version', { version: version.version }) }}</h3>
-            <p class="small muted my-2">{{ version.at }}</p>
-            <p style="white-space: pre-wrap">{{ version.caption }}</p>
-          </UCard>
-          <p v-if="!post?.history.length" class="muted">{{ t('content.firstVersion') }}</p>
-        </div></template
-      ></USlideover
     >
     <UModal
       :open="leaving"

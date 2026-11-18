@@ -2,7 +2,15 @@
 import { z } from 'zod'
 import { authClient } from '~/utils/auth-client'
 import { hasPasswordSymbol, PASSWORD_MIN_LENGTH } from '~/utils/password-policy'
-const { t } = useI18n()
+const { t, locale } = useI18n()
+// Day-first dates in the viewer's language, as elsewhere in the workspace.
+const signedInFormat = computed(
+  () =>
+    new Intl.DateTimeFormat(
+      locale.value === 'sq-XK' ? 'sq-AL' : locale.value === 'en-US' ? 'en-GB' : locale.value,
+      { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },
+    ),
+)
 const toast = useToast()
 const busy = ref(false)
 const error = ref('')
@@ -173,16 +181,7 @@ async function revokeOthers() {
             </p>
             <p class="text-xs text-muted mt-2">
               {{ t('security.signedInAt') }}:
-              {{
-                new Intl.DateTimeFormat('sq-AL', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hourCycle: 'h23',
-                }).format(new Date(session.createdAt))
-              }}
+              {{ signedInFormat.format(new Date(session.createdAt)) }}
             </p>
           </div>
         </li>
