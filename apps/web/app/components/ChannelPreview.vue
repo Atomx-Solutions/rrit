@@ -8,7 +8,11 @@ const props = defineProps<{
   image: string
   caption: string
   videoUrl?: string | null
+  // A post already live on the network: it is labelled as published and an
+  // empty caption stays empty instead of showing the editor's placeholder.
+  published?: boolean
 }>()
+const captionText = computed(() => props.caption || (props.published ? '' : t('preview.captionPlaceholder')))
 // The frame the channel shows. Media in another shape is letterboxed inside
 // it rather than cropped, so a file of the wrong size is visible as such.
 const frame = computed(() => {
@@ -129,7 +133,7 @@ const heartPath = 'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 
       <div class="pointer-events-none absolute bottom-24 left-4 right-16 text-sm drop-shadow-lg">
         <p class="font-semibold">@{{ name.replaceAll(' ', '') }}</p>
         <p class="mt-2 line-clamp-3 whitespace-pre-wrap break-words">
-          {{ caption || t('preview.captionPlaceholder') }}
+          {{ captionText }}
         </p>
         <p class="mt-2 flex items-center gap-1 text-xs">
           <UIcon name="i-lucide-music-2" class="size-3" /> original sound
@@ -180,17 +184,17 @@ const heartPath = 'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 
         <div class="min-w-0 flex-1">
           <p class="text-sm font-semibold truncate">{{ name }}</p>
           <p class="text-xs text-muted flex items-center gap-1 mt-0.5">
-            {{ t('preview.preview') }}
+            {{ published ? t('preview.published') : t('preview.preview') }}
             <UIcon v-if="channel === 'Facebook'" name="i-lucide-globe" class="size-3" />
           </p>
         </div>
         <UIcon :name="channelIcon(channel)" class="size-4 text-muted shrink-0" />
       </header>
       <p
-        v-if="channel === 'Facebook'"
+        v-if="channel === 'Facebook' && captionText"
         class="px-4 pb-4 text-sm whitespace-pre-wrap break-words leading-relaxed"
       >
-        {{ caption || t('preview.captionPlaceholder') }}
+        {{ captionText }}
       </p>
       <video
         v-if="videoUrl"
@@ -264,7 +268,7 @@ const heartPath = 'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 
           /></span>
         </div>
         <p class="p-4 text-sm leading-relaxed whitespace-pre-wrap break-words">
-          <strong>{{ name }}</strong> {{ caption || t('preview.captionPlaceholder') }}
+          <strong>{{ name }}</strong> {{ captionText }}
         </p>
       </template>
       <div
