@@ -1348,6 +1348,8 @@
   "tiktok.disconnectDescription": "Framic supprime cette connexion et les publications importées. La publication automatique s’arrête ; votre calendrier reste.",
   "tiktok.disconnectConfirm": "Déconnecter",
   "tiktok.connectFailed": "Impossible de lancer la connexion TikTok. Réessayez.",
+  "tiktok.alreadyConnected": "Ce compte TikTok est déjà connecté à une autre entreprise dans Framic.",
+  "tiktok.authorizationFailed": "L’autorisation TikTok a échoué. Réessayez et autorisez l’accès demandé.",
   "tiktok.uploadSucceeded": "Envoyé à TikTok. Ouvrez l’app TikTok pour finaliser et publier.",
   "tiktok.photoSent": "Envoyé à TikTok. Ouvrez l’app TikTok pour finaliser et publier.",
   "tiktok.photoManual": "TikTok n’accepte pas encore les photos de Framic. Téléchargez-la et publiez-la vous-même.",

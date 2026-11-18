@@ -1348,6 +1348,8 @@
   "tiktok.disconnectDescription": "Framic bu bağlantıyı ve içe aktarılan gönderileri kaldırır. Otomatik yayın durur; takvimin kalır.",
   "tiktok.disconnectConfirm": "Bağlantıyı kes",
   "tiktok.connectFailed": "TikTok bağlantısı başlatılamadı. Lütfen tekrar deneyin.",
+  "tiktok.alreadyConnected": "Bu TikTok hesabı Framic’te zaten başka bir işletmeye bağlı.",
+  "tiktok.authorizationFailed": "TikTok yetkilendirmesi başarısız oldu. Tekrar deneyin ve istenen erişime izin verin.",
   "tiktok.uploadSucceeded": "TikTok’a gönderildi. Tamamlayıp yayınlamak için TikTok uygulamasını aç.",
   "tiktok.photoSent": "TikTok’a gönderildi. Tamamlayıp yayınlamak için TikTok uygulamasını aç.",
   "tiktok.photoManual": "TikTok henüz Framic’ten fotoğraf kabul etmiyor. İndir ve TikTok’ta kendin paylaş.",

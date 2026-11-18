@@ -75,7 +75,7 @@ async function select(pageId: string) {
   } catch (problem) {
     const details = problem as { data?: { code?: string; message?: string; data?: { code?: string } } }
     const code = details.data?.code || details.data?.data?.code
-    error.value = code === 'PAGE_ALREADY_CONNECTED'
+    error.value = code === 'PAGE_ALREADY_CONNECTED' || code === 'PAGE_LINKED_TO_OTHER_BUSINESS'
       ? t('social.pageAlreadyConnected')
       : t('social.pageSelectError')
   } finally {

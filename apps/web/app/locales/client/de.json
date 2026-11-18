@@ -1348,6 +1348,8 @@
   "tiktok.disconnectDescription": "Framic entfernt diese Verbindung und die importierten Beiträge. Automatisches Veröffentlichen stoppt; dein Kalender bleibt.",
   "tiktok.disconnectConfirm": "Trennen",
   "tiktok.connectFailed": "Die TikTok-Verbindung konnte nicht gestartet werden. Bitte versuche es erneut.",
+  "tiktok.alreadyConnected": "Dieses TikTok-Konto ist bereits mit einem anderen Unternehmen in Framic verbunden.",
+  "tiktok.authorizationFailed": "Die TikTok-Autorisierung ist fehlgeschlagen. Versuche es erneut und erlaube den angefragten Zugriff.",
   "tiktok.uploadSucceeded": "An TikTok gesendet. Öffne die TikTok-App, um es fertigzustellen und zu veröffentlichen.",
   "tiktok.photoSent": "An TikTok gesendet. Öffne die TikTok-App, um es fertigzustellen und zu veröffentlichen.",
   "tiktok.photoManual": "TikTok nimmt noch keine Fotos von Framic an. Lade es herunter und poste es selbst auf TikTok.",

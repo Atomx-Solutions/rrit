@@ -78,6 +78,7 @@ async function syncChannel(
            permalink=EXCLUDED.permalink,
            published_at=EXCLUDED.published_at,
            media_type=EXCLUDED.media_type,
+           network_removed_at=NULL,
            imported_at=now()`,
         [
           businessId,

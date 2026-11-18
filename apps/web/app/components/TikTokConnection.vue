@@ -5,6 +5,10 @@ const { data: status, refresh } = await useFetch('/api/tiktok/status', { key: 't
 const busy = ref(false)
 const error = ref('')
 const disconnecting = ref(false)
+onMounted(() => {
+  if (route.query.tiktok === 'taken') error.value = t('tiktok.alreadyConnected')
+  else if (route.query.tiktok === 'failed') error.value = t('tiktok.authorizationFailed')
+})
 async function connect() {
   busy.value = true; error.value = ''
   try {
