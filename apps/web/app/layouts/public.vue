@@ -334,7 +334,7 @@ const year = new Date().getFullYear()
         </UContainer>
       </template>
       <template #left>© {{ year }} Framic</template>
-      <UNavigationMenu :items="legal" />
+      <UNavigationMenu :items="legal" :ui="{ root: 'max-w-full', list: 'flex-wrap justify-center' }" />
     </UFooter>
   </div>
 </template>
