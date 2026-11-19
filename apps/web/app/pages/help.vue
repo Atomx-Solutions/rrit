@@ -3,6 +3,7 @@ definePageMeta({ layout: 'public' })
 const { locale, t } = useI18n()
 const requestUrl = useRequestURL()
 const ogImageUrl = computed(() => new URL('/og-image.png', requestUrl).toString())
+usePageStructuredData({ name: () => `${t('help.title')} · Framic`, description: () => t('help.seoDescription') })
 useSeoMeta({
   title: () => `${t('help.title')} · Framic`,
   description: () => t('help.seoDescription'),

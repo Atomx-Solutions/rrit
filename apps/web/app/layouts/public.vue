@@ -312,6 +312,7 @@ const year = new Date().getFullYear()
             <nav class="flex flex-col items-start gap-[14px] text-[13px] max-sm:gap-3 max-sm:text-xs" :aria-label="t('public.exploreFramic')">
               <p class="mb-2 text-[9px] tracking-[1.1px] text-muted">{{ t('public.explore') }}</p>
               <ULink class="py-0.5 hover:text-primary" to="/#why-framic">{{ t('public.howItWorks') }}</ULink><ULink class="py-0.5 hover:text-primary" :to="offerCtaPath">{{ t(offerCtaLabelKey) }}</ULink
+              ><ULink class="py-0.5 hover:text-primary" to="/pricing">{{ t('public.pricing') }}</ULink
               ><ULink class="py-0.5 hover:text-primary" to="/#faq">{{ t('public.faq') }}</ULink>
             </nav>
             <nav class="flex flex-col items-start gap-[14px] text-[13px] max-sm:gap-3 max-sm:text-xs" :aria-label="t('public.accountAndHelp')">
