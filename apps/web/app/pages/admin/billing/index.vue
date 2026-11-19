@@ -8,8 +8,8 @@ useSeoMeta({ title: () => `${t('admin.nav.billing')} · Framic Admin`, robots: '
 
 type Invoice = {
   id: string
-  number: string
-  kind: 'invoice' | 'credit_note'
+  number: string | null
+  kind: 'invoice' | 'credit_note' | 'gift'
   status: string
   issued_at: string
   organization_id: string
@@ -26,6 +26,7 @@ type Invoice = {
   payment_method: PaymentMethod | null
   payment_note: string | null
   paid_by_paddle: boolean
+  gift_reason: string | null
 }
 
 type PaymentStatus = 'paid' | 'unpaid' | 'overdue' | 'credited'
@@ -130,7 +131,7 @@ const invoices = computed(() => {
   const list = data.value?.invoices ?? []
   const num = search.number.trim().toLowerCase()
   return list.filter(inv =>
-    (!num || inv.number.toLowerCase().includes(num))
+    (!num || (inv.number ?? '').toLowerCase().includes(num))
     && (search.source === 'all' || inv.source_type === search.source),
   )
 })
@@ -196,7 +197,7 @@ async function savePayment(inv: Invoice, body: Record<string, unknown>, successK
   savingPayment.value = inv.id
   try {
     await $fetch(`/api/admin/billing/invoices/${inv.id}/payment`, { method: 'PATCH', body })
-    showSuccess(t(successKey, { number: inv.number }))
+    showSuccess(t(successKey, { number: inv.number ?? '' }))
     paying.value = null
     await Promise.all([refresh(), refreshOrganizations()])
   } catch {
@@ -220,8 +221,10 @@ function markUnpaid(inv: Invoice) {
 }
 
 const preview = ref<Invoice | null>(null)
+// A gift has no invoice; its PDF is a gift confirmation.
 function pdfUrl(inv: Invoice, inline: boolean) {
-  return `/api/admin/organizations/${inv.organization_id}/invoices/${inv.id}/pdf${inline ? '?inline=1' : ''}`
+  const kind = inv.kind === 'gift' ? 'gifts' : 'invoices'
+  return `/api/admin/organizations/${inv.organization_id}/${kind}/${inv.id}/pdf${inline ? '?inline=1' : ''}`
 }
 
 const tableUi = {
@@ -257,6 +260,17 @@ const columns = computed<TableColumn<Invoice>[]>(() => [
   { id: 'total', header: t('admin.billing.total'), meta: endAligned },
   { id: 'actions', header: '', meta: endAligned },
 ])
+
+const kindLabel: Record<Invoice['kind'], string> = {
+  invoice: t('admin.billing.kindInvoice'),
+  credit_note: t('admin.billing.kindCreditNote'),
+  gift: t('admin.billing.kindGift'),
+}
+const kindColor: Record<Invoice['kind'], 'primary' | 'warning' | 'success'> = {
+  invoice: 'primary',
+  credit_note: 'warning',
+  gift: 'success',
+}
 
 const sourceLabel: Record<string, string> = {
   subscription_activation: t('admin.billing.sourceSubscriptionActivation'),
@@ -410,13 +424,14 @@ const sourceLabel: Record<string, string> = {
         :ui="tableUi"
       >
         <template #number-cell="{ row }">
-          <UBadge color="neutral" variant="soft" :label="row.original.number" />
+          <UBadge v-if="row.original.number" color="neutral" variant="soft" :label="row.original.number" />
+          <span v-else class="text-muted">—</span>
         </template>
         <template #kind-cell="{ row }">
           <UBadge
-            :color="row.original.kind === 'credit_note' ? 'warning' : 'primary'"
+            :color="kindColor[row.original.kind]"
             variant="subtle"
-            :label="row.original.kind === 'credit_note' ? t('admin.billing.kindCreditNote') : t('admin.billing.kindInvoice')"
+            :label="kindLabel[row.original.kind]"
           />
         </template>
         <template #source-cell="{ row }">
@@ -439,10 +454,13 @@ const sourceLabel: Record<string, string> = {
               {{ t('admin.billing.payment.dueOn', { date: formatDay(row.original.due_at) }) }}
             </span>
           </div>
+          <span v-else-if="row.original.kind === 'gift' && row.original.gift_reason" class="text-xs text-muted">
+            {{ t('admin.billing.giftReason', { reason: row.original.gift_reason }) }}
+          </span>
           <span v-else class="text-muted">—</span>
         </template>
         <template #total-cell="{ row }">
-          <span :class="row.original.kind === 'credit_note' ? 'text-warning' : ''">
+          <span :class="row.original.kind === 'credit_note' ? 'text-warning' : row.original.kind === 'gift' ? 'text-muted line-through' : ''">
             {{ formatCents(row.original.total_cents, row.original.currency) }}
           </span>
         </template>
@@ -453,7 +471,7 @@ const sourceLabel: Record<string, string> = {
             color="success"
             variant="ghost"
             size="xs"
-            :aria-label="`${t('admin.billing.payment.markPaid')} ${row.original.number}`"
+            :aria-label="`${t('admin.billing.payment.markPaid')} ${row.original.number ?? t('admin.billing.kindGift')}`"
             @click="openPayment(row.original)"
           />
           <UButton
@@ -464,7 +482,7 @@ const sourceLabel: Record<string, string> = {
             size="xs"
             :loading="savingPayment === row.original.id"
             :disabled="!!savingPayment && savingPayment !== row.original.id"
-            :aria-label="`${t('admin.billing.payment.markUnpaid')} ${row.original.number}`"
+            :aria-label="`${t('admin.billing.payment.markUnpaid')} ${row.original.number ?? t('admin.billing.kindGift')}`"
             @click="markUnpaid(row.original)"
           />
           <UButton
@@ -472,7 +490,7 @@ const sourceLabel: Record<string, string> = {
             color="neutral"
             variant="ghost"
             size="xs"
-            :aria-label="`${t('admin.billing.preview')} ${row.original.number}`"
+            :aria-label="`${t('admin.billing.preview')} ${row.original.number ?? t('admin.billing.kindGift')}`"
             @click="preview = row.original"
           />
           <UButton
@@ -483,7 +501,7 @@ const sourceLabel: Record<string, string> = {
             color="neutral"
             variant="ghost"
             size="xs"
-            :aria-label="`${t('admin.billing.download')} ${row.original.number}`"
+            :aria-label="`${t('admin.billing.download')} ${row.original.number ?? t('admin.billing.kindGift')}`"
           />
         </template>
       </UTable>
@@ -492,13 +510,13 @@ const sourceLabel: Record<string, string> = {
     <!-- Same in-page preview as the organization details. -->
     <UModal
       :open="!!preview"
-      :title="preview?.number"
+      :title="preview?.number ?? t('admin.billing.kindGift')"
       :description="preview?.organization_name"
       :ui="{ content: 'sm:max-w-4xl h-[90dvh]', body: 'p-0 sm:p-0 flex-1' }"
       @update:open="(value: boolean) => { if (!value) preview = null }"
     >
       <template #body>
-        <iframe v-if="preview" :src="pdfUrl(preview, true)" :title="preview.number" class="h-full min-h-[70dvh] w-full border-0" />
+        <iframe v-if="preview" :src="pdfUrl(preview, true)" :title="preview.number ?? t('admin.billing.kindGift')" class="h-full min-h-[70dvh] w-full border-0" />
       </template>
       <template #footer>
         <UButton

@@ -2496,5 +2496,11 @@
   "server.CLOSE_REASON_REQUIRED": "Indiquez pourquoi l’organisation est fermée.",
   "server.ORGANIZATION_NOT_CHANGED": "L’organisation n’a pas été modifiée.",
   "auth.organizationClosedTitle": "Organisation fermée",
-  "server.PACKAGE_ENDED_BY_CLOSURE": "Ce forfait a pris fin à la fermeture de l’organisation et ne peut plus être activé. Créez plutôt un nouveau forfait."
+  "server.PACKAGE_ENDED_BY_CLOSURE": "Ce forfait a pris fin à la fermeture de l’organisation et ne peut plus être activé. Créez plutôt un nouveau forfait.",
+  "server.GIFT_REASON_REQUIRED": "Indiquez la raison du cadeau.",
+  "adminGrant.giftTitle": "Vous avez reçu un cadeau",
+  "adminGrant.additionTitle": "Ajouté à votre forfait",
+  "server.PACKAGE_NOT_ACTIVE": "Seul un forfait actif peut être complété.",
+  "server.ADDITION_EMPTY": "Ajoutez au moins une publication, une vidéo ou un crédit.",
+  "server.ADDITION_PRICE_INVALID": "Indiquez un prix supérieur à zéro."
 }

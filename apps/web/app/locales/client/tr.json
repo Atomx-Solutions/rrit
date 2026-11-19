@@ -2496,5 +2496,11 @@
   "server.CLOSE_REASON_REQUIRED": "Kuruluşun neden kapatıldığını yazın.",
   "server.ORGANIZATION_NOT_CHANGED": "Kuruluş değiştirilmedi.",
   "auth.organizationClosedTitle": "Kuruluş kapatıldı",
-  "server.PACKAGE_ENDED_BY_CLOSURE": "Bu paket kuruluş kapatıldığında sona erdi ve yeniden etkinleştirilemez. Bunun yerine yeni bir paket oluşturun."
+  "server.PACKAGE_ENDED_BY_CLOSURE": "Bu paket kuruluş kapatıldığında sona erdi ve yeniden etkinleştirilemez. Bunun yerine yeni bir paket oluşturun.",
+  "server.GIFT_REASON_REQUIRED": "Hediye için bir neden girin.",
+  "adminGrant.giftTitle": "Bir hediye aldınız",
+  "adminGrant.additionTitle": "Paketinize eklendi",
+  "server.PACKAGE_NOT_ACTIVE": "Yalnızca etkin bir pakete ekleme yapılabilir.",
+  "server.ADDITION_EMPTY": "En az bir gönderi, video veya kredi ekleyin.",
+  "server.ADDITION_PRICE_INVALID": "Sıfırdan büyük bir fiyat girin."
 }

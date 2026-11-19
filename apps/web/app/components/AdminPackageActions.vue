@@ -26,6 +26,8 @@ const { onFormError, watchError } = useFormFeedback()
 type Action = 'extend' | 'activate' | 'cancel'
 const action = ref<Action | null>(null)
 const days = ref(30)
+const gift = ref(false)
+const giftReason = ref('')
 const saving = ref(false)
 const error = ref('')
 watchError(error)
@@ -63,6 +65,8 @@ const items = computed(() => {
 function open(next: Action) {
   error.value = ''
   days.value = 30
+  gift.value = false
+  giftReason.value = ''
   action.value = next
 }
 
@@ -82,10 +86,14 @@ async function submit() {
           ...(held.status === 'active' ? {} : { status: 'active' as const }),
         }
       : { status: action.value === 'activate' ? ('active' as const) : ('cancelled' as const) }
+  // Switching a package on is invoiced unless it is given as a gift.
+  const giftChange = action.value !== 'cancel' && gift.value
+    ? { gift: true, gift_reason: giftReason.value.trim() }
+    : {}
   try {
     await $fetch(`/api/admin/organizations/${props.organizationId}/packages/${held.id}`, {
       method: 'PATCH',
-      body,
+      body: { ...body, ...giftChange },
     })
     toast.add({ title: t('admin.packageActions.saved'), color: 'success' })
     action.value = null
@@ -131,8 +139,17 @@ async function submit() {
           variant="subtle"
           :title="action ? t(`admin.packageActions.confirm.${action}`) : ''"
         />
+        <template v-if="action !== 'cancel'">
+          <UFormField name="gift" :help="t('admin.packages.giftHint')">
+            <UCheckbox v-model="gift" :label="t('admin.packages.gift')" />
+          </UFormField>
+          <UFormField v-if="gift" name="gift_reason" :label="t('admin.packages.giftReason')" required>
+            <UTextarea v-model="giftReason" :maxlength="500" :rows="2" class="w-full" />
+          </UFormField>
+        </template>
         <UButton
           type="submit"
+          :disabled="gift && giftReason.trim().length < 3"
           :loading="saving"
           :color="action === 'cancel' ? 'error' : 'primary'"
           :label="t('admin.packageActions.confirmButton')"

@@ -2496,5 +2496,11 @@
   "server.CLOSE_REASON_REQUIRED": "Enter why the organization is being closed.",
   "server.ORGANIZATION_NOT_CHANGED": "The organization was not changed.",
   "auth.organizationClosedTitle": "Organization closed",
-  "server.PACKAGE_ENDED_BY_CLOSURE": "This package ended when the organization was closed and cannot be activated again. Create a new package instead."
+  "server.PACKAGE_ENDED_BY_CLOSURE": "This package ended when the organization was closed and cannot be activated again. Create a new package instead.",
+  "server.GIFT_REASON_REQUIRED": "Enter a reason for the gift.",
+  "adminGrant.giftTitle": "You received a gift",
+  "adminGrant.additionTitle": "Added to your package",
+  "server.PACKAGE_NOT_ACTIVE": "Only an active package can be added to.",
+  "server.ADDITION_EMPTY": "Add at least one post, video or credit.",
+  "server.ADDITION_PRICE_INVALID": "Enter a price above zero."
 }

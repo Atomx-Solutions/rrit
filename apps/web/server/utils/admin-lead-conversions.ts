@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { adminServiceClient } from './admin-supabase'
-import { adminCurrency, sumInCurrency } from './admin-currency'
+import { adminCurrency, adminReportingTimezone, nextDay, startOfDayIn, sumInCurrency } from './admin-currency'
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 export const leadConversionRangeSchema = z.object({ from: day, to: day }).refine(
@@ -9,10 +9,9 @@ export const leadConversionRangeSchema = z.object({ from: day, to: day }).refine
 )
 
 export async function adminLeadConversionSummary(range: z.infer<typeof leadConversionRangeSchema>) {
-  const from = `${range.from}T00:00:00.000Z`
-  const end = new Date(`${range.to}T00:00:00.000Z`)
-  end.setUTCDate(end.getUTCDate() + 1)
-  const rangeArgs = { p_from: from, p_to: end.toISOString() }
+  // The chosen days are calendar days in the admin's time zone, not in UTC.
+  const timeZone = await adminReportingTimezone()
+  const rangeArgs = { p_from: startOfDayIn(range.from, timeZone), p_to: startOfDayIn(nextDay(range.to), timeZone) }
   const [{ data, error }, byCurrency, currency] = await Promise.all([
     adminServiceClient().rpc('admin_package_request_conversion_summary', rangeArgs),
     adminServiceClient().rpc('admin_package_request_conversion_value_by_currency', rangeArgs),
@@ -29,9 +28,11 @@ export async function adminLeadConversionSummary(range: z.infer<typeof leadConve
   const value = (data || {}) as Record<string, unknown>
   const count = (key: string) => Number(value[key]) || 0
   const total = count('total')
+  const decided = count('won') + count('lost')
   return {
     total, new: count('new'), contacted: count('contacted'), proposalSent: count('proposal_sent'),
     won: count('won'), lost: count('lost'), conversionValueCents, currency,
-    conversionRate: total ? Math.round((count('won') / total) * 10_000) / 100 : 0,
+    // Only decided leads count: one still open is neither won nor lost yet.
+    conversionRate: decided ? Math.round((count('won') / decided) * 10_000) / 100 : 0,
   }
 }
