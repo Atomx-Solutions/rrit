@@ -134,7 +134,8 @@ async function rpc(name: string, args: Record<string, unknown>) {
 }
 
 export async function adminOrganizationPackages(organizationId: string) {
-  const [listing, grants, documents] = await Promise.all([
+  const client = adminServiceClient()
+  const [listing, grants, documents, invoices, payments, orders, gifts] = await Promise.all([
     rpc('admin_organization_packages', { target_organization_id: organizationId }),
     // Every credit a package handed out: the credits its posts fund when it
     // starts, and every addition since. That is the package's credit total.
@@ -149,7 +150,34 @@ export async function adminOrganizationPackages(organizationId: string) {
       .from('package_additions')
       .select('id, invoice_id, gift_id')
       .eq('organization_id', organizationId),
+    // The invoice a package was bought with, and whether it is paid.
+    client.from('invoices').select('id, source_reference').eq('organization_id', organizationId).eq('kind', 'invoice'),
+    client.from('invoice_payments').select('invoice_id, status, due_at').eq('organization_id', organizationId),
+    client.from('paddle_payment_orders').select('package_id, paddle_transaction_id').eq('organization_id', organizationId),
+    client.from('package_gifts').select('id, package_id').eq('organization_id', organizationId),
   ])
+  const failed = invoices.error || payments.error || orders.error || gifts.error
+  if (failed) {
+    console.error('Admin package payments read failed.', { code: failed.code, message: failed.message })
+    throw createError({ statusCode: 502, message: 'server.PACKAGE_NOT_SAVED' })
+  }
+  const additionDocuments = new Set((documents.data ?? []).flatMap(row => [row.invoice_id, row.gift_id]).filter(Boolean))
+  // Paid, unpaid or overdue from the package's own invoice; a gift when it was
+  // given instead of sold; nothing for a proposal that was never bought.
+  function packagePayment(packageId: string) {
+    const references = new Set([
+      packageId,
+      ...(orders.data ?? []).filter(order => order.package_id === packageId).map(order => order.paddle_transaction_id),
+    ])
+    const invoice = (invoices.data ?? []).find(row => references.has(row.source_reference) && !additionDocuments.has(row.id))
+    if (invoice) {
+      const payment = (payments.data ?? []).find(row => row.invoice_id === invoice.id)
+      if (!payment) return null
+      if (payment.status === 'paid') return 'paid'
+      return Date.parse(payment.due_at) <= Date.now() ? 'overdue' : 'unpaid'
+    }
+    return (gifts.data ?? []).some(gift => gift.package_id === packageId && !additionDocuments.has(gift.id)) ? 'gift' : null
+  }
   if (documents.error) {
     console.error('Admin package additions read failed.', { code: documents.error.code, message: documents.error.message })
     throw createError({ statusCode: 502, message: 'server.PACKAGE_NOT_SAVED' })
@@ -167,6 +195,7 @@ export async function adminOrganizationPackages(organizationId: string) {
     packages: packages.map(pkg => ({
       ...pkg,
       credits_granted: granted.get(String(pkg.id)) ?? 0,
+      payment_status: packagePayment(String(pkg.id)),
       additions: (Array.isArray(pkg.additions) ? pkg.additions as Array<Record<string, unknown>> : []).map((addition) => {
         const document = (documents.data ?? []).find(row => row.id === addition.id)
         return { ...addition, invoice_id: document?.invoice_id ?? null, gift_id: document?.gift_id ?? null }

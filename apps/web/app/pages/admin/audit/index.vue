@@ -146,6 +146,13 @@ const resultColors: Record<string, 'success' | 'error' | 'warning' | 'neutral'> 
 }
 // The selected event opens in a modal as readable label/value rows.
 const selected = ref<AuditEvent | null>(null)
+// The event dialog closes before the organization opens, so it does not stay
+// on top of the organization's own dialog.
+async function openEventOrganization() {
+  const id = eventOrganizationId(selected.value)
+  selected.value = null
+  if (id) await navigateTo(`/admin/organizations/${id}`)
+}
 type DetailRow = { label: string, value: string }
 // Known fields get a plain-language label; others turn "previous_status"
 // into "Previous status". Nested values are shown compactly on one line.
@@ -469,11 +476,11 @@ const tableUi = {
       <template #footer>
         <UButton
           v-if="eventOrganizationId(selected)"
-          :to="`/admin/organizations/${eventOrganizationId(selected)}`"
           icon="i-lucide-building-2"
           color="neutral"
           variant="outline"
           :label="t('admin.audit.openOrganization')"
+          @click="openEventOrganization"
         />
       </template>
     </UModal>

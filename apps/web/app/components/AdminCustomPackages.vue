@@ -25,6 +25,7 @@ export type AdminCustomPackage = {
   remaining_days: number
   // Every credit the package handed out: those its posts fund plus additions.
   credits_granted?: number
+  payment_status?: 'paid' | 'unpaid' | 'overdue' | 'gift' | null
   additions?: PackageAddition[]
 }
 
@@ -128,6 +129,12 @@ const defaultVideoPriceCents = computed(() => data.value?.video_price_cents ?? 0
 // so a proposal can never quote a rate the platform does not charge.
 const creditPriceCents = computed(() => data.value?.credit_price_cents ?? 0)
 
+const paymentColors: Record<NonNullable<AdminCustomPackage['payment_status']>, 'success' | 'warning' | 'error' | 'primary'> = {
+  paid: 'success',
+  unpaid: 'warning',
+  overdue: 'error',
+  gift: 'primary',
+}
 const statusColors: Record<AdminCustomPackage['status'], 'success' | 'info' | 'neutral'> = {
   active: 'success',
   draft: 'info',
@@ -482,12 +489,12 @@ const listUi = {
       <template #price-cell="{ row }">
         <span>{{ formatPackageMoney(row.original.price_cents, row.original.currency) }}</span>
         <UBadge
-          v-if="row.original.price_cents !== row.original.suggested_price_cents"
-          color="warning"
+          v-if="row.original.payment_status"
+          :color="paymentColors[row.original.payment_status]"
           variant="subtle"
           size="sm"
           class="ms-2"
-          :label="t('admin.packages.overridden')"
+          :label="row.original.payment_status === 'gift' ? t('admin.billing.kindGift') : t(`admin.billing.payment.status.${row.original.payment_status}`)"
         />
       </template>
       <template #period-cell="{ row }">
