@@ -2,6 +2,7 @@
 import type { TableColumn } from '@nuxt/ui'
 import { z } from 'zod'
 import { belowPaddleMinimum, paddleMinimumCents } from '~~/shared/utils/paddle-minimum'
+import type { PackageAddition } from './AdminPackageState.vue'
 
 export type AdminCustomPackage = {
   id: string
@@ -20,7 +21,11 @@ export type AdminCustomPackage = {
   notes: string | null
   used_posts: number
   remaining_posts: number
+  used_videos: number
   remaining_days: number
+  // Every credit the package handed out: those its posts fund plus additions.
+  credits_granted?: number
+  additions?: PackageAddition[]
 }
 
 const props = defineProps<{ organizationId: string; organizationName: string; editPackageId?: string | null }>()
@@ -78,6 +83,7 @@ const {
   post_price_cents: number
   video_price_cents: number
   credit_price_cents: number
+  credits_remaining: number
   packages: AdminCustomPackage[]
 }>(() => `/api/admin/organizations/${props.organizationId}/packages`, {
   immediate: false,
@@ -93,6 +99,27 @@ watch(
 // Extra credits and videos bought on top of a package are merged into it; they
 // are part of that package, not packages of their own, so the list leaves them out.
 const packages = computed(() => (data.value?.packages || []).filter(pkg => pkg.status !== 'merged'))
+// The running package is shown with where it stands and how to add to it.
+const activePackage = computed(() => packages.value.find(pkg => pkg.status === 'active') ?? null)
+// What a running package contains is changed only by adding to it (paid or as
+// a gift), so its edit form keeps to the name, the period and the status.
+const contentsLocked = computed(() => editing.value?.status === 'active')
+const stateOpen = ref(false)
+// The credits a package really gave: a draft has granted none yet, so it shows
+// what it offers.
+function packageCredits(pkg: AdminCustomPackage) {
+  return Math.max(pkg.credits_granted ?? 0, pkg.credits_included)
+}
+// The running package opens its status dialog (Add, Gift); any other package
+// opens the form, where a proposal's contents are still agreed.
+function openPackage(row: AdminCustomPackage) {
+  if (row.status === 'active') stateOpen.value = true
+  else void startEdit(row)
+}
+async function onStateChanged() {
+  await reload()
+  emit('changed')
+}
 // The platform rate is only the default a new package starts from; each
 // package then carries the rate actually agreed with this organization.
 const defaultPostPriceCents = computed(() => data.value?.post_price_cents ?? 0)
@@ -168,6 +195,8 @@ const form = reactive({
   ends_at: '',
   status: 'draft' as AdminCustomPackage['status'],
   notes: '',
+  gift: false,
+  gift_reason: '',
 })
 const suggestedCents = computed(
   () => form.posts_included * form.post_price_cents
@@ -239,6 +268,8 @@ function startCreate() {
     ends_at: inAMonth.toISOString().slice(0, 10),
     status: 'draft' as const,
     notes: '',
+    gift: false,
+    gift_reason: '',
   })
   creating.value = true
 }
@@ -261,6 +292,8 @@ async function startEdit(row: AdminCustomPackage) {
     ends_at: dayInput(row.ends_at),
     status: row.status,
     notes: row.notes || '',
+    gift: false,
+    gift_reason: '',
   })
   editing.value = row
 }
@@ -269,7 +302,7 @@ watch([() => props.editPackageId, packages], ([id, rows]) => {
   if (!id) return
   const row = rows.find(item => item.id === id)
   if (!row) return
-  void startEdit(row)
+  openPackage(row)
   emit('editOpened')
 }, { immediate: true })
 
@@ -293,24 +326,30 @@ function useSuggestion() {
 }
 
 async function submit() {
-  if (priceBelowMinimum.value) return
+  if (!contentsLocked.value && priceBelowMinimum.value) return
   saving.value = true
   error.value = ''
   const notes = form.notes.trim()
+  const contents = contentsLocked.value
+    ? {}
+    : {
+        posts_included: form.posts_included,
+        videos_included: form.videos_included,
+        ...(editing.value
+          ? { credit_top_up: form.credit_top_up || undefined }
+          : { credits_included: form.credits_included }),
+        post_price_cents: form.post_price_cents,
+        video_price_cents: form.video_price_cents,
+        price_cents: form.price_cents,
+      }
   const body = {
     name: form.name.trim(),
-    posts_included: form.posts_included,
-    videos_included: form.videos_included,
-    ...(editing.value
-      ? { credit_top_up: form.credit_top_up || undefined }
-      : { credits_included: form.credits_included }),
-    post_price_cents: form.post_price_cents,
-    video_price_cents: form.video_price_cents,
-    price_cents: form.price_cents,
+    ...contents,
     starts_at: dayToIso(form.starts_at),
     ends_at: dayToIso(form.ends_at),
     status: form.status,
     notes: notes || null,
+    ...(form.gift && !contentsLocked.value ? { gift: true, gift_reason: form.gift_reason.trim() } : {}),
   }
   try {
     if (editing.value)
@@ -374,6 +413,27 @@ const listUi = {
 }
 </script>
 <template>
+  <!-- A running package opens on where it stands and how to add to it. -->
+  <UModal
+    :open="stateOpen && !!activePackage"
+    :title="activePackage ? t('admin.packageState.dialogTitle', { name: activePackage.name }) : ''"
+    :description="organizationName"
+    :ui="{ content: 'sm:max-w-3xl' }"
+    @update:open="(value: boolean) => { stateOpen = value }"
+  >
+    <template #body>
+      <AdminPackageState
+        v-if="activePackage"
+        :organization-id="organizationId"
+        :organization-name="organizationName"
+        :pkg="activePackage"
+        :credits-remaining="data?.credits_remaining ?? 0"
+        :credit-price-cents="creditPriceCents"
+        :format-money="formatPackageMoney"
+        @changed="onStateChanged"
+      />
+    </template>
+  </UModal>
   <UCard :ui="{ header: 'p-4 sm:px-4', body: 'p-0 sm:p-0' }">
     <template #header>
       <div class="flex items-center justify-between gap-2">
@@ -403,7 +463,7 @@ const listUi = {
       <template #posts-cell="{ row }">
         <span>{{ t('admin.packages.postsValue', { count: row.original.posts_included }) }}</span>
         <span v-if="row.original.videos_included > 0" class="text-muted"> · {{ row.original.videos_included }} {{ t('admin.packages.videos') }}</span>
-        <span v-if="row.original.credits_included > 0" class="text-muted"> · {{ t('admin.packages.creditsValue', { count: row.original.credits_included }) }}</span>
+        <span v-if="packageCredits(row.original) > 0" class="text-muted"> · {{ t('admin.packages.creditsValue', { count: packageCredits(row.original) }) }}</span>
         <span class="ms-2 text-xs text-muted">
           {{
             t('admin.packages.perPost', { price: formatPackageMoney(row.original.post_price_cents, row.original.currency) })
@@ -447,7 +507,7 @@ const listUi = {
           variant="ghost"
           size="xs"
           :aria-label="t('admin.packages.editFor', { name: row.original.name })"
-          @click="startEdit(row.original)"
+          @click="openPackage(row.original)"
         />
         <UButton
           icon="i-lucide-trash-2"
@@ -506,6 +566,14 @@ const listUi = {
 
         <USeparator />
 
+        <UAlert
+          v-if="contentsLocked"
+          color="neutral"
+          variant="subtle"
+          icon="i-lucide-info"
+          :description="t('admin.packageState.lockedHint')"
+        />
+        <template v-else>
         <!-- What the client receives -->
         <section class="space-y-4">
           <div>
@@ -590,10 +658,19 @@ const listUi = {
           </UFormField>
         </section>
 
+        </template>
+
         <USeparator />
 
         <UFormField name="notes" :label="t('admin.packages.notes')" :hint="t('admin.subscription.optional')">
           <UTextarea v-model="form.notes" :maxlength="2000" :rows="2" class="w-full" />
+        </UFormField>
+
+        <UFormField v-if="!contentsLocked" name="gift" :help="t('admin.packages.giftHint')">
+          <UCheckbox v-model="form.gift" :label="t('admin.packages.gift')" />
+        </UFormField>
+        <UFormField v-if="form.gift" name="gift_reason" :label="t('admin.packages.giftReason')" required>
+          <UTextarea v-model="form.gift_reason" :maxlength="500" :rows="2" class="w-full" />
         </UFormField>
       </UForm>
     </template>
@@ -605,7 +682,7 @@ const listUi = {
           :label="t('admin.packages.cancel')"
           @click="creating = false; editing = null"
         />
-        <UButton type="submit" form="custom-package-form" :loading="saving" :disabled="priceBelowMinimum" :label="t('admin.packages.save')" />
+        <UButton type="submit" form="custom-package-form" :loading="saving" :disabled="(!contentsLocked && priceBelowMinimum) || (form.gift && !contentsLocked && form.gift_reason.trim().length < 3)" :label="t('admin.packages.save')" />
       </div>
     </template>
   </UModal>

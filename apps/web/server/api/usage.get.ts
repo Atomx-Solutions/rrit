@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   measure('auth', startedAt)
   startedAt = performance.now()
-  const { access, usage, credits, lowCredit, pendingProposals, packageExpiry } = await withBusinessTransaction(
+  const { access, usage, credits, lowCredit, pendingProposals, packageExpiry, adminGrants } = await withBusinessTransaction(
     user.id,
     async (client, business) => {
       let stepStartedAt = performance.now()
@@ -45,6 +45,12 @@ export default defineEventHandler(async (event) => {
         "SELECT count(*)::text AS count FROM custom_packages WHERE status='draft'",
       )
       measure('proposals', stepStartedAt)
+      stepStartedAt = performance.now()
+      // Gifts and additions from the Framic team, so the business hears of them.
+      const grants = await client.query<{ id: string; kind: 'gift' | 'addition'; description: string; created_at: Date }>(
+        'SELECT id, kind, description, created_at FROM app.recent_admin_grants()',
+      )
+      measure('adminGrants', stepStartedAt)
       return {
         access,
         usage,
@@ -55,6 +61,12 @@ export default defineEventHandler(async (event) => {
         // already asks for this snapshot, so the navigation can flag Billing
         // without a request of its own.
         pendingProposals: Number(proposals.rows[0]?.count ?? 0),
+        adminGrants: grants.rows.map(row => ({
+          id: row.id,
+          kind: row.kind,
+          description: row.description,
+          createdAt: new Date(row.created_at).toISOString(),
+        })),
       }
     },
   )
@@ -69,6 +81,7 @@ export default defineEventHandler(async (event) => {
     lowCredit,
     packageExpiry,
     pendingProposals,
+    adminGrants,
     usage: Object.entries(usage)
       .filter(([key]) => key !== 'ai_requests_per_day')
       .map(([key, value]) => ({

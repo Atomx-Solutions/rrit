@@ -3,12 +3,17 @@ type CachedRate = { rate: number; date: string; expiresAt: number }
 const cache = new Map<string, CachedRate>()
 const cacheTtlMs = 6 * 60 * 60 * 1000
 
-export async function getExchangeRate(from: string, to: string) {
+/**
+ * The rate between two currencies, today's or, with `on` (YYYY-MM-DD), the
+ * rate published for that day. A past day's rate never changes, so it is kept
+ * for as long as the process runs.
+ */
+export async function getExchangeRate(from: string, to: string, on?: string) {
   const base = from.toUpperCase()
   const quote = to.toUpperCase()
   if (base === quote)
-    return { base, quote, rate: 1, date: new Date().toISOString().slice(0, 10) }
-  const key = `${base}:${quote}`
+    return { base, quote, rate: 1, date: on ?? new Date().toISOString().slice(0, 10) }
+  const key = on ? `${base}:${quote}:${on}` : `${base}:${quote}`
   const cached = cache.get(key)
   if (cached && cached.expiresAt > Date.now())
     return { base, quote, rate: cached.rate, date: cached.date }
@@ -17,9 +22,11 @@ export async function getExchangeRate(from: string, to: string) {
   try {
     response = await $fetch<{ base: string; quote: string; rate: number; date: string }>(
       `https://api.frankfurter.dev/v2/rate/${base.toLowerCase()}/${quote.toLowerCase()}`,
-      { timeout: 5000 },
+      { timeout: 5000, query: on ? { date: on } : undefined },
     )
   } catch {
+    // A past day without a reachable quote falls back to today's rate.
+    if (on) return getExchangeRate(from, to)
     // Keep the last known rate when the provider is temporarily unavailable or
     // rate-limits us. A stale quote is preferable to breaking the customer flow.
     if (cached)
@@ -34,7 +41,7 @@ export async function getExchangeRate(from: string, to: string) {
   }
   if (!Number.isFinite(response.rate) || response.rate <= 0)
     throw new Error('Invalid exchange rate response')
-  cache.set(key, { rate: response.rate, date: response.date, expiresAt: Date.now() + cacheTtlMs })
+  cache.set(key, { rate: response.rate, date: response.date, expiresAt: on ? Number.POSITIVE_INFINITY : Date.now() + cacheTtlMs })
   return response
 }
 

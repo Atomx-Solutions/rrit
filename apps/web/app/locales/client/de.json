@@ -2496,5 +2496,11 @@
   "server.CLOSE_REASON_REQUIRED": "Geben Sie an, warum die Organisation geschlossen wird.",
   "server.ORGANIZATION_NOT_CHANGED": "Die Organisation wurde nicht geändert.",
   "auth.organizationClosedTitle": "Organisation geschlossen",
-  "server.PACKAGE_ENDED_BY_CLOSURE": "Dieses Paket endete mit der Schließung der Organisation und kann nicht wieder aktiviert werden. Erstellen Sie stattdessen ein neues Paket."
+  "server.PACKAGE_ENDED_BY_CLOSURE": "Dieses Paket endete mit der Schließung der Organisation und kann nicht wieder aktiviert werden. Erstellen Sie stattdessen ein neues Paket.",
+  "server.GIFT_REASON_REQUIRED": "Bitte einen Grund für das Geschenk angeben.",
+  "adminGrant.giftTitle": "Sie haben ein Geschenk erhalten",
+  "adminGrant.additionTitle": "Zu Ihrem Paket hinzugefügt",
+  "server.PACKAGE_NOT_ACTIVE": "Nur zu einem aktiven Paket kann etwas hinzugefügt werden.",
+  "server.ADDITION_EMPTY": "Fügen Sie mindestens einen Beitrag, ein Video oder ein Guthaben hinzu.",
+  "server.ADDITION_PRICE_INVALID": "Geben Sie einen Preis über null ein."
 }

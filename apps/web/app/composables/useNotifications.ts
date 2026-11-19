@@ -83,6 +83,17 @@ export function useNotifications() {
         signature: action,
       })
     }
+    // What the Framic team added: a gift or an addition to the package.
+    for (const grant of snapshot?.adminGrants ?? [])
+      list.push({
+        key: `admin-grant-${grant.id}`,
+        icon: grant.kind === 'gift' ? 'i-lucide-gift' : 'i-lucide-circle-plus',
+        tone: 'primary',
+        title: t(grant.kind === 'gift' ? 'adminGrant.giftTitle' : 'adminGrant.additionTitle'),
+        description: grant.description,
+        to: `${base.value}/billing`,
+        signature: grant.id,
+      })
     const trial = snapshot?.trial
     if (trial && !trial.paid && trial.state === 'active')
       list.push({

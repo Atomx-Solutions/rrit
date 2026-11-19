@@ -56,7 +56,10 @@ function truncate(value: string, max: number) {
 /** The payment state recorded beside the invoice; the invoice row never changes. */
 export type InvoicePaymentState = { status: 'paid' | 'unpaid'; dueAt: string; paidAt: string | null }
 
-export function invoicePdf(invoice: Invoice, payment?: InvoicePaymentState | null) {
+/** A gift is laid out exactly like an invoice; only its status says it was given free of charge. */
+export type GiftConfirmation = { reference: string; reason: string }
+
+export function invoicePdf(invoice: Invoice, payment?: InvoicePaymentState | null, gift?: GiftConfirmation) {
   const ops: string[] = []
   // Text in current fill color
   const text = (x: number, y: number, value: string, size = 10, bold = false) =>
@@ -85,7 +88,7 @@ export function invoicePdf(invoice: Invoice, payment?: InvoicePaymentState | nul
   ops.push('0 0 0 RG')
 
   // --- Invoice meta ---
-  text(50, 726, `No. ${invoice.number}`, 10, true)
+  text(50, 726, `No. ${gift?.reference ?? invoice.number}`, 10, true)
   text(50, 711, `Date & time: ${formatDate(invoice.issuedAt)}`)
   // The stored invoice status predates payment tracking and always reads
   // "paid"; the recorded payment is what the document must state.
@@ -94,7 +97,7 @@ export function invoicePdf(invoice: Invoice, payment?: InvoicePaymentState | nul
     : payment.status === 'paid'
       ? `Paid${payment.paidAt ? ` (${formatDate(payment.paidAt).split(' ')[0]})` : ''}`
       : `Unpaid - due by ${formatDate(payment.dueAt).split(' ')[0]}`
-  text(50, 696, `Status: ${statusLabel}`)
+  text(50, 696, `Status: ${gift ? `Gift${gift.reason ? ` - ${truncate(gift.reason, 70)}` : ''}` : statusLabel}`)
 
   // --- Section divider ---
   hline(50, 545, 684)
@@ -166,14 +169,16 @@ export function invoicePdf(invoice: Invoice, payment?: InvoicePaymentState | nul
   ops.push('0 0 0 rg')
 
   y -= 4
+  // A gift shows its value as the subtotal and the gift as VAT's line, so the
+  // box keeps the invoice's three rows and the total is what is owed: nothing.
   text(315, y, 'Subtotal', 9)
   text(490, y, formatInvoiceMoney(invoice.subtotal, invoice.currency), 9)
   y -= 16
-  text(315, y, `VAT (${invoice.vatRate.toLocaleString('en-US')}%)`, 9)
-  text(490, y, formatInvoiceMoney(invoice.vat, invoice.currency), 9)
+  text(315, y, gift ? 'Gift' : `VAT (${invoice.vatRate.toLocaleString('en-US')}%)`, 9)
+  text(490, y, formatInvoiceMoney(gift ? -invoice.subtotal : invoice.vat, invoice.currency), 9)
   y -= 20
   text(315, y, 'Total', 11, true)
-  text(490, y, formatInvoiceMoney(invoice.total, invoice.currency), 11, true)
+  text(490, y, formatInvoiceMoney(gift ? 0 : invoice.total, invoice.currency), 11, true)
 
   // --- Footer ---
   ops.push('0.09 0.41 0.30 RG')

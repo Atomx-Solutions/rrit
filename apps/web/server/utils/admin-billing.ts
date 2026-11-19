@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { adminServiceClient } from './admin-supabase'
-import { adminCurrency, sumInCurrency } from './admin-currency'
+import { adminCurrency, adminReportingTimezone, startOfDayIn, sumInCurrency } from './admin-currency'
 
 export const invoicePaymentFilters = ['paid', 'unpaid', 'overdue', 'credited'] as const
 
@@ -13,7 +13,7 @@ export const adminBillingInvoicesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   per_page: z.coerce.number().int().min(1).max(200).optional(),
   org_id: z.string().uuid().optional(),
-  kind: z.enum(['invoice', 'credit_note']).optional(),
+  kind: z.enum(['invoice', 'credit_note', 'gift']).optional(),
   source_type: z.enum(['subscription_activation', 'subscription_upgrade', 'credit_top_up', 'credit_note', 'custom_package', 'video_purchase']).optional(),
   from: isoDate.optional(),
   to: isoDate.optional(),
@@ -69,12 +69,15 @@ export type AdminBillingInvoicesQuery = z.infer<typeof adminBillingInvoicesQuery
 const summaryFields = ['gross_revenue_cents', 'net_revenue_cents', 'vat_cents', 'outstanding_cents', 'overdue_cents'] as const
 
 export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
+  const timeZone = await adminReportingTimezone()
+  const from = query.from ? startOfDayIn(query.from, timeZone) : null
+  const to = query.to ? startOfDayIn(query.to, timeZone) : null
   const filters = {
     p_org_id: query.org_id ?? null,
     p_kind: query.kind ?? null,
     p_source_type: query.source_type ?? null,
-    p_from: query.from ? `${query.from}T00:00:00Z` : null,
-    p_to: query.to ? `${query.to}T00:00:00Z` : null,
+    p_from: from,
+    p_to: to,
   }
   const [byCurrency, currency] = await Promise.all([
     adminServiceClient().rpc('admin_billing_summary_by_currency', filters),
@@ -96,8 +99,8 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
     p_org_id: query.org_id ?? null,
     p_kind: query.kind ?? null,
     p_source_type: query.source_type ?? null,
-    p_from: query.from ? `${query.from}T00:00:00Z` : null,
-    p_to: query.to ? `${query.to}T00:00:00Z` : null,
+    p_from: from,
+    p_to: to,
     p_payment: query.payment ?? null,
   })
   if (error) {
@@ -108,7 +111,7 @@ export async function adminBillingInvoices(query: AdminBillingInvoicesQuery) {
     invoices: Array<{
       id: string
       number: string
-      kind: 'invoice' | 'credit_note'
+      kind: 'invoice' | 'credit_note' | 'gift'
       status: string
       issued_at: string
       organization_id: string
@@ -153,6 +156,7 @@ type OrganizationCurrencyRow = {
   overdue_cents: number
   overdue_count: number
   last_issued_at: string
+  rate_date: string
 }
 
 /** Organizations with invoices, each with totals in the admin currency. */
@@ -167,7 +171,7 @@ export async function adminBillingOrganizations() {
   }
   const byOrganization = new Map<string, OrganizationCurrencyRow[]>()
   for (const row of (Array.isArray(data) ? data : []) as OrganizationCurrencyRow[]) {
-    const rows = byOrganization.get(row.organization_id) ?? []
+    const rows: OrganizationCurrencyRow[] = byOrganization.get(row.organization_id) ?? []
     rows.push(row)
     byOrganization.set(row.organization_id, rows)
   }

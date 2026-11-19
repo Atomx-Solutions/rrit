@@ -2496,5 +2496,11 @@
   "server.CLOSE_REASON_REQUIRED": "Shkruani pse po mbyllet organizata.",
   "server.ORGANIZATION_NOT_CHANGED": "Organizata nuk u ndryshua.",
   "auth.organizationClosedTitle": "Organizata është mbyllur",
-  "server.PACKAGE_ENDED_BY_CLOSURE": "Kjo paketë përfundoi kur u mbyll organizata dhe nuk mund të aktivizohet më. Krijo një paketë të re."
+  "server.PACKAGE_ENDED_BY_CLOSURE": "Kjo paketë përfundoi kur u mbyll organizata dhe nuk mund të aktivizohet më. Krijo një paketë të re.",
+  "server.GIFT_REASON_REQUIRED": "Shkruani arsyen e dhuratës.",
+  "adminGrant.giftTitle": "Morët një dhuratë",
+  "adminGrant.additionTitle": "U shtua në paketën tuaj",
+  "server.PACKAGE_NOT_ACTIVE": "Mund të shtohet vetëm te një paketë aktive.",
+  "server.ADDITION_EMPTY": "Shtoni të paktën një postim, video ose kredit.",
+  "server.ADDITION_PRICE_INVALID": "Shkruani një çmim mbi zero."
 }

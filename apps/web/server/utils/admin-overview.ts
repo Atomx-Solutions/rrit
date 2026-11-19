@@ -107,14 +107,15 @@ export async function adminOverview() {
   } catch {
     // Without a configured key no call can be attributed to the platform.
   }
-  const [kpis, sales, aiCosts, customPackages, settings] = await Promise.all([
+  const [kpis, sales, aiCosts, customPackages, packageBilling, settings] = await Promise.all([
     adminServiceClient().rpc('admin_overview_kpis'),
     adminServiceClient().rpc('admin_revenue_by_source_currency'),
     adminAiCosts(adminAiCostsRange({})!, keyFingerprint),
-    adminServiceClient().from('custom_packages').select('price_cents, currency, status, starts_at, ends_at, created_at'),
+    adminServiceClient().from('custom_packages').select('status, starts_at, ends_at'),
+    adminServiceClient().rpc('admin_packages_in_force_billing'),
     adminServiceClient().from('platform_settings').select('package_currency').eq('singleton', true).maybeSingle(),
   ])
-  const failed = kpis.error || sales.error || customPackages.error || settings.error
+  const failed = kpis.error || sales.error || customPackages.error || packageBilling.error || settings.error
   if (failed) {
     console.error('Admin overview query failed.', { code: failed.code, message: failed.message })
     throw createError({ statusCode: 502, message: 'server.ADMIN_STATS_LOAD_FAILED' })
@@ -122,14 +123,15 @@ export async function adminOverview() {
   // Invoices and packages keep the currency they were issued in; each amount
   // is converted to the superadmin's currency before anything is added up.
   const currency: 'CHF' | 'EUR' = settings.data?.package_currency === 'EUR' ? 'EUR' : 'CHF'
-  const rates = new Map<string, number>()
-  const rateFrom = async (from: string) => {
-    const base = from === 'EUR' ? 'EUR' : 'CHF'
-    if (!rates.has(base)) rates.set(base, (await getExchangeRate(base, currency)).rate)
-    return rates.get(base)!
-  }
-  const convert = async (cents: unknown, from: unknown) =>
-    Math.round(number(cents) * await rateFrom(typeof from === 'string' ? from : currency))
+  const rateFrom = async (from: string, on?: string) =>
+    (await getExchangeRate(from === 'EUR' ? 'EUR' : 'CHF', currency, on)).rate
+  // A sale keeps the value it had on the day it was invoiced; only figures
+  // about today (the package MRR, this month's AI cost) use today's rate.
+  const convert = async (cents: unknown, from: unknown, on?: unknown) =>
+    Math.round(number(cents) * await rateFrom(
+      typeof from === 'string' ? from : currency,
+      typeof on === 'string' ? on : undefined,
+    ))
 
   const totals = {
     plans_total_cents: 0, plans_this_month_cents: 0,
@@ -139,10 +141,10 @@ export async function adminOverview() {
   }
   for (const row of (Array.isArray(sales.data) ? sales.data : []).map(record)) {
     const source = row.source === 'credits' || row.source === 'videos' ? row.source : 'plans'
-    totals[`${source}_total_cents`] += await convert(row.total_cents, row.currency)
-    totals[`${source}_this_month_cents`] += await convert(row.this_month_cents, row.currency)
-    totals.vat_total_cents += await convert(row.vat_total_cents, row.currency)
-    totals.vat_this_month_cents += await convert(row.vat_this_month_cents, row.currency)
+    totals[`${source}_total_cents`] += await convert(row.total_cents, row.currency, row.rate_date)
+    totals[`${source}_this_month_cents`] += await convert(row.this_month_cents, row.currency, row.rate_date)
+    totals.vat_total_cents += await convert(row.vat_total_cents, row.currency, row.rate_date)
+    totals.vat_this_month_cents += await convert(row.vat_this_month_cents, row.currency, row.rate_date)
   }
 
   const summary = record(record(aiCosts).summary)
@@ -154,9 +156,16 @@ export async function adminOverview() {
   const inForce = packageRows.filter((pkg) => pkg.status === 'active'
     && new Date(pkg.starts_at).getTime() <= now
     && new Date(pkg.ends_at).getTime() > now)
+  // Recurring revenue is what the packages in force were really invoiced for
+  // (net of credit notes), spread over their period. A gift or a package that
+  // was never invoiced adds nothing: it is not money coming in.
   let packageMrrCents = 0
-  for (const pkg of inForce)
-    packageMrrCents += await convert(monthlyPackageCents(pkg.price_cents, pkg.starts_at, pkg.ends_at), pkg.currency)
+  for (const row of (Array.isArray(packageBilling.data) ? packageBilling.data : []).map(record))
+    packageMrrCents += await convert(
+      monthlyPackageCents(row.billed_cents, String(row.starts_at), String(row.ends_at)),
+      row.currency,
+      row.rate_date,
+    )
   // Every revenue figure here is net of VAT: VAT is collected for the state,
   // not earned. Monthly revenue is what was invoiced this month (an annual plan
   // counts in full in its purchase month), net of credit notes.
