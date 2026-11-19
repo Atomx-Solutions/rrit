@@ -8,6 +8,8 @@ export type NotificationItem = {
   description: string
   to: string
   request?: 'package' | 'credits'
+  // A channel notice shows that network's own logo, as on connected accounts.
+  channel?: 'Facebook' | 'Instagram' | 'TikTok'
   // What makes this notice new: once it changes (more posts waiting, another
   // package ending) a notice read or removed earlier shows again.
   signature: string
@@ -111,12 +113,13 @@ export function useNotifications() {
       { key: 'facebook', label: 'Facebook', status: meta.value?.connection?.status, query: 'channel=Facebook' },
       { key: 'instagram', label: 'Instagram', status: instagram.value?.connection?.status, query: 'channel=Instagram' },
       { key: 'tiktok', label: 'TikTok', status: tiktok.value?.connection?.status, query: 'channel=TikTok' },
-    ]
+    ] as const
     for (const channel of socialChannels) {
       if (channel.status !== undefined && channel.status !== 'connected')
         list.push({
           key: `connection-${channel.key}`,
-          icon: 'i-lucide-link',
+          icon: channelIcon(channel.label),
+          channel: channel.label,
           tone: 'neutral',
           title: t('nav.channelNotConnected', { channel: channel.label }),
           description: t('nav.channelNotConnectedDescription', { channel: channel.label }),

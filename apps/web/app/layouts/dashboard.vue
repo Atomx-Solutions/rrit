@@ -473,14 +473,17 @@ onBeforeUnmount(removeNavigationGuard)
               >
                 <span
                   class="flex size-9 shrink-0 items-center justify-center rounded-lg"
-                  :class="note.read ? 'bg-elevated text-muted' : {
+                  :class="note.channel ? '' : note.read ? 'bg-elevated text-muted' : {
                     'bg-error/10 text-error': note.tone === 'error',
                     'bg-warning/10 text-warning': note.tone === 'warning',
                     'bg-primary/10 text-primary': note.tone === 'primary',
                     'bg-elevated text-muted': note.tone === 'neutral',
                   }"
                 >
-                  <UIcon :name="note.icon" class="size-4" />
+                  <FacebookLogo v-if="note.channel === 'Facebook'" class="size-5" />
+                  <InstagramLogo v-else-if="note.channel === 'Instagram'" class="size-5" />
+                  <TikTokLogo v-else-if="note.channel === 'TikTok'" class="size-5" />
+                  <UIcon v-else :name="note.icon" class="size-4" />
                 </span>
                 <span class="min-w-0 flex-1">
                   <span class="flex items-center gap-2 text-sm" :class="note.read ? 'text-muted' : 'font-semibold text-highlighted'">
