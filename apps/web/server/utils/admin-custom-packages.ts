@@ -135,7 +135,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
 
 export async function adminOrganizationPackages(organizationId: string) {
   const client = adminServiceClient()
-  const [listing, grants, documents, invoices, payments, orders, gifts] = await Promise.all([
+  const [listing, grants, documents, invoices, payments, orders, gifts, perPost, perVideo] = await Promise.all([
     rpc('admin_organization_packages', { target_organization_id: organizationId }),
     // Every credit a package handed out: the credits its posts fund when it
     // starts, and every addition since. That is the package's credit total.
@@ -148,15 +148,18 @@ export async function adminOrganizationPackages(organizationId: string) {
     // Which invoice or gift each addition produced, so it opens from the list.
     adminServiceClient()
       .from('package_additions')
-      .select('id, invoice_id, gift_id')
+      .select('id, invoice_id, gift_id, credits_granted')
       .eq('organization_id', organizationId),
     // The invoice a package was bought with, and whether it is paid.
     client.from('invoices').select('id, source_reference').eq('organization_id', organizationId).eq('kind', 'invoice'),
     client.from('invoice_payments').select('invoice_id, status, due_at').eq('organization_id', organizationId),
     client.from('paddle_payment_orders').select('package_id, paddle_transaction_id').eq('organization_id', organizationId),
     client.from('package_gifts').select('id, package_id').eq('organization_id', organizationId),
+    // The credits each post and video brings, so an addition shows what it funds.
+    client.from('platform_settings').select('custom_package_credits_per_post').eq('singleton', true).maybeSingle(),
+    client.from('credit_pricing').select('video_credits').eq('singleton', true).maybeSingle(),
   ])
-  const failed = invoices.error || payments.error || orders.error || gifts.error
+  const failed = invoices.error || payments.error || orders.error || gifts.error || perPost.error || perVideo.error
   if (failed) {
     console.error('Admin package payments read failed.', { code: failed.code, message: failed.message })
     throw createError({ statusCode: 502, message: 'server.PACKAGE_NOT_SAVED' })
@@ -192,13 +195,20 @@ export async function adminOrganizationPackages(organizationId: string) {
   const packages = Array.isArray(listing.packages) ? listing.packages as Array<Record<string, unknown>> : []
   return {
     ...listing,
+    credits_per_post: perPost.data?.custom_package_credits_per_post ?? 0,
+    credits_per_video: perVideo.data?.video_credits ?? 0,
     packages: packages.map(pkg => ({
       ...pkg,
       credits_granted: granted.get(String(pkg.id)) ?? 0,
       payment_status: packagePayment(String(pkg.id)),
       additions: (Array.isArray(pkg.additions) ? pkg.additions as Array<Record<string, unknown>> : []).map((addition) => {
         const document = (documents.data ?? []).find(row => row.id === addition.id)
-        return { ...addition, invoice_id: document?.invoice_id ?? null, gift_id: document?.gift_id ?? null }
+        return {
+          ...addition,
+          invoice_id: document?.invoice_id ?? null,
+          gift_id: document?.gift_id ?? null,
+          credits_granted: document?.credits_granted ?? 0,
+        }
       }),
     })),
   }

@@ -85,6 +85,8 @@ const {
   video_price_cents: number
   credit_price_cents: number
   credits_remaining: number
+  credits_per_post: number
+  credits_per_video: number
   packages: AdminCustomPackage[]
 }>(() => `/api/admin/organizations/${props.organizationId}/packages`, {
   immediate: false,
@@ -436,6 +438,8 @@ const listUi = {
         :pkg="activePackage"
         :credits-remaining="data?.credits_remaining ?? 0"
         :credit-price-cents="creditPriceCents"
+        :credits-per-post="data?.credits_per_post ?? 0"
+        :credits-per-video="data?.credits_per_video ?? 0"
         :format-money="formatPackageMoney"
         @changed="onStateChanged"
       />

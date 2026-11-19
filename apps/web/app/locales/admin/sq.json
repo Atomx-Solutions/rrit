@@ -905,5 +905,7 @@
   "admin.packageState.giftedShort": "+{{count}} dhuratë",
   "admin.packageState.showAll": "Shiko të gjitha ({{count}})",
   "admin.packageState.showLess": "Më pak",
-  "admin.packageState.dialogTitle": "Paketa {{name}}"
+  "admin.packageState.dialogTitle": "Paketa {{name}}",
+  "admin.packageState.creditsToBalance": "Kredite që shtohen në bilanc",
+  "admin.packageState.creditsGranted": "+{{count}} kredite"
 }
