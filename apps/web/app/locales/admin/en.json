@@ -905,5 +905,7 @@
   "admin.packageState.giftedShort": "+{{count}} gifted",
   "admin.packageState.showAll": "Show all ({{count}})",
   "admin.packageState.showLess": "Show less",
-  "admin.packageState.dialogTitle": "Package {{name}}"
+  "admin.packageState.dialogTitle": "Package {{name}}",
+  "admin.packageState.creditsToBalance": "Credits added to the balance",
+  "admin.packageState.creditsGranted": "+{{count}} credits"
 }

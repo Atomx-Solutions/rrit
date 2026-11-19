@@ -12,6 +12,7 @@ export type PackageAddition = {
   number: string | null
   invoice_id: string | null
   gift_id: string | null
+  credits_granted?: number
   reason: string | null
   payment_status: 'paid' | 'unpaid' | 'overdue' | 'gift'
 }
@@ -40,6 +41,8 @@ const props = defineProps<{
   pkg: PackageForState
   creditsRemaining: number
   creditPriceCents: number
+  creditsPerPost: number
+  creditsPerVideo: number
   formatMoney: (cents: number, currency?: string) => string
 }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -110,6 +113,9 @@ const rateValueCents = computed(() => kinds.reduce((total, kind) => total + amou
 const valueCents = computed(() => mode.value === 'paid' && customPrice.value !== null
   ? Math.round(customPrice.value * 100)
   : rateValueCents.value)
+// Like a purchase, each post and video brings its credits to the balance.
+const creditsToBalance = computed(() =>
+  amounts.posts * props.creditsPerPost + amounts.videos * props.creditsPerVideo + amounts.credits)
 const nothingChosen = computed(() => kinds.every(kind => amounts[kind] === 0))
 const canSave = computed(() => !nothingChosen.value
   && valueCents.value > 0
@@ -248,6 +254,7 @@ function formatDay(value: string) {
             <p class="text-sm">{{ itemsLabel(item) }}</p>
             <p class="truncate text-xs text-muted">
               {{ formatDay(item.created_at) }}<template v-if="item.number"> · {{ item.number }}</template>
+              <template v-if="item.credits_granted && (item.posts || item.videos)"> · {{ t('admin.packageState.creditsGranted', { count: item.credits_granted }) }}</template>
             </p>
           </div>
           <span class="text-sm tabular-nums" :class="item.kind === 'gift' ? 'text-muted line-through' : ''">
@@ -360,6 +367,10 @@ function formatDay(value: string) {
           <div v-if="mode === 'gift'" class="mt-1 flex items-center justify-between">
             <span class="text-muted">{{ t('admin.packageState.toPay') }}</span>
             <span class="font-semibold tabular-nums">{{ formatMoney(0, pkg.currency) }}</span>
+          </div>
+          <div v-if="creditsToBalance > 0" class="mt-1 flex items-center justify-between">
+            <span class="text-muted">{{ t('admin.packageState.creditsToBalance') }}</span>
+            <span class="font-medium tabular-nums text-primary">+{{ creditsToBalance }}</span>
           </div>
           <p class="mt-2 text-xs text-muted">
             {{ nothingChosen
